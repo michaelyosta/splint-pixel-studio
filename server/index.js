@@ -14,6 +14,7 @@ import profilesRouter    from './routes/profiles.js';
 import messagesRouter    from './routes/messages.js';
 import moderationRouter  from './routes/moderation.js';
 import coloringsRouter   from './routes/colorings.js';
+import metaRouter        from './routes/meta.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -47,6 +48,7 @@ app.use('/users',       profilesRouter);    // GET /users/:id/profile etc.
 app.use('/messages',    messagesRouter);
 app.use('/moderation',  moderationRouter);
 app.use('/colorings',   coloringsRouter);
+app.use('/meta',        metaRouter);
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));

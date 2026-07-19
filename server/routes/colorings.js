@@ -6,12 +6,38 @@ import { deletePrivateOriginal, storePrivateOriginal } from '../services/media-s
 
 const router = Router();
 
+async function touchStreak(userId) {
+  const now = new Date().toISOString();
+  const today = now.slice(0, 10);
+  const streak = await get('SELECT * FROM daily_streaks WHERE user_id=?', [userId]);
+  if (!streak) {
+    await run('INSERT INTO daily_streaks (user_id,current_streak,longest_streak,total_days,last_active_date,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',
+      [userId, 1, 1, 1, today, now, now]);
+  } else if (streak.last_active_date !== today) {
+    const gap = streak.last_active_date ? Math.round((new Date(today).getTime() - new Date(streak.last_active_date).getTime()) / 86_400_000) : 999;
+    const nextCurrent = gap === 1 ? streak.current_streak + 1 : 1;
+    await run('UPDATE daily_streaks SET current_streak=?, longest_streak=?, total_days=total_days+1, last_active_date=?, updated_at=? WHERE user_id=?',
+      [nextCurrent, Math.max(streak.longest_streak, nextCurrent), today, now, userId]);
+  }
+}
+
+async function unlockAchievement(userId, achievementId) {
+  const def = await get('SELECT * FROM achievements WHERE id=?', [achievementId]);
+  if (!def) return;
+  const existing = await get('SELECT 1 FROM user_achievements WHERE user_id=? AND achievement_id=?', [userId, achievementId]);
+  if (existing) return;
+  await run('INSERT INTO user_achievements (user_id,achievement_id,unlocked_at) VALUES (?,?,?)', [userId, achievementId, new Date().toISOString()]);
+}
+
 function parseTemplate(row) {
   if (!row) return null;
   return {
     ...row,
     width: Number(row.width),
     height: Number(row.height),
+    est_minutes: Number(row.est_minutes || 3),
+    zone_count: Number(row.zone_count || 1),
+    daily_featured: Number(row.daily_featured || 0),
     palette: Array.isArray(row.palette_json) ? row.palette_json : JSON.parse(row.palette_json),
     cells: Array.isArray(row.cells_json) ? row.cells_json : JSON.parse(row.cells_json),
     palette_json: undefined,
@@ -61,10 +87,46 @@ function progressPayload(template, row) {
   };
 }
 
-// GET /colorings
+// GET /colorings — editorial catalog with filters
 router.get('/', authMiddleware, async (req, res) => {
-  const rows = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' ORDER BY category, title");
+  const { mood, theme, max_minutes, featured } = req.query;
+  const clauses = ["status='active'", "visibility='public'"];
+  const params = [];
+  if (mood) { clauses.push('mood=?'); params.push(mood); }
+  if (theme) { clauses.push('theme=?'); params.push(theme); }
+  if (max_minutes) { clauses.push('est_minutes<=?'); params.push(Number(max_minutes)); }
+  if (featured === '1') { clauses.push('daily_featured=1'); }
+  const where = clauses.join(' AND ');
+  const rows = await all(`SELECT * FROM coloring_templates WHERE ${where} ORDER BY daily_featured DESC, added_at DESC, title`, params);
   res.json(rows.map(parseTemplate).map(({ cells, ...template }) => ({ ...template, total_cells: cells.length })));
+});
+
+// GET /colorings/today — editorial "for you today" + quick picks
+router.get('/today', authMiddleware, async (req, res) => {
+  const featured = await get("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND daily_featured=1 ORDER BY added_at DESC LIMIT 1");
+  const quick = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND est_minutes<=3 ORDER BY added_at DESC LIMIT 6");
+  const allTemplates = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' ORDER BY added_at DESC");
+  const summarize = (row) => row ? { ...parseTemplate(row), cells: undefined, total_cells: parseTemplate(row).cells.length } : null;
+  res.json({
+    for_you: summarize(featured),
+    quick: quick.map((row) => { const t = parseTemplate(row); return { ...t, cells: undefined, total_cells: t.cells.length }; }),
+    newest: allTemplates.slice(0, 8).map((row) => { const t = parseTemplate(row); return { ...t, cells: undefined, total_cells: t.cells.length }; }),
+  });
+});
+
+// GET /colorings/:id/zones — fragmented session chunks with per-zone progress
+router.get('/:id/zones', authMiddleware, async (req, res) => {
+  const template = parseTemplate(await get("SELECT * FROM coloring_templates WHERE id=? AND status='active'", [req.params.id]));
+  if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
+  const progress = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
+  const filled = progress ? (Array.isArray(progress.filled_json) ? progress.filled_json : JSON.parse(progress.filled_json)) : emptyProgress(template);
+  const zoneRows = await all('SELECT * FROM coloring_zones WHERE template_id=? ORDER BY id', [template.id]);
+  const zones = zoneRows.map((row) => {
+    const indices = Array.isArray(row.cell_indices_json) ? row.cell_indices_json : JSON.parse(row.cell_indices_json);
+    const done = indices.reduce((count, index) => count + (filled[index] === template.cells[index] ? 1 : 0), 0);
+    return { id: row.id, title: row.title, total: indices.length, done, percent: indices.length ? Math.round((done / indices.length) * 100) : 100 };
+  });
+  res.json({ template_id: template.id, zones });
 });
 
 // DELETE /colorings/:id - only the owner can delete a user-created template
@@ -165,11 +227,32 @@ router.put('/:id/progress', authMiddleware, async (req, res) => {
   const now = new Date().toISOString();
   const completed = isComplete(template, filled);
   const completedAt = completed ? (existing?.completed_at || now) : null;
+  const wasEmpty = !existing || JSON.parse(existing.filled_json).every((color) => color === -1);
   const revision = Number(existing?.revision || 0) + 1;
   await run(`INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at)
     VALUES (?,?,?,?,?,?,?)
     ON CONFLICT(user_id,template_id) DO UPDATE SET filled_json=excluded.filled_json, revision=excluded.revision, completed_at=excluded.completed_at, updated_at=excluded.updated_at`,
     [req.userId, template.id, JSON.stringify(filled), revision, completedAt, existing?.created_at || now, now]);
+
+  await touchStreak(req.userId);
+  if (wasEmpty && filled.some((color) => color !== -1)) await unlockAchievement(req.userId, 'ach_first_pixel');
+  if (completed) {
+    await unlockAchievement(req.userId, 'ach_first_zone');
+    const finished = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.source_type='catalog'", [req.userId]);
+    if ((finished[0]?.c || 0) >= 5) await unlockAchievement(req.userId, 'ach_complete_5');
+    if (template.theme === 'night-city' || template.theme === 'space') {
+      const nightCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('night-city','space')", [req.userId]);
+      if ((nightCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_night');
+    }
+    if (template.theme === 'forest' || template.theme === 'cozy') {
+      const forestCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('forest','cozy')", [req.userId]);
+      if ((forestCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_forest');
+    }
+    if (template.theme === 'space' || template.theme === 'sea') {
+      const spaceCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('space','sea')", [req.userId]);
+      if ((spaceCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_space');
+    }
+  }
 
   let artworkId = null;
   if (completed) {

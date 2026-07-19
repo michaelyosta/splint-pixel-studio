@@ -33,7 +33,9 @@ export async function initDb() {
     mode = 'postgres';
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const migration = readFileSync(migrationPath, 'utf8');
+    const migration2 = readFileSync(join(directory, 'migrations', '002_meta.sql'), 'utf8');
     await pool.query(migration);
+    await pool.query(migration2);
   } else {
     mode = 'sqlite';
     const SQL = await initSqlJs();
@@ -84,6 +86,59 @@ export async function resetDemoData() {
   await seedDemoData();
 }
 
+const ZONE_PRESETS = {
+  'color_neon-cat': ['Фон ночного города', 'Уши и мордочка', 'Неоновые глаза', 'Передние лапы', 'Хвост с подсветкой', 'Звёздная пыль'],
+  'color_astro-whale': ['Звёздное небо', 'Голова кита', 'Тело и плавники', 'Хвост-комета', 'Созвездия вокруг', 'Глубокий космос'],
+  'color_tea-dragon': ['Пар чая', 'Голова дракона', 'Тело и крылья', 'Чашка и блюдце', 'Узоры на паре', 'Уютный фон'],
+  'color_alpine-train': ['Горное небо', 'Корпус поезда', 'Окна и фары', 'Рельсы и туннель', 'Сосны по бокам', 'Снежные вершины'],
+  'color_lantern-fox': ['Ночной лес', 'Мордочка лиса', 'Фонарь и свет', 'Лапы и хвост', 'Трава и кусты', 'Млечный путь'],
+  'color_coral-jellyfish': ['Водная гладь', 'Купол медузы', 'Щупальца', 'Пузырьки воздуха', 'Кораллы вокруг', 'Глубинное свечение'],
+};
+
+function buildZones(template) {
+  const { width, height, id } = template;
+  const labels = ZONE_PRESETS[id] || ['Верхняя часть', 'Центр', 'Низ', 'Левый край', 'Правый край', 'Фон'];
+  const rows = 3;
+  const cols = 2;
+  const zoneH = Math.ceil(height / rows);
+  const zoneW = Math.ceil(width / cols);
+  const zones = [];
+  let index = 0;
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      const x0 = c * zoneW;
+      const y0 = r * zoneH;
+      const x1 = Math.min(width, x0 + zoneW);
+      const y1 = Math.min(height, y0 + zoneH);
+      const indices = [];
+      for (let y = y0; y < y1; y += 1) {
+        for (let x = x0; x < x1; x += 1) indices.push(y * width + x);
+      }
+      zones.push({ title: labels[index % labels.length] || `Участок ${index + 1}`, indices });
+      index += 1;
+    }
+  }
+  return zones;
+}
+
+const ACHIEVEMENTS = [
+  { id: 'ach_first_pixel', title: 'Первый мазок', description: 'Закрасьте первый пиксель.', category: 'ritual', icon: 'sparkles', rarity: 'common' },
+  { id: 'ach_first_zone', title: 'Зона закрыта', description: 'Завершите первый участок раскраски.', category: 'ritual', icon: 'target', rarity: 'common' },
+  { id: 'ach_daily_3', title: 'Трёхдневка', description: 'Раскрашивайте 3 дня подряд.', category: 'streak', icon: 'flame', rarity: 'rare' },
+  { id: 'ach_daily_7', title: 'Неделя ритма', description: 'Серия из 7 дней подряд.', category: 'streak', icon: 'flame', rarity: 'epic' },
+  { id: 'ach_style_night', title: 'Ночной страж', description: 'Завершите 3 ночных раскраски.', category: 'style', icon: 'moon', rarity: 'rare' },
+  { id: 'ach_style_forest', title: 'Лесной след', description: 'Завершите 3 раскраски про лес.', category: 'style', icon: 'tree', rarity: 'rare' },
+  { id: 'ach_style_space', title: 'Космический дальнобойщик', description: 'Завершите 3 космических раскраски.', category: 'style', icon: 'rocket', rarity: 'rare' },
+  { id: 'ach_collector', title: 'Коллекционер', description: 'Откройте альбом коллекции.', category: 'collection', icon: 'book', rarity: 'epic' },
+  { id: 'ach_complete_5', title: 'Пять шедевров', description: 'Завершите 5 раскрасок.', category: 'ritual', icon: 'star', rarity: 'rare' },
+];
+
+const COLLECTIONS = [
+  { id: 'col_night-city', title: 'Ночной город', pack_type: 'free', rarity: 'common', total_artworks: 6, image_url: '/assets/catalog/neon-cat-pixel.png' },
+  { id: 'col_cozy-forest', title: 'Уютный лес', pack_type: 'free', rarity: 'common', total_artworks: 6, image_url: '/assets/catalog/lantern-fox-pixel.png' },
+  { id: 'col_space', title: 'Космос', pack_type: 'free', rarity: 'rare', total_artworks: 6, image_url: '/assets/catalog/astro-whale-pixel.png' },
+];
+
 async function seedDemoData() {
   const now = new Date().toISOString();
   if (!await get('SELECT id FROM users LIMIT 1')) {
@@ -98,13 +153,15 @@ async function seedDemoData() {
   const templates = JSON.parse(readFileSync(catalogPath, 'utf8'));
   await run("UPDATE coloring_templates SET status='archived' WHERE source_type='catalog'");
   const sql = `INSERT INTO coloring_templates
-    (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,mood,theme,est_minutes,collection_id,daily_featured,added_at,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description, category=excluded.category,
       difficulty=excluded.difficulty, width=excluded.width, height=excluded.height, palette_json=excluded.palette_json,
-      cells_json=excluded.cells_json, preview_url=excluded.preview_url, visibility='public', status='active', updated_at=excluded.updated_at`;
+      cells_json=excluded.cells_json, preview_url=excluded.preview_url, visibility='public', status='active',
+      mood=excluded.mood, theme=excluded.theme, est_minutes=excluded.est_minutes, collection_id=excluded.collection_id,
+      daily_featured=excluded.daily_featured, added_at=excluded.added_at, updated_at=excluded.updated_at`;
   for (const template of templates) {
-    await run(sql, [template.id, null, template.title, template.description, template.category, template.difficulty, template.width, template.height, JSON.stringify(template.palette), JSON.stringify(template.cells), template.preview, null, 'catalog', 'public', 'active', now, now]);
+    await run(sql, [template.id, null, template.title, template.description, template.category, template.difficulty, template.width, template.height, JSON.stringify(template.palette), JSON.stringify(template.cells), template.preview, null, 'catalog', 'public', 'active', template.mood || 'calm', template.theme || 'featured', template.est_minutes || 3, template.collection_id || null, template.daily_featured || 0, template.added_at || now, now, now]);
     const savedProgress = await all('SELECT * FROM coloring_progress WHERE template_id=?', [template.id]);
     for (const progress of savedProgress) {
       const filled = Array.isArray(progress.filled_json) ? progress.filled_json : JSON.parse(progress.filled_json);
@@ -122,6 +179,31 @@ async function seedDemoData() {
       }
       await run('DELETE FROM coloring_progress WHERE user_id=? AND template_id=?', [progress.user_id, template.id]);
     }
+  }
+
+  for (const collection of COLLECTIONS) {
+    await run(`INSERT INTO collections (id,title,pack_type,rarity,total_artworks,image_url) VALUES (?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET title=excluded.title, pack_type=excluded.pack_type, rarity=excluded.rarity, total_artworks=excluded.total_artworks, image_url=excluded.image_url`,
+    [collection.id, collection.title, collection.pack_type, collection.rarity, collection.total_artworks, collection.image_url]);
+  }
+
+  for (const achievement of ACHIEVEMENTS) {
+    await run(`INSERT INTO achievements (id,title,description,category,icon,rarity,created_at) VALUES (?,?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description, category=excluded.category, icon=excluded.icon, rarity=excluded.rarity`,
+    [achievement.id, achievement.title, achievement.description, achievement.category, achievement.icon, achievement.rarity, now]);
+  }
+
+  for (const template of templates) {
+    const existingZones = await all('SELECT id FROM coloring_zones WHERE template_id=?', [template.id]);
+    if (existingZones.length) continue;
+    const zones = buildZones(template);
+    for (let zoneIndex = 0; zoneIndex < zones.length; zoneIndex += 1) {
+      const zone = zones[zoneIndex];
+      await run('INSERT INTO coloring_zones (id,template_id,title,cell_indices_json,created_at) VALUES (?,?,?,?,?)',
+      [`zone_${template.id}_${zoneIndex}`, template.id, zone.title, JSON.stringify(zone.indices), now]);
+    }
+    await run('UPDATE coloring_templates SET zone_count=?, collection_id=?, theme=?, mood=?, est_minutes=?, daily_featured=?, added_at=? WHERE id=?',
+    [zones.length, template.collection_id || null, template.theme || 'featured', template.mood || 'calm', template.est_minutes || 3, template.daily_featured || 0, template.added_at || now, template.id]);
   }
 
   const brokenArtworks = await all("SELECT * FROM artworks WHERE image_url LIKE 'data:image/%' AND LENGTH(image_url) < 100");
@@ -168,6 +250,21 @@ function initSqliteSchema() {
     CREATE INDEX IF NOT EXISTS idx_coloring_progress_user ON coloring_progress(user_id, updated_at);
     CREATE INDEX IF NOT EXISTS idx_posts_feed ON posts(status, published_at);
     CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id, created_at);
+    CREATE TABLE IF NOT EXISTS daily_streaks (user_id TEXT PRIMARY KEY, current_streak INTEGER NOT NULL DEFAULT 0, longest_streak INTEGER NOT NULL DEFAULT 0, total_days INTEGER NOT NULL DEFAULT 0, last_active_date TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS achievements (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'style', icon TEXT NOT NULL DEFAULT 'star', rarity TEXT NOT NULL DEFAULT 'common', created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS user_achievements (user_id TEXT NOT NULL, achievement_id TEXT NOT NULL, unlocked_at TEXT NOT NULL, PRIMARY KEY (user_id, achievement_id));
+    CREATE TABLE IF NOT EXISTS coloring_zones (id TEXT PRIMARY KEY, template_id TEXT NOT NULL, title TEXT NOT NULL, cell_indices_json TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS analytics_events (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, event TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL);
   `);
+  try { sqlite.run('ALTER TABLE coloring_templates ADD COLUMN original_media_key TEXT'); } catch { /* Existing local databases already migrated. */ }
+  try { sqlite.run("ALTER TABLE coloring_templates ADD COLUMN mood TEXT NOT NULL DEFAULT 'calm'"); } catch { /* Existing local databases already migrated. */ }
+  try { sqlite.run("ALTER TABLE coloring_templates ADD COLUMN theme TEXT NOT NULL DEFAULT 'featured'"); } catch { /* Existing local databases already migrated. */ }
+  try { sqlite.run("ALTER TABLE coloring_templates ADD COLUMN est_minutes INTEGER NOT NULL DEFAULT 3"); } catch { /* Existing local databases already migrated. */ }
+  try { sqlite.run("ALTER TABLE coloring_templates ADD COLUMN collection_id TEXT"); } catch { /* Existing local databases already migrated. */ }
+  try { sqlite.run("ALTER TABLE coloring_templates ADD COLUMN zone_count INTEGER NOT NULL DEFAULT 1"); } catch { /* Existing local databases already migrated. */ }
+  try { sqlite.run("ALTER TABLE coloring_templates ADD COLUMN daily_featured INTEGER NOT NULL DEFAULT 0"); } catch { /* Existing local databases already migrated. */ }
+  try { sqlite.run("ALTER TABLE coloring_templates ADD COLUMN added_at TEXT"); } catch { /* Existing local databases already migrated. */ }
+  try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_coloring_zones_template ON coloring_zones(template_id)'); } catch { /* noop */ }
+  try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_analytics_user_event ON analytics_events(user_id, event, created_at DESC)'); } catch { /* noop */ }
   try { sqlite.run('ALTER TABLE coloring_templates ADD COLUMN original_media_key TEXT'); } catch { /* Existing local databases already migrated. */ }
 }
