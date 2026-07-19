@@ -17,6 +17,8 @@ dist-ssr
 server/splint.db.bin
 server/uploads/
 server/*.log
+assets/*.pid
+assets/*_pid.txt
 
 # Editor directories and files
 .vscode/*
