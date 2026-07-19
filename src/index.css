@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --app-bg: #0B131A;
+  --app-card: #14222E;
+  --app-card-hover: #1E3141;
+  --app-border: #1E3547;
+  --app-text-primary: #FFFFFF;
+  --app-text-secondary: #8D9FA5;
+  --app-cyan: #00B5D8;
+  --app-cyan-glow: rgba(0, 181, 216, 0.3);
+  --app-gold: #FFC72C;
+  --app-gold-glow: rgba(255, 199, 44, 0.3);
+  --app-danger: #FF4D4D;
+  --app-success: #00E676;
+  --app-dark-gray: #0F1A24;
+  
+  --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #050A0E;
+  color: var(--app-text-primary);
+  font-family: var(--font-family);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--app-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--app-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--app-cyan);
+}
+
+/* Scrollbar hiding utilities for mobile tabs */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Animations */
+@keyframes glow-pulse {
+  0% {
+    box-shadow: 0 0 5px var(--app-cyan-glow);
+  }
+  50% {
+    box-shadow: 0 0 15px var(--app-cyan-glow);
+  }
+  100% {
+    box-shadow: 0 0 5px var(--app-cyan-glow);
+  }
+}
+
+@keyframes gold-glow-pulse {
+  0% {
+    box-shadow: 0 0 5px var(--app-gold-glow);
+  }
+  50% {
+    box-shadow: 0 0 15px var(--app-gold-glow);
+  }
+  100% {
+    box-shadow: 0 0 5px var(--app-gold-glow);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

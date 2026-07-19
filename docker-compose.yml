@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-splint}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-splint_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-splint}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-splint_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-splint_minio_password}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-splint_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-splint_minio_password}
+      S3_BUCKET: ${S3_BUCKET:-splint-originals}
+    entrypoint: >
+      /bin/sh -c "until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do sleep 1; done;
+      mc mb --ignore-existing local/$$S3_BUCKET"
+
+volumes:
+  postgres_data:
+  minio_data:
