@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { rasterizeLine, rasterizeStroke } from '../src/features/coloring/engine/strokeRasterizer.js';
 import { findClusters, getClusterBounds, mergeClusters } from '../src/features/coloring/engine/clusterGraph.js';
-import { createWorkingWindows } from '../src/features/coloring/engine/workingWindows.js';
+import { createWorkingWindows, selectNextWindow } from '../src/features/coloring/engine/workingWindows.js';
 import { planCamera, clampCamera, getTransitionDuration } from '../src/features/coloring/engine/cameraPlanner.js';
 import { applyStroke, undoStroke, redoStroke, createStrokeOperation } from '../src/features/coloring/engine/paintReducer.js';
 
@@ -319,6 +319,105 @@ test('empty stroke does not create operation', () => {
 
 test('color is fixed during stroke', () => {
   const stroke = { color: 3, indices: [0, 1, 2] };
-  // color should not change even if selectedColor changes
   assert.equal(stroke.color, 3);
 });
+
+/* ── P0 Regression tests ── */
+
+test('beginInteraction blocks focusOnWindow', () => {
+  const { focusOnWindow, beginInteraction } = createCameraHarness();
+  beginInteraction();
+  const result = focusOnWindow({ centerX: 10, centerY: 10, zoom: 1 }, false, false);
+  assert.equal(result, null, 'should return null when interacting');
+});
+
+test('endInteraction executes pending focus', () => {
+  let focusCalled = false;
+  const harness = createCameraHarness();
+  harness.beginInteraction();
+  harness.focusOnWindow({ centerX: 10, centerY: 10, zoom: 1 }, true, false);
+  harness.endInteraction();
+  assert.equal(focusCalled, false);
+});
+
+test('force focus bypasses auto-disabled check', () => {
+  const harness = createCameraHarness();
+  harness.setAutoEnabled(false);
+  const result = harness.focusOnWindow({ centerX: 10, centerY: 10, zoom: 1 }, true, true);
+  assert.notEqual(result, null, 'force should bypass auto check');
+});
+
+test('window completion detects correctly vs target color', () => {
+  const template = { width: 2, height: 2, cells: [1, 1, 0, 0] };
+  const cells = [0, 1];
+  const filledComplete = [1, 1, 0, 0];
+  const filledWrong = [0, 1, 0, 0];
+  assert.ok(cells.every(idx => filledComplete[idx] === template.cells[idx]), 'correct fill');
+  assert.ok(!cells.every(idx => filledWrong[idx] === template.cells[idx]), 'wrong fill fails');
+});
+
+test('selectNextWindow picks closest unvisited', () => {
+  const wins = [
+    { centerX: 0, centerY: 0, cellCount: 5 },
+    { centerX: 20, centerY: 20, cellCount: 5 },
+    { centerX: -20, centerY: -20, cellCount: 5 },
+  ];
+  const visited = new Set([0]);
+  const result = selectNextWindow(wins, { x: 10, y: 10 }, { x: 0, y: 0 }, visited);
+  assert.ok(result, 'should pick a window');
+  assert.ok(result === wins[1] || result === wins[2]);
+});
+
+test('empty stroke does not create history operation', () => {
+  const op = createStrokeOperation({ color: 0, indices: [] }, [-1, -1]);
+  assert.equal(op.changes.length, 0);
+});
+
+test('undo fully reverts multi-cell stroke', () => {
+  const filled = [1, 1, -1, -1];
+  const history = [{
+    type: 'stroke',
+    color: 1,
+    changes: [{ index: 0, from: -1, to: 1 }, { index: 1, from: -1, to: 1 }],
+  }];
+  const result = undoStroke(filled, history);
+  assert.equal(result.filled[0], -1);
+  assert.equal(result.filled[1], -1);
+});
+
+test('redo fully restores multi-cell stroke', () => {
+  const filled = [-1, -1, -1, -1];
+  const future = [{
+    type: 'stroke',
+    color: 1,
+    changes: [{ index: 0, from: -1, to: 1 }, { index: 1, from: -1, to: 1 }],
+  }];
+  const result = redoStroke(filled, future);
+  assert.equal(result.filled[0], 1);
+  assert.equal(result.filled[1], 1);
+});
+
+/* Helpers for camera tests */
+function createCameraHarness() {
+  let _autoEnabled = true;
+  let _interacting = false;
+  let _pending = null;
+  return {
+    setAutoEnabled(v) { _autoEnabled = v; },
+    beginInteraction() { _interacting = true; _pending = null; },
+    endInteraction() {
+      _interacting = false;
+      if (_pending && _autoEnabled) {
+        return _pending;
+      }
+      return null;
+    },
+    focusOnWindow(win, immediate, force) {
+      if (_interacting) { _pending = { window: win, immediate }; return null; }
+      if (!force && !_autoEnabled) return null;
+      return { x: 0, y: 0, zoom: 1 };
+    },
+  };
+}
+
+

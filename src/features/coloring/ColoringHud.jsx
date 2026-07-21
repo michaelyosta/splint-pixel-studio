@@ -1,19 +1,26 @@
 export default function ColoringHud({
-  isAuto,
+  isAutoActive,
+  isTemporarilyPaused,
   onToggleAuto,
   onNextCluster,
   onOverview,
   combo,
 }) {
+  const isOn = isAutoActive;
+  const label = isAutoActive ? 'Авто' : isTemporarilyPaused ? 'Пауза' : 'Ручн';
+  const title = isAutoActive ? 'Автокамера включена'
+    : isTemporarilyPaused ? 'Нажмите для возврата автокамеры'
+    : 'Включить автокамеру';
+
   return (
     <div className="coloring-hud">
       <button
-        className={`hud-btn ${isAuto ? 'active' : ''}`}
+        className={`hud-btn ${isOn ? 'active' : ''}`}
         onClick={onToggleAuto}
-        title={isAuto ? 'Автокамера включена' : 'Включить автокамеру'}
+        title={title}
       >
-        <CameraIcon active={isAuto} />
-        <span>{isAuto ? 'Авто' : 'Ручн'}</span>
+        <CameraIcon />
+        <span>{label}</span>
       </button>
       <button className="hud-btn" onClick={onNextCluster} title="Следующий участок">
         <span>→</span>

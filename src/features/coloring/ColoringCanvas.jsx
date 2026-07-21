@@ -298,17 +298,23 @@ export default function ColoringCanvas({
   }
 
   function handleTouchEnd(event) {
-    const wasTwoFinger = twoFingerRef.current;
-    if (event.touches.length < 2) {
-      if (wasTwoFinger) {
+    if (event.touches.length === 0) {
+      if (twoFingerRef.current) {
         pinchRef.current = null;
         twoFingerRef.current = false;
       }
+      if (drawingRef.current) {
+        drawingRef.current = false;
+        commitStroke();
+      }
+      endInteraction();
+      lastCellRef.current = null;
+      return;
     }
-    if (event.touches.length === 0 && !wasTwoFinger) {
-      handlePointerUp();
+    if (event.touches.length < 2 && twoFingerRef.current) {
+      pinchRef.current = null;
+      twoFingerRef.current = false;
     }
-    twoFingerRef.current = false;
   }
 
   const camStyle = {

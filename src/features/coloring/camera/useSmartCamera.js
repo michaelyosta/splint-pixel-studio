@@ -7,6 +7,7 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
   const [autoEnabled, setAutoEnabled] = useState(true);
   const autoEnabledRef = useRef(true);
   const manualPauseUntilRef = useRef(0);
+  const pauseTimerRef = useRef(null);
   const animCancelRef = useRef(null);
   const sessionRef = useRef(Date.now());
   const lastFocusRef = useRef(null);
@@ -14,7 +15,9 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
   const isInteractingRef = useRef(false);
   const pendingFocusRef = useRef(null);
 
-  const isAutoActive = autoEnabled && Date.now() > manualPauseUntilRef.current && !isInteractingRef.current;
+  const now = Date.now();
+  const isTemporarilyPaused = autoEnabled && now <= manualPauseUntilRef.current;
+  const isAutoActive = autoEnabled && !isTemporarilyPaused && !isInteractingRef.current;
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -27,6 +30,7 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
   useEffect(() => {
     return () => {
       if (animCancelRef.current) animCancelRef.current();
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
       sessionRef.current = 0;
     };
   }, []);
@@ -68,16 +72,18 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     isInteractingRef.current = false;
     const pending = pendingFocusRef.current;
     pendingFocusRef.current = null;
-    return pending;
+    if (pending && autoEnabledRef.current && Date.now() > manualPauseUntilRef.current) {
+      focusOnWindowRef.current(pending.window, pending.immediate);
+    }
   }, []);
 
-  const focusOnWindow = useCallback((window, immediate) => {
+  const focusOnWindow = useCallback((window, immediate, force) => {
     if (isInteractingRef.current) {
       pendingFocusRef.current = { window, immediate };
       return null;
     }
     if (!template) return null;
-    if (!autoEnabledRef.current || Date.now() <= manualPauseUntilRef.current) return null;
+    if (!force && (!autoEnabledRef.current || Date.now() <= manualPauseUntilRef.current)) return null;
     cancelAnimation();
     const target = planCamera(window, viewWidth, viewHeight, template.width, template.height);
     const dx = window.centerX - (lastFocusRef.current?.centerX || window.centerX);
@@ -88,6 +94,9 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     animateTo(target, duration);
     return target;
   }, [template, viewWidth, viewHeight, animateTo, cancelAnimation, reducedMotion]);
+
+  const focusOnWindowRef = useRef(focusOnWindow);
+  focusOnWindowRef.current = focusOnWindow;
 
   const focusOverview = useCallback(() => {
     if (isInteractingRef.current) return;
@@ -104,30 +113,49 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
   }, [template, viewWidth, viewHeight, animateTo, cancelAnimation, reducedMotion]);
 
   const toggleAuto = useCallback(() => {
-    autoEnabledRef.current = !autoEnabledRef.current;
+    const currentlyEnabled = autoEnabledRef.current;
+    if (currentlyEnabled && isTemporarilyPaused) {
+      resumeAutoRef.current();
+      return;
+    }
+    autoEnabledRef.current = !currentlyEnabled;
     setAutoEnabled(autoEnabledRef.current);
     if (autoEnabledRef.current) {
       manualPauseUntilRef.current = 0;
     } else {
       manualPauseUntilRef.current = Infinity;
     }
-  }, []);
+  }, [isTemporarilyPaused]);
 
   const pauseAuto = useCallback(() => {
     manualPauseUntilRef.current = Date.now() + 6000;
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    pauseTimerRef.current = setTimeout(() => {
+      pauseTimerRef.current = null;
+      if (autoEnabledRef.current && manualPauseUntilRef.current !== Infinity) {
+        manualPauseUntilRef.current = 0;
+        setAutoEnabled(true);
+      }
+    }, 6000);
   }, []);
 
   const resumeAuto = useCallback(() => {
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    pauseTimerRef.current = null;
     autoEnabledRef.current = true;
     setAutoEnabled(true);
     manualPauseUntilRef.current = 0;
   }, []);
+
+  const resumeAutoRef = useRef(resumeAuto);
+  resumeAutoRef.current = resumeAuto;
 
   return {
     camera,
     setCamera,
     isAutoActive,
     autoEnabled,
+    isTemporarilyPaused,
     toggleAuto,
     pauseAuto,
     resumeAuto,

@@ -46,7 +46,7 @@ export default function ColoringSession({
   const prevFilledRef = useRef(progress?.filled);
 
   const {
-    camera, setCamera, isAutoActive,
+    camera, setCamera, isAutoActive, isTemporarilyPaused,
     toggleAuto, pauseAuto,
     focusOnWindow, focusOverview,
     cancelAnimation, beginInteraction, endInteraction,
@@ -71,21 +71,23 @@ export default function ColoringSession({
     return () => observer.disconnect();
   }, []);
 
-  /* External progress.filled sync — cancel animation, reset local state */
+  /* External progress.filled sync — only for truly external changes */
   useEffect(() => {
     const newFilled = progress?.filled;
     if (!newFilled) return;
-    if (newFilled !== prevFilledRef.current) {
-      prevFilledRef.current = newFilled;
-      cancelAnimation();
-      filledRef.current = newFilled;
-      setLocalFilled(newFilled);
-      visitedWindowsRef.current = new Set();
-      activeWindowIdRef.current = -1;
-      lastCameraCenterRef.current = null;
-      prevCameraCenterRef.current = null;
-      isFirstFocusRef.current = true;
+    if (newFilled === prevFilledRef.current) return;
+    prevFilledRef.current = newFilled;
+    if (newFilled === filledRef.current) {
+      return;
     }
+    cancelAnimation();
+    filledRef.current = newFilled;
+    setLocalFilled(newFilled);
+    visitedWindowsRef.current = new Set();
+    activeWindowIdRef.current = -1;
+    lastCameraCenterRef.current = null;
+    prevCameraCenterRef.current = null;
+    isFirstFocusRef.current = true;
   }, [progress?.filled, cancelAnimation]);
 
   const workingWindows = useMemo(() => {
@@ -101,10 +103,10 @@ export default function ColoringSession({
     return allWindows;
   }, [template, localFilled, selectedColor, containerSize]);
 
-  /* Sync windowsRef — do NOT reset visited unless windows actually changed */
+  /* Sync windowsRef — stable key without cellCount */
   const prevWindowsKeyRef = useRef('');
   useEffect(() => {
-    const key = workingWindows.map(w => `${w.bounds.minX},${w.bounds.minY},${w.cellCount}`).join('|');
+    const key = workingWindows.map(w => `${w.bounds.minX},${w.bounds.minY},${w.bounds.maxX},${w.bounds.maxY}`).join('|');
     if (key === prevWindowsKeyRef.current) return;
     prevWindowsKeyRef.current = key;
     windowsRef.current = workingWindows;
@@ -120,7 +122,7 @@ export default function ColoringSession({
     isFirstFocusRef.current = false;
     const timer = setTimeout(() => {
       if (windowsRef.current.length) {
-        focusOnWindow(windowsRef.current[0], true);
+        focusOnWindow(windowsRef.current[0], true, false);
         visitedWindowsRef.current.add(0);
         activeWindowIdRef.current = 0;
         prevCameraCenterRef.current = null;
@@ -130,11 +132,12 @@ export default function ColoringSession({
     return () => clearTimeout(timer);
   }, [workingWindows, isAutoActive, focusOnWindow, containerSize]);
 
-  /* Check if active window is complete after localFilled changes */
+  /* Window completion check — uses correct target color */
   function isWindowComplete(windowId, filled) {
+    if (!template) return false;
     const win = windowsRef.current[windowId];
     if (!win) return false;
-    return win.cells.every(idx => filled[idx] !== -1);
+    return win.cells.every(idx => filled[idx] === template.cells[idx]);
   }
 
   /* Navigate to next window only after current window is complete */
@@ -164,7 +167,7 @@ export default function ColoringSession({
           activeWindowIdRef.current = idx;
           prevCameraCenterRef.current = lastCameraCenterRef.current;
           lastCameraCenterRef.current = { x: best.centerX, y: best.centerY };
-          focusOnWindow(best, false);
+          focusOnWindow(best, false, false);
         }
       }
     }, 300);
@@ -177,6 +180,7 @@ export default function ColoringSession({
     if (!stroke.indices.length) return;
     const nextFilled = applyStroke(filledRef.current, stroke);
     filledRef.current = nextFilled;
+    prevFilledRef.current = nextFilled;
     setLocalFilled(nextFilled);
     const operation = createStrokeOperation(stroke, progress?.filled || filledRef.current);
     if (onSaveProgress) onSaveProgress(nextFilled, { stroke: operation });
@@ -220,7 +224,7 @@ export default function ColoringSession({
         prevCameraCenterRef.current = lastCameraCenterRef.current;
         lastCameraCenterRef.current = { x: best.centerX, y: best.centerY };
       }
-      focusOnWindow(best, false);
+      focusOnWindow(best, false, true);
       if (onTrack) onTrack('camera_next_cluster', { templateId: template?.id });
     }
   }, [focusOnWindow, focusOverview, onTrack, template]);
@@ -263,7 +267,8 @@ export default function ColoringSession({
           />
         )}
         <ColoringHud
-          isAuto={isAutoActive}
+          isAutoActive={isAutoActive}
+          isTemporarilyPaused={isTemporarilyPaused}
           onToggleAuto={toggleAuto}
           onNextCluster={handleNextCluster}
           onOverview={focusOverview}
