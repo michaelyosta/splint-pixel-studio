@@ -1,13 +1,15 @@
 .coloring-session {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 0;
+  width: 100%;
   min-height: 0;
   overflow: hidden;
 }
 
 .coloring-canvas-container {
-  flex: 1;
+  flex: 1 1 0;
+  width: 100%;
   min-height: 0;
   position: relative;
   overflow: hidden;

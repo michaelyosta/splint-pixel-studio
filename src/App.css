@@ -421,9 +421,18 @@ body { display: flex; justify-content: center; align-items: center; background: 
 /* Scrollable Screen Content */
 .screen-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding-bottom: 80px; /* space for tab bar */
+  padding-bottom: 80px;
   position: relative;
+}
+
+.screen-content--play {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
 }
 
 /* Tab Bar Navigation */
@@ -1581,7 +1590,16 @@ input:checked + .slider:before {
 .creator-success-page .secondary-button { margin-top: 9px; }
 
 /* ── Player redesign: Canvas First ─────────────────────────────── */
-.player-page { padding: 0 0 0; display: flex; flex-direction: column; overflow: hidden; }
+.player-page {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
 .player-topbar { display: flex; align-items: center; gap: 6px; padding: 8px 10px; min-height: 44px; }
 .player-topbar .back-button { margin: 0; padding: 6px; min-height: 40px; }
 .player-topbar-title { flex: 1; font-size: 14px; font-weight: 700; color: var(--app-text-primary); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

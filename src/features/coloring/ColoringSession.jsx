@@ -271,6 +271,19 @@ export default function ColoringSession({
     onSelectColor(colorIndex);
   }, [onSelectColor]);
 
+  if (import.meta.env.DEV && containerSize.width === 0 && containerSize.height === 0 && template && progress) {
+    return (
+      <div className="coloring-session" ref={containerRef}>
+        <div className="coloring-canvas-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff6b6b', fontSize: '13px', flexDirection: 'column', gap: '4px' }}>
+          <b>Smart Canvas layout error</b>
+          <span>width: 0</span>
+          <span>height: 0</span>
+          <span style={{ fontSize: '10px', color: '#8d9fa5' }}>Container has not received size from ResizeObserver</span>
+        </div>
+      </div>
+    );
+  }
+
   if (!template || !progress) return null;
 
   return (
