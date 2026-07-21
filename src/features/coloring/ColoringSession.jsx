@@ -37,13 +37,20 @@ export default function ColoringSession({
   const filledRef = useRef(progress?.filled || []);
   const [localFilled, setLocalFilled] = useState(progress?.filled || []);
   const windowsRef = useRef([]);
-  const windowIndexRef = useRef(0);
+  const activeWindowIdRef = useRef(-1);
   const visitedWindowsRef = useRef(new Set());
-  const lastCameraRef = useRef(null);
+  const lastCameraCenterRef = useRef(null);
+  const prevCameraCenterRef = useRef(null);
   const pendingAutoRef = useRef(null);
   const isFirstFocusRef = useRef(true);
+  const prevFilledRef = useRef(progress?.filled);
 
-  const { camera, setCamera, isAuto, toggleAuto, pauseAuto, focusOnWindow, focusOverview } = useSmartCamera(template, containerSize.width, containerSize.height);
+  const {
+    camera, setCamera, isAutoActive,
+    toggleAuto, pauseAuto,
+    focusOnWindow, focusOverview,
+    cancelAnimation, beginInteraction, endInteraction,
+  } = useSmartCamera(template, containerSize.width, containerSize.height);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -64,20 +71,22 @@ export default function ColoringSession({
     return () => observer.disconnect();
   }, []);
 
-  /* External progress.filled sync */
-  const prevProgressRef = useRef(progress?.filled);
+  /* External progress.filled sync — cancel animation, reset local state */
   useEffect(() => {
     const newFilled = progress?.filled;
     if (!newFilled) return;
-    if (newFilled !== prevProgressRef.current) {
-      prevProgressRef.current = newFilled;
+    if (newFilled !== prevFilledRef.current) {
+      prevFilledRef.current = newFilled;
+      cancelAnimation();
       filledRef.current = newFilled;
       setLocalFilled(newFilled);
       visitedWindowsRef.current = new Set();
-      lastCameraRef.current = null;
+      activeWindowIdRef.current = -1;
+      lastCameraCenterRef.current = null;
+      prevCameraCenterRef.current = null;
       isFirstFocusRef.current = true;
     }
-  }, [progress?.filled]);
+  }, [progress?.filled, cancelAnimation]);
 
   const workingWindows = useMemo(() => {
     if (!template || !localFilled.length) return [];
@@ -92,45 +101,71 @@ export default function ColoringSession({
     return allWindows;
   }, [template, localFilled, selectedColor, containerSize]);
 
+  /* Sync windowsRef — do NOT reset visited unless windows actually changed */
+  const prevWindowsKeyRef = useRef('');
   useEffect(() => {
+    const key = workingWindows.map(w => `${w.bounds.minX},${w.bounds.minY},${w.cellCount}`).join('|');
+    if (key === prevWindowsKeyRef.current) return;
+    prevWindowsKeyRef.current = key;
     windowsRef.current = workingWindows;
     visitedWindowsRef.current = new Set();
-    windowIndexRef.current = 0;
+    activeWindowIdRef.current = -1;
+    isFirstFocusRef.current = true;
   }, [workingWindows]);
 
   /* Auto-focus first window on initial load or color change */
   useEffect(() => {
-    if (!workingWindows.length || !isAuto || !isFirstFocusRef.current) return;
+    if (!workingWindows.length || !isAutoActive || !isFirstFocusRef.current) return;
     if (containerSize.width === 0) return;
     isFirstFocusRef.current = false;
     const timer = setTimeout(() => {
       if (windowsRef.current.length) {
         focusOnWindow(windowsRef.current[0], true);
         visitedWindowsRef.current.add(0);
-        lastCameraRef.current = { x: windowsRef.current[0].centerX, y: windowsRef.current[0].centerY };
+        activeWindowIdRef.current = 0;
+        prevCameraCenterRef.current = null;
+        lastCameraCenterRef.current = { x: windowsRef.current[0].centerX, y: windowsRef.current[0].centerY };
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [workingWindows, isAuto, focusOnWindow, containerSize]);
+  }, [workingWindows, isAutoActive, focusOnWindow, containerSize]);
 
-  /* Auto-navigate to next window after stroke commit */
+  /* Check if active window is complete after localFilled changes */
+  function isWindowComplete(windowId, filled) {
+    const win = windowsRef.current[windowId];
+    if (!win) return false;
+    return win.cells.every(idx => filled[idx] !== -1);
+  }
+
+  /* Navigate to next window only after current window is complete */
   useEffect(() => {
-    if (!workingWindows.length || !isAuto) return;
+    if (!workingWindows.length || !isAutoActive) return;
+    const activeId = activeWindowIdRef.current;
+    if (activeId < 0) return;
+    if (!isWindowComplete(activeId, localFilled)) return;
     if (pendingAutoRef.current) return;
     pendingAutoRef.current = setTimeout(() => {
       pendingAutoRef.current = null;
-      if (!windowsRef.current.length) return;
+      const wins = windowsRef.current;
+      if (!wins.length) return;
+      const activeIdx = activeWindowIdRef.current;
+      const remaining = wins.filter((_, i) => !visitedWindowsRef.current.has(i) && i !== activeIdx);
+      if (!remaining.length) return;
       const best = selectNextWindow(
-        windowsRef.current,
-        { x: (lastCameraRef.current?.x || 0), y: (lastCameraRef.current?.y || 0) },
-        lastCameraRef.current,
+        wins,
+        lastCameraCenterRef.current ? { x: lastCameraCenterRef.current.x, y: lastCameraCenterRef.current.y } : { x: 0, y: 0 },
+        prevCameraCenterRef.current,
         visitedWindowsRef.current,
       );
       if (best) {
-        const idx = windowsRef.current.indexOf(best);
-        if (idx >= 0) visitedWindowsRef.current.add(idx);
-        lastCameraRef.current = { x: best.centerX, y: best.centerY };
-        focusOnWindow(best, false);
+        const idx = wins.indexOf(best);
+        if (idx >= 0) {
+          visitedWindowsRef.current.add(idx);
+          activeWindowIdRef.current = idx;
+          prevCameraCenterRef.current = lastCameraCenterRef.current;
+          lastCameraCenterRef.current = { x: best.centerX, y: best.centerY };
+          focusOnWindow(best, false);
+        }
       }
     }, 300);
     return () => { if (pendingAutoRef.current) clearTimeout(pendingAutoRef.current); };
@@ -173,14 +208,18 @@ export default function ColoringSession({
     }
     const best = selectNextWindow(
       windowsRef.current,
-      { x: (lastCameraRef.current?.x || 0), y: (lastCameraRef.current?.y || 0) },
-      lastCameraRef.current,
+      lastCameraCenterRef.current ? { x: lastCameraCenterRef.current.x, y: lastCameraCenterRef.current.y } : { x: 0, y: 0 },
+      prevCameraCenterRef.current,
       visitedWindowsRef.current,
     );
     if (best) {
       const idx = windowsRef.current.indexOf(best);
-      if (idx >= 0) visitedWindowsRef.current.add(idx);
-      lastCameraRef.current = { x: best.centerX, y: best.centerY };
+      if (idx >= 0) {
+        visitedWindowsRef.current.add(idx);
+        activeWindowIdRef.current = idx;
+        prevCameraCenterRef.current = lastCameraCenterRef.current;
+        lastCameraCenterRef.current = { x: best.centerX, y: best.centerY };
+      }
       focusOnWindow(best, false);
       if (onTrack) onTrack('camera_next_cluster', { templateId: template?.id });
     }
@@ -189,7 +228,9 @@ export default function ColoringSession({
   const handleColorSelect = useCallback((colorIndex) => {
     onSelectColor(colorIndex);
     visitedWindowsRef.current = new Set();
-    lastCameraRef.current = null;
+    activeWindowIdRef.current = -1;
+    lastCameraCenterRef.current = null;
+    prevCameraCenterRef.current = null;
     isFirstFocusRef.current = true;
   }, [onSelectColor]);
 
@@ -216,10 +257,13 @@ export default function ColoringSession({
             camera={camera}
             setCamera={setCamera}
             pauseAuto={pauseAuto}
+            cancelAnimation={cancelAnimation}
+            beginInteraction={beginInteraction}
+            endInteraction={endInteraction}
           />
         )}
         <ColoringHud
-          isAuto={isAuto}
+          isAuto={isAutoActive}
           onToggleAuto={toggleAuto}
           onNextCluster={handleNextCluster}
           onOverview={focusOverview}

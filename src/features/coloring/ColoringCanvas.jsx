@@ -69,6 +69,9 @@ export default function ColoringCanvas({
   camera,
   setCamera,
   pauseAuto,
+  cancelAnimation,
+  beginInteraction,
+  endInteraction,
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -108,11 +111,17 @@ export default function ColoringCanvas({
     return cellFromPoint(event.clientX, event.clientY);
   }
 
+  function cancelStroke() {
+    strokeRef.current = null;
+    setStrokePreview([]);
+    drawingRef.current = false;
+    lastCellRef.current = null;
+  }
+
   function commitStroke() {
     const stroke = strokeRef.current;
     if (!stroke || !stroke.indices.length) {
-      strokeRef.current = null;
-      setStrokePreview([]);
+      cancelStroke();
       return;
     }
     onStrokeComplete({
@@ -130,6 +139,8 @@ export default function ColoringCanvas({
   function handlePointerDown(event) {
     if (event.pointerType === 'touch' && !event.isPrimary) return;
     twoFingerRef.current = false;
+    beginInteraction();
+    cancelAnimation();
     const index = cellFromEvent(event);
     if (onTapCell && index != null) {
       lastCellRef.current = index;
@@ -208,20 +219,18 @@ export default function ColoringCanvas({
     }
     lastCellRef.current = null;
     twoFingerRef.current = false;
+    endInteraction();
   }
 
   function handlePointerCancel() {
-    if (drawingRef.current) {
-      drawingRef.current = false;
-      strokeRef.current = null;
-      setStrokePreview([]);
-    }
-    lastCellRef.current = null;
+    cancelStroke();
     twoFingerRef.current = false;
+    endInteraction();
   }
 
   function handleWheel(event) {
     event.preventDefault();
+    cancelAnimation();
     pauseAuto();
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -239,6 +248,8 @@ export default function ColoringCanvas({
   function handleTouchStart(event) {
     if (event.touches.length === 2) {
       event.preventDefault();
+      commitStroke();
+      cancelAnimation();
       const [a, b] = [event.touches[0], event.touches[1]];
       const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
       const cx = (a.clientX + b.clientX) / 2;
@@ -253,6 +264,7 @@ export default function ColoringCanvas({
   function handleTouchMove(event) {
     if (event.touches.length === 2 && pinchRef.current) {
       event.preventDefault();
+      cancelAnimation();
       const [a, b] = [event.touches[0], event.touches[1]];
       const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
       const cx = (a.clientX + b.clientX) / 2;
@@ -271,6 +283,7 @@ export default function ColoringCanvas({
       return;
     }
     if (event.touches.length === 1 && pinchRef.current && !drawingRef.current) {
+      cancelAnimation();
       const t = event.touches[0];
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -295,6 +308,7 @@ export default function ColoringCanvas({
     if (event.touches.length === 0 && !wasTwoFinger) {
       handlePointerUp();
     }
+    twoFingerRef.current = false;
   }
 
   const camStyle = {

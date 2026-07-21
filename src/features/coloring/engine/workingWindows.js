@@ -67,11 +67,14 @@ export function createWorkingWindows(cluster, template, viewWidth, viewHeight) {
   return windows;
 }
 
-export function selectNextWindow(windows, currentCenter, lastCenter, visitedIds) {
+export function selectNextWindow(windows, currentCenter, previousCenter, visitedIds) {
   if (!windows.length) return null;
   if (windows.length === 1) return windows[0];
   let best = null;
   let bestScore = -Infinity;
+  const prevDirX = previousCenter ? currentCenter.x - previousCenter.x : 0;
+  const prevDirY = previousCenter ? currentCenter.y - previousCenter.y : 0;
+  const prevLen = Math.sqrt(prevDirX * prevDirX + prevDirY * prevDirY);
   for (let i = 0; i < windows.length; i++) {
     const win = windows[i];
     const dx = win.centerX - currentCenter.x;
@@ -79,11 +82,10 @@ export function selectNextWindow(windows, currentCenter, lastCenter, visitedIds)
     const dist = Math.sqrt(dx * dx + dy * dy);
     let score = -dist * 0.5;
     score += win.cellCount * 0.005;
-    if (lastCenter) {
-      const prevDx = win.centerX - lastCenter.x;
-      const prevDy = win.centerY - lastCenter.y;
-      const dot = dx * prevDx + dy * prevDy;
-      if (dot > 0) score += 8;
+    if (previousCenter && prevLen > 0) {
+      const dot = (dx * prevDirX + dy * prevDirY) / (dist * prevLen || 1);
+      if (dot > 0.3) score += 8;
+      if (dot < -0.3) score -= 6;
     }
     if (visitedIds.has(i)) score -= 50;
     if (score > bestScore) {

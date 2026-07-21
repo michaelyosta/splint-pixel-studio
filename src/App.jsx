@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, Compass, Download, Flag, Flame, Grid3X3, Heart, ImagePlus, LoaderCircle, Send, Share2, Sparkles, Star, Target, Trash2, UserRound, X, BookOpen, Lock } from 'lucide-react';
 import { api, metaApi, catalogApi, DEV_USER_ID } from './api/client';
-import PixelCanvas from './components/PixelCanvas';
+import LegacyPixelCanvas from './components/LegacyPixelCanvas';
 import ColoringSession from './features/coloring/ColoringSession';
 
 const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE === 'true';
@@ -779,7 +779,7 @@ function App() {
       ) : (
         <>
           <div className="player-canvas-area" onClick={showHud} onMouseMove={showHud}>
-            <PixelCanvas
+            <LegacyPixelCanvas
               template={template}
               filled={progress.filled}
               selectedColor={selectedColor}
