@@ -397,6 +397,34 @@ test('selectNextWindow picks closest unvisited', () => {
   assert.ok(result === wins[1] || result === wins[2]);
 });
 
+test('selectNextWindow: all blocked returns null', () => {
+  const wins = [
+    { centerX: 0, centerY: 0, cellCount: 5 },
+    { centerX: 20, centerY: 20, cellCount: 5 },
+  ];
+  const allBlocked = new Set([0, 1]);
+  const result = selectNextWindow(wins, { x: 10, y: 10 }, { x: 0, y: 0 }, allBlocked);
+  assert.equal(result, null);
+});
+
+test('selectNextWindow: single blocked window returns null', () => {
+  const wins = [{ centerX: 0, centerY: 0, cellCount: 5 }];
+  const blocked = new Set([0]);
+  const result = selectNextWindow(wins, { x: 10, y: 10 }, { x: 0, y: 0 }, blocked);
+  assert.equal(result, null);
+});
+
+test('selectNextWindow: near blocked never beats far unblocked', () => {
+  const wins = [
+    { centerX: 0, centerY: 0, cellCount: 5 },
+    { centerX: 100, centerY: 0, cellCount: 5 },
+  ];
+  const blocked = new Set([0]);
+  const result = selectNextWindow(wins, { x: 0, y: 0 }, null, blocked);
+  assert.ok(result, 'should pick a window');
+  assert.equal(result.centerX, 100, 'should pick unblocked window');
+});
+
 test('empty stroke does not create history operation', () => {
   const op = createStrokeOperation({ color: 0, indices: [] }, [-1, -1]);
   assert.equal(op.changes.length, 0);

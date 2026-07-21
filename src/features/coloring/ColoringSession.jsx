@@ -136,14 +136,11 @@ export default function ColoringSession({
     isFirstFocusRef.current = false;
     const timer = setTimeout(() => {
       if (windowsRef.current.length) {
-        focusOnWindow(windowsRef.current[0], true, false);
-        visitedWindowsRef.current.add(0);
-        activeWindowIdRef.current = 0;
-        prevCameraCenterRef.current = null;
-        lastCameraCenterRef.current = { x: windowsRef.current[0].centerX, y: windowsRef.current[0].centerY };
+        tryFocusWindow(windowsRef.current[0], 0, true, false);
       }
     }, 400);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingWindows, isAutoActive, focusOnWindow, containerSize]);
 
   /* Window completion check — uses correct target color */
