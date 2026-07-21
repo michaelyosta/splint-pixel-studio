@@ -9,6 +9,16 @@ import { applyStroke, createStrokeOperation } from './engine/paintReducer.js';
 import { findRewardingColor } from '../../lib/pixelColoring.js';
 import './coloring.css';
 
+function arraysEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 export default function ColoringSession({
   template,
   progress,
@@ -43,7 +53,7 @@ export default function ColoringSession({
   const prevCameraCenterRef = useRef(null);
   const pendingAutoRef = useRef(null);
   const isFirstFocusRef = useRef(true);
-  const prevFilledRef = useRef(progress?.filled);
+  const lastColorRef = useRef(selectedColor);
 
   const {
     camera, setCamera, isAutoActive, isTemporarilyPaused,
@@ -71,28 +81,21 @@ export default function ColoringSession({
     return () => observer.disconnect();
   }, []);
 
-  /* External progress.filled sync — only for truly external changes */
-  useEffect(() => {
-    const newFilled = progress?.filled;
-    if (!newFilled) return;
-    if (newFilled === prevFilledRef.current) return;
-    prevFilledRef.current = newFilled;
-    if (newFilled === filledRef.current) {
-      return;
-    }
-    cancelAnimation();
-    filledRef.current = newFilled;
-    setLocalFilled(newFilled);
+  const resetRoute = useCallback(() => {
     visitedWindowsRef.current = new Set();
     activeWindowIdRef.current = -1;
     lastCameraCenterRef.current = null;
     prevCameraCenterRef.current = null;
     isFirstFocusRef.current = true;
-  }, [progress?.filled, cancelAnimation]);
+  }, []);
+
+  /* Build windows for current color — frozen until color/external change */
+  const windowsGenerationRef = useRef(0);
+  const [windowsGeneration, setWindowsGeneration] = useState(0);
 
   const workingWindows = useMemo(() => {
-    if (!template || !localFilled.length) return [];
-    const clusters = findClusters(template, localFilled, selectedColor);
+    if (!template || !filledRef.current.length) return [];
+    const clusters = findClusters(template, filledRef.current, selectedColor);
     const merged = mergeClusters(clusters, template.width);
     if (!merged.length) return [];
     const allWindows = [];
@@ -101,19 +104,39 @@ export default function ColoringSession({
       allWindows.push(...wins);
     }
     return allWindows;
-  }, [template, localFilled, selectedColor, containerSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template, selectedColor, containerSize, windowsGeneration]);
 
-  /* Sync windowsRef — stable key without cellCount */
-  const prevWindowsKeyRef = useRef('');
   useEffect(() => {
-    const key = workingWindows.map(w => `${w.bounds.minX},${w.bounds.minY},${w.bounds.maxX},${w.bounds.maxY}`).join('|');
-    if (key === prevWindowsKeyRef.current) return;
-    prevWindowsKeyRef.current = key;
     windowsRef.current = workingWindows;
-    visitedWindowsRef.current = new Set();
-    activeWindowIdRef.current = -1;
-    isFirstFocusRef.current = true;
+    if (workingWindows.length) {
+      resetRoute();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingWindows]);
+
+  /* Bump windows generation on color change or external reset */
+  useEffect(() => {
+    if (selectedColor !== lastColorRef.current) {
+      lastColorRef.current = selectedColor;
+      windowsGenerationRef.current += 1;
+      setWindowsGeneration(windowsGenerationRef.current);
+    }
+  }, [selectedColor]);
+
+  /* External progress.filled sync — deep compare to avoid false positives from autosave */
+  useEffect(() => {
+    const newFilled = progress?.filled;
+    if (!newFilled) return;
+    if (arraysEqual(newFilled, filledRef.current)) {
+      return;
+    }
+    cancelAnimation();
+    filledRef.current = newFilled;
+    setLocalFilled(newFilled);
+    windowsGenerationRef.current += 1;
+    setWindowsGeneration(windowsGenerationRef.current);
+  }, [progress?.filled, cancelAnimation]);
 
   /* Auto-focus first window on initial load or color change */
   useEffect(() => {
@@ -173,14 +196,13 @@ export default function ColoringSession({
     }, 300);
     return () => { if (pendingAutoRef.current) clearTimeout(pendingAutoRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localFilled]);
+  }, [localFilled, isAutoActive]);
 
   const handleStrokeComplete = useCallback((stroke) => {
     if (!template || !filledRef.current.length) return;
     if (!stroke.indices.length) return;
     const nextFilled = applyStroke(filledRef.current, stroke);
     filledRef.current = nextFilled;
-    prevFilledRef.current = nextFilled;
     setLocalFilled(nextFilled);
     const operation = createStrokeOperation(stroke, progress?.filled || filledRef.current);
     if (onSaveProgress) onSaveProgress(nextFilled, { stroke: operation });
@@ -231,11 +253,6 @@ export default function ColoringSession({
 
   const handleColorSelect = useCallback((colorIndex) => {
     onSelectColor(colorIndex);
-    visitedWindowsRef.current = new Set();
-    activeWindowIdRef.current = -1;
-    lastCameraCenterRef.current = null;
-    prevCameraCenterRef.current = null;
-    isFirstFocusRef.current = true;
   }, [onSelectColor]);
 
   if (!template || !progress) return null;

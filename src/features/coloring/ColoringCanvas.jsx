@@ -139,16 +139,15 @@ export default function ColoringCanvas({
   function handlePointerDown(event) {
     if (event.pointerType === 'touch' && !event.isPrimary) return;
     twoFingerRef.current = false;
-    beginInteraction();
-    cancelAnimation();
     const index = cellFromEvent(event);
     if (onTapCell && index != null) {
       lastCellRef.current = index;
       onTapCell(index);
       return;
     }
-    if (index == null || filled[index] !== -1) {
-      if (index != null && template.cells[index] !== selectedColor) {
+    if (index == null) return;
+    if (filled[index] !== -1) {
+      if (template.cells[index] !== selectedColor) {
         if (calmMode) return;
         setWrongCell(index);
         if (onWrongCell) onWrongCell();
@@ -163,8 +162,10 @@ export default function ColoringCanvas({
       setTimeout(() => setWrongCell(null), 260);
       return;
     }
-    drawingRef.current = true;
     event.currentTarget.setPointerCapture(event.pointerId);
+    beginInteraction();
+    cancelAnimation();
+    drawingRef.current = true;
     if (!hasPaintedRef.current) {
       hasPaintedRef.current = true;
       if (onFirstPaint) onFirstPaint();

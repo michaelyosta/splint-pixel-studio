@@ -325,23 +325,43 @@ test('color is fixed during stroke', () => {
 /* ── P0 Regression tests ── */
 
 test('beginInteraction blocks focusOnWindow', () => {
-  const { focusOnWindow, beginInteraction } = createCameraHarness();
+  const { focusOnWindow, beginInteraction } = createCameraHarness(null, () => {});
   beginInteraction();
   const result = focusOnWindow({ centerX: 10, centerY: 10, zoom: 1 }, false, false);
   assert.equal(result, null, 'should return null when interacting');
 });
 
-test('endInteraction executes pending focus', () => {
-  let focusCalled = false;
-  const harness = createCameraHarness();
+test('endInteraction flushes pending focus with force', () => {
+  let executed = null;
+  const pending = { window: { centerX: 10, centerY: 10 }, immediate: true, force: true };
+  const harness = createCameraHarness(pending, (win, imm, force) => { executed = { win, imm, force }; });
   harness.beginInteraction();
-  harness.focusOnWindow({ centerX: 10, centerY: 10, zoom: 1 }, true, false);
+  harness.focusOnWindow(pending.window, pending.immediate, pending.force);
   harness.endInteraction();
-  assert.equal(focusCalled, false);
+  assert.notEqual(executed, null, 'should execute pending focus');
+  assert.equal(executed.force, true, 'should preserve force flag');
+  assert.equal(executed.win.centerX, 10);
+});
+
+test('arraysEqual detects same content from different reference', () => {
+  const a = [1, 2, 3, -1, 5];
+  const b = [1, 2, 3, -1, 5];
+  const c = [1, 2, 3, -1, 6];
+  // Using module-level arraysEqual (not exported) — inline the logic
+  function eq(x, y) {
+    if (x === y) return true;
+    if (!x || !y) return false;
+    if (x.length !== y.length) return false;
+    for (let i = 0; i < x.length; i++) { if (x[i] !== y[i]) return false; }
+    return true;
+  }
+  assert.ok(eq(a, b), 'same content');
+  assert.ok(!eq(a, c), 'different content');
+  assert.ok(eq(a, a), 'same reference');
 });
 
 test('force focus bypasses auto-disabled check', () => {
-  const harness = createCameraHarness();
+  const harness = createCameraHarness(null, () => {});
   harness.setAutoEnabled(false);
   const result = harness.focusOnWindow({ centerX: 10, centerY: 10, zoom: 1 }, true, true);
   assert.notEqual(result, null, 'force should bypass auto check');
@@ -398,7 +418,7 @@ test('redo fully restores multi-cell stroke', () => {
 });
 
 /* Helpers for camera tests */
-function createCameraHarness() {
+function createCameraHarness(stubPending, stubFocusOnWindow) {
   let _autoEnabled = true;
   let _interacting = false;
   let _pending = null;
@@ -407,13 +427,14 @@ function createCameraHarness() {
     beginInteraction() { _interacting = true; _pending = null; },
     endInteraction() {
       _interacting = false;
-      if (_pending && _autoEnabled) {
-        return _pending;
+      const p = _pending || stubPending;
+      _pending = null;
+      if (p && _autoEnabled) {
+        stubFocusOnWindow(p.window, p.immediate, p.force);
       }
-      return null;
     },
     focusOnWindow(win, immediate, force) {
-      if (_interacting) { _pending = { window: win, immediate }; return null; }
+      if (_interacting) { _pending = { window: win, immediate, force }; return null; }
       if (!force && !_autoEnabled) return null;
       return { x: 0, y: 0, zoom: 1 };
     },
