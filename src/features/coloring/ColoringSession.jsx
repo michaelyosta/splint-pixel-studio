@@ -6,18 +6,9 @@ import { useSmartCamera } from './camera/useSmartCamera.js';
 import { findClusters, mergeClusters } from './engine/clusterGraph.js';
 import { createWorkingWindows, selectNextWindow } from './engine/workingWindows.js';
 import { applyStroke, createStrokeOperation } from './engine/paintReducer.js';
+import { arraysEqual } from './engine/coloringUtils.js';
 import { findRewardingColor } from '../../lib/pixelColoring.js';
 import './coloring.css';
-
-function arraysEqual(a, b) {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
 
 export default function ColoringSession({
   template,
@@ -175,7 +166,11 @@ export default function ColoringSession({
       const wins = windowsRef.current;
       if (!wins.length) return;
       const activeIdx = activeWindowIdRef.current;
-      const remaining = wins.filter((_, i) => !visitedWindowsRef.current.has(i) && i !== activeIdx);
+      const remaining = wins.filter((win, i) =>
+        i !== activeIdx &&
+        !visitedWindowsRef.current.has(i) &&
+        !win.cells.every(idx => localFilled[idx] === template.cells[idx])
+      );
       if (!remaining.length) return;
       const best = selectNextWindow(
         wins,

@@ -70,7 +70,8 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     isInteractingRef.current = false;
     const pending = pendingFocusRef.current;
     pendingFocusRef.current = null;
-    if (pending && autoEnabledRef.current && !isTemporarilyPaused) {
+    const mayRun = pending?.force || (autoEnabledRef.current && !isTemporarilyPaused);
+    if (pending && mayRun) {
       focusOnWindowRef.current(pending.window, pending.immediate, pending.force);
     }
   }, [isTemporarilyPaused]);
@@ -110,18 +111,13 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     animateTo(target, duration);
   }, [template, viewWidth, viewHeight, animateTo, cancelAnimation, reducedMotion]);
 
-  const toggleAuto = useCallback(() => {
-    if (autoEnabledRef.current && isTemporarilyPaused) {
-      resumeAuto();
-      return;
-    }
-    const next = !autoEnabledRef.current;
-    autoEnabledRef.current = next;
-    setAutoEnabled(next);
-    if (next) {
-      setTemporarilyPaused(false);
-    }
-  }, [isTemporarilyPaused, resumeAuto]);
+  const resumeAuto = useCallback(() => {
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    pauseTimerRef.current = null;
+    autoEnabledRef.current = true;
+    setAutoEnabled(true);
+    setTemporarilyPaused(false);
+  }, []);
 
   const pauseAuto = useCallback(() => {
     if (!autoEnabledRef.current) return;
@@ -135,13 +131,18 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     }, 6000);
   }, []);
 
-  const resumeAuto = useCallback(() => {
-    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
-    pauseTimerRef.current = null;
-    autoEnabledRef.current = true;
-    setAutoEnabled(true);
-    setTemporarilyPaused(false);
-  }, []);
+  const toggleAuto = useCallback(() => {
+    if (autoEnabledRef.current && isTemporarilyPaused) {
+      resumeAuto();
+      return;
+    }
+    const next = !autoEnabledRef.current;
+    autoEnabledRef.current = next;
+    setAutoEnabled(next);
+    if (next) {
+      setTemporarilyPaused(false);
+    }
+  }, [isTemporarilyPaused, resumeAuto]);
 
   const resumeAutoRef = useRef(resumeAuto);
   resumeAutoRef.current = resumeAuto;

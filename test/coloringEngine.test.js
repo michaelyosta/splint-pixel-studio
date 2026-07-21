@@ -5,6 +5,7 @@ import { findClusters, getClusterBounds, mergeClusters } from '../src/features/c
 import { createWorkingWindows, selectNextWindow } from '../src/features/coloring/engine/workingWindows.js';
 import { planCamera, clampCamera, getTransitionDuration } from '../src/features/coloring/engine/cameraPlanner.js';
 import { applyStroke, undoStroke, redoStroke, createStrokeOperation } from '../src/features/coloring/engine/paintReducer.js';
+import { arraysEqual } from '../src/features/coloring/engine/coloringUtils.js';
 
 /* ── StrokeRasterizer ── */
 
@@ -347,17 +348,13 @@ test('arraysEqual detects same content from different reference', () => {
   const a = [1, 2, 3, -1, 5];
   const b = [1, 2, 3, -1, 5];
   const c = [1, 2, 3, -1, 6];
-  // Using module-level arraysEqual (not exported) — inline the logic
-  function eq(x, y) {
-    if (x === y) return true;
-    if (!x || !y) return false;
-    if (x.length !== y.length) return false;
-    for (let i = 0; i < x.length; i++) { if (x[i] !== y[i]) return false; }
-    return true;
-  }
-  assert.ok(eq(a, b), 'same content');
-  assert.ok(!eq(a, c), 'different content');
-  assert.ok(eq(a, a), 'same reference');
+  const d = [1, 2, 3];
+  assert.ok(arraysEqual(a, b), 'same content, diff ref');
+  assert.ok(!arraysEqual(a, c), 'different content');
+  assert.ok(arraysEqual(a, a), 'same reference');
+  assert.ok(!arraysEqual(a, d), 'different length');
+  assert.ok(!arraysEqual(a, null), 'null b');
+  assert.ok(!arraysEqual(null, a), 'null a');
 });
 
 test('force focus bypasses auto-disabled check', () => {

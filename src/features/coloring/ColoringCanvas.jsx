@@ -141,6 +141,9 @@ export default function ColoringCanvas({
     twoFingerRef.current = false;
     const index = cellFromEvent(event);
     if (onTapCell && index != null) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      beginInteraction();
+      cancelAnimation();
       lastCellRef.current = index;
       onTapCell(index);
       return;
