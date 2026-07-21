@@ -1,0 +1,164 @@
+.coloring-session {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.coloring-canvas-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.coloring-canvas-viewport {
+  touch-action: none;
+}
+
+.coloring-canvas-layer {
+  touch-action: none;
+  will-change: transform;
+}
+
+.coloring-canvas {
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* HUD overlay */
+.coloring-hud {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.coloring-hud > * {
+  pointer-events: auto;
+}
+
+.hud-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: rgba(15, 26, 36, 0.92);
+  color: var(--app-text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+}
+
+.hud-btn.active {
+  border-color: var(--app-cyan);
+  color: var(--app-cyan);
+}
+
+.hud-btn:hover {
+  background: rgba(30, 50, 65, 0.95);
+}
+
+.combo-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  font-weight: 800;
+  color: #ff784e;
+  text-shadow: 0 0 20px rgba(255, 120, 78, 0.5);
+  pointer-events: none;
+  animation: comboPop 0.4s ease-out;
+}
+
+@keyframes comboPop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Dock area */
+.coloring-dock {
+  padding: 6px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--app-bg);
+  border-top: 1px solid var(--app-border);
+}
+
+.coloring-dock .palette {
+  margin: 0;
+  display: flex;
+  overflow-x: auto;
+  gap: 5px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.coloring-dock .color-swatch {
+  flex: 0 0 52px;
+  scroll-snap-align: start;
+  min-height: 44px;
+}
+
+.coloring-dock .color-swatch.completed {
+  opacity: 0.4;
+}
+
+.coloring-dock .color-swatch.completed::after {
+  content: '✓';
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 10px;
+  color: var(--app-success);
+}
+
+.coloring-dock-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.coloring-dock-actions button {
+  flex: 1;
+  min-height: 44px;
+  border: 1px solid var(--app-border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--app-text-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.coloring-dock-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.coloring-dock-actions button:hover:not(:disabled) {
+  background: rgba(30, 50, 65, 0.5);
+}
