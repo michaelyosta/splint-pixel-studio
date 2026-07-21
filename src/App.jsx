@@ -4,7 +4,7 @@ import { api, metaApi, catalogApi, DEV_USER_ID } from './api/client';
 import LegacyPixelCanvas from './components/LegacyPixelCanvas';
 import ColoringSession from './features/coloring/ColoringSession';
 
-const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE === 'true';
+const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE !== 'false';
 import { floodFillRegion } from './lib/floodFill';
 import { buildColoringFromImage, findRewardingColor, getProgress, renderCompletedImage } from './lib/pixelColoring';
 import { renderImageCropPreview, renderFitPreview, renderGridPreview, renderNumberedPreview } from './lib/imageCrop';
@@ -733,6 +733,8 @@ function App() {
 
       {zoneReward && <div className="milestone zone"><Target size={17} /> {zoneReward}</div>}
 
+      {import.meta.env.DEV && <div className={`engine-badge ${USE_NEW_COLORING_ENGINE ? 'smart' : 'legacy'}`}>{USE_NEW_COLORING_ENGINE ? 'Engine: Smart' : 'Engine: Legacy'}</div>}
+
       {USE_NEW_COLORING_ENGINE ? (
         <ColoringSession
           template={template}
@@ -772,7 +774,6 @@ function App() {
           fillMode={fillMode}
           combo={combo}
           onFillAt={fillMode ? handleFillAt : undefined}
-          onRevealAt={playMode === 'reveal' ? handleRevealAt : undefined}
           onOpenMenu={() => setMenuOpen(true)}
           onTrack={(event, payload) => metaApi.track(event, payload).catch(() => {})}
         />

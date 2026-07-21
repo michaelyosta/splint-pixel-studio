@@ -1,9 +1,9 @@
-import { useRef, useCallback, useLayoutEffect, useState } from 'react';
+import { useRef, useCallback, useLayoutEffect, useState, useEffect } from 'react';
 import { rasterizeStroke } from './engine/strokeRasterizer.js';
 
 const BASE_CELL = 32;
 
-function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokeCells, strokeColor, wrongCell) {
+function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokeCells, wrongCell, flashCells) {
   const { width, height, cells, palette } = template;
   const canvasW = width * BASE_CELL;
   const canvasH = height * BASE_CELL;
@@ -17,6 +17,7 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
   ctx.textBaseline = 'middle';
   ctx.font = `${Math.max(10, Math.floor(BASE_CELL * 0.4))}px Outfit, sans-serif`;
   const strokeSet = new Set(strokeCells || []);
+  const flashSet = new Set(flashCells || []);
   for (let i = 0; i < cells.length; i++) {
     const x = (i % width) * BASE_CELL;
     const y = Math.floor(i / width) * BASE_CELL;
@@ -25,8 +26,9 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
     const isSelected = paint === -1 && selectedColor === target;
     const isHint = hintMode && paint === -1 && target === selectedColor;
     const inStroke = strokeSet.has(i);
+    const inFlash = flashSet.has(i);
     if (inStroke) {
-      ctx.fillStyle = palette[strokeColor != null ? strokeColor : target];
+      ctx.fillStyle = palette[target];
       ctx.globalAlpha = 0.55;
       ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
       ctx.globalAlpha = 1;
@@ -35,6 +37,10 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
       ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
     } else {
       ctx.fillStyle = palette[paint];
+      ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
+    }
+    if (inFlash) {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
       ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
     }
     ctx.strokeStyle = '#0b131a';
@@ -79,17 +85,23 @@ export default function ColoringCanvas({
   const lastCellRef = useRef(null);
   const [wrongCell, setWrongCell] = useState(null);
   const [strokePreview, setStrokePreview] = useState([]);
+  const [flashCells, setFlashCells] = useState([]);
   const drawingRef = useRef(false);
+  const flashTimerRef = useRef(null);
   const pinchRef = useRef(null);
   const twoFingerRef = useRef(false);
   const hasPaintedRef = useRef(false);
+
+  useEffect(() => {
+    return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); };
+  }, []);
 
   const redraw = useCallback(() => {
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx || !template) return;
     drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode,
-      strokePreview, strokeRef.current?.color, wrongCell);
-  }, [template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokePreview, wrongCell]);
+      strokePreview, wrongCell, flashCells);
+  }, [template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokePreview, wrongCell, flashCells]);
 
   useLayoutEffect(() => { redraw(); }, [redraw]);
 
@@ -124,16 +136,23 @@ export default function ColoringCanvas({
       cancelStroke();
       return;
     }
+    const committedIndices = stroke.indices.slice();
     onStrokeComplete({
       strokeId: stroke.strokeId,
       color: stroke.color,
       source: 'manual',
-      indices: stroke.indices,
+      indices: committedIndices,
       startedAt: stroke.startedAt,
       completedAt: Date.now(),
     });
     strokeRef.current = null;
     setStrokePreview([]);
+    setFlashCells(committedIndices);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => {
+      flashTimerRef.current = null;
+      setFlashCells([]);
+    }, 300);
   }
 
   function handlePointerDown(event) {
@@ -149,16 +168,8 @@ export default function ColoringCanvas({
       return;
     }
     if (index == null) return;
-    if (filled[index] !== -1) {
-      if (template.cells[index] !== selectedColor) {
-        if (calmMode) return;
-        setWrongCell(index);
-        if (onWrongCell) onWrongCell();
-        setTimeout(() => setWrongCell(null), 260);
-      }
-      return;
-    }
-    if (template.cells[index] !== selectedColor) {
+    if (filled[index] !== -1) return;
+    if (interactionMode !== 'reveal' && template.cells[index] !== selectedColor) {
       if (calmMode) return;
       setWrongCell(index);
       if (onWrongCell) onWrongCell();
@@ -176,7 +187,7 @@ export default function ColoringCanvas({
     const now = Date.now();
     strokeRef.current = {
       strokeId: `stroke_${now}_${Math.random().toString(36).slice(2, 6)}`,
-      color: selectedColor,
+      color: interactionMode === 'reveal' ? -1 : selectedColor,
       startedAt: now,
       indices: [index],
       indexSet: new Set([index]),
@@ -206,7 +217,7 @@ export default function ColoringCanvas({
     for (const ci of cells) {
       if (stroke.indexSet.has(ci)) continue;
       if (filled[ci] !== -1) continue;
-      if (template.cells[ci] !== stroke.color) continue;
+      if (interactionMode !== 'reveal' && template.cells[ci] !== stroke.color) continue;
       stroke.indexSet.add(ci);
       stroke.indices.push(ci);
       added = true;
@@ -230,6 +241,8 @@ export default function ColoringCanvas({
     cancelStroke();
     twoFingerRef.current = false;
     endInteraction();
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = null;
   }
 
   function handleWheel(event) {

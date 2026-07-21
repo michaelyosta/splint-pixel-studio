@@ -1614,3 +1614,19 @@ input:checked + .slider:before {
 .bottom-sheet-actions button.active { border-color: var(--app-cyan); color: var(--app-cyan); background: rgba(0,181,216,.08); }
 .bottom-sheet-actions button:disabled { opacity: .4; cursor: not-allowed; }
 .bottom-sheet-actions hr { border: none; border-top: 1px solid var(--app-border); margin: 4px 0; }
+
+.engine-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 30;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+}
+.engine-badge.smart { background: rgba(0, 230, 118, 0.15); color: var(--app-success); border: 1px solid rgba(0, 230, 118, 0.25); }
+.engine-badge.legacy { background: rgba(255, 199, 44, 0.15); color: var(--app-gold); border: 1px solid rgba(255, 199, 44, 0.25); }

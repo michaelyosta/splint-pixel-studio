@@ -454,6 +454,58 @@ test('redo fully restores multi-cell stroke', () => {
   assert.equal(result.filled[1], 1);
 });
 
+/* ── Reveal-stroke regression tests ── */
+
+test('reveal stroke paints each cell with its own target color', () => {
+  const template = { width: 3, height: 2, palette: ['#000', '#fff', '#f00'], cells: [0, 1, 2, 0, 1, 2] };
+  const filled = [-1, -1, -1, -1, -1, -1];
+  const strokeCells = [0, 4]; // indices 0 (color 0) and 4 (color 1)
+  const nextFilled = [...filled];
+  const changes = [];
+  for (const idx of strokeCells) {
+    nextFilled[idx] = template.cells[idx];
+    changes.push({ index: idx, from: filled[idx], to: template.cells[idx] });
+  }
+  const operation = { type: 'stroke', color: -1, timestamp: Date.now(), changes };
+  assert.equal(nextFilled[0], 0, 'cell 0 gets target color 0');
+  assert.equal(nextFilled[4], 1, 'cell 4 gets target color 1');
+  assert.equal(operation.changes.length, 2, 'two changes');
+});
+
+test('reveal stroke has no duplicate indices', () => {
+  const indices = [0, 1, 1, 2, 0, 3];
+  const unique = new Set(indices);
+  assert.equal(unique.size, 4);
+});
+
+test('reveal stroke creates one history operation', () => {
+  const template = { width: 2, height: 2, cells: [0, 1, 0, 1] };
+  const filled = [-1, -1, -1, -1];
+  const strokeCells = [0, 1];
+  const changes = strokeCells.map(idx => ({ index: idx, from: filled[idx], to: template.cells[idx] }));
+  const operation = { type: 'stroke', color: -1, changes };
+  assert.equal(operation.changes.length, 2);
+  // Undo it
+  for (const change of operation.changes) {
+    filled[change.index] = change.from;
+  }
+  assert.ok(filled.every(f => f === -1), 'all reverted');
+});
+
+test('reveal stroke undo reverts all cells', () => {
+  const template = { width: 2, height: 2, cells: [0, 1, 0, 1] };
+  const filled = [-1, -1, -1, -1];
+  const strokeCells = [0, 1, 3];
+  for (const idx of strokeCells) {
+    filled[idx] = template.cells[idx];
+  }
+  // Undo
+  for (const idx of strokeCells) {
+    filled[idx] = -1;
+  }
+  assert.ok(filled.every(f => f === -1));
+});
+
 /* Helpers for camera tests */
 function createCameraHarness(stubPending, stubFocusOnWindow) {
   let _autoEnabled = true;

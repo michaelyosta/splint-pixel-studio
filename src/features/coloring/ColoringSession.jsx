@@ -29,7 +29,6 @@ export default function ColoringSession({
   fillMode,
   combo,
   onFillAt,
-  onRevealAt,
   onOpenMenu,
   onTrack,
 }) {
@@ -205,19 +204,34 @@ export default function ColoringSession({
   const handleStrokeComplete = useCallback((stroke) => {
     if (!template || !filledRef.current.length) return;
     if (!stroke.indices.length) return;
-    const nextFilled = applyStroke(filledRef.current, stroke);
+    let nextFilled;
+    let operation;
+    if (interactionMode === 'reveal') {
+      nextFilled = [...filledRef.current];
+      const changes = [];
+      for (const idx of stroke.indices) {
+        const targetColor = template.cells[idx];
+        nextFilled[idx] = targetColor;
+        changes.push({ index: idx, from: filledRef.current[idx], to: targetColor });
+      }
+      operation = { type: 'stroke', color: -1, timestamp: Date.now(), changes };
+    } else {
+      nextFilled = applyStroke(filledRef.current, stroke);
+      operation = createStrokeOperation(stroke, progress?.filled || filledRef.current);
+    }
     filledRef.current = nextFilled;
     setLocalFilled(nextFilled);
-    const operation = createStrokeOperation(stroke, progress?.filled || filledRef.current);
     if (onSaveProgress) onSaveProgress(nextFilled, { stroke: operation });
     if (onTrack) onTrack('coloring_stroke_commit', { templateId: template.id, color: stroke.color, cells: stroke.indices.length });
-    const remainingForColor = template.cells.reduce((count, target, ci) =>
-      count + (target === stroke.color && nextFilled[ci] === -1 ? 1 : 0), 0);
-    if (remainingForColor === 0 && interactionMode !== 'reveal') {
-      if (onTrack) onTrack('coloring_color_complete', { templateId: template.id, color: stroke.color });
-      const nextColor = findRewardingColor(template, nextFilled, stroke.color);
-      if (nextColor !== undefined) {
-        setTimeout(() => onSelectColor(nextColor), 100);
+    if (interactionMode !== 'reveal') {
+      const remainingForColor = template.cells.reduce((count, target, ci) =>
+        count + (target === stroke.color && nextFilled[ci] === -1 ? 1 : 0), 0);
+      if (remainingForColor === 0) {
+        if (onTrack) onTrack('coloring_color_complete', { templateId: template.id, color: stroke.color });
+        const nextColor = findRewardingColor(template, nextFilled, stroke.color);
+        if (nextColor !== undefined) {
+          setTimeout(() => onSelectColor(nextColor), 100);
+        }
       }
     }
   }, [template, progress, onSaveProgress, onSelectColor, interactionMode, onTrack]);
@@ -274,7 +288,7 @@ export default function ColoringSession({
             hideFilledNumbers={hideNumbers}
             hintMode={hintMode}
             interactionMode={interactionMode}
-            onTapCell={interactionMode === 'reveal' ? onRevealAt : fillMode ? onFillAt : undefined}
+            onTapCell={fillMode ? onFillAt : undefined}
             viewWidth={containerSize.width}
             viewHeight={containerSize.height}
             camera={camera}
