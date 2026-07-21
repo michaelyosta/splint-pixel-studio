@@ -357,6 +357,18 @@ test('arraysEqual detects same content from different reference', () => {
   assert.ok(!arraysEqual(null, a), 'null a');
 });
 
+test('forced pending focus runs with auto disabled', () => {
+  let executed = null;
+  const harness = createCameraHarness(null, (win, imm, force) => { executed = { win, imm, force }; });
+  harness.setAutoEnabled(false);
+  harness.beginInteraction();
+  harness.focusOnWindow({ centerX: 10, centerY: 10 }, false, true);
+  harness.endInteraction();
+  assert.notEqual(executed, null, 'should execute pending with force');
+  assert.equal(executed.force, true);
+  assert.equal(executed.win.centerX, 10);
+});
+
 test('force focus bypasses auto-disabled check', () => {
   const harness = createCameraHarness(null, () => {});
   harness.setAutoEnabled(false);
@@ -426,7 +438,7 @@ function createCameraHarness(stubPending, stubFocusOnWindow) {
       _interacting = false;
       const p = _pending || stubPending;
       _pending = null;
-      if (p && _autoEnabled) {
+      if (p && (p.force || _autoEnabled)) {
         stubFocusOnWindow(p.window, p.immediate, p.force);
       }
     },

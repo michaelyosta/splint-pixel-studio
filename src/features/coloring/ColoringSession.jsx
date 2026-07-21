@@ -154,6 +154,31 @@ export default function ColoringSession({
     return win.cells.every(idx => filled[idx] === template.cells[idx]);
   }
 
+  function getBlockedSet() {
+    const blocked = new Set(visitedWindowsRef.current);
+    const activeIdx = activeWindowIdRef.current;
+    if (activeIdx >= 0) blocked.add(activeIdx);
+    if (!template) return blocked;
+    const filled = filledRef.current;
+    windowsRef.current.forEach((win, idx) => {
+      if (win.cells.every(ci => filled[ci] === template.cells[ci])) {
+        blocked.add(idx);
+      }
+    });
+    return blocked;
+  }
+
+  function tryFocusWindow(win, idx, immediate, force) {
+    const focused = focusOnWindow(win, immediate, force);
+    if (focused) {
+      visitedWindowsRef.current.add(idx);
+      activeWindowIdRef.current = idx;
+      prevCameraCenterRef.current = lastCameraCenterRef.current;
+      lastCameraCenterRef.current = { x: win.centerX, y: win.centerY };
+    }
+    return focused;
+  }
+
   /* Navigate to next window only after current window is complete */
   useEffect(() => {
     if (!workingWindows.length || !isAutoActive) return;
@@ -165,28 +190,15 @@ export default function ColoringSession({
       pendingAutoRef.current = null;
       const wins = windowsRef.current;
       if (!wins.length) return;
-      const activeIdx = activeWindowIdRef.current;
-      const remaining = wins.filter((win, i) =>
-        i !== activeIdx &&
-        !visitedWindowsRef.current.has(i) &&
-        !win.cells.every(idx => localFilled[idx] === template.cells[idx])
-      );
-      if (!remaining.length) return;
+      const blocked = getBlockedSet();
       const best = selectNextWindow(
         wins,
         lastCameraCenterRef.current ? { x: lastCameraCenterRef.current.x, y: lastCameraCenterRef.current.y } : { x: 0, y: 0 },
         prevCameraCenterRef.current,
-        visitedWindowsRef.current,
+        blocked,
       );
       if (best) {
-        const idx = wins.indexOf(best);
-        if (idx >= 0) {
-          visitedWindowsRef.current.add(idx);
-          activeWindowIdRef.current = idx;
-          prevCameraCenterRef.current = lastCameraCenterRef.current;
-          lastCameraCenterRef.current = { x: best.centerX, y: best.centerY };
-          focusOnWindow(best, false, false);
-        }
+        tryFocusWindow(best, wins.indexOf(best), false, false);
       }
     }, 300);
     return () => { if (pendingAutoRef.current) clearTimeout(pendingAutoRef.current); };
@@ -227,24 +239,22 @@ export default function ColoringSession({
       if (onTrack) onTrack('camera_overview', { templateId: template?.id });
       return;
     }
+    const blocked = getBlockedSet();
     const best = selectNextWindow(
       windowsRef.current,
       lastCameraCenterRef.current ? { x: lastCameraCenterRef.current.x, y: lastCameraCenterRef.current.y } : { x: 0, y: 0 },
       prevCameraCenterRef.current,
-      visitedWindowsRef.current,
+      blocked,
     );
     if (best) {
       const idx = windowsRef.current.indexOf(best);
       if (idx >= 0) {
-        visitedWindowsRef.current.add(idx);
-        activeWindowIdRef.current = idx;
-        prevCameraCenterRef.current = lastCameraCenterRef.current;
-        lastCameraCenterRef.current = { x: best.centerX, y: best.centerY };
+        tryFocusWindow(best, idx, false, true);
       }
-      focusOnWindow(best, false, true);
       if (onTrack) onTrack('camera_next_cluster', { templateId: template?.id });
     }
-  }, [focusOnWindow, focusOverview, onTrack, template]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusOverview, onTrack, template]);
 
   const handleColorSelect = useCallback((colorIndex) => {
     onSelectColor(colorIndex);
