@@ -18,6 +18,15 @@ import metaRouter        from './routes/meta.js';
 
 const PORT = process.env.PORT || 3001;
 
+// ── Production safety checks ───────────────────────────────────────────────────
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEV_AUTH === 'true') {
+  throw new Error('ALLOW_DEV_AUTH cannot be enabled in production');
+}
+
+if (process.env.NODE_ENV === 'production' && !process.env.TELEGRAM_BOT_TOKEN) {
+  throw new Error('TELEGRAM_BOT_TOKEN is required in production');
+}
+
 // ── Init DB before serving ────────────────────────────────────────────────────
 await initDb();
 console.log(`✅  ${getDb().mode} database ready`);
@@ -29,10 +38,10 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: '*' })); // In production, restrict to your frontend domain
 app.use(express.json({ limit: '15mb' }));
 
-// ── Global Rate Limit (100 req/min per IP) ────────────────────────────────────
+// ── Global Rate Limit (100 req/min per IP, configurable via RATE_LIMIT_MAX) ──
 app.use(rateLimit({
   windowMs: 60_000,
-  max: 100,
+  max: Number(process.env.RATE_LIMIT_MAX) || 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много запросов, попробуйте через минуту' }
@@ -54,9 +63,26 @@ app.use('/meta',        metaRouter);
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // ── Error handler ──────────────────────────────────────────────────────────────
-app.use((err, _req, res, _next) => {
-  console.error(err);
-  res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+app.use((err, req, res, next) => {
+  console.error({
+    method: req.method,
+    path: req.originalUrl,
+    error: err,
+  });
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  res.status(
+    Number.isInteger(err.status)
+      ? err.status
+      : 500,
+  ).json({
+    error:
+      err.publicMessage ||
+      'Внутренняя ошибка сервера',
+  });
 });
 
 app.listen(PORT, () => {

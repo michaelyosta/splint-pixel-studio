@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { all, get, run } from '../db.js';
 import { authMiddleware, hasProfanity, hasUrl } from '../middleware/auth.js';
+import { asyncRoute } from '../middleware/asyncRoute.js';
 
 const router = Router();
 
@@ -12,13 +13,13 @@ async function enrichComment(c) {
 }
 
 // GET /posts/:id/comments
-router.get('/:id/comments', authMiddleware, async (req, res) => {
+router.get('/:id/comments', authMiddleware, asyncRoute(async (req, res) => {
   const comments = await all("SELECT * FROM comments WHERE post_id=? AND status='active' ORDER BY created_at ASC", [req.params.id]);
   res.json(await Promise.all(comments.map(enrichComment)));
-});
+}));
 
 // POST /posts/:id/comments
-router.post('/:id/comments', authMiddleware, async (req, res) => {
+router.post('/:id/comments', authMiddleware, asyncRoute(async (req, res) => {
   const postId = req.params.id;
   const userId = req.userId;
   const { text } = req.body;
@@ -52,15 +53,16 @@ router.post('/:id/comments', authMiddleware, async (req, res) => {
 
   const comment = await get('SELECT * FROM comments WHERE id=?', [id]);
   res.status(201).json(await enrichComment(comment));
-});
+}));
 
 // DELETE /comments/:id
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, asyncRoute(async (req, res) => {
   const c    = await get('SELECT * FROM comments WHERE id=?', [req.params.id]);
   if (!c) return res.status(404).json({ error: 'Комментарий не найден' });
 
   const post = await get('SELECT author_id FROM posts WHERE id=?', [c.post_id]);
-  const isMod = req.userId === 'user_splintmod';
+  const currentUser = await get('SELECT role FROM users WHERE id=?', [req.userId]);
+  const isMod = currentUser && (currentUser.role === 'moderator' || currentUser.role === 'admin');
   const isOwner = c.author_id === req.userId;
   const isPostAuthor = post?.author_id === req.userId;
 
@@ -72,15 +74,15 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   await run("UPDATE comments SET status='deleted', updated_at=? WHERE id=?", [now, c.id]);
   await run('UPDATE posts SET comment_count=MAX(0,comment_count-1), updated_at=? WHERE id=?', [now, c.post_id]);
   res.json({ success: true });
-});
+}));
 
 // POST /comments/:id/report
-router.post('/:id/report', authMiddleware, async (req, res) => {
+router.post('/:id/report', authMiddleware, asyncRoute(async (req, res) => {
   const { reason = 'other' } = req.body;
   const now = new Date().toISOString();
   await run(`INSERT INTO reports (id,reporter_id,target_type,target_id,reason,status,created_at) VALUES (?,?,?,?,?,?,?)`,
     [`rep_${uuid()}`, req.userId, 'comment', req.params.id, reason, 'pending', now]);
   res.json({ success: true });
-});
+}));
 
 export default router;

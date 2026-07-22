@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { get, run } from '../db.js';
+import { asyncRoute } from './asyncRoute.js';
 
 function validateTelegramInitData(initData, token) {
   const params = new URLSearchParams(initData);
@@ -19,32 +20,38 @@ async function ensureTelegramUser(telegramUser) {
   if (!await get('SELECT id FROM users WHERE id=?', [userId])) {
     const now = new Date().toISOString();
     const nickname = String(telegramUser.username || telegramUser.first_name || `User ${telegramUser.id}`).slice(0, 80);
-    await run(`INSERT INTO users (id,telegram_id,nickname,avatar_url,status,karma,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,is_banned,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [userId, telegramUser.id, nickname, telegramUser.photo_url || null, '', 0, 0, 0, 0, 0, 10, 0, now, now]);
+    await run(`INSERT INTO users (id,telegram_id,nickname,avatar_url,status,karma,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,is_banned,role,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [userId, telegramUser.id, nickname, telegramUser.photo_url || null, '', 0, 0, 0, 0, 0, 10, 0, 'user', now, now]);
   }
   return userId;
 }
 
 // Telegram initData is mandatory in production. X-User-Id is intentionally development-only.
-export async function authMiddleware(req, res, next) {
-  const initData = req.headers['x-telegram-init-data'];
-  if (initData && process.env.TELEGRAM_BOT_TOKEN) {
-    const telegramUser = validateTelegramInitData(initData, process.env.TELEGRAM_BOT_TOKEN);
-    if (!telegramUser?.id) return res.status(401).json({ error: 'Invalid Telegram authorization data' });
-    req.userId = await ensureTelegramUser(telegramUser);
-    req.authMode = 'telegram';
-    return next();
-  }
+export const authMiddleware = asyncRoute(
+  async function authMiddleware(req, res, next) {
+    if (process.env.NODE_ENV === 'test' && req.headers['x-test-auth-error'] === 'true') {
+      throw new Error('Controlled auth middleware error');
+    }
 
-  const devUserId = req.headers['x-user-id'];
-  const allowDevelopmentAuth = process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEV_AUTH === 'true';
-  if (devUserId && allowDevelopmentAuth) {
-    req.userId = String(devUserId);
-    req.authMode = 'development';
-    return next();
-  }
-  return res.status(401).json({ error: 'Telegram Mini Apps authorization required' });
-}
+    const initData = req.headers['x-telegram-init-data'];
+    if (initData && process.env.TELEGRAM_BOT_TOKEN) {
+      const telegramUser = validateTelegramInitData(initData, process.env.TELEGRAM_BOT_TOKEN);
+      if (!telegramUser?.id) return res.status(401).json({ error: 'Invalid Telegram authorization data' });
+      req.userId = await ensureTelegramUser(telegramUser);
+      req.authMode = 'telegram';
+      return next();
+    }
+
+    const devUserId = req.headers['x-user-id'];
+    const allowDevelopmentAuth = process.env.ALLOW_DEV_AUTH === 'true';
+    if (devUserId && allowDevelopmentAuth) {
+      req.userId = String(devUserId);
+      req.authMode = 'development';
+      return next();
+    }
+    return res.status(401).json({ error: 'Telegram Mini Apps authorization required' });
+  },
+);
 
 export const PROFANITY = ['спам', 'оскорбление', 'cheat', 'sex', 'drugs', 'buy stars', 'дурак', 'лох', 'хер'];
 export const URL_RE = /https?:\/\/[^\s]+/i;

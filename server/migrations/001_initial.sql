@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   paid_open INTEGER NOT NULL DEFAULT 0,
   price_in_stars INTEGER NOT NULL DEFAULT 10,
   is_banned INTEGER NOT NULL DEFAULT 0,
+  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'moderator', 'admin')),
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL
 );

@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const serverDir = join(__dirname, '..');
 
 const port = 31901;
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -22,8 +26,8 @@ async function request(path, { userId = 'user_pixelhunter', method = 'GET', body
 test('coloring progress can become a social post', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'splint-api-'));
   const server = spawn('node', ['index.js'], {
-    cwd: new URL('..', import.meta.url),
-    env: { ...process.env, PORT: String(port), SQLITE_DB_PATH: join(directory, 'test.db.bin'), MEDIA_STORAGE_ROOT: join(directory, 'uploads') },
+    cwd: serverDir,
+    env: { ...process.env, PORT: String(port), SQLITE_DB_PATH: join(directory, 'test.db.bin'), MEDIA_STORAGE_ROOT: join(directory, 'uploads'), ALLOW_DEV_AUTH: 'true' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

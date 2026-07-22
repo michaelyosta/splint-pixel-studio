@@ -8,7 +8,7 @@ const routeDirectory = join(root, 'routes');
 const routeFiles = (await readdir(routeDirectory)).filter((file) => file.endsWith('.js')).map((file) => join(routeDirectory, file));
 const serviceDirectory = join(root, 'services');
 const serviceFiles = (await readdir(serviceDirectory)).filter((file) => file.endsWith('.js')).map((file) => join(serviceDirectory, file));
-const files = [join(root, 'index.js'), join(root, 'db.js'), join(root, 'seed.js'), join(root, 'middleware', 'auth.js'), ...routeFiles, ...serviceFiles];
+const files = [join(root, 'index.js'), join(root, 'db.js'), join(root, 'seed.js'), join(root, 'middleware', 'auth.js'), join(root, 'middleware', 'asyncRoute.js'), join(root, 'middleware', 'authorization.js'), ...routeFiles, ...serviceFiles];
 
 for (const file of files) {
   await new Promise((resolve, reject) => {
