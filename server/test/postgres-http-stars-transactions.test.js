@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { once } from 'node:events';
 
 const databaseUrl = process.env.DATABASE_URL;
 const serverDir = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -33,13 +32,18 @@ async function getFreePort() {
 
 async function stopServer(server) {
   if (!server) return;
-  if (server.exitCode !== null || server.killed) return;
-  const exited = once(server, 'exit');
-  server.kill();
-  await exited;
+  if (server.exitCode !== null) return;
+
+  await new Promise((resolve) => {
+    if (server.exitCode !== null) { resolve(); return; }
+    server.once('exit', () => resolve());
+    if (!server.killed) {
+      server.kill();
+    }
+  });
 }
 
-async function spawnServer(schema, port) {
+async function spawnServer(schema, port, onSpawn) {
   const env = {
     ...process.env,
     DATABASE_URL: databaseUrl,
@@ -52,34 +56,52 @@ async function spawnServer(schema, port) {
   delete env.ALLOW_DESTRUCTIVE_DB_RESET;
   delete env.SEED_DEMO_DATA;
 
-  const server = spawn('node', ['index.js'], {
+  const child = spawn('node', ['index.js'], {
     cwd: serverDir,
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
+  onSpawn(child);
+
   const serverUrl = `http://127.0.0.1:${port}`;
   let stderr = '';
-  server.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+  let exitedEarly = false;
+
+  child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+  child.once('exit', (code) => { exitedEarly = true; });
 
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`Server did not start on port ${port}. stderr: ${stderr.slice(0, 500)}`)), 20_000);
-    server.stdout.on('data', (chunk) => {
+    const timer = setTimeout(() => {
+      const exitInfo = exitedEarly ? ` (exit code: ${child.exitCode})` : '';
+      reject(new Error(`Server did not start on port ${port}. stderr: ${stderr.slice(0, 500)}${exitInfo}`));
+    }, 20_000);
+
+    child.stdout.on('data', (chunk) => {
+      if (exitedEarly) {
+        clearTimeout(timer);
+        reject(new Error(`Server exited early on port ${port} (code ${child.exitCode}). stderr: ${stderr.slice(0, 500)}`));
+        return;
+      }
       if (chunk.toString().includes('database ready')) {
         setTimeout(() => { clearTimeout(timer); resolve(); }, 200);
       }
     });
-    server.once('error', reject);
+
+    child.once('error', reject);
   });
 
   for (let i = 0; i < 10; i++) {
+    if (exitedEarly) {
+      throw new Error(`Server exited before health check on port ${port} (code ${child.exitCode})`);
+    }
     try {
       const res = await fetch(`${serverUrl}/health`);
-      if (res.status === 200) return { server, url: serverUrl };
+      if (res.status === 200) return { url: serverUrl };
     } catch { /* retry */ }
     await new Promise(r => setTimeout(r, 200));
   }
-  throw new Error(`Health check failed on port ${port}`);
+  throw new Error(`Health check failed on port ${port}. stderr: ${stderr.slice(0, 500)}`);
 }
 
 async function createPgHttpHarness(t) {
@@ -103,7 +125,7 @@ async function createPgHttpHarness(t) {
   let server = null;
 
   t.after(async () => {
-    await stopServer(server);
+    await stop();
     await fixturePool.end();
     await adminPool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
     await adminPool.end();
@@ -114,9 +136,10 @@ async function createPgHttpHarness(t) {
     fixturePool,
     async startServer() {
       const port = await getFreePort();
-      const started = await spawnServer(schema, port);
-      server = started.server;
-      return started;
+      const started = await spawnServer(schema, port, (child) => {
+        server = child;
+      });
+      return { url: started.url, stop: () => stopServer(server) };
     },
   };
 }
@@ -156,7 +179,7 @@ test('PG-HTTP: successful message payment', { skip }, async (t) => {
   await h.fixturePool.query("INSERT INTO users (id,nickname,stars_balance,role,created_at,updated_at) VALUES ($1,'R',50,'user',NOW(),NOW())", [rId]);
   await h.fixturePool.query("INSERT INTO message_requests (id,sender_id,receiver_id,price_in_stars,text,status,created_at,updated_at) VALUES ($1,$2,$3,$4,'hi','payment_pending',NOW(),NOW())", [reqId, sId, rId, price]);
 
-  const { url, server } = await h.startServer();
+  const { url, stop } = await h.startServer();
 
   const res = await fetch(`${url}/messages/request/pay`, {
     method: 'POST',
@@ -168,7 +191,7 @@ test('PG-HTTP: successful message payment', { skip }, async (t) => {
   assert.equal(body.idempotent, false);
   assert.equal(body.request.status, 'delivered');
 
-  await stopServer(server);
+  await stop();
 
   const expectedPayout = Math.floor(price * 80 / 100);
   const s = await h.fixturePool.query('SELECT stars_balance FROM users WHERE id=$1', [sId]);
@@ -200,7 +223,7 @@ test('PG-HTTP: same-key replay idempotent', { skip }, async (t) => {
   await h.fixturePool.query("INSERT INTO users (id,nickname,stars_balance,role,created_at,updated_at) VALUES ($1,'R',50,'user',NOW(),NOW())", [rId]);
   await h.fixturePool.query("INSERT INTO message_requests (id,sender_id,receiver_id,price_in_stars,text,status,created_at,updated_at) VALUES ($1,$2,$3,50,'hi','payment_pending',NOW(),NOW())", [reqId, sId, rId]);
 
-  const { url, server } = await h.startServer();
+  const { url, stop } = await h.startServer();
 
   const r1 = await fetch(`${url}/messages/request/pay`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': sId, 'Idempotency-Key': key },
@@ -220,7 +243,7 @@ test('PG-HTTP: same-key replay idempotent', { skip }, async (t) => {
   assert.equal(b2.idempotent, true);
   assert.ok(b2.request);
 
-  await stopServer(server);
+  await stop();
 
   const ops = await h.fixturePool.query("SELECT COUNT(*) as cnt FROM stars_operations WHERE idempotency_key=$1 AND actor_user_id=$2", [key, sId]);
   assert.equal(parseInt(ops.rows[0].cnt, 10), 1);
@@ -268,7 +291,7 @@ test('PG-HTTP: insufficient balance returns 402', { skip }, async (t) => {
   await h.fixturePool.query("INSERT INTO users (id,nickname,stars_balance,role,created_at,updated_at) VALUES ($1,'R',0,'user',NOW(),NOW())", [rId]);
   await h.fixturePool.query("INSERT INTO message_requests (id,sender_id,receiver_id,price_in_stars,text,status,created_at,updated_at) VALUES ($1,$2,$3,50,'hi','payment_pending',NOW(),NOW())", [reqId, sId, rId]);
 
-  const { url, server } = await h.startServer();
+  const { url, stop } = await h.startServer();
 
   const res = await fetch(`${url}/messages/request/pay`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': sId, 'Idempotency-Key': 'pgh-poor-key-01' },
@@ -277,7 +300,7 @@ test('PG-HTTP: insufficient balance returns 402', { skip }, async (t) => {
   assert.equal(res.status, 402);
   assert.equal((await res.json()).code, 'INSUFFICIENT_STARS');
 
-  await stopServer(server);
+  await stop();
 
   const s = await h.fixturePool.query('SELECT stars_balance FROM users WHERE id=$1', [sId]);
   assert.equal(s.rows[0].stars_balance, 10);
@@ -303,7 +326,7 @@ test('PG-HTTP: concurrent same-key — both 200, exact state', { skip }, async (
   await h.fixturePool.query("INSERT INTO users (id,nickname,stars_balance,role,created_at,updated_at) VALUES ($1,'R',50,'user',NOW(),NOW())", [rId]);
   await h.fixturePool.query("INSERT INTO message_requests (id,sender_id,receiver_id,price_in_stars,text,status,created_at,updated_at) VALUES ($1,$2,$3,50,'hi','payment_pending',NOW(),NOW())", [reqId, sId, rId]);
 
-  const { url, server } = await h.startServer();
+  const { url, stop } = await h.startServer();
 
   const results = await Promise.allSettled([
     fetch(`${url}/messages/request/pay`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': sId, 'Idempotency-Key': key }, body: JSON.stringify({ requestId: reqId }) }),
@@ -316,7 +339,7 @@ test('PG-HTTP: concurrent same-key — both 200, exact state', { skip }, async (
   assert.ok(bodies.find(b => b.idempotent === false), 'Normal');
   assert.ok(bodies.find(b => b.idempotent === true), 'Idempotent');
 
-  await stopServer(server);
+  await stop();
 
   const s = await h.fixturePool.query('SELECT stars_balance FROM users WHERE id=$1', [sId]);
   const expectedPayout = Math.floor(50 * 80 / 100);
@@ -345,7 +368,7 @@ test('PG-HTTP: concurrent different-key — one 200, one 409 ALREADY_PROCESSED',
   await h.fixturePool.query("INSERT INTO users (id,nickname,stars_balance,role,created_at,updated_at) VALUES ($1,'R',50,'user',NOW(),NOW())", [rId]);
   await h.fixturePool.query("INSERT INTO message_requests (id,sender_id,receiver_id,price_in_stars,text,status,created_at,updated_at) VALUES ($1,$2,$3,50,'hi','payment_pending',NOW(),NOW())", [reqId, sId, rId]);
 
-  const { url, server } = await h.startServer();
+  const { url, stop } = await h.startServer();
 
   const results = await Promise.allSettled([
     fetch(`${url}/messages/request/pay`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': sId, 'Idempotency-Key': `pgh-diff-a-${Date.now()}` }, body: JSON.stringify({ requestId: reqId }) }),
@@ -358,7 +381,7 @@ test('PG-HTTP: concurrent different-key — one 200, one 409 ALREADY_PROCESSED',
   const conflict = results.find(r => r.status === 'fulfilled' && r.value.status === 409);
   assert.equal((await conflict.value.json()).code, 'ALREADY_PROCESSED');
 
-  await stopServer(server);
+  await stop();
 
   const s = await h.fixturePool.query('SELECT stars_balance FROM users WHERE id=$1', [sId]);
   assert.equal(s.rows[0].stars_balance, 200 - 50);
@@ -378,7 +401,7 @@ test('PG-HTTP: premium purchase — exact ownership, operation, ledger, artworks
   await h.fixturePool.query("INSERT INTO users (id,nickname,stars_balance,role,created_at,updated_at) VALUES ($1,'U',100,'user',NOW(),NOW())", [uId]);
   await h.fixturePool.query("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES ($1,'Test','premium',$2)", [cId, price]);
 
-  const { url, server } = await h.startServer();
+  const { url, stop } = await h.startServer();
 
   const res = await fetch(`${url}/users/collections/${cId}/add`, {
     method: 'POST',
@@ -388,7 +411,7 @@ test('PG-HTTP: premium purchase — exact ownership, operation, ledger, artworks
   const body = await res.json();
   assert.equal(body.idempotent, false);
 
-  await stopServer(server);
+  await stop();
 
   const u = await h.fixturePool.query('SELECT stars_balance FROM users WHERE id=$1', [uId]);
   assert.equal(u.rows[0].stars_balance, 100 - price);
@@ -419,7 +442,7 @@ test('PG-HTTP: concurrent premium purchase — one 200, one 409, exact state', {
   await h.fixturePool.query("INSERT INTO users (id,nickname,stars_balance,role,created_at,updated_at) VALUES ($1,'U',100,'user',NOW(),NOW())", [uId]);
   await h.fixturePool.query("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES ($1,'Test','premium',$2)", [cId, price]);
 
-  const { url, server } = await h.startServer();
+  const { url, stop } = await h.startServer();
 
   const results = await Promise.allSettled([
     fetch(`${url}/users/collections/${cId}/add`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': uId, 'Idempotency-Key': `pgh-cp-a-${Date.now()}` } }),
@@ -430,7 +453,7 @@ test('PG-HTTP: concurrent premium purchase — one 200, one 409, exact state', {
   assert.equal(statuses.filter(s => s === 200).length, 1);
   assert.equal(statuses.filter(s => s === 409).length, 1);
 
-  await stopServer(server);
+  await stop();
 
   const u = await h.fixturePool.query('SELECT stars_balance FROM users WHERE id=$1', [uId]);
   assert.equal(u.rows[0].stars_balance, 100 - price);
