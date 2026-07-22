@@ -32,11 +32,22 @@ async function getFreePort() {
 
 async function stopServer(server) {
   if (!server) return;
-  if (server.exitCode !== null) return;
+
+  if (server.exitCode !== null || server.signalCode !== null) {
+    return;
+  }
 
   await new Promise((resolve) => {
-    if (server.exitCode !== null) { resolve(); return; }
-    server.once('exit', () => resolve());
+    const onExit = () => resolve();
+
+    server.once('exit', onExit);
+
+    if (server.exitCode !== null || server.signalCode !== null) {
+      server.off('exit', onExit);
+      resolve();
+      return;
+    }
+
     if (!server.killed) {
       server.kill();
     }
