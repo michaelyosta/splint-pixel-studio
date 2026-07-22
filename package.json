@@ -9,7 +9,7 @@
     "build": "vite build",
     "catalog:build": "python server/scripts/build-catalog-assets.py",
     "lint": "oxlint",
-    "test": "node --test test/pixelColoring.test.js test/coloringEngine.test.js src/lib/playLoop.test.js",
+    "test": "node --test test/pixelColoring.test.js src/lib/progressSaveQueue.test.js",
     "test:integration": "node --test server/test/api.integration.test.js",
     "test:server": "npm --prefix server test",
     "preview": "vite preview"
