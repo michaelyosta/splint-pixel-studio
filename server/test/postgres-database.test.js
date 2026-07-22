@@ -8,6 +8,9 @@ const databaseUrl = process.env.DATABASE_URL;
 
 if (databaseUrl) {
   process.env.ALLOW_DEV_AUTH = 'true';
+  if (process.env.NODE_ENV === 'production') {
+    delete process.env.NODE_ENV;
+  }
 }
 
 if (!databaseUrl) {
