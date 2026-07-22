@@ -92,6 +92,7 @@ function App() {
   const revisionRef = useRef(0);
   const saveTimerRef = useRef(null);
   const localChangeRef = useRef(0);
+  const saveRetryRef = useRef(0);
   const noticeTimerRef = useRef(null);
   const rewardTimerRef = useRef(null);
   const lastPaintRef = useRef(0);
@@ -202,20 +203,37 @@ function App() {
   function queueSave(nextFilled) {
     window.clearTimeout(saveTimerRef.current);
     const version = ++localChangeRef.current;
+    const snapshotRevision = revisionRef.current;
     saveTimerRef.current = window.setTimeout(async () => {
       if (!template) return;
+      if (version !== localChangeRef.current) return;
       setSaving(true);
       try {
         const resultDataUrl = nextFilled.every((color, index) => color === template.cells[index]) ? renderCompletedImage(template, nextFilled) : null;
-        const saved = await api(`/colorings/${template.id}/progress`, { method: 'PUT', body: { filled: nextFilled, revision: revisionRef.current, resultDataUrl } });
+        const saved = await api(`/colorings/${template.id}/progress`, { method: 'PUT', body: { filled: nextFilled, revision: snapshotRevision, resultDataUrl } });
         revisionRef.current = saved.revision;
-        if (version === localChangeRef.current) setProgress(saved);
+        saveRetryRef.current = 0;
+        setProgress(saved);
       } catch (error) {
         if (error.status === 409 && error.data?.progress) {
           revisionRef.current = error.data.progress.revision;
-          if (version === localChangeRef.current) setProgress(error.data.progress);
+          if (saveRetryRef.current < 1 && version === localChangeRef.current) {
+            saveRetryRef.current += 1;
+            try {
+              const retrySaved = await api(`/colorings/${template.id}/progress`, { method: 'PUT', body: { filled: nextFilled, revision: error.data.progress.revision, resultDataUrl: null } });
+              revisionRef.current = retrySaved.revision;
+              saveRetryRef.current = 0;
+              if (version === localChangeRef.current) setProgress(retrySaved);
+            } catch (retryError) {
+              saveRetryRef.current = 0;
+              if (version === localChangeRef.current) showNotice(retryError.message || 'Конфликт сохранения', 'error');
+            }
+          } else {
+            showNotice(error.message, 'error');
+          }
+        } else {
+          showNotice(error.message, 'error');
         }
-        showNotice(error.message, 'error');
       } finally {
         setSaving(false);
       }
