@@ -119,4 +119,24 @@ router.get('/analytics/summary', authMiddleware, asyncRoute(async (req, res) => 
   res.json(summary);
 }));
 
+// ── Test-only routes (never available in production) ─────────────────────────
+if (process.env.NODE_ENV === 'test') {
+  router.get('/_test/throw', asyncRoute(async () => {
+    throw new Error('Controlled test error');
+  }));
+
+  router.get('/_test/auth-error', authMiddleware, asyncRoute(async () => {
+    throw new Error('Controlled auth error');
+  }));
+
+  router.patch('/_test/set-role', authMiddleware, asyncRoute(async (req, res) => {
+    const { userId, role } = req.body;
+    if (!['user', 'moderator', 'admin'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+    await run('UPDATE users SET role=? WHERE id=?', [role, userId]);
+    res.json({ success: true });
+  }));
+}
+
 export default router;

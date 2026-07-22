@@ -242,7 +242,7 @@ test('Role-based authorization', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'splint-roles-'));
   const server = spawn('node', ['index.js'], {
     cwd: serverDir,
-    env: { ...process.env, PORT: String(port + 5), SQLITE_DB_PATH: join(directory, 'test.db.bin'), MEDIA_STORAGE_ROOT: join(directory, 'uploads'), ALLOW_DEV_AUTH: 'true' },
+    env: { ...process.env, NODE_ENV: 'test', PORT: String(port + 5), SQLITE_DB_PATH: join(directory, 'test.db.bin'), MEDIA_STORAGE_ROOT: join(directory, 'uploads'), ALLOW_DEV_AUTH: 'true' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -278,14 +278,33 @@ test('Role-based authorization', async (t) => {
     assert.equal(response.status, 200, 'Moderator should access mod routes');
   });
 
-  await t.test('User with ID user_splintmod but no moderator role gets 403', async () => {
-    // user_splintmod now has the 'moderator' role in seed data, so this should succeed.
-    // The important thing is it's role-based, not ID-based.
-    // Test creates a user with 'user' role to confirm.
-    const response = await fetch(`${base}/moderation/reports`, {
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user_lenaart' },
+  await t.test('user_splintmod with role=user gets 403 on moderator route', async () => {
+    // Demote user_splintmod to 'user' via test-only endpoint
+    const demote = await fetch(`${base}/meta/_test/set-role`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user_splintmod' },
+      body: JSON.stringify({ userId: 'user_splintmod', role: 'user' }),
     });
-    assert.equal(response.status, 403, 'User without moderator role should get 403');
+    assert.equal(demote.status, 200, 'Should be able to set role in test env');
+
+    const response = await fetch(`${base}/moderation/reports`, {
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user_splintmod' },
+    });
+    assert.equal(response.status, 403, 'user_splintmod with role=user should get 403');
+  });
+
+  await t.test('Promoting back to moderator restores access', async () => {
+    const promote = await fetch(`${base}/meta/_test/set-role`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user_pixelhunter' },
+      body: JSON.stringify({ userId: 'user_splintmod', role: 'moderator' }),
+    });
+    assert.equal(promote.status, 200);
+
+    const response = await fetch(`${base}/moderation/reports`, {
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user_splintmod' },
+    });
+    assert.equal(response.status, 200, 'Restored moderator should have access');
   });
 });
 
