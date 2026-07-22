@@ -112,7 +112,6 @@ function App() {
   const zoneMilestoneRef = useRef(new Set());
   const paintedRef = useRef(false);
   const completedTemplateRef = useRef(null);
-  const completionDialogRef = useRef(null);
   const filledRef = useRef([]);
 
   const showNotice = useCallback((text, type = 'info') => {
@@ -260,8 +259,7 @@ function App() {
     filledRef.current = nextFilled;
     setProgress((current) => ({ ...current, filled: nextFilled, ...getProgress(template.cells, nextFilled) }));
     if (change) {
-      const historyEntry = change.stroke || change;
-      setHistory((current) => [...current.slice(-99), historyEntry]);
+      setHistory((current) => [...current.slice(-99), change]);
       setFuture([]);
     }
     queueSave(nextFilled);
@@ -304,12 +302,12 @@ function App() {
   function handleStrokeCommitted(nextFilled, operation) {
     handleFirstPaint();
     const now = Date.now();
-    const strokeCount = operation?.stroke?.changes?.length || 1;
+    const strokeCount = operation?.changes?.length || 1;
     const nextCombo = now - lastPaintRef.current < 2200 ? comboRef.current + strokeCount : 1;
     lastPaintRef.current = now;
     comboRef.current = nextCombo;
     setCombo(nextCombo);
-    applyFilled(nextFilled, operation ? { stroke: operation } : undefined);
+    applyFilled(nextFilled, operation);
     const nextProgress = getProgress(template.cells, nextFilled);
     [25, 50, 75, 100].forEach((value) => {
       if (nextProgress.percent >= value && !milestoneRef.current.has(value)) {
@@ -609,14 +607,6 @@ function App() {
     }
     if (gameProgress?.percent !== 100) completedTemplateRef.current = null;
   }, [gameProgress?.percent, template, view]);
-
-  useEffect(() => {
-    if (!completionOpen) return undefined;
-    completionDialogRef.current?.focus();
-    const closeOnEscape = (event) => { if (event.key === 'Escape') setCompletionOpen(false); };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [completionOpen]);
 
   useEffect(() => {
     if (view === 'play' && template && !onboarding && !localStorage.getItem('splint_onboarding_done')) {

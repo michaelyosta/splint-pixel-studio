@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Star, Target, X } from 'lucide-react';
 import ColoringSession from '../features/coloring/ColoringSession';
+import LegacyPixelCanvas from '../components/LegacyPixelCanvas';
 import { getContextGoal } from '../lib/playLoop';
 
 const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE !== 'false';
@@ -55,6 +56,21 @@ export default function PlayerView({
   const [menuOpen, setMenuOpen] = useState(false);
   const [hudHidden, setHudHidden] = useState(false);
   const startPaintTimerRef = useRef(null);
+  const completionDialogRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (startPaintTimerRef.current) clearTimeout(startPaintTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!completionOpen) return undefined;
+    completionDialogRef.current?.focus();
+    const closeOnEscape = (event) => { if (event.key === 'Escape') setCompletionOpen(false); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [completionOpen, setCompletionOpen]);
 
   const declutter = () => {
     window.clearTimeout(startPaintTimerRef.current);
@@ -94,31 +110,70 @@ export default function PlayerView({
 
       {import.meta.env.DEV && <div className={`engine-badge ${USE_NEW_COLORING_ENGINE ? 'smart' : 'legacy'}`}>{USE_NEW_COLORING_ENGINE ? 'Engine: Smart' : 'Engine: Legacy'}</div>}
 
-      <ColoringSession
-        template={template}
-        progress={progress}
-        selectedColor={selectedColor}
-        onSelectColor={onSelectColor}
-        onSaveProgress={(nextFilled, operation) => {
-          declutter();
-          onStrokeCommitted(nextFilled, operation);
-        }}
-        onFirstPaint={onFirstPaint}
-        onWrongCell={onWrongCell}
-        onUndo={onUndo}
-        onRedo={onRedo}
-        canUndo={history.length > 0}
-        canRedo={future.length > 0}
-        calmMode={calmMode}
-        hideNumbers={hideNumbers}
-        hintMode={playMode === 'classic' && hintMode}
-        interactionMode={playMode}
-        fillMode={fillMode}
-        combo={combo}
-        onFillAt={fillMode ? onFillAt : undefined}
-        onOpenMenu={() => setMenuOpen(true)}
-        onTrack={onTrack}
-      />
+      {USE_NEW_COLORING_ENGINE ? (
+        <ColoringSession
+          template={template}
+          progress={progress}
+          selectedColor={selectedColor}
+          onSelectColor={onSelectColor}
+          onSaveProgress={(nextFilled, operation) => {
+            declutter();
+            onStrokeCommitted(nextFilled, operation);
+          }}
+          onFirstPaint={onFirstPaint}
+          onWrongCell={onWrongCell}
+          onUndo={onUndo}
+          onRedo={onRedo}
+          canUndo={history.length > 0}
+          canRedo={future.length > 0}
+          calmMode={calmMode}
+          hideNumbers={hideNumbers}
+          hintMode={playMode === 'classic' && hintMode}
+          interactionMode={playMode}
+          fillMode={fillMode}
+          combo={combo}
+          onFillAt={fillMode ? onFillAt : undefined}
+          onOpenMenu={() => setMenuOpen(true)}
+          onTrack={onTrack}
+        />
+      ) : (
+        <>
+          <div className="player-canvas-area" onClick={showHud} onMouseMove={showHud}>
+            <LegacyPixelCanvas
+              template={template}
+              filled={progress.filled}
+              selectedColor={selectedColor}
+              onPaint={(index, color) => {
+                declutter();
+                const nextFilled = [...progress.filled];
+                nextFilled[index] = color;
+                onStrokeCommitted(nextFilled, {
+                  type: 'single',
+                  timestamp: Date.now(),
+                  changes: [{ index, from: -1, to: color }],
+                });
+              }}
+              onWrong={(index) => { declutter(); onWrongCell(index); }}
+              onFirstPaint={(index) => { declutter(); onFirstPaint(index); }}
+              calmMode={calmMode}
+              hideFilledNumbers={playMode === 'reveal' || hideNumbers}
+              hintMode={playMode === 'classic' && hintMode}
+              interactionMode={playMode}
+              onTapCell={playMode === 'reveal' ? undefined : fillMode ? onFillAt : undefined}
+            />
+          </div>
+          <div className="player-dock" onClick={showHud}>
+            <div className="player-dock-mode">
+              <button className={playMode === 'classic' ? 'active' : ''} onClick={() => { setPlayMode('classic'); setFillMode(false); }}>По номерам</button>
+              <button className={playMode === 'reveal' ? 'active' : ''} onClick={() => setPlayMode('reveal')}>Раскрытие</button>
+            </div>
+            {playMode === 'classic' && <div className="palette" aria-label="Палитра цветов">{template.palette.map((color, index) => {
+              const remaining = template.cells.reduce((total, target, cellIndex) => total + (target === index && progress.filled[cellIndex] === -1 ? 1 : 0), 0);
+              return <button key={color} className={`color-swatch ${selectedColor === index ? 'selected' : ''}`} onClick={() => { onSelectColor(index); window.Telegram?.WebApp?.HapticFeedback?.selectionChanged?.(); }} title={`Цвет ${index + 1}`}><i style={{ background: color }} /><span>{index + 1}</span><small>{remaining}</small></button>;
+            })}</div>}
+          </div>
+        </>
+      )}
 
       {menuOpen && <div className="bottom-sheet-overlay" role="presentation" onClick={() => setMenuOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
         <section className="bottom-sheet" role="dialog" aria-modal="true" aria-label="Меню игры" onClick={(e) => e.stopPropagation()}>
@@ -161,7 +216,7 @@ export default function PlayerView({
       </div>}
 
       {isComplete && completionOpen && <div className="completion-overlay" role="presentation">
-        <section className="completion-dialog" tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="completion-title">
+        <section className="completion-dialog" ref={completionDialogRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="completion-title">
           <button className="completion-close" onClick={() => setCompletionOpen(false)} aria-label="Закрыть карточку результата"><X size={20} /></button>
           <div className="confetti" aria-hidden="true">✦ ◆ ✦</div>
           <img src={completedPreview} alt={`Готовая работа ${template.title}`} />

@@ -232,7 +232,7 @@ export default function ColoringSession({
     }
     filledRef.current = nextFilled;
     setLocalFilled(nextFilled);
-    if (onSaveProgress) onSaveProgress(nextFilled, { stroke: operation });
+    if (onSaveProgress) onSaveProgress(nextFilled, operation);
     if (onTrack) onTrack('coloring_stroke_commit', { templateId: template.id, color: stroke.color, cells: stroke.indices.length });
     if (interactionMode !== 'reveal') {
       const remainingForColor = template.cells.reduce((count, target, ci) =>
@@ -286,6 +286,10 @@ export default function ColoringSession({
   const layoutTimerRef = useRef(null);
 
   useEffect(() => {
+    return () => { if (layoutTimerRef.current) clearTimeout(layoutTimerRef.current); };
+  }, []);
+
+  useEffect(() => {
     if (containerSize.width > 0 && containerSize.height > 0) {
       if (layoutTimerRef.current) clearTimeout(layoutTimerRef.current);
       setLayoutError(false);
@@ -296,23 +300,9 @@ export default function ColoringSession({
     if (!template || !progress) return;
     if (containerSize.width === 0 && containerSize.height === 0 && import.meta.env.DEV) {
       layoutTimerRef.current = setTimeout(() => setLayoutError(true), 1400);
-      return () => { if (layoutTimerRef.current) clearTimeout(layoutTimerRef.current); };
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  if (layoutError) {
-    return (
-      <div className="coloring-session" ref={containerRef}>
-        <div className="coloring-canvas-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff6b6b', fontSize: '13px', flexDirection: 'column', gap: '4px' }}>
-          <b>Smart Canvas layout error</b>
-          <span>width: 0</span>
-          <span>height: 0</span>
-          <span style={{ fontSize: '10px', color: '#8d9fa5' }}>Container has not received size from ResizeObserver</span>
-        </div>
-      </div>
-    );
-  }
 
   if (!template || !progress) return null;
 
@@ -341,6 +331,14 @@ export default function ColoringSession({
             beginInteraction={beginInteraction}
             endInteraction={endInteraction}
           />
+        )}
+        {layoutError && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff6b6b', fontSize: '13px', flexDirection: 'column', gap: '4px', background: '#081218', zIndex: 5 }}>
+            <b>Smart Canvas layout error</b>
+            <span>width: 0</span>
+            <span>height: 0</span>
+            <span style={{ fontSize: '10px', color: '#8d9fa5' }}>Container has not received size from ResizeObserver</span>
+          </div>
         )}
         <ColoringHud
           isAutoActive={isAutoActive}
