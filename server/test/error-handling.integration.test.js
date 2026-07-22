@@ -54,16 +54,19 @@ test('Async error handling', async (t) => {
     assert.equal(json.status, 'ok');
   });
 
-  await t.test('Rejected promise in auth-wrapped route returns 500', async () => {
-    const response = await fetch(`${baseUrl}/meta/_test/auth-error`, {
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'user_pixelhunter' },
+  await t.test('Error inside authMiddleware returns 500 without stack trace', async () => {
+    const response = await fetch(`${baseUrl}/users/me`, {
+      headers: { 'Content-Type': 'application/json', 'X-Test-Auth-Error': 'true' },
     });
     const json = await response.json().catch(() => ({}));
-    assert.equal(response.status, 500, 'Auth-wrapped rejected promise should return 500');
+    assert.equal(response.status, 500, 'Error inside authMiddleware should return 500');
     assert.ok(!json.stack, 'Response must not contain stack trace');
+    assert.ok(!json.sql, 'Response must not contain SQL');
+    assert.ok(!json.token, 'Response must not contain tokens');
+    assert.ok(json.error, 'Response should have an error message');
   });
 
-  await t.test('Server still alive after auth-wrapped error', async () => {
+  await t.test('Server alive after authMiddleware error', async () => {
     const response = await fetch(`${baseUrl}/health`);
     assert.equal(response.status, 200);
   });

@@ -29,6 +29,10 @@ async function ensureTelegramUser(telegramUser) {
 // Telegram initData is mandatory in production. X-User-Id is intentionally development-only.
 export const authMiddleware = asyncRoute(
   async function authMiddleware(req, res, next) {
+    if (process.env.NODE_ENV === 'test' && req.headers['x-test-auth-error'] === 'true') {
+      throw new Error('Controlled auth middleware error');
+    }
+
     const initData = req.headers['x-telegram-init-data'];
     if (initData && process.env.TELEGRAM_BOT_TOKEN) {
       const telegramUser = validateTelegramInitData(initData, process.env.TELEGRAM_BOT_TOKEN);
