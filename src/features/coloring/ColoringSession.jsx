@@ -3,7 +3,7 @@ import ColoringCanvas from './ColoringCanvas.jsx';
 import ColoringPalette from './ColoringPalette.jsx';
 import ColoringHud from './ColoringHud.jsx';
 import { useSmartCamera } from './camera/useSmartCamera.js';
-import { findClusters, mergeClusters } from './engine/clusterGraph.js';
+import { findClusters, mergeClusters, findUnfilledClusters } from './engine/clusterGraph.js';
 import { createWorkingWindows, selectNextWindow } from './engine/workingWindows.js';
 import { applyStroke, createStrokeOperation } from './engine/paintReducer.js';
 import { arraysEqual } from './engine/coloringUtils.js';
@@ -85,7 +85,9 @@ export default function ColoringSession({
 
   const workingWindows = useMemo(() => {
     if (!template || !filledRef.current.length) return [];
-    const clusters = findClusters(template, filledRef.current, selectedColor);
+    const clusters = interactionMode === 'reveal'
+      ? findUnfilledClusters(template, filledRef.current)
+      : findClusters(template, filledRef.current, selectedColor);
     const merged = mergeClusters(clusters, template.width);
     if (!merged.length) return [];
     const allWindows = [];
@@ -95,7 +97,7 @@ export default function ColoringSession({
     }
     return allWindows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template, selectedColor, containerSize, windowsGeneration]);
+  }, [template, interactionMode, selectedColor, containerSize, windowsGeneration]);
 
   useEffect(() => {
     windowsRef.current = workingWindows;
@@ -105,14 +107,16 @@ export default function ColoringSession({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workingWindows]);
 
-  /* Bump windows generation on color change or external reset */
+  /* Bump windows generation on color change or external reset — color-agnostic in reveal */
   useEffect(() => {
     if (selectedColor !== lastColorRef.current) {
       lastColorRef.current = selectedColor;
-      windowsGenerationRef.current += 1;
-      setWindowsGeneration(windowsGenerationRef.current);
+      if (interactionMode !== 'reveal') {
+        windowsGenerationRef.current += 1;
+        setWindowsGeneration(windowsGenerationRef.current);
+      }
     }
-  }, [selectedColor]);
+  }, [selectedColor, interactionMode]);
 
   /* External progress.filled sync — deep compare to avoid false positives from autosave */
   useEffect(() => {
