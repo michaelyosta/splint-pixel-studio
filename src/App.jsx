@@ -4,6 +4,7 @@ import { api, metaApi, catalogApi, DEV_USER_ID } from './api/client';
 import PixelCanvas from './components/PixelCanvas';
 import { floodFillRegion } from './lib/floodFill';
 import { buildColoringFromImage, findRewardingColor, getProgress, renderCompletedImage } from './lib/pixelColoring';
+import { createSaveQueue } from './lib/progressSaveQueue';
 import './App.css';
 
 const DIFFICULTIES = {
@@ -88,10 +89,8 @@ function App() {
   const [fillMode, setFillMode] = useState(false);
   const sessionStartRef = useRef(0);
 
+  const saveQueueRef = useRef(null);
 
-  const revisionRef = useRef(0);
-  const saveTimerRef = useRef(null);
-  const localChangeRef = useRef(0);
   const noticeTimerRef = useRef(null);
   const rewardTimerRef = useRef(null);
   const lastPaintRef = useRef(0);
@@ -164,7 +163,7 @@ function App() {
 
   useEffect(() => { loadCatalog(); loadToday(); loadStreak(); loadAchievements(); loadCollections(); loadProfile(); }, [loadCatalog, loadToday, loadStreak, loadAchievements, loadCollections, loadProfile]);
   useEffect(() => () => {
-    window.clearTimeout(saveTimerRef.current);
+    if (saveQueueRef.current) saveQueueRef.current.reset(0);
     window.clearTimeout(noticeTimerRef.current);
     window.clearTimeout(rewardTimerRef.current);
   }, []);
@@ -180,7 +179,23 @@ function App() {
       setTemplate(nextTemplate);
       setProgress(nextProgress);
       setZones(nextZones.zones || []);
-      revisionRef.current = nextProgress.revision;
+      saveQueueRef.current = createSaveQueue({
+        putProgress: async ({ filled, revision, resultDataUrl }) => {
+          return api(`/colorings/${nextTemplate.id}/progress`, {
+            method: 'PUT',
+            body: { filled, revision, resultDataUrl },
+          });
+        },
+        getResultDataUrl: (filled) => {
+          return filled.every((color, index) => color === nextTemplate.cells[index])
+            ? renderCompletedImage(nextTemplate, filled)
+            : null;
+        },
+        onProgress: (saved) => setProgress(saved),
+        onNotice: showNotice,
+        onSaving: setSaving,
+      });
+      saveQueueRef.current.reset(nextProgress.revision);
       setSelectedColor(findRewardingColor(nextTemplate, nextProgress.filled) ?? 0);
       setHistory([]);
       setFuture([]);
@@ -200,49 +215,7 @@ function App() {
   }
 
   function queueSave(nextFilled) {
-    window.clearTimeout(saveTimerRef.current);
-    const version = ++localChangeRef.current;
-    const snapshotRevision = revisionRef.current;
-    saveTimerRef.current = window.setTimeout(async () => {
-      if (!template) return;
-      if (version !== localChangeRef.current) return;
-      if (saving) return;
-      setSaving(true);
-      await saveSnapshot({ filled: nextFilled, revision: snapshotRevision, version, retryCount: 0 });
-      if (version === localChangeRef.current) setSaving(false);
-    }, 450);
-  }
-
-  async function saveSnapshot({ filled, revision, version, retryCount }) {
-    if (version !== localChangeRef.current) return false;
-
-    const resultDataUrl = filled.every((color, index) => color === template.cells[index]) ? renderCompletedImage(template, filled) : null;
-
-    try {
-      const saved = await api(`/colorings/${template.id}/progress`, { method: 'PUT', body: { filled, revision, resultDataUrl } });
-      if (version !== localChangeRef.current) return false;
-      if (saved.revision > revisionRef.current) {
-        revisionRef.current = saved.revision;
-      }
-      setProgress(saved);
-      return true;
-    } catch (error) {
-      if (version !== localChangeRef.current) return false;
-      if (error.status === 409 && error.data?.progress) {
-        const serverRevision = error.data.progress.revision;
-        if (serverRevision > revisionRef.current) {
-          revisionRef.current = serverRevision;
-        }
-        if (retryCount < 1) {
-          return await saveSnapshot({ filled, revision: serverRevision, version, retryCount: retryCount + 1 });
-        } else {
-          showNotice(error.message, 'error');
-        }
-      } else {
-        showNotice(error.message, 'error');
-      }
-      return false;
-    }
+    if (saveQueueRef.current) saveQueueRef.current.queueSave(nextFilled);
   }
 
   function applyFilled(nextFilled, change) {
