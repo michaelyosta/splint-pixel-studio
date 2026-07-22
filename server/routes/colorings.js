@@ -277,13 +277,8 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
             [req.userId, template.id, JSON.stringify(filled), nextRevision, completedAt, now, now],
           );
         } catch (e) {
-          if (isUniqueConstraintError(e, 'sqlite')) {
-            const serverProgress = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
-            return { conflict: true, progress: serverProgress ? progressPayload(template, serverProgress) : null };
-          }
-          if (isUniqueConstraintError(e, 'postgres')) {
-            const serverProgress = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
-            return { conflict: true, progress: serverProgress ? progressPayload(template, serverProgress) : null };
+          if (isUniqueConstraintError(e, 'sqlite') || isUniqueConstraintError(e, 'postgres')) {
+            return { conflict: true, progress: null, insertConflict: true };
           }
           throw e;
         }
@@ -297,7 +292,12 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
     if (casResult.badRequest) {
       return res.status(400).json({ error: 'Прогресс не найден, начните с revision 0' });
     }
-    return res.status(409).json({ error: 'Прогресс уже обновлён на другом устройстве', progress: casResult.progress });
+    let progress = casResult.progress;
+    if (!progress) {
+      const serverProgress = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
+      progress = serverProgress ? progressPayload(template, serverProgress) : null;
+    }
+    return res.status(409).json({ error: 'Прогресс уже обновлён на другом устройстве', progress });
   }
 
   await touchStreak(req.userId);
