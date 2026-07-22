@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { rasterizeLine, rasterizeStroke } from '../src/features/coloring/engine/strokeRasterizer.js';
-import { findClusters, getClusterBounds, mergeClusters } from '../src/features/coloring/engine/clusterGraph.js';
+import { findClusters, getClusterBounds, mergeClusters, findUnfilledClusters } from '../src/features/coloring/engine/clusterGraph.js';
 import { createWorkingWindows, selectNextWindow } from '../src/features/coloring/engine/workingWindows.js';
 import { planCamera, clampCamera, getTransitionDuration } from '../src/features/coloring/engine/cameraPlanner.js';
 import { applyStroke, undoStroke, redoStroke, createStrokeOperation } from '../src/features/coloring/engine/paintReducer.js';
@@ -663,6 +663,74 @@ test('undo redo round-trip returns exact original array', () => {
   // Redo
   const redone = applyChanges(undone, op.changes, 'to');
   assert.deepEqual(redone, painted);
+});
+
+/* ── Reveal camera ── */
+
+test('reveal clusters include unfilled cells of all colors', () => {
+  const t = simpleTemplate(3, 3, ['#000', '#fff', '#f00'], [0, 1, 2, 0, 1, 2, 0, 1, 2]);
+  const filled = Array(9).fill(-1);
+  filled[4] = 1;
+  const clusters = findUnfilledClusters(t, filled);
+  const allIndices = new Set(clusters.flat());
+  const remaining = Array.from({ length: 9 }, (_, i) => i).filter(i => filled[i] === -1);
+  for (const idx of remaining) {
+    assert.ok(allIndices.has(idx), `index ${idx} must be in a cluster`);
+  }
+  assert.equal(allIndices.size, 8);
+  for (const idx of allIndices) {
+    assert.ok(filled[idx] === -1, `index ${idx} should be unfilled`);
+  }
+});
+
+test('filled cells are excluded from reveal clusters', () => {
+  const t = simpleTemplate(2, 2, ['#fff'], [0, 0, 0, 0]);
+  const filled = [-1, 0, -1, -1];
+  const clusters = findUnfilledClusters(t, filled);
+  const allIndices = new Set(clusters.flat());
+  assert.ok(!allIndices.has(1));
+  assert.ok(allIndices.has(0));
+  assert.ok(allIndices.has(2));
+  assert.ok(allIndices.has(3));
+});
+
+test('classic clusters remain restricted to selected color', () => {
+  const t = simpleTemplate(3, 3, ['#fff', '#000'], [0, 1, 0, 1, 0, 1, 0, 1, 0]);
+  const filled = Array(9).fill(-1);
+  const clusters0 = findClusters(t, filled, 0);
+  const clusters1 = findClusters(t, filled, 1);
+  const all0 = new Set(clusters0.flat());
+  const all1 = new Set(clusters1.flat());
+  for (const idx of all0) assert.equal(t.cells[idx], 0);
+  for (const idx of all1) assert.equal(t.cells[idx], 1);
+});
+
+test('changing selectedColor does not change reveal cell set', () => {
+  const t = simpleTemplate(3, 3, ['#000', '#fff', '#f00'], [0, 1, 2, 0, 1, 2, 0, 1, 2]);
+  const filled = Array(9).fill(-1);
+  const clusters1 = findUnfilledClusters(t, filled);
+  const set1 = new Set(clusters1.flat());
+  const clusters2 = findUnfilledClusters(t, filled);
+  const set2 = new Set(clusters2.flat());
+  assert.deepEqual(set1, set2);
+});
+
+test('all unfilled indices appear in at least one working window', () => {
+  const t = makeTemplate(8, 8);
+  const filled = Array(64).fill(-1);
+  filled[0] = 0; filled[10] = 0; filled[20] = 0;
+  const clusters = findUnfilledClusters(t, filled);
+  const merged = mergeClusters(clusters, t.width);
+  const allWindows = [];
+  for (const cluster of merged) {
+    allWindows.push(...createWorkingWindows(cluster, t, 400, 400));
+  }
+  const windowCovered = new Set(allWindows.flatMap(w => w.cells));
+  for (let i = 0; i < 64; i++) {
+    if (filled[i] === -1) {
+      assert.ok(windowCovered.has(i), `unfilled index ${i} must be covered`);
+    }
+  }
 });
 
 /* Helpers for camera tests */

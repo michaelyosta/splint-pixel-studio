@@ -50,6 +50,37 @@ export function findClusters(template, filled, color) {
   return clusters;
 }
 
+export function findUnfilledClusters(template, filled) {
+  const { width, height, cells } = template;
+  const visited = new Uint8Array(cells.length);
+  const clusters = [];
+  for (let i = 0; i < cells.length; i++) {
+    if (filled[i] !== -1) { visited[i] = 1; continue; }
+    if (visited[i]) continue;
+    const cluster = [];
+    const queue = [i];
+    visited[i] = 1;
+    while (queue.length) {
+      const idx = queue.shift();
+      cluster.push(idx);
+      const x = idx % width;
+      const y = Math.floor(idx / width);
+      for (let ny = Math.max(0, y - 1); ny <= Math.min(height - 1, y + 1); ny++) {
+        for (let nx = Math.max(0, x - 1); nx <= Math.min(width - 1, x + 1); nx++) {
+          if (nx === x && ny === y) continue;
+          const ni = ny * width + nx;
+          if (visited[ni]) continue;
+          if (filled[ni] !== -1) continue;
+          visited[ni] = 1;
+          queue.push(ni);
+        }
+      }
+    }
+    clusters.push(cluster);
+  }
+  return clusters;
+}
+
 const CLUSTER_MERGE_DISTANCE = 1;
 
 export function mergeClusters(clusters, width) {
