@@ -204,30 +204,41 @@ test('PostgreSQL financial constraints reject negative values', { skip: !databas
 
 // ── Migration runner tests for PostgreSQL ───────────────────────────
 
+async function dropAllTables(pool) {
+  // Must use CASCADE because of foreign-key dependencies
+  await pool.query(`
+    DROP TABLE IF EXISTS
+      analytics_events,
+      user_achievements,
+      coloring_zones,
+      daily_streaks,
+      reports,
+      message_requests,
+      likes,
+      follows,
+      comments,
+      posts,
+      artworks,
+      coloring_progress,
+      coloring_templates,
+      achievements,
+      collections,
+      users,
+      schema_migrations
+    CASCADE
+  `);
+}
+
 test('PostgreSQL runMigrations is idempotent', { skip: !databaseUrl }, async (t) => {
   const { runMigrations } = await import('../database/migrations.js');
   const pool = await getPool();
 
   t.after(async () => {
-    await pool.query('DROP TABLE IF EXISTS schema_migrations');
-    await pool.query('DROP TABLE IF EXISTS users');
-    await pool.query('DROP TABLE IF EXISTS collections');
-    await pool.query('DROP TABLE IF EXISTS coloring_templates');
-    await pool.query('DROP TABLE IF EXISTS coloring_progress');
-    await pool.query('DROP TABLE IF EXISTS artworks');
-    await pool.query('DROP TABLE IF EXISTS posts');
-    await pool.query('DROP TABLE IF EXISTS comments');
-    await pool.query('DROP TABLE IF EXISTS follows');
-    await pool.query('DROP TABLE IF EXISTS likes');
-    await pool.query('DROP TABLE IF EXISTS message_requests');
-    await pool.query('DROP TABLE IF EXISTS reports');
-    await pool.query('DROP TABLE IF EXISTS daily_streaks');
-    await pool.query('DROP TABLE IF EXISTS achievements');
-    await pool.query('DROP TABLE IF EXISTS user_achievements');
-    await pool.query('DROP TABLE IF EXISTS coloring_zones');
-    await pool.query('DROP TABLE IF EXISTS analytics_events');
-    await pool.end();
+    try { await dropAllTables(pool); } finally { await pool.end(); }
   });
+
+  // Clean up any pre-existing tables from migrate:postgres step
+  await dropAllTables(pool);
 
   const result1 = await runMigrations({
     mode: 'postgres',
@@ -254,13 +265,11 @@ test('PostgreSQL schema_migrations contains correct versions and checksums', { s
   const pool = await getPool();
 
   t.after(async () => {
-    try {
-      await pool.query('DROP TABLE IF EXISTS schema_migrations');
-      await pool.query('DROP TABLE IF EXISTS users');
-    } finally {
-      await pool.end();
-    }
+    try { await dropAllTables(pool); } finally { await pool.end(); }
   });
+
+  // Clean up any pre-existing tables from migrate:postgres step
+  await dropAllTables(pool);
 
   await runMigrations({
     mode: 'postgres',
