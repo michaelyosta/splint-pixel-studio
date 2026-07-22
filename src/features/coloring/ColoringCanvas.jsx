@@ -1,5 +1,6 @@
 import { useRef, useCallback, useLayoutEffect, useState, useEffect } from 'react';
 import { rasterizeStroke } from './engine/strokeRasterizer.js';
+import { centroid, distance, computePinchPan, isTapGesture } from './engine/gestureMath.js';
 
 const BASE_CELL = 32;
 
@@ -88,9 +89,10 @@ export default function ColoringCanvas({
   const [flashCells, setFlashCells] = useState([]);
   const drawingRef = useRef(false);
   const flashTimerRef = useRef(null);
-  const pinchRef = useRef(null);
-  const twoFingerRef = useRef(false);
   const hasPaintedRef = useRef(false);
+  const activePointers = useRef(new Map());
+  const transformRef = useRef(null);
+  const tapStartRef = useRef(null);
 
   useEffect(() => {
     return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); };
@@ -156,54 +158,82 @@ export default function ColoringCanvas({
   }
 
   function handlePointerDown(event) {
-    if (event.pointerType === 'touch' && !event.isPrimary) return;
-    twoFingerRef.current = false;
-    const index = cellFromEvent(event);
-    if (onTapCell && index != null) {
-      event.currentTarget.setPointerCapture(event.pointerId);
+    if (event.button !== 0 && event.pointerType !== 'touch') return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    activePointers.current.set(event.pointerId, event);
+
+    if (activePointers.current.size === 1) {
       beginInteraction();
       cancelAnimation();
+
+      if (onTapCell) {
+        tapStartRef.current = { clientX: event.clientX, clientY: event.clientY };
+        return;
+      }
+
+      const index = cellFromEvent(event);
+      if (index == null) return;
+      if (filled[index] !== -1) return;
+      if (interactionMode !== 'reveal' && template.cells[index] !== selectedColor) {
+        if (calmMode) return;
+        setWrongCell(index);
+        if (onWrongCell) onWrongCell();
+        setTimeout(() => setWrongCell(null), 260);
+        return;
+      }
+
+      drawingRef.current = true;
+      if (!hasPaintedRef.current) {
+        hasPaintedRef.current = true;
+        if (onFirstPaint) onFirstPaint();
+      }
+      const now = Date.now();
+      strokeRef.current = {
+        strokeId: `stroke_${now}_${Math.random().toString(36).slice(2, 6)}`,
+        color: interactionMode === 'reveal' ? -1 : selectedColor,
+        startedAt: now,
+        indices: [index],
+        indexSet: new Set([index]),
+        lastCell: index,
+      };
       lastCellRef.current = index;
-      onTapCell(index);
-      return;
+      setStrokePreview([index]);
+    } else if (activePointers.current.size === 2 && !transformRef.current) {
+      cancelStroke();
+      drawingRef.current = false;
+      tapStartRef.current = null;
+      pauseAuto();
+      const ptrs = [...activePointers.current.values()].slice(0, 2);
+      transformRef.current = {
+        startDistance: distance(ptrs[0], ptrs[1]),
+        startCentroid: centroid(ptrs[0], ptrs[1]),
+        startCamera: { ...camera },
+      };
     }
-    if (index == null) return;
-    if (filled[index] !== -1) return;
-    if (interactionMode !== 'reveal' && template.cells[index] !== selectedColor) {
-      if (calmMode) return;
-      setWrongCell(index);
-      if (onWrongCell) onWrongCell();
-      setTimeout(() => setWrongCell(null), 260);
-      return;
-    }
-    event.currentTarget.setPointerCapture(event.pointerId);
-    beginInteraction();
-    cancelAnimation();
-    drawingRef.current = true;
-    if (!hasPaintedRef.current) {
-      hasPaintedRef.current = true;
-      if (onFirstPaint) onFirstPaint();
-    }
-    const now = Date.now();
-    strokeRef.current = {
-      strokeId: `stroke_${now}_${Math.random().toString(36).slice(2, 6)}`,
-      color: interactionMode === 'reveal' ? -1 : selectedColor,
-      startedAt: now,
-      indices: [index],
-      indexSet: new Set([index]),
-      lastCell: index,
-      hadWrongCrossing: false,
-    };
-    lastCellRef.current = index;
-    setStrokePreview([index]);
   }
 
   function handlePointerMove(event) {
-    if (!drawingRef.current) {
-      if (event.buttons === 0) drawingRef.current = false;
+    if (!activePointers.current.has(event.pointerId)) return;
+    activePointers.current.set(event.pointerId, event);
+
+    if (transformRef.current && activePointers.current.size >= 2) {
+      event.preventDefault();
+      const ptrs = [...activePointers.current.values()].slice(0, 2);
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const newCamera = computePinchPan({
+        a: ptrs[0], b: ptrs[1],
+        startDistance: transformRef.current.startDistance,
+        startCentroid: transformRef.current.startCentroid,
+        startCamera: transformRef.current.startCamera,
+        rect,
+      });
+      cancelAnimation();
+      setCamera({ x: newCamera.x, y: newCamera.y, zoom: newCamera.zoom });
       return;
     }
-    if (onTapCell) return;
+
+    if (!drawingRef.current || onTapCell) return;
     event.preventDefault();
     const index = cellFromEvent(event);
     if (index == null) return;
@@ -227,22 +257,45 @@ export default function ColoringCanvas({
     }
   }
 
-  function handlePointerUp() {
-    if (drawingRef.current) {
+  function handlePointerUp(event) {
+    activePointers.current.delete(event.pointerId);
+
+    if (drawingRef.current && !transformRef.current) {
       drawingRef.current = false;
       commitStroke();
     }
+
+    if (transformRef.current && activePointers.current.size < 2) {
+      transformRef.current = null;
+    }
+
+    if (tapStartRef.current && onTapCell && !transformRef.current) {
+      if (isTapGesture(tapStartRef.current, event)) {
+        const index = cellFromPoint(tapStartRef.current.clientX, tapStartRef.current.clientY);
+        if (index != null) onTapCell(index);
+      }
+      tapStartRef.current = null;
+    }
+
     lastCellRef.current = null;
-    twoFingerRef.current = false;
-    endInteraction();
+
+    if (activePointers.current.size === 0) {
+      endInteraction();
+    }
   }
 
-  function handlePointerCancel() {
+  function handlePointerCancel(event) {
+    activePointers.current.delete(event.pointerId);
     cancelStroke();
-    twoFingerRef.current = false;
-    endInteraction();
+    drawingRef.current = false;
+    transformRef.current = null;
+    tapStartRef.current = null;
+    lastCellRef.current = null;
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
     flashTimerRef.current = null;
+    if (activePointers.current.size === 0) {
+      endInteraction();
+    }
   }
 
   function handleWheel(event) {
@@ -262,78 +315,6 @@ export default function ColoringCanvas({
     });
   }
 
-  function handleTouchStart(event) {
-    if (event.touches.length === 2) {
-      event.preventDefault();
-      commitStroke();
-      cancelAnimation();
-      const [a, b] = [event.touches[0], event.touches[1]];
-      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      const cx = (a.clientX + b.clientX) / 2;
-      const cy = (a.clientY + b.clientY) / 2;
-      pinchRef.current = { dist, cx, cy, scale: camera.zoom, startX: camera.x, startY: camera.y };
-      twoFingerRef.current = true;
-      drawingRef.current = false;
-      pauseAuto();
-    }
-  }
-
-  function handleTouchMove(event) {
-    if (event.touches.length === 2 && pinchRef.current) {
-      event.preventDefault();
-      cancelAnimation();
-      const [a, b] = [event.touches[0], event.touches[1]];
-      const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      const cx = (a.clientX + b.clientX) / 2;
-      const cy = (a.clientY + b.clientY) / 2;
-      const scale = pinchRef.current.scale * (dist / pinchRef.current.dist);
-      const newZoom = Math.min(4, Math.max(0.25, scale));
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const rx = cx - rect.left;
-      const ry = cy - rect.top;
-      setCamera({
-        x: rx - (rx - pinchRef.current.startX) * (newZoom / pinchRef.current.scale),
-        y: ry - (ry - pinchRef.current.startY) * (newZoom / pinchRef.current.scale),
-        zoom: newZoom,
-      });
-      return;
-    }
-    if (event.touches.length === 1 && pinchRef.current && !drawingRef.current) {
-      cancelAnimation();
-      const t = event.touches[0];
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const dx = (t.clientX - pinchRef.current.cx) / camera.zoom;
-      const dy = (t.clientY - pinchRef.current.cy) / camera.zoom;
-      pinchRef.current.cx = t.clientX;
-      pinchRef.current.cy = t.clientY;
-      pinchRef.current.startX += dx;
-      pinchRef.current.startY += dy;
-      setCamera({ x: pinchRef.current.startX, y: pinchRef.current.startY, zoom: camera.zoom });
-    }
-  }
-
-  function handleTouchEnd(event) {
-    if (event.touches.length === 0) {
-      if (twoFingerRef.current) {
-        pinchRef.current = null;
-        twoFingerRef.current = false;
-      }
-      if (drawingRef.current) {
-        drawingRef.current = false;
-        commitStroke();
-      }
-      endInteraction();
-      lastCellRef.current = null;
-      return;
-    }
-    if (event.touches.length < 2 && twoFingerRef.current) {
-      pinchRef.current = null;
-      twoFingerRef.current = false;
-    }
-  }
-
   const camStyle = {
     transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,
     transformOrigin: '0 0',
@@ -350,11 +331,8 @@ export default function ColoringCanvas({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
           onWheel={handleWheel}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
           aria-label={`Раскраска ${template?.title}`}
-          style={{ display: 'block', imageRendering: 'pixelated' }}
+          style={{ display: 'block', imageRendering: 'pixelated', touchAction: 'none' }}
         />
       </div>
     </div>
