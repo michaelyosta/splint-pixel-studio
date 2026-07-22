@@ -8,9 +8,12 @@ export function createSaveQueue({ putProgress, getResultDataUrl, onProgress, onN
     serverRevision: 0,
     draining: false,
     saveTimer: null,
+    generation: 0,
+    disposed: false,
   };
 
   function reset(serverRevision) {
+    state.generation += 1;
     state.serverRevision = serverRevision;
     state.localVersion = 0;
     state.inFlight = false;
@@ -20,18 +23,33 @@ export function createSaveQueue({ putProgress, getResultDataUrl, onProgress, onN
     state.saveTimer = null;
   }
 
-  async function drain() {
-    if (state.draining) return;
-    state.draining = true;
+  function dispose() {
+    state.disposed = true;
+    state.generation += 1;
+    state.pendingFilled = null;
+    state.draining = false;
+    state.inFlight = false;
+    if (state.saveTimer) clearTimeout(state.saveTimer);
+    state.saveTimer = null;
+  }
 
-    while (state.pendingFilled) {
+  function isActive(generation) {
+    return generation === state.generation && !state.disposed;
+  }
+
+  async function drain() {
+    if (state.draining || state.disposed) return;
+    state.draining = true;
+    const gen = state.generation;
+
+    while (state.pendingFilled && !state.disposed && gen === state.generation) {
       const snapshotFilled = state.pendingFilled;
       const snapshotVersion = state.localVersion;
       const snapshotRevision = state.serverRevision;
       state.pendingFilled = null;
 
       state.inFlight = true;
-      onSaving(true);
+      if (isActive(gen)) onSaving(true);
 
       try {
         const resultDataUrl = getResultDataUrl(snapshotFilled);
@@ -40,16 +58,17 @@ export function createSaveQueue({ putProgress, getResultDataUrl, onProgress, onN
           revision: snapshotRevision,
           resultDataUrl,
         });
-        if (snapshotVersion === state.localVersion) {
-          if (saved.revision > state.serverRevision) {
-            state.serverRevision = saved.revision;
+
+        if (isActive(gen)) {
+          state.serverRevision = Math.max(state.serverRevision, Number(saved.revision));
+          if (snapshotVersion === state.localVersion) {
+            onProgress(saved);
           }
-          onProgress(saved);
         }
       } catch (error) {
-        if (snapshotVersion === state.localVersion && error.status === 409 && error.data?.progress) {
-          handleConflict(snapshotFilled, snapshotVersion, error);
-        } else if (snapshotVersion === state.localVersion) {
+        if (isActive(gen) && snapshotVersion === state.localVersion && error.status === 409 && error.data?.progress) {
+          await handleConflict(snapshotFilled, snapshotVersion, error, gen);
+        } else if (isActive(gen) && snapshotVersion === state.localVersion) {
           onNotice(error.message, 'error');
         }
       }
@@ -57,15 +76,15 @@ export function createSaveQueue({ putProgress, getResultDataUrl, onProgress, onN
       state.inFlight = false;
     }
 
-    onSaving(false);
+    if (isActive(gen)) {
+      onSaving(false);
+    }
     state.draining = false;
   }
 
-  async function handleConflict(snapshotFilled, snapshotVersion, error) {
-    const serverRev = error.data.progress.revision;
-    if (serverRev > state.serverRevision) {
-      state.serverRevision = serverRev;
-    }
+  async function handleConflict(snapshotFilled, snapshotVersion, error, gen) {
+    const serverRev = Number(error.data.progress.revision);
+    state.serverRevision = Math.max(state.serverRevision, serverRev);
 
     const resultDataUrl = getResultDataUrl(snapshotFilled);
 
@@ -75,30 +94,32 @@ export function createSaveQueue({ putProgress, getResultDataUrl, onProgress, onN
         revision: serverRev,
         resultDataUrl,
       });
-      if (snapshotVersion === state.localVersion) {
-        if (saved.revision > state.serverRevision) {
-          state.serverRevision = saved.revision;
+
+      if (isActive(gen)) {
+        state.serverRevision = Math.max(state.serverRevision, Number(saved.revision));
+        if (snapshotVersion === state.localVersion) {
+          onProgress(saved);
         }
-        onProgress(saved);
       }
     } catch (retryError) {
-      if (snapshotVersion === state.localVersion) {
+      if (isActive(gen) && snapshotVersion === state.localVersion) {
         onNotice(retryError.message || 'Конфликт сохранения', 'error');
       }
     }
   }
 
   function queueSave(filled) {
+    if (state.disposed) return;
     const version = ++state.localVersion;
     state.pendingFilled = filled;
 
     if (state.saveTimer) clearTimeout(state.saveTimer);
     state.saveTimer = setTimeout(() => {
-      if (version === state.localVersion) {
+      if (version === state.localVersion && !state.disposed) {
         drain();
       }
     }, DEBOUNCE_MS);
   }
 
-  return { queueSave, reset };
+  return { queueSave, reset, dispose };
 }
