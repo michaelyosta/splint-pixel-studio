@@ -66,35 +66,54 @@ async function spawnServer(schema, port, onSpawn) {
 
   const serverUrl = `http://127.0.0.1:${port}`;
   let stderr = '';
-  let exitedEarly = false;
 
   child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-  child.once('exit', (code) => { exitedEarly = true; });
 
+  // Wait for readiness or failure
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      const exitInfo = exitedEarly ? ` (exit code: ${child.exitCode})` : '';
-      reject(new Error(`Server did not start on port ${port}. stderr: ${stderr.slice(0, 500)}${exitInfo}`));
-    }, 20_000);
+    let settled = false;
+    let timer = null;
 
-    child.stdout.on('data', (chunk) => {
-      if (exitedEarly) {
-        clearTimeout(timer);
-        reject(new Error(`Server exited early on port ${port} (code ${child.exitCode}). stderr: ${stderr.slice(0, 500)}`));
-        return;
-      }
-      if (chunk.toString().includes('database ready')) {
-        setTimeout(() => { clearTimeout(timer); resolve(); }, 200);
-      }
+    function rejectWith(msg) {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      reject(new Error(msg));
+    }
+
+    function resolveReady() {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolve();
+    }
+
+    // Early exit — immediate rejection
+    child.once('exit', (code, signal) => {
+      rejectWith(
+        `Server exited early on port ${port} (code=${code}, signal=${signal}). stderr: ${stderr.slice(0, 500)}`
+      );
     });
 
-    child.once('error', reject);
+    child.once('error', (err) => {
+      rejectWith(`Server spawn error on port ${port}: ${err.message}`);
+    });
+
+    // Startup timeout
+    timer = setTimeout(() => {
+      rejectWith(`Server startup timeout on port ${port}. stderr: ${stderr.slice(0, 500)}`);
+    }, 20_000);
+
+    // Readiness signal
+    child.stdout.on('data', (chunk) => {
+      if (chunk.toString().includes('database ready')) {
+        setTimeout(resolveReady, 200);
+      }
+    });
   });
 
+  // Health check
   for (let i = 0; i < 10; i++) {
-    if (exitedEarly) {
-      throw new Error(`Server exited before health check on port ${port} (code ${child.exitCode})`);
-    }
     try {
       const res = await fetch(`${serverUrl}/health`);
       if (res.status === 200) return { url: serverUrl };
@@ -125,7 +144,7 @@ async function createPgHttpHarness(t) {
   let server = null;
 
   t.after(async () => {
-    await stop();
+    await stopServer(server);
     await fixturePool.end();
     await adminPool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
     await adminPool.end();
