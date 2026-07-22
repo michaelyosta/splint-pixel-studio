@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { all, get } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { asyncRoute } from '../middleware/asyncRoute.js';
 
 const router = Router();
 
@@ -19,13 +20,13 @@ async function enrichPost(post, userId) {
 }
 
 // GET /feed/recommended
-router.get('/recommended', authMiddleware, async (req, res) => {
+router.get('/recommended', authMiddleware, asyncRoute(async (req, res) => {
   const posts = await all(`SELECT * FROM posts WHERE status='active' ORDER BY (like_count*2 + comment_count*5) DESC, published_at DESC LIMIT 50`);
   res.json(await Promise.all(posts.map((post) => enrichPost(post, req.userId))));
-});
+}));
 
 // GET /feed/following
-router.get('/following', authMiddleware, async (req, res) => {
+router.get('/following', authMiddleware, asyncRoute(async (req, res) => {
   const posts = await all(`
     SELECT p.* FROM posts p
     INNER JOIN follows f ON f.following_id = p.author_id
@@ -33,6 +34,6 @@ router.get('/following', authMiddleware, async (req, res) => {
     ORDER BY p.published_at DESC LIMIT 50
   `, [req.userId]);
   res.json(await Promise.all(posts.map((post) => enrichPost(post, req.userId))));
-});
+}));
 
 export default router;

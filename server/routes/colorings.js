@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { all, get, run } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { asyncRoute } from '../middleware/asyncRoute.js';
 import { deletePrivateOriginal, storePrivateOriginal } from '../services/media-storage.js';
 
 const router = Router();
@@ -88,7 +89,7 @@ function progressPayload(template, row) {
 }
 
 // GET /colorings — editorial catalog with filters
-router.get('/', authMiddleware, async (req, res) => {
+router.get('/', authMiddleware, asyncRoute(async (req, res) => {
   const { mood, theme, max_minutes, featured } = req.query;
   const clauses = ["status='active'", "visibility='public'"];
   const params = [];
@@ -99,10 +100,10 @@ router.get('/', authMiddleware, async (req, res) => {
   const where = clauses.join(' AND ');
   const rows = await all(`SELECT * FROM coloring_templates WHERE ${where} ORDER BY daily_featured DESC, added_at DESC, title`, params);
   res.json(rows.map(parseTemplate).map(({ cells, ...template }) => ({ ...template, total_cells: cells.length })));
-});
+}));
 
 // GET /colorings/today — editorial "for you today" + quick picks
-router.get('/today', authMiddleware, async (req, res) => {
+router.get('/today', authMiddleware, asyncRoute(async (req, res) => {
   const featured = await get("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND daily_featured=1 ORDER BY added_at DESC LIMIT 1");
   const quick = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND est_minutes<=3 ORDER BY added_at DESC LIMIT 6");
   const allTemplates = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' ORDER BY added_at DESC");
@@ -112,10 +113,10 @@ router.get('/today', authMiddleware, async (req, res) => {
     quick: quick.map((row) => { const t = parseTemplate(row); return { ...t, cells: undefined, total_cells: t.cells.length }; }),
     newest: allTemplates.slice(0, 8).map((row) => { const t = parseTemplate(row); return { ...t, cells: undefined, total_cells: t.cells.length }; }),
   });
-});
+}));
 
 // GET /colorings/:id/zones — fragmented session chunks with per-zone progress
-router.get('/:id/zones', authMiddleware, async (req, res) => {
+router.get('/:id/zones', authMiddleware, asyncRoute(async (req, res) => {
   const template = parseTemplate(await get("SELECT * FROM coloring_templates WHERE id=? AND status='active'", [req.params.id]));
   if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
   const progress = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
@@ -124,13 +125,13 @@ router.get('/:id/zones', authMiddleware, async (req, res) => {
   const zones = zoneRows.map((row) => {
     const indices = Array.isArray(row.cell_indices_json) ? row.cell_indices_json : JSON.parse(row.cell_indices_json);
     const done = indices.reduce((count, index) => count + (filled[index] === template.cells[index] ? 1 : 0), 0);
-    return { id: row.id, title: row.title, total: indices.length, done, percent: indices.length ? Math.round((done / indices.length) * 100) : 100 };
+    return { id: row.id, title: row.title, total: indices.length, done, percent: indices.length ? Math.round((done / indices.length) * 100) : 100, indices };
   });
   res.json({ template_id: template.id, zones });
-});
+}));
 
 // DELETE /colorings/:id - only the owner can delete a user-created template
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, asyncRoute(async (req, res) => {
   const template = await get("SELECT * FROM coloring_templates WHERE id=? AND status='active'", [req.params.id]);
   if (!template) return res.status(404).json({ error: 'Раскраска не найдена' });
   if (template.owner_id !== req.userId || template.source_type !== 'user') return res.status(403).json({ error: 'Можно удалить только свою загруженную раскраску' });
@@ -150,10 +151,10 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   await run('DELETE FROM coloring_templates WHERE id=?', [template.id]);
   await deletePrivateOriginal(template.original_media_key).catch((error) => console.warn('Could not delete original media:', error.message));
   res.json({ success: true });
-});
+}));
 
 // POST /colorings/create - a private template built in the browser from a user image
-router.post('/create', authMiddleware, async (req, res) => {
+router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
   const { title, description = '', width, height, palette, cells, previewDataUrl = null, originalDataUrl = null } = req.body;
   const safeTitle = String(title || '').trim().slice(0, 80);
   const safeWidth = Number(width);
@@ -177,10 +178,10 @@ router.post('/create', authMiddleware, async (req, res) => {
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, req.userId, safeTitle, String(description).slice(0, 280), 'custom', 'custom', safeWidth, safeHeight, JSON.stringify(palette), JSON.stringify(cells), previewDataUrl, originalMediaKey, 'user', 'private', 'active', now, now]);
   res.status(201).json({ ...parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=?', [id])), source_stored: Boolean(originalMediaKey) });
-});
+}));
 
 // GET /colorings/mine - private and catalog templates with the caller's progress
-router.get('/mine', authMiddleware, async (req, res) => {
+router.get('/mine', authMiddleware, asyncRoute(async (req, res) => {
   const templates = (await all(`
     SELECT t.* FROM coloring_templates t
     LEFT JOIN coloring_progress p ON p.template_id=t.id AND p.user_id=?
@@ -192,26 +193,26 @@ router.get('/mine', authMiddleware, async (req, res) => {
     return { ...template, progress: progressPayload(template, progress) };
   }));
   res.json(rows);
-});
+}));
 
 // GET /colorings/:id
-router.get('/:id', authMiddleware, async (req, res) => {
+router.get('/:id', authMiddleware, asyncRoute(async (req, res) => {
   const template = parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=? AND status=\'active\'', [req.params.id]));
   if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
   res.json(template);
-});
+}));
 
 // GET /colorings/:id/progress
-router.get('/:id/progress', authMiddleware, async (req, res) => {
+router.get('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   const template = parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=? AND status=\'active\'', [req.params.id]));
   if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
   const progress = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
   const artwork = await get("SELECT id FROM artworks WHERE owner_id=? AND source_type='coloring' AND collection_id=?", [req.userId, template.id]);
   res.json({ ...progressPayload(template, progress), artwork_id: artwork?.id || null });
-});
+}));
 
 // PUT /colorings/:id/progress
-router.put('/:id/progress', authMiddleware, async (req, res) => {
+router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   const template = parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=? AND status=\'active\'', [req.params.id]));
   if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
   const existing = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
@@ -267,6 +268,6 @@ router.put('/:id/progress', authMiddleware, async (req, res) => {
   }
   const saved = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
   res.json({ ...progressPayload(template, saved), artwork_id: artworkId });
-});
+}));
 
 export default router;

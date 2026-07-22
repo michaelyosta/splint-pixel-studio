@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { get, all, run } from '../db.js';
 import { authMiddleware, hasUrl } from '../middleware/auth.js';
+import { asyncRoute } from '../middleware/asyncRoute.js';
 
 const router = Router();
 
@@ -13,7 +14,7 @@ async function enrichReq(mr) {
 }
 
 // POST /messages/request/create
-router.post('/request/create', authMiddleware, async (req, res) => {
+router.post('/request/create', authMiddleware, asyncRoute(async (req, res) => {
   const { receiverId, relatedPostId, text } = req.body;
   const senderId = req.userId;
 
@@ -47,10 +48,10 @@ router.post('/request/create', authMiddleware, async (req, res) => {
 
   const mr = await get('SELECT * FROM message_requests WHERE id=?', [id]);
   res.status(201).json(await enrichReq(mr));
-});
+}));
 
 // POST /messages/request/pay
-router.post('/request/pay', authMiddleware, async (req, res) => {
+router.post('/request/pay', authMiddleware, asyncRoute(async (req, res) => {
   const { requestId } = req.body;
   const mr = await get('SELECT * FROM message_requests WHERE id=?', [requestId]);
   if (!mr) return res.status(404).json({ error: 'Запрос не найден' });
@@ -70,10 +71,10 @@ router.post('/request/pay', authMiddleware, async (req, res) => {
   const updated = await get('SELECT * FROM message_requests WHERE id=?', [requestId]);
   const updatedSender = await get('SELECT stars_balance FROM users WHERE id=?', [mr.sender_id]);
   res.json({ success: true, stars_balance: updatedSender.stars_balance, request: await enrichReq(updated) });
-});
+}));
 
 // POST /messages/request/reply
-router.post('/request/reply', authMiddleware, async (req, res) => {
+router.post('/request/reply', authMiddleware, asyncRoute(async (req, res) => {
   const { requestId, replyText } = req.body;
   const mr = await get('SELECT * FROM message_requests WHERE id=?', [requestId]);
   if (!mr) return res.status(404).json({ error: 'Запрос не найден' });
@@ -88,10 +89,10 @@ router.post('/request/reply', authMiddleware, async (req, res) => {
   await run("UPDATE message_requests SET reply_text=?, status='answered', updated_at=? WHERE id=?", [clean, now, requestId]);
   const updated = await get('SELECT * FROM message_requests WHERE id=?', [requestId]);
   res.json({ success: true, request: await enrichReq(updated) });
-});
+}));
 
 // POST /messages/request/reject
-router.post('/request/reject', authMiddleware, async (req, res) => {
+router.post('/request/reject', authMiddleware, asyncRoute(async (req, res) => {
   const { requestId } = req.body;
   const mr = await get('SELECT * FROM message_requests WHERE id=?', [requestId]);
   if (!mr) return res.status(404).json({ error: 'Запрос не найден' });
@@ -101,18 +102,18 @@ router.post('/request/reject', authMiddleware, async (req, res) => {
   await run("UPDATE message_requests SET status='rejected', updated_at=? WHERE id=?", [new Date().toISOString(), requestId]);
   const updated = await get('SELECT * FROM message_requests WHERE id=?', [requestId]);
   res.json({ success: true, request: await enrichReq(updated) });
-});
+}));
 
 // GET /messages/requests/inbox
-router.get('/requests/inbox', authMiddleware, async (req, res) => {
+router.get('/requests/inbox', authMiddleware, asyncRoute(async (req, res) => {
   const rows = await all('SELECT * FROM message_requests WHERE receiver_id=? ORDER BY created_at DESC', [req.userId]);
   res.json(await Promise.all(rows.map(enrichReq)));
-});
+}));
 
 // GET /messages/requests/outbox
-router.get('/requests/outbox', authMiddleware, async (req, res) => {
+router.get('/requests/outbox', authMiddleware, asyncRoute(async (req, res) => {
   const rows = await all('SELECT * FROM message_requests WHERE sender_id=? ORDER BY created_at DESC', [req.userId]);
   res.json(await Promise.all(rows.map(enrichReq)));
-});
+}));
 
 export default router;

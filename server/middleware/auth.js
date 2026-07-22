@@ -19,8 +19,8 @@ async function ensureTelegramUser(telegramUser) {
   if (!await get('SELECT id FROM users WHERE id=?', [userId])) {
     const now = new Date().toISOString();
     const nickname = String(telegramUser.username || telegramUser.first_name || `User ${telegramUser.id}`).slice(0, 80);
-    await run(`INSERT INTO users (id,telegram_id,nickname,avatar_url,status,karma,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,is_banned,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [userId, telegramUser.id, nickname, telegramUser.photo_url || null, '', 0, 0, 0, 0, 0, 10, 0, now, now]);
+    await run(`INSERT INTO users (id,telegram_id,nickname,avatar_url,status,karma,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,is_banned,role,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [userId, telegramUser.id, nickname, telegramUser.photo_url || null, '', 0, 0, 0, 0, 0, 10, 0, 'user', now, now]);
   }
   return userId;
 }
@@ -37,7 +37,7 @@ export async function authMiddleware(req, res, next) {
   }
 
   const devUserId = req.headers['x-user-id'];
-  const allowDevelopmentAuth = process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEV_AUTH === 'true';
+  const allowDevelopmentAuth = process.env.ALLOW_DEV_AUTH === 'true';
   if (devUserId && allowDevelopmentAuth) {
     req.userId = String(devUserId);
     req.authMode = 'development';

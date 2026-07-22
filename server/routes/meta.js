@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { all, get, run } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { asyncRoute } from '../middleware/asyncRoute.js';
 
 const router = Router();
 
@@ -17,7 +18,7 @@ function dayDiff(first, second) {
 }
 
 // GET /meta/streak — current daily streak and today's status
-router.get('/streak', authMiddleware, async (req, res) => {
+router.get('/streak', authMiddleware, asyncRoute(async (req, res) => {
   const row = await get('SELECT * FROM daily_streaks WHERE user_id=?', [req.userId]);
   const today = todayKey();
   const streak = row || { user_id: req.userId, current_streak: 0, longest_streak: 0, total_days: 0, last_active_date: null };
@@ -29,10 +30,10 @@ router.get('/streak', authMiddleware, async (req, res) => {
     last_active_date: streak.last_active_date,
     done_today: doneToday,
   });
-});
+}));
 
 // POST /meta/streak/touch — register a daily activity (idempotent per day)
-router.post('/streak/touch', authMiddleware, async (req, res) => {
+router.post('/streak/touch', authMiddleware, asyncRoute(async (req, res) => {
   const now = new Date().toISOString();
   const today = todayKey();
   let streak = await get('SELECT * FROM daily_streaks WHERE user_id=?', [req.userId]);
@@ -49,18 +50,18 @@ router.post('/streak/touch', authMiddleware, async (req, res) => {
     streak = { ...streak, current_streak: nextCurrent, longest_streak: nextLongest, total_days: streak.total_days + 1, last_active_date: today };
   }
   res.json({ current_streak: streak.current_streak, longest_streak: streak.longest_streak, total_days: streak.total_days, done_today: true });
-});
+}));
 
 // GET /meta/achievements — all definitions with unlocked state for the user
-router.get('/achievements', authMiddleware, async (req, res) => {
+router.get('/achievements', authMiddleware, asyncRoute(async (req, res) => {
   const defs = await all('SELECT * FROM achievements ORDER BY category, title');
   const unlocked = await all('SELECT achievement_id, unlocked_at FROM user_achievements WHERE user_id=?', [req.userId]);
   const map = new Map(unlocked.map((u) => [u.achievement_id, u.unlocked_at]));
   res.json(defs.map((def) => ({ ...def, unlocked: map.has(def.id), unlocked_at: map.get(def.id) || null })));
-});
+}));
 
 // POST /meta/achievements/:id/unlock — idempotent unlock; returns whether it was new
-router.post('/achievements/:id/unlock', authMiddleware, async (req, res) => {
+router.post('/achievements/:id/unlock', authMiddleware, asyncRoute(async (req, res) => {
   const def = await get('SELECT * FROM achievements WHERE id=?', [req.params.id]);
   if (!def) return res.status(404).json({ error: 'Достижение не найдено' });
   const existing = await get('SELECT 1 FROM user_achievements WHERE user_id=? AND achievement_id=?', [req.userId, def.id]);
@@ -68,10 +69,10 @@ router.post('/achievements/:id/unlock', authMiddleware, async (req, res) => {
   const now = new Date().toISOString();
   await run('INSERT INTO user_achievements (user_id,achievement_id,unlocked_at) VALUES (?,?,?)', [req.userId, def.id, now]);
   res.json({ already_unlocked: false, achievement: def, unlocked_at: now });
-});
+}));
 
 // GET /meta/collections — collection catalog with completion per user
-router.get('/collections', authMiddleware, async (req, res) => {
+router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
   const cols = await all('SELECT * FROM collections ORDER BY title');
   const rows = await Promise.all(cols.map(async (col) => {
     const completed = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.collection_id=? AND a.is_completed=1", [req.userId, col.id]);
@@ -79,13 +80,13 @@ router.get('/collections', authMiddleware, async (req, res) => {
     return { ...col, completed_count: completed[0]?.c || 0, total_count: total[0]?.c || 0 };
   }));
   res.json(rows);
-});
+}));
 
 // GET /meta/collections/:id/templates — templates belonging to a collection
-router.get('/collections/:id/templates', authMiddleware, async (req, res) => {
+router.get('/collections/:id/templates', authMiddleware, asyncRoute(async (req, res) => {
   const rows = await all("SELECT * FROM coloring_templates WHERE collection_id=? AND status='active' ORDER BY title", [req.params.id]);
   res.json(rows.map(parseSafeTemplate).map(({ cells, ...t }) => ({ ...t, total_cells: cells.length })));
-});
+}));
 
 function parseSafeTemplate(row) {
   if (!row) return null;
@@ -101,21 +102,21 @@ function parseSafeTemplate(row) {
 }
 
 // POST /meta/analytics — record a lightweight analytics event
-router.post('/analytics', authMiddleware, async (req, res) => {
+router.post('/analytics', authMiddleware, asyncRoute(async (req, res) => {
   const { event, payload = {} } = req.body;
   if (!event || typeof event !== 'string' || event.length > 64) return res.status(400).json({ error: 'Некорректное событие' });
   const now = new Date().toISOString();
   await run('INSERT INTO analytics_events (id,user_id,event,payload_json,created_at) VALUES (?,?,?,?,?)',
     [uuid(), req.userId, event, JSON.stringify(payload || {}), now]);
   res.json({ success: true });
-});
+}));
 
 // GET /meta/analytics/summary — counts of key events for the user (for dashboards)
-router.get('/analytics/summary', authMiddleware, async (req, res) => {
+router.get('/analytics/summary', authMiddleware, asyncRoute(async (req, res) => {
   const events = await all('SELECT event, COUNT(*) as c FROM analytics_events WHERE user_id=? GROUP BY event', [req.userId]);
   const summary = {};
   events.forEach((row) => { summary[row.event] = row.c; });
   res.json(summary);
-});
+}));
 
 export default router;
