@@ -79,15 +79,17 @@ export default function ColoringSession({
     isFirstFocusRef.current = true;
   }, []);
 
-  /* Build windows for current color — frozen until color/external change */
+  /* Build windows — color-specific in classic, color-agnostic in reveal */
   const windowsGenerationRef = useRef(0);
   const [windowsGeneration, setWindowsGeneration] = useState(0);
 
+  const routingColor = interactionMode === 'reveal' ? null : selectedColor;
+
   const workingWindows = useMemo(() => {
     if (!template || !filledRef.current.length) return [];
-    const clusters = interactionMode === 'reveal'
-      ? findUnfilledClusters(template, filledRef.current)
-      : findClusters(template, filledRef.current, selectedColor);
+    const clusters = routingColor != null
+      ? findClusters(template, filledRef.current, routingColor)
+      : findUnfilledClusters(template, filledRef.current);
     const merged = mergeClusters(clusters, template.width);
     if (!merged.length) return [];
     const allWindows = [];
@@ -97,7 +99,7 @@ export default function ColoringSession({
     }
     return allWindows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template, interactionMode, selectedColor, containerSize, windowsGeneration]);
+  }, [template, interactionMode, routingColor, containerSize, windowsGeneration]);
 
   useEffect(() => {
     windowsRef.current = workingWindows;
