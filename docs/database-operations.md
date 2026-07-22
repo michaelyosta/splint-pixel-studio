@@ -150,37 +150,169 @@ ALLOW_DESTRUCTIVE_DB_RESET=true npm run reset:demo -- --yes
 
 ## Transaction API
 
-```js
-import { withDbTransaction } from './db.js';
+The database layer provides a unified API for both SQLite and PostgreSQL backends. All operations are automatically routed through the active transaction when one is present.
 
+```js
+import { withDbTransaction, run, get, all } from './db.js';
+
+// Explicit transaction — all helpers inside use the same tx
 await withDbTransaction(async (tx) => {
   const row = await tx.get('SELECT * FROM users WHERE id=?', [id]);
   await tx.run('UPDATE users SET stars_balance=stars_balance-? WHERE id=?', [amount, id]);
   await tx.run('UPDATE users SET stars_balance=stars_balance+? WHERE id=?', [amount, receiverId]);
 });
+
+// Global helpers inside transaction automatically route through tx
+await withDbTransaction(async (tx) => {
+  await helperThatUsesGlobalRun(); // calls run() from db.js — uses tx
+});
 ```
+
+### Transaction Runtime Context (AsyncLocalStorage)
+
+The runtime context uses `node:async_hooks.AsyncLocalStorage` to track active transactions:
+
+```js
+// server/database/runtime-context.js
+const storage = new AsyncLocalStorage();
+
+// Context stored during transaction: { mode, databaseIdentity, tx }
+```
+
+**Properties:**
+- Context exists only inside the transaction callback
+- AsyncLocalStorage correctly propagates across async/await boundaries
+- Helper functions inside callbacks automatically see the current tx
+- Context is cleaned up after callback returns (even on throw)
+- Independent async operations do NOT inherit transaction context
+- `databaseIdentity` validation prevents cross-database routing
+
+### SQLite Scheduler
+
+All operations on a single SQLite instance are serialized through a unified FIFO queue using `WeakMap<sqliteDatabase, SqliteRuntimeState>`:
+
+| Operation | Behavior |
+|-----------|----------|
+| `run()` | Queued, holds lock for SQL execution + `persist()` |
+| `get()` / `all()` | Queued, holds lock for query duration |
+| `withDbTransaction()` | Holds lock from `BEGIN IMMEDIATE` to `COMMIT`/`ROLLBACK` |
+
+**Guarantees:**
+- External `run()` cannot execute during an active transaction (waits in queue)
+- External `get()`/`all()` cannot read dirty uncommitted data
+- Rollback does not affect external operations that queued after the transaction
+- Queue recovers after rejected operations (lock always released)
+- Different SQLite instances use separate queues — no cross-instance blocking
+- FIFO ordering ensures predictable execution
+
+### Global DB Helpers Route Through Active Transaction
+
+Global `run()`, `get()`, `all()` functions in `server/db.js` check for an active transaction context before performing operations:
+
+1. Check `getTransactionContext()` from AsyncLocalStorage
+2. If context exists AND databaseIdentity matches → use `tx` adapter methods
+3. If no context → use global pool (PostgreSQL) or scheduler (SQLite)
+
+Inside a transaction:
+- Global `run()` does NOT call intermediate `persist()` 
+- Global `get()` sees previously written (uncommitted) data within the same transaction
+- Global operations do NOT re-enter the SQLite scheduler (avoids deadlock)
+
+### SQLite persist() Semantics
+
+| Scenario | persist() calls |
+|----------|----------------|
+| Global `run()` outside transaction | Once, immediately after SQL execution |
+| `tx.run()` inside transaction | Never |
+| Global `run()` routed through tx inside transaction | Never |
+| After transaction `COMMIT` | Exactly once |
+| After transaction `ROLLBACK` | Never |
+
+### Transaction run() Result
+
+`tx.run()` and global `run()` both return `{ changes: number }`:
+
+```js
+// SQLite: sqlite.getRowsModified()
+// PostgreSQL: result.rowCount
+const result = await run('UPDATE coloring_progress SET revision=? WHERE id=?', [3, id]);
+if (result.changes === 0) {
+  // No rows matched — CAS conflict
+}
+```
+
+### Placeholder Conversion
+
+The PostgreSQL adapter automatically converts `?` placeholders to `$1, $2, ...`:
+
+```js
+// Works on both SQLite and PostgreSQL
+await tx.run('UPDATE users SET nickname=? WHERE id=?', ['Alice', userId]);
+// PostgreSQL executes: UPDATE users SET nickname=$1 WHERE id=$2
+```
+
+Native `$1, $2` placeholders are NOT corrupted by the converter.
 
 ### SQLite transactions
 
 - Uses `BEGIN IMMEDIATE` / `COMMIT` / `ROLLBACK`
-- Mutex-serialized (no concurrent transactions)
+- Entire transaction holds the scheduler lock (serialized)
 - `persist()` is called exactly once after `COMMIT`
 - No intermediate `persist()` during transaction
 - After `ROLLBACK`, database stays in previous consistent state
-- Nested transactions are **rejected** with `NestedTransactionError`
+- Nested transactions are **rejected** with `NestedTransactionError` (checked via AsyncLocalStorage context)
 
 ### PostgreSQL transactions
 
 - Uses `pool.connect()` for a dedicated client
 - `BEGIN` / `COMMIT` / `ROLLBACK` on that client
 - Client is always released in `finally`
-- All queries within callback use the same connection
+- All queries within callback use the same client
+- Nested transactions are **rejected** with `NestedTransactionError`
 
 ### Transaction adapter lifecycle
 
 - Methods: `tx.get()`, `tx.all()`, `tx.run()`
 - After the callback returns, the adapter is marked closed
 - Using a closed adapter throws `TransactionClosedError`
+
+## Optimistic Locking for Progress
+
+The `PUT /colorings/:id/progress` endpoint uses atomic Compare-And-Set (CAS):
+
+```
+clientRevision MUST equal serverRevision for updates
+clientRevision MUST be 0 for new progress
+```
+
+**CAS update:**
+```sql
+UPDATE coloring_progress
+SET filled_json=?, revision=?, completed_at=?, updated_at=?
+WHERE user_id=? AND template_id=? AND revision=?
+```
+
+If `result.changes === 0`, the CAS failed — return 409 with current server progress.
+
+**CAS insert:**
+```sql
+INSERT INTO coloring_progress (...) VALUES (...)
+```
+Unique conflict on `(user_id, template_id)` converts to 409.
+
+**Revision semantics:**
+- revision 0 = no progress yet (only for initial save)
+- Equal revision = accepted, server increments to revision+1
+- Old revision (client < server) = rejected with 409
+- Future revision (client > server) = rejected with 409
+- Two concurrent saves with same revision → exactly one succeeds
+
+**Client 409 handling:**
+- On 409: update revision reference to server's value
+- Do NOT replace local filled/history with server data
+- Retry once with the same local snapshot and new server revision
+- Max 1 automatic retry per snapshot — no infinite loops
+- Show error notification on conflict, keep local state visible
 
 ## Financial Constraints (Migration 004)
 
