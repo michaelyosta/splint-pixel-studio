@@ -92,7 +92,6 @@ function App() {
   const revisionRef = useRef(0);
   const saveTimerRef = useRef(null);
   const localChangeRef = useRef(0);
-  const saveRetryRef = useRef(0);
   const noticeTimerRef = useRef(null);
   const rewardTimerRef = useRef(null);
   const lastPaintRef = useRef(0);
@@ -207,37 +206,43 @@ function App() {
     saveTimerRef.current = window.setTimeout(async () => {
       if (!template) return;
       if (version !== localChangeRef.current) return;
+      if (saving) return;
       setSaving(true);
-      try {
-        const resultDataUrl = nextFilled.every((color, index) => color === template.cells[index]) ? renderCompletedImage(template, nextFilled) : null;
-        const saved = await api(`/colorings/${template.id}/progress`, { method: 'PUT', body: { filled: nextFilled, revision: snapshotRevision, resultDataUrl } });
+      await saveSnapshot({ filled: nextFilled, revision: snapshotRevision, version, retryCount: 0 });
+      if (version === localChangeRef.current) setSaving(false);
+    }, 450);
+  }
+
+  async function saveSnapshot({ filled, revision, version, retryCount }) {
+    if (version !== localChangeRef.current) return false;
+
+    const resultDataUrl = filled.every((color, index) => color === template.cells[index]) ? renderCompletedImage(template, filled) : null;
+
+    try {
+      const saved = await api(`/colorings/${template.id}/progress`, { method: 'PUT', body: { filled, revision, resultDataUrl } });
+      if (version !== localChangeRef.current) return false;
+      if (saved.revision > revisionRef.current) {
         revisionRef.current = saved.revision;
-        saveRetryRef.current = 0;
-        setProgress(saved);
-      } catch (error) {
-        if (error.status === 409 && error.data?.progress) {
-          revisionRef.current = error.data.progress.revision;
-          if (saveRetryRef.current < 1 && version === localChangeRef.current) {
-            saveRetryRef.current += 1;
-            try {
-              const retrySaved = await api(`/colorings/${template.id}/progress`, { method: 'PUT', body: { filled: nextFilled, revision: error.data.progress.revision, resultDataUrl: null } });
-              revisionRef.current = retrySaved.revision;
-              saveRetryRef.current = 0;
-              if (version === localChangeRef.current) setProgress(retrySaved);
-            } catch (retryError) {
-              saveRetryRef.current = 0;
-              if (version === localChangeRef.current) showNotice(retryError.message || 'Конфликт сохранения', 'error');
-            }
-          } else {
-            showNotice(error.message, 'error');
-          }
+      }
+      setProgress(saved);
+      return true;
+    } catch (error) {
+      if (version !== localChangeRef.current) return false;
+      if (error.status === 409 && error.data?.progress) {
+        const serverRevision = error.data.progress.revision;
+        if (serverRevision > revisionRef.current) {
+          revisionRef.current = serverRevision;
+        }
+        if (retryCount < 1) {
+          return await saveSnapshot({ filled, revision: serverRevision, version, retryCount: retryCount + 1 });
         } else {
           showNotice(error.message, 'error');
         }
-      } finally {
-        setSaving(false);
+      } else {
+        showNotice(error.message, 'error');
       }
-    }, 450);
+      return false;
+    }
   }
 
   function applyFilled(nextFilled, change) {
