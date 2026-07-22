@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { get, all, run } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
+import { purchaseCollection, StarsTransactionError } from '../services/stars-transactions.js';
 
 const router = Router();
 
@@ -58,7 +59,20 @@ router.patch('/:id/settings', authMiddleware, asyncRoute(async (req, res) => {
   if (messages_disabled !== undefined) { fields.push('messages_disabled=?'); vals.push(messages_disabled ? 1 : 0); }
   if (followers_only    !== undefined) { fields.push('followers_only=?');    vals.push(followers_only ? 1 : 0); }
   if (paid_open         !== undefined) { fields.push('paid_open=?');         vals.push(paid_open ? 1 : 0); }
-  if (price_in_stars    !== undefined) { fields.push('price_in_stars=?');    vals.push(Math.max(1, parseInt(price_in_stars) || 10)); }
+  if (price_in_stars    !== undefined) {
+    const raw = price_in_stars;
+    if (typeof raw !== 'number' || !Number.isFinite(raw) || !Number.isInteger(raw)) {
+      return res.status(400).json({ error: 'price_in_stars must be a finite integer', code: 'INVALID_INPUT' });
+    }
+    if (raw < 2) {
+      return res.status(400).json({ error: 'price_in_stars must be at least 2', code: 'INVALID_INPUT' });
+    }
+    if (raw > 1_000_000) {
+      return res.status(400).json({ error: 'price_in_stars must not exceed 1,000,000', code: 'INVALID_INPUT' });
+    }
+    fields.push('price_in_stars=?');
+    vals.push(raw);
+  }
   if (status            !== undefined) { fields.push('status=?');            vals.push(String(status).slice(0,100)); }
 
   if (!fields.length) return res.status(400).json({ error: 'Нет полей для обновления' });
@@ -90,28 +104,30 @@ router.get('/collections/all', authMiddleware, asyncRoute(async (req, res) => {
 router.post('/collections/:id/add', authMiddleware, asyncRoute(async (req, res) => {
   const userId = req.userId;
   const colId  = req.params.id;
+  const idempotencyKey = req.headers['idempotency-key'];
 
-  const user = await get('SELECT * FROM users WHERE id=?', [userId]);
-  const col  = await get('SELECT * FROM collections WHERE id=?', [colId]);
-  if (!user || !col) return res.status(404).json({ error: 'Пользователь или коллекция не найдены' });
-
-  const exists = await get('SELECT 1 FROM artworks WHERE owner_id=? AND collection_id=?', [userId, colId]);
-  if (exists) return res.status(409).json({ error: 'Коллекция уже добавлена в ваш профиль' });
-
-  if (col.pack_type === 'premium') {
-    if (user.stars_balance < col.price_in_stars) return res.status(402).json({ error: 'Недостаточно Telegram Stars' });
-    await run('UPDATE users SET stars_balance=stars_balance-? WHERE id=?', [col.price_in_stars, userId]);
+  if (!colId || typeof colId !== 'string') {
+    return res.status(400).json({ error: 'collection id обязателен' });
   }
 
-  const now = new Date().toISOString();
+  try {
+    const result = await purchaseCollection({
+      collectionId: colId,
+      authenticatedUserId: userId,
+      idempotencyKey,
+    });
 
-  await run(`INSERT INTO artworks (id,owner_id,source_type,image_url,title,collection_id,collection_title,rarity,is_completed,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-    [`art_${Date.now()}_1`, userId, 'collection', col.image_url, `${col.title} — Арт 1`, colId, col.title, col.rarity, 0, now, now]);
-  await run(`INSERT INTO artworks (id,owner_id,source_type,image_url,title,collection_id,collection_title,rarity,is_completed,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-    [`art_${Date.now()}_2`, userId, 'collection', col.image_url, `${col.title} — Арт 2`, colId, col.title, col.rarity, 1, now, now]);
-
-  const updatedUser = await get('SELECT stars_balance FROM users WHERE id=?', [userId]);
-  res.json({ success: true, stars_balance: updatedUser.stars_balance });
+    return res.json({
+      success: true,
+      idempotent: result.idempotent || false,
+      stars_balance: result.stars_balance,
+    });
+  } catch (error) {
+    if (error instanceof StarsTransactionError) {
+      return res.status(error.statusCode).json({ error: error.message, code: error.code });
+    }
+    throw error;
+  }
 }));
 
 // POST /artworks/:id/complete — simulate finishing drawing
