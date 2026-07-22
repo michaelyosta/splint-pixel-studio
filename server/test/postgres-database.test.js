@@ -375,3 +375,431 @@ test('PostgreSQL nested transaction uses savepoints', { skip: !databaseUrl }, as
     }
   }
 });
+
+// ── PostgreSQL global helpers inside transaction ─────────────────────
+
+test('POSTGRES: global run() inside transaction uses dedicated client', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction } = await import('../database/transaction.js');
+  const { run, get: dbGet } = await import('../db.js');
+  const pool = await getPool();
+  const tableName = `test_global_run_${Date.now()}`;
+
+  t.after(async () => {
+    await pool.query(`DROP TABLE IF EXISTS ${tableName}`);
+    await pool.end();
+  });
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, value TEXT)`);
+
+  try {
+    await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+      await run(`INSERT INTO ${tableName} (value) VALUES (?)`, ['global-inside']);
+      throw new Error('Rollback global helper test');
+    });
+  } catch { /* expected */ }
+
+  const result = await pool.query(`SELECT COUNT(*) as cnt FROM ${tableName}`);
+  assert.equal(parseInt(result.rows[0].cnt, 10), 0, 'Global run inside tx rolled back');
+});
+
+test('POSTGRES: global get() inside transaction sees uncommitted data', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction } = await import('../database/transaction.js');
+  const { run, get: dbGet } = await import('../db.js');
+  const pool = await getPool();
+  const tableName = `test_global_get_${Date.now()}`;
+
+  t.after(async () => {
+    await pool.query(`DROP TABLE IF EXISTS ${tableName}`);
+    await pool.end();
+  });
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, value TEXT)`);
+
+  let rowSeen = null;
+  await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+    await run(`INSERT INTO ${tableName} (value) VALUES (?)`, ['uncommitted']);
+    rowSeen = await dbGet(`SELECT value FROM ${tableName} WHERE value=?`, ['uncommitted']);
+  });
+
+  assert.ok(rowSeen, 'Global get() inside tx saw uncommitted row');
+  assert.equal(rowSeen.value, 'uncommitted');
+});
+
+// ── PostgreSQL JSONB progress tests ─────────────────────────────────
+
+test('POSTGRES: repeated save of JSONB progress succeeds', { skip: !databaseUrl }, async (t) => {
+  const { runMigrations } = await import('../database/migrations.js');
+  const { run, get: dbGet, withDbTransaction } = await import('../db.js');
+  const pool = await getPool();
+  const userId = `pg_jsonb_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await runMigrations({ mode: 'postgres', pool, sqlite: null, persistFn: null, migrationsDir: join(serverDir, 'migrations') });
+
+  await pool.query("INSERT INTO users (id,nickname,role,created_at,updated_at) VALUES ($1,'test','user',NOW(),NOW())", [userId]);
+  await pool.query("INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES ($1,'test',4,4,$2,$3,NOW(),NOW())",
+    [templateId, JSON.stringify(['#000000', '#ffffff']), JSON.stringify(new Array(16).fill(0))]);
+
+  const filled = new Array(16).fill(0);
+  await withDbTransaction(async (tx) => {
+    await tx.run(
+      'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,NOW(),NOW())',
+      [userId, templateId, JSON.stringify(filled), 1, null]
+    );
+  });
+
+  const updated = new Array(16).fill(1);
+  const result1 = await pool.query(
+    'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=1 RETURNING revision, filled_json',
+    [JSON.stringify(updated), 2, userId, templateId]
+  );
+
+  assert.equal(result1.rows[0].revision, 2, 'First update incremented revision to 2');
+
+  const updated2 = new Array(16).fill(0);
+  updated2[0] = 1;
+  const result2 = await pool.query(
+    'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=2 RETURNING revision',
+    [JSON.stringify(updated2), 3, userId, templateId]
+  );
+
+  assert.equal(result2.rows[0].revision, 3, 'Second save (JSONB) succeeded');
+
+  const finalRow = await pool.query('SELECT filled_json, revision FROM coloring_progress WHERE user_id=$1 AND template_id=$2', [userId, templateId]);
+  assert.equal(finalRow.rows[0].revision, 3, 'Final revision is 3');
+  assert.ok(Array.isArray(finalRow.rows[0].filled_json), 'filled_json is array (JSONB)');
+
+  const parsedProgress = Array.isArray(finalRow.rows[0].filled_json) ? finalRow.rows[0].filled_json : JSON.parse(finalRow.rows[0].filled_json);
+  assert.equal(parsedProgress[0], 1, 'First cell matches second update');
+});
+
+// ── PostgreSQL optimistic locking tests ─────────────────────────────
+
+test('POSTGRES: old revision gets 409', { skip: !databaseUrl }, async (t) => {
+  const { runMigrations } = await import('../database/migrations.js');
+  const { withDbTransaction } = await import('../db.js');
+  const pool = await getPool();
+  const userId = `pg_oldrev_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await runMigrations({ mode: 'postgres', pool, sqlite: null, persistFn: null, migrationsDir: join(serverDir, 'migrations') });
+  await pool.query("INSERT INTO users (id,nickname,role,created_at,updated_at) VALUES ($1,'test','user',NOW(),NOW())", [userId]);
+
+  await pool.query(
+    "INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES ($1,'test',4,4,$2,$3,NOW(),NOW())",
+    [templateId, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(16).fill(0))]
+  );
+
+  await pool.query(
+    'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
+    [userId, templateId, JSON.stringify(new Array(16).fill(0)), 2]
+  );
+
+  let conflict = false;
+  try {
+    await withDbTransaction(async (tx) => {
+      const r = await tx.run(
+        'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
+        [JSON.stringify(new Array(16).fill(1)), 3, userId, templateId, 1]
+      );
+      if (r.changes === 0) conflict = true;
+    });
+  } catch (e) {
+    conflict = true;
+  }
+
+  assert.ok(conflict, 'Old revision should not succeed');
+
+  const row = await pool.query('SELECT revision FROM coloring_progress WHERE user_id=$1 AND template_id=$2', [userId, templateId]);
+  assert.equal(parseInt(row.rows[0].revision, 10), 2, 'Revision unchanged');
+});
+
+test('POSTGRES: future revision gets 409', { skip: !databaseUrl }, async (t) => {
+  const { runMigrations } = await import('../database/migrations.js');
+  const { withDbTransaction } = await import('../db.js');
+  const pool = await getPool();
+  const userId = `pg_futrev_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await runMigrations({ mode: 'postgres', pool, sqlite: null, persistFn: null, migrationsDir: join(serverDir, 'migrations') });
+  await pool.query("INSERT INTO users (id,nickname,role,created_at,updated_at) VALUES ($1,'test','user',NOW(),NOW())", [userId]);
+  await pool.query(
+    "INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES ($1,'test',4,4,$2,$3,NOW(),NOW())",
+    [templateId, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(16).fill(0))]
+  );
+
+  await pool.query(
+    'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
+    [userId, templateId, JSON.stringify(new Array(16).fill(0)), 1]
+  );
+
+  let conflict = false;
+  try {
+    await withDbTransaction(async (tx) => {
+      const r = await tx.run(
+        'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
+        [JSON.stringify(new Array(16).fill(1)), 2, userId, templateId, 3]
+      );
+      if (r.changes === 0) conflict = true;
+    });
+  } catch (e) {
+    conflict = true;
+  }
+
+  assert.ok(conflict, 'Future revision should not succeed');
+
+  const row = await pool.query('SELECT revision FROM coloring_progress WHERE user_id=$1 AND template_id=$2', [userId, templateId]);
+  assert.equal(parseInt(row.rows[0].revision, 10), 1, 'Revision unchanged');
+});
+
+test('POSTGRES: two concurrent PUTs with same revision — one success, one 409', { skip: !databaseUrl }, async (t) => {
+  const { runMigrations } = await import('../database/migrations.js');
+  const { withDbTransaction } = await import('../db.js');
+  const pool = await getPool();
+  const userId = `pg_concur_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await runMigrations({ mode: 'postgres', pool, sqlite: null, persistFn: null, migrationsDir: join(serverDir, 'migrations') });
+  await pool.query("INSERT INTO users (id,nickname,role,created_at,updated_at) VALUES ($1,'test','user',NOW(),NOW())", [userId]);
+  await pool.query(
+    "INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES ($1,'test',4,4,$2,$3,NOW(),NOW())",
+    [templateId, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(16).fill(0))]
+  );
+
+  await pool.query(
+    'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
+    [userId, templateId, JSON.stringify(new Array(16).fill(0)), 1]
+  );
+
+  const results = await Promise.allSettled([
+    withDbTransaction(async (tx) => {
+      const r = await tx.run(
+        'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
+        [JSON.stringify(new Array(16).fill(1)), 2, userId, templateId, 1]
+      );
+      return { changes: r.changes };
+    }),
+    withDbTransaction(async (tx) => {
+      const r = await tx.run(
+        'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
+        [JSON.stringify(new Array(16).fill(2)), 2, userId, templateId, 1]
+      );
+      return { changes: r.changes };
+    }),
+  ]);
+
+  const successes = results.filter((r) => r.status === 'fulfilled' && r.value.changes === 1);
+  const conflicts = results.filter((r) => r.status === 'fulfilled' && r.value.changes === 0) || [];
+
+  const allFulfilled = results.every((r) => r.status === 'fulfilled');
+
+  assert.equal(successes.length, 1, 'Exactly one request succeeds');
+  assert.ok(allFulfilled, 'Second is 409 (changes=0), no error');
+
+  const row = await pool.query('SELECT revision FROM coloring_progress WHERE user_id=$1 AND template_id=$2', [userId, templateId]);
+  assert.equal(parseInt(row.rows[0].revision, 10), 2, 'Revision incremented exactly once');
+});
+
+test('POSTGRES: two concurrent initial inserts with revision 0 — one success, one 409', { skip: !databaseUrl }, async (t) => {
+  const { runMigrations } = await import('../database/migrations.js');
+  const { withDbTransaction } = await import('../db.js');
+  const pool = await getPool();
+  const userId = `pg_ins2_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await runMigrations({ mode: 'postgres', pool, sqlite: null, persistFn: null, migrationsDir: join(serverDir, 'migrations') });
+  await pool.query("INSERT INTO users (id,nickname,role,created_at,updated_at) VALUES ($1,'test','user',NOW(),NOW())", [userId]);
+  await pool.query(
+    "INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES ($1,'test',4,4,$2,$3,NOW(),NOW())",
+    [templateId, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(16).fill(0))]
+  );
+
+  const inserted = [];
+  const rejected = [];
+
+  const results = await Promise.allSettled([
+    (async () => {
+      try {
+        await withDbTransaction(async (tx) => {
+          await tx.run(
+            'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,$5,NOW(),NOW())',
+            [userId, templateId, JSON.stringify(new Array(16).fill(0)), 1, null]
+          );
+        });
+        inserted.push(1);
+      } catch (e) {
+        rejected.push(e);
+      }
+    })(),
+    (async () => {
+      try {
+        await withDbTransaction(async (tx) => {
+          await tx.run(
+            'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,$5,NOW(),NOW())',
+            [userId, templateId, JSON.stringify(new Array(16).fill(0)), 1, null]
+          );
+        });
+        inserted.push(2);
+      } catch (e) {
+        rejected.push(e);
+      }
+    })(),
+  ]);
+
+  assert.equal(inserted.length, 1, 'Exactly one insert succeeds');
+  assert.equal(rejected.length, 1, 'One insert gets conflict');
+
+  const row = await pool.query('SELECT COUNT(*) as cnt FROM coloring_progress WHERE user_id=$1 AND template_id=$2', [userId, templateId]);
+  assert.equal(parseInt(row.rows[0].cnt, 10), 1, 'Only one row in database');
+});
+
+test('POSTGRES: pool works after conflict', { skip: !databaseUrl }, async (t) => {
+  const { runMigrations } = await import('../database/migrations.js');
+  const { withDbTransaction } = await import('../db.js');
+  const pool = await getPool();
+  const userId = `pg_afterconf_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await runMigrations({ mode: 'postgres', pool, sqlite: null, persistFn: null, migrationsDir: join(serverDir, 'migrations') });
+  await pool.query("INSERT INTO users (id,nickname,role,created_at,updated_at) VALUES ($1,'test','user',NOW(),NOW())", [userId]);
+  await pool.query(
+    "INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES ($1,'test',4,4,$2,$3,NOW(),NOW())",
+    [templateId, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(16).fill(0))]
+  );
+
+  await pool.query(
+    'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
+    [userId, templateId, JSON.stringify(new Array(16).fill(0)), 1]
+  );
+
+  let conflictHappened = false;
+  try {
+    await withDbTransaction(async (tx) => {
+      const r = await tx.run(
+        'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
+        [JSON.stringify(new Array(16).fill(1)), 2, userId, templateId, 99]
+      );
+      if (r.changes === 0) conflictHappened = true;
+    });
+  } catch { /* ignore */ }
+
+  assert.ok(conflictHappened, 'CAS conflict detected');
+
+  const result = await pool.query('SELECT 1 as alive');
+  assert.equal(result.rows[0].alive, 1, 'Pool still works after conflict');
+});
+
+test('POSTGRES: adapter closed after commit', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction, TransactionClosedError } = await import('../database/transaction.js');
+  const pool = await getPool();
+  const tableName = `test_adapter_commit_${Date.now()}`;
+
+  t.after(async () => {
+    await pool.query(`DROP TABLE IF EXISTS ${tableName}`);
+    await pool.end();
+  });
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, value TEXT)`);
+
+  let capturedTx;
+  await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+    capturedTx = tx;
+    await tx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['test']);
+  });
+
+  try {
+    await capturedTx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['bad']);
+    assert.fail('Should throw TransactionClosedError');
+  } catch (e) {
+    assert.ok(e instanceof TransactionClosedError, 'Adapter closed after commit');
+  }
+});
+
+test('POSTGRES: adapter closed after rollback', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction, TransactionClosedError } = await import('../database/transaction.js');
+  const pool = await getPool();
+  const tableName = `test_adapter_rollback_${Date.now()}`;
+
+  t.after(async () => {
+    await pool.query(`DROP TABLE IF EXISTS ${tableName}`);
+    await pool.end();
+  });
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, value TEXT)`);
+
+  let capturedTx;
+  try {
+    await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+      capturedTx = tx;
+      await tx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['test']);
+      throw new Error('Rollback');
+    });
+  } catch { /* expected */ }
+
+  try {
+    await capturedTx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['bad']);
+    assert.fail('Should throw TransactionClosedError');
+  } catch (e) {
+    assert.ok(e instanceof TransactionClosedError, 'Adapter closed after rollback');
+  }
+});
