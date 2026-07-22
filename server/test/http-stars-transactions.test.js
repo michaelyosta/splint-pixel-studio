@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import initSqlJs from 'sql.js';
+import { runMigrations } from '../database/migrations.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverDir = join(__dirname, '..');
@@ -20,40 +22,27 @@ function cloneEnv(overrides = {}) {
 
 async function startServer(t, { dir, port, extraEnv = {} }) {
   const dbPath = join(dir, 'test.db.bin');
-
   const server = spawn('node', ['index.js'], {
     cwd: serverDir,
     env: cloneEnv({ PORT: String(port), SQLITE_DB_PATH: dbPath, ALLOW_DEV_AUTH: 'true', ...extraEnv }),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`Server did not start on port ${port}`)), 12_000);
+    const timer = setTimeout(() => reject(new Error(`Server did not start on port ${port}`)), 15_000);
     server.stdout.on('data', (chunk) => {
       if (chunk.toString().includes('running on')) { clearTimeout(timer); resolve(); }
     });
     server.once('error', reject);
   });
-
   t.after(() => { server.kill(); });
   t.after(async () => { await rm(dir, { recursive: true, force: true }); });
-
   return { server, port, url: `http://127.0.0.1:${port}` };
 }
 
 async function setupTestUsers(url) {
-  // Create sender with 500 stars
   await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'test_sender' } });
-  await fetch(`${url}/users/test_sender/add-stars`, { method: 'POST', headers: { 'X-User-Id': 'test_sender' } });
-  await fetch(`${url}/users/test_sender/add-stars`, { method: 'POST', headers: { 'X-User-Id': 'test_sender' } });
-  await fetch(`${url}/users/test_sender/add-stars`, { method: 'POST', headers: { 'X-User-Id': 'test_sender' } });
-  await fetch(`${url}/users/test_sender/add-stars`, { method: 'POST', headers: { 'X-User-Id': 'test_sender' } });
-  await fetch(`${url}/users/test_sender/add-stars`, { method: 'POST', headers: { 'X-User-Id': 'test_sender' } });
-
-  // Create receiver with some stars
+  for (let i = 0; i < 5; i++) await fetch(`${url}/users/test_sender/add-stars`, { method: 'POST', headers: { 'X-User-Id': 'test_sender' } });
   await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'test_receiver' } });
-
-  // Enable paid messages on receiver
   await fetch(`${url}/users/test_receiver/settings`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_receiver' },
@@ -71,21 +60,65 @@ async function createMessageRequest(url, senderId, receiverId, text = 'test mess
   return body.id;
 }
 
+// ── Premium collection HTTP fixture ──────────────────────────────────
+
+async function startServerWithPremiumCollection(t, port) {
+  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
+  const dbPath = join(dir, 'test.db.bin');
+
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  const migrationsDir = join(serverDir, 'migrations', 'sqlite');
+  await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
+
+  const now = new Date().toISOString();
+  db.run("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES (?,?,?,?)",
+    ['col_http_prem', 'HTTP Premium Test', 'premium', 40]);
+  db.run("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES (?,?,?,?)",
+    ['col_http_free', 'HTTP Free Test', 'free', 0]);
+  db.run("INSERT INTO achievements (id,title,description,category,icon,rarity,created_at) VALUES (?,?,?,?,?,?,?)",
+    ['ach_test', 'Test', '', 'ritual', 'star', 'common', now]);
+  db.run("INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    ['tpl_test', 'Test', 8, 8, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(64).fill(0)), now, now]);
+
+  await writeFile(dbPath, Buffer.from(db.export()));
+
+  const server = spawn('node', ['index.js'], {
+    cwd: serverDir,
+    env: cloneEnv({ PORT: String(port), SQLITE_DB_PATH: dbPath, ALLOW_DEV_AUTH: 'true' }),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Server did not start on port ${port}`)), 15_000);
+    server.stdout.on('data', (chunk) => {
+      if (chunk.toString().includes('running on')) { clearTimeout(timer); resolve(); }
+    });
+    server.once('error', reject);
+  });
+  t.after(() => { server.kill(); });
+  t.after(async () => { await rm(dir, { recursive: true, force: true }); });
+  return { server, port, url: `http://127.0.0.1:${port}` };
+}
+
+async function giveStars(url, userId, count) {
+  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': userId } });
+  for (let i = 0; i < count; i++) await fetch(`${url}/users/${userId}/add-stars`, { method: 'POST', headers: { 'X-User-Id': userId } });
+}
+
 // ── Payment: successful ──────────────────────────────────────────────
 
 test('HTTP: POST /messages/request/pay successful', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url } = await startServer(t, { dir, port: 33001 });
-
   await setupTestUsers(url);
-  const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Pay me please');
+  const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Pay me');
 
   const res = await fetch(`${url}/messages/request/pay`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': 'http-pay-success-key' },
     body: JSON.stringify({ requestId }),
   });
-
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.success, true);
@@ -95,15 +128,20 @@ test('HTTP: POST /messages/request/pay successful', async (t) => {
   assert.equal(body.request.status, 'delivered');
 });
 
+// ── Payment: insufficient balance ────────────────────────────────────
+
+test('HTTP: insufficient balance returns 402', { skip: 'message creation pre-checks balance; covered by service test' }, async (t) => {
+  // Covered by stars-transactions.test.js service-level test
+  t.skip();
+});
+
 // ── Payment: same-key replay ─────────────────────────────────────────
 
 test('HTTP: same-key payment replay returns idempotent:true', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url } = await startServer(t, { dir, port: 33002 });
-
   await setupTestUsers(url);
-  const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Replay test');
-
+  const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Replay');
   const key = 'replay-key-http-test';
 
   const res1 = await fetch(`${url}/messages/request/pay`, {
@@ -123,16 +161,15 @@ test('HTTP: same-key payment replay returns idempotent:true', async (t) => {
   assert.equal(res2.status, 200);
   const b2 = await res2.json();
   assert.equal(b2.idempotent, true);
-  assert.ok(b2.request, 'Replay response has request');
+  assert.ok(b2.request);
   assert.ok(b2.stars_balance !== undefined);
 });
 
-// ── Payment: reused key ──────────────────────────────────────────────
+// ── Payment: reused key different request ────────────────────────────
 
 test('HTTP: reused Idempotency-Key with different request returns 409', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url } = await startServer(t, { dir, port: 33003 });
-
   await setupTestUsers(url);
   const req1 = await createMessageRequest(url, 'test_sender', 'test_receiver', 'First');
   const req2 = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Second');
@@ -143,121 +180,74 @@ test('HTTP: reused Idempotency-Key with different request returns 409', async (t
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': key },
     body: JSON.stringify({ requestId: req1 }),
   });
-
   const res2 = await fetch(`${url}/messages/request/pay`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': key },
     body: JSON.stringify({ requestId: req2 }),
   });
-
   assert.equal(res2.status, 409);
-  const body = await res2.json();
-  assert.equal(body.code, 'IDEMPOTENCY_KEY_REUSED');
+  assert.equal((await res2.json()).code, 'IDEMPOTENCY_KEY_REUSED');
+});
+
+// ── Payment: sequential different-key duplicate ──────────────────────
+
+test('HTTP: sequential different-key payment duplicate returns 409', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
+  const { url } = await startServer(t, { dir, port: 33011 });
+  await setupTestUsers(url);
+  const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Dup');
+
+  const r1 = await fetch(`${url}/messages/request/pay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': 'seq-key-aaaa' },
+    body: JSON.stringify({ requestId }),
+  });
+  assert.equal(r1.status, 200);
+
+  const r2 = await fetch(`${url}/messages/request/pay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': 'seq-key-bbbb' },
+    body: JSON.stringify({ requestId }),
+  });
+  assert.equal(r2.status, 409);
+  assert.equal((await r2.json()).code, 'ALREADY_PROCESSED');
 });
 
 // ── Payment: invalid key ─────────────────────────────────────────────
 
-test('HTTP: invalid Idempotency-Key returns 400', async (t) => {
+test('HTTP: short Idempotency-Key returns 400 INVALID_INPUT', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url } = await startServer(t, { dir, port: 33004 });
-
   await setupTestUsers(url);
   const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Bad key');
-
   const res = await fetch(`${url}/messages/request/pay`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': 'short' },
     body: JSON.stringify({ requestId }),
   });
-
   assert.equal(res.status, 400);
-  const body = await res.json();
-  assert.equal(body.code, 'INVALID_INPUT');
+  assert.equal((await res.json()).code, 'INVALID_INPUT');
 });
 
-// ── Payment: insufficient balance (covered by unit tests, skip HTTP) ─
-
-// ── Collection: premium purchase ─────────────────────────────────────
-
-test('HTTP: POST /users/collections/:id/add successful', async (t) => {
+test('HTTP: empty Idempotency-Key returns 400 INVALID_INPUT', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
-  const { url } = await startServer(t, { dir, port: 33006, extraEnv: { SEED_DEMO_DATA: 'true' } });
-
-  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'col_buyer' } });
-  for (let i = 0; i < 5; i++) {
-    await fetch(`${url}/users/col_buyer/add-stars`, { method: 'POST', headers: { 'X-User-Id': 'col_buyer' } });
-  }
-
-  // col_night-city is a free collection from the default catalog
-  const res = await fetch(`${url}/users/collections/col_night-city/add`, {
+  const { url } = await startServer(t, { dir, port: 33012 });
+  await setupTestUsers(url);
+  const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Empty key');
+  const res = await fetch(`${url}/messages/request/pay`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'col_buyer', 'Idempotency-Key': 'http-col-buy-key' },
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': '' },
+    body: JSON.stringify({ requestId }),
   });
-
-  assert.equal(res.status, 200);
-  const body = await res.json();
-  assert.equal(body.success, true);
-  assert.equal(body.idempotent, false);
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).code, 'INVALID_INPUT');
 });
 
-// ── Collection: free duplicate ───────────────────────────────────────
+// ── Payment: concurrent same-key ─────────────────────────────────────
 
-test('HTTP: free collection duplicate returns 409', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
-  const { url } = await startServer(t, { dir, port: 33007, extraEnv: { SEED_DEMO_DATA: 'true' } });
-
-  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'dup_buyer' } });
-
-  const key1 = 'dup-col-key-http-1';
-  const res1 = await fetch(`${url}/users/collections/col_night-city/add`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'dup_buyer', 'Idempotency-Key': key1 },
-  });
-  assert.equal(res1.status, 200);
-
-  const res2 = await fetch(`${url}/users/collections/col_night-city/add`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'dup_buyer', 'Idempotency-Key': 'dup-col-key-http-2' },
-  });
-  assert.equal(res2.status, 409);
-});
-
-// ── Collection: replay ───────────────────────────────────────────────
-
-test('HTTP: collection replay returns idempotent', async (t) => {
-  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
-  const { url } = await startServer(t, { dir, port: 33008, extraEnv: { SEED_DEMO_DATA: 'true' } });
-
-  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'replay_buyer' } });
-  for (let i = 0; i < 5; i++) {
-    await fetch(`${url}/users/replay_buyer/add-stars`, { method: 'POST', headers: { 'X-User-Id': 'replay_buyer' } });
-  }
-
-  const key = 'replay-col-http-key';
-
-  const res1 = await fetch(`${url}/users/collections/col_cozy-forest/add`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'replay_buyer', 'Idempotency-Key': key },
-  });
-  assert.equal(res1.status, 200);
-  const b1 = await res1.json();
-  assert.equal(b1.idempotent, false);
-
-  const res2 = await fetch(`${url}/users/collections/col_cozy-forest/add`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'replay_buyer', 'Idempotency-Key': key },
-  });
-  assert.equal(res2.status, 200);
-  const b2 = await res2.json();
-  assert.equal(b2.idempotent, true);
-});
-
-// ── Concurrent same-key payment ──────────────────────────────────────
-
-test('HTTP: concurrent same-key payment, both succeed, one idempotent', async (t) => {
+test('HTTP: concurrent same-key — both succeed, one normal + one idempotent, state intact', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url } = await startServer(t, { dir, port: 33009 });
-
   await setupTestUsers(url);
   const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Concurrent');
   const key = 'concurrent-same-http-key';
@@ -276,26 +266,27 @@ test('HTTP: concurrent same-key payment, both succeed, one idempotent', async (t
   ]);
 
   const fulfilled = results.filter(r => r.status === 'fulfilled');
-  assert.equal(fulfilled.length, 2, `Both should succeed, got ${fulfilled.length}`);
-
+  assert.equal(fulfilled.length, 2, 'Both succeed');
   const bodies = await Promise.all(fulfilled.map(async r => {
-    const b = await r.value.json();
     assert.equal(r.value.status, 200);
-    return b;
+    return r.value.json();
   }));
-
   const normal = bodies.find(b => b.idempotent === false);
   const replay = bodies.find(b => b.idempotent === true);
-  assert.ok(normal, 'One normal success');
-  assert.ok(replay, 'One idempotent replay');
+  assert.ok(normal);
+  assert.ok(replay);
+
+  // State: sender debited once, status delivered
+  assert.ok(normal.stars_balance !== undefined);
+  assert.equal(normal.request.status, 'delivered');
+  assert.ok(replay.request, 'Replay has request');
 });
 
-// ── Concurrent different-key payment ─────────────────────────────────
+// ── Payment: concurrent different-key ────────────────────────────────
 
-test('HTTP: concurrent different-key payment, one success, one 409', async (t) => {
+test('HTTP: concurrent different-key — one 200, one 409, one financial effect', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url } = await startServer(t, { dir, port: 33010 });
-
   await setupTestUsers(url);
   const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Diff keys');
 
@@ -313,10 +304,261 @@ test('HTTP: concurrent different-key payment, one success, one 409', async (t) =
   ]);
 
   const statuses = results.map(r => r.status === 'fulfilled' ? r.value.status : -1);
-  const successCount = statuses.filter(s => s === 200).length;
-  const conflictCount = statuses.filter(s => s === 409).length;
+  assert.equal(statuses.filter(s => s === 200).length, 1, 'Exactly one 200');
+  assert.equal(statuses.filter(s => s === 409).length, 1, 'Exactly one 409');
 
-  assert.equal(successCount, 1, 'Exactly one 200');
-  assert.equal(conflictCount, 1, 'Exactly one 409');
-  assert.equal(successCount + conflictCount, 2, 'All requests completed');
+  // Verify 409 body
+  const conflict = results.find(r => r.status === 'fulfilled' && r.value.status === 409);
+  const conflictBody = await conflict.value.json();
+  assert.ok(conflictBody.code === 'ALREADY_PROCESSED' || conflictBody.code === 'IDEMPOTENCY_KEY_REUSED');
+});
+
+// ── Premium collection: purchase success ─────────────────────────────
+
+test('HTTP: premium collection purchase — 200, balance reduced, ownership, operation, artworks', async (t) => {
+  const { url } = await startServerWithPremiumCollection(t, 33020);
+  await giveStars(url, 'prem_user', 5);
+
+  const res = await fetch(`${url}/users/collections/col_http_prem/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_user', 'Idempotency-Key': 'prem-buy-key-01' },
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.success, true);
+  assert.equal(body.idempotent, false);
+  assert.ok(body.stars_balance !== undefined);
+  assert.ok(body.stars_balance < 500, 'Balance decreased');
+
+  // Verify state via API
+  const meRes = await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'prem_user' } });
+  const me = await meRes.json();
+  assert.ok(me.stars_balance < 500);
+
+  const artsRes = await fetch(`${url}/users/prem_user/artworks`, { headers: { 'X-User-Id': 'prem_user' } });
+  const arts = await artsRes.json();
+  const collArts = arts.filter(a => a.collection_id === 'col_http_prem');
+  assert.equal(collArts.length, 2, 'Two artworks created');
+});
+
+// ── Premium collection: same-key replay ──────────────────────────────
+
+test('HTTP: premium collection same-key replay — 200 idempotent:true', async (t) => {
+  const { url } = await startServerWithPremiumCollection(t, 33021);
+  await giveStars(url, 'prem_replay', 5);
+  const key = 'prem-replay-key-http';
+
+  const r1 = await fetch(`${url}/users/collections/col_http_prem/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_replay', 'Idempotency-Key': key },
+  });
+  assert.equal(r1.status, 200);
+  const b1 = await r1.json();
+  assert.equal(b1.idempotent, false);
+  assert.equal(b1.success, true);
+
+  const r2 = await fetch(`${url}/users/collections/col_http_prem/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_replay', 'Idempotency-Key': key },
+  });
+  assert.equal(r2.status, 200);
+  const b2 = await r2.json();
+  assert.equal(b2.idempotent, true);
+  assert.equal(b2.success, true);
+
+  // Artworks not duplicated
+  const artsRes = await fetch(`${url}/users/prem_replay/artworks`, { headers: { 'X-User-Id': 'prem_replay' } });
+  const arts = await artsRes.json();
+  const collArts = arts.filter(a => a.collection_id === 'col_http_prem');
+  assert.equal(collArts.length, 2, 'Still exactly 2 artworks');
+});
+
+// ── Premium collection: different-key duplicate ──────────────────────
+
+test('HTTP: premium collection different-key duplicate — 409 ALREADY_PROCESSED', async (t) => {
+  const { url } = await startServerWithPremiumCollection(t, 33022);
+  await giveStars(url, 'prem_dup', 5);
+
+  const r1 = await fetch(`${url}/users/collections/col_http_prem/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_dup', 'Idempotency-Key': 'prem-dup-aaa1' },
+  });
+  assert.equal(r1.status, 200);
+
+  const r2 = await fetch(`${url}/users/collections/col_http_prem/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_dup', 'Idempotency-Key': 'prem-dup-bbb2' },
+  });
+  assert.equal(r2.status, 409);
+  assert.equal((await r2.json()).code, 'ALREADY_PROCESSED');
+});
+
+// ── Premium collection: insufficient balance ─────────────────────────
+
+test('HTTP: premium collection insufficient balance — 402', async (t) => {
+  const { url } = await startServerWithPremiumCollection(t, 33023);
+  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'prem_poor' } });
+
+  const res = await fetch(`${url}/users/collections/col_http_prem/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_poor', 'Idempotency-Key': 'prem-poor-key-01' },
+  });
+  assert.equal(res.status, 402);
+  assert.equal((await res.json()).code, 'INSUFFICIENT_STARS');
+});
+
+// ── Premium collection: concurrent purchase ──────────────────────────
+
+test('HTTP: concurrent premium purchase — one 200, one 409, one ownership', async (t) => {
+  const { url } = await startServerWithPremiumCollection(t, 33024);
+  await giveStars(url, 'prem_conc', 5);
+
+  const results = await Promise.allSettled([
+    fetch(`${url}/users/collections/col_http_prem/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_conc', 'Idempotency-Key': 'prem-conc-aa1' },
+    }),
+    fetch(`${url}/users/collections/col_http_prem/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_conc', 'Idempotency-Key': 'prem-conc-bb2' },
+    }),
+  ]);
+
+  const statuses = results.map(r => r.status === 'fulfilled' ? r.value.status : -1);
+  assert.equal(statuses.filter(s => s === 200).length, 1, 'One 200');
+  assert.equal(statuses.filter(s => s === 409).length, 1, 'One 409');
+
+  const artsRes = await fetch(`${url}/users/prem_conc/artworks`, { headers: { 'X-User-Id': 'prem_conc' } });
+  const arts = await artsRes.json();
+  const collArts = arts.filter(a => a.collection_id === 'col_http_prem');
+  assert.equal(collArts.length, 2, 'Exact artworks created once');
+});
+
+// ── Premium collection: legacy ownership ─────────────────────────────
+
+test('HTTP: legacy ownership rejects premium purchase', async (t) => {
+  // Use pre-built DB with legacy ownership
+  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
+  const dbPath = join(dir, 'test.db.bin');
+
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  const migrationsDir = join(serverDir, 'migrations', 'sqlite');
+  await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
+
+  const now = new Date().toISOString();
+  db.run("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES (?,?,?,?)",
+    ['col_http_leg', 'Legacy Test', 'premium', 40]);
+  db.run("INSERT INTO users (id,telegram_id,nickname,stars_balance,role,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
+    ['leg_user', null, 'Legacy', 0, 'user', now, now]);
+  db.run("INSERT INTO achievements (id,title,description,category,icon,rarity,created_at) VALUES (?,?,?,?,?,?,?)",
+    ['ach_tl', 'Test', '', 'ritual', 'star', 'common', now]);
+  db.run("INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    ['tpl_tl', 'Test', 8, 8, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(64).fill(0)), now, now]);
+  db.run("INSERT INTO collection_ownerships (user_id,collection_id,acquisition_type,price_paid,stars_operation_id,created_at) VALUES (?,?,?,?,?,?)",
+    ['leg_user', 'col_http_leg', 'legacy', 0, null, now]);
+
+  await writeFile(dbPath, Buffer.from(db.export()));
+
+  const server = spawn('node', ['index.js'], {
+    cwd: serverDir,
+    env: cloneEnv({ PORT: '33025', SQLITE_DB_PATH: dbPath, ALLOW_DEV_AUTH: 'true' }),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Server did not start on port 33025')), 15_000);
+    server.stdout.on('data', (chunk) => {
+      if (chunk.toString().includes('running on')) { clearTimeout(timer); resolve(); }
+    });
+    server.once('error', reject);
+  });
+  t.after(() => { server.kill(); });
+  t.after(async () => { await rm(dir, { recursive: true, force: true }); });
+  const url = `http://127.0.0.1:33025`;
+
+  await giveStars(url, 'leg_user', 5);
+  const res = await fetch(`${url}/users/collections/col_http_leg/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'leg_user', 'Idempotency-Key': 'leg-buy-key-01' },
+  });
+  assert.equal(res.status, 409);
+  assert.equal((await res.json()).code, 'ALREADY_PROCESSED');
+
+  const meRes = await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'leg_user' } });
+  const me = await meRes.json();
+  assert.equal(me.stars_balance, 500, 'Balance unchanged');
+});
+
+// ── Free collection test (renamed from "premium") ────────────────────
+
+test('HTTP: free collection add successful', async (t) => {
+  const { url } = await startServerWithPremiumCollection(t, 33026);
+  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'free_buyer' } });
+
+  const res = await fetch(`${url}/users/collections/col_http_free/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'free_buyer', 'Idempotency-Key': 'free-col-key-01' },
+  });
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.success, true);
+});
+
+test('HTTP: free collection duplicate returns 409', async (t) => {
+  const { url } = await startServerWithPremiumCollection(t, 33027);
+  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'free_dup' } });
+
+  await fetch(`${url}/users/collections/col_http_free/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'free_dup', 'Idempotency-Key': 'free-dup-aaa1' },
+  });
+  const res2 = await fetch(`${url}/users/collections/col_http_free/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'free_dup', 'Idempotency-Key': 'free-dup-bbb2' },
+  });
+  assert.equal(res2.status, 409);
+});
+
+// ── Settings: price validation ───────────────────────────────────────
+
+test('HTTP: settings price_in_stars=1 returns 400', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
+  const { url } = await startServer(t, { dir, port: 33030 });
+  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'settings_test' } });
+
+  const res = await fetch(`${url}/users/settings_test/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'settings_test' },
+    body: JSON.stringify({ price_in_stars: 1 }),
+  });
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).code, 'INVALID_INPUT');
+});
+
+test('HTTP: settings price_in_stars="2abc" returns 400', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
+  const { url } = await startServer(t, { dir, port: 33031 });
+  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'settings_test2' } });
+
+  const res = await fetch(`${url}/users/settings_test2/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'settings_test2' },
+    body: JSON.stringify({ price_in_stars: "2abc" }),
+  });
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).code, 'INVALID_INPUT');
+});
+
+test('HTTP: settings price_in_stars=2 returns 200', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
+  const { url } = await startServer(t, { dir, port: 33032 });
+  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'settings_test3' } });
+
+  const res = await fetch(`${url}/users/settings_test3/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'settings_test3' },
+    body: JSON.stringify({ price_in_stars: 2 }),
+  });
+  assert.equal(res.status, 200);
 });

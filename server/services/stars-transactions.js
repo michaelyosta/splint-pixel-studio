@@ -128,7 +128,7 @@ export function createStarsTransactionsService(deps = {}) {
       throw makeError('ALREADY_PROCESSED', 'Операция уже выполнена');
     }
 
-    return { resolved: false };
+    throw new Error('Unexpected ON CONFLICT: operation not found but insert was refused');
   }
 
   // ── Message payment ────────────────────────────────────────────────

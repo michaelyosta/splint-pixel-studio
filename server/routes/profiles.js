@@ -59,7 +59,20 @@ router.patch('/:id/settings', authMiddleware, asyncRoute(async (req, res) => {
   if (messages_disabled !== undefined) { fields.push('messages_disabled=?'); vals.push(messages_disabled ? 1 : 0); }
   if (followers_only    !== undefined) { fields.push('followers_only=?');    vals.push(followers_only ? 1 : 0); }
   if (paid_open         !== undefined) { fields.push('paid_open=?');         vals.push(paid_open ? 1 : 0); }
-  if (price_in_stars    !== undefined) { fields.push('price_in_stars=?');    vals.push(Math.max(1, parseInt(price_in_stars) || 10)); }
+  if (price_in_stars    !== undefined) {
+    const raw = price_in_stars;
+    if (typeof raw !== 'number' || !Number.isFinite(raw) || !Number.isInteger(raw)) {
+      return res.status(400).json({ error: 'price_in_stars must be a finite integer', code: 'INVALID_INPUT' });
+    }
+    if (raw < 2) {
+      return res.status(400).json({ error: 'price_in_stars must be at least 2', code: 'INVALID_INPUT' });
+    }
+    if (raw > 1_000_000) {
+      return res.status(400).json({ error: 'price_in_stars must not exceed 1,000,000', code: 'INVALID_INPUT' });
+    }
+    fields.push('price_in_stars=?');
+    vals.push(raw);
+  }
   if (status            !== undefined) { fields.push('status=?');            vals.push(String(status).slice(0,100)); }
 
   if (!fields.length) return res.status(400).json({ error: 'Нет полей для обновления' });
