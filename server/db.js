@@ -34,8 +34,10 @@ export async function initDb() {
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const migration = readFileSync(migrationPath, 'utf8');
     const migration2 = readFileSync(join(directory, 'migrations', '002_meta.sql'), 'utf8');
+    const migration3 = readFileSync(join(directory, 'migrations', '003_auth_roles.sql'), 'utf8');
     await pool.query(migration);
     await pool.query(migration2);
+    await pool.query(migration3);
   } else {
     mode = 'sqlite';
     const SQL = await initSqlJs();
@@ -143,11 +145,12 @@ async function seedDemoData() {
   const now = new Date().toISOString();
   if (!await get('SELECT id FROM users LIMIT 1')) {
     const userSql = `INSERT INTO users
-      (id,telegram_id,nickname,avatar_url,status,karma,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,is_banned,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
-    await run(userSql, ['user_pixelhunter', 1234567, 'PixelHunter', '/assets/pixel_hunter_avatar.jpg', 'Люблю пиксели и неон.', 1250, 450, 0, 0, 0, 10, 0, now, now]);
-    await run(userSql, ['user_lenaart', 7654321, 'LenaArt', '/assets/lena_art_avatar.jpg', 'Раскрашиваю фантастические миры.', 3420, 120, 0, 1, 0, 25, 0, now, now]);
-    await run(userSql, ['user_artvibe', 9988776, 'ArtVibe', '/assets/lena_art_avatar.jpg', 'Pixel art и lo-fi.', 410, 50, 0, 0, 0, 0, 0, now, now]);
+      (id,telegram_id,nickname,avatar_url,status,karma,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,is_banned,role,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+    await run(userSql, ['user_pixelhunter', 1234567, 'PixelHunter', '/assets/pixel_hunter_avatar.jpg', 'Люблю пиксели и неон.', 1250, 450, 0, 0, 0, 10, 0, 'user', now, now]);
+    await run(userSql, ['user_lenaart', 7654321, 'LenaArt', '/assets/lena_art_avatar.jpg', 'Раскрашиваю фантастические миры.', 3420, 120, 0, 1, 0, 25, 0, 'user', now, now]);
+    await run(userSql, ['user_artvibe', 9988776, 'ArtVibe', '/assets/lena_art_avatar.jpg', 'Pixel art и lo-fi.', 410, 50, 0, 0, 0, 0, 0, 'user', now, now]);
+    await run(userSql, ['user_splintmod', 0, 'SplintMod', null, '', 0, 0, 0, 0, 0, 10, 0, 'moderator', now, now]);
   }
 
   const templates = JSON.parse(readFileSync(catalogPath, 'utf8'));
@@ -235,7 +238,7 @@ async function seedDemoData() {
 
 function initSqliteSchema() {
   sqlite.run(`
-    CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, telegram_id INTEGER UNIQUE, nickname TEXT NOT NULL, avatar_url TEXT, status TEXT DEFAULT '', karma INTEGER DEFAULT 0, stars_balance INTEGER DEFAULT 0, messages_disabled INTEGER DEFAULT 0, followers_only INTEGER DEFAULT 0, paid_open INTEGER DEFAULT 0, price_in_stars INTEGER DEFAULT 10, is_banned INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, telegram_id INTEGER UNIQUE, nickname TEXT NOT NULL, avatar_url TEXT, status TEXT DEFAULT '', karma INTEGER DEFAULT 0, stars_balance INTEGER DEFAULT 0, messages_disabled INTEGER DEFAULT 0, followers_only INTEGER DEFAULT 0, paid_open INTEGER DEFAULT 0, price_in_stars INTEGER DEFAULT 10, is_banned INTEGER DEFAULT 0, role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','moderator','admin')), created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS collections (id TEXT PRIMARY KEY, title TEXT NOT NULL, pack_type TEXT DEFAULT 'free', rarity TEXT DEFAULT 'common', total_artworks INTEGER DEFAULT 10, price_in_stars INTEGER DEFAULT 0, image_url TEXT);
     CREATE TABLE IF NOT EXISTS artworks (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, source_type TEXT DEFAULT 'user', image_url TEXT, title TEXT NOT NULL, collection_id TEXT, collection_title TEXT, rarity TEXT, is_completed INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS posts (id TEXT PRIMARY KEY, author_id TEXT NOT NULL, artwork_id TEXT, achievement_id TEXT, post_type TEXT NOT NULL, title TEXT NOT NULL, caption TEXT DEFAULT '', comments_enabled INTEGER DEFAULT 1, visibility TEXT DEFAULT 'public', status TEXT DEFAULT 'active', like_count INTEGER DEFAULT 0, comment_count INTEGER DEFAULT 0, published_at TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
@@ -267,4 +270,5 @@ function initSqliteSchema() {
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_coloring_zones_template ON coloring_zones(template_id)'); } catch { /* noop */ }
   try { sqlite.run('CREATE INDEX IF NOT EXISTS idx_analytics_user_event ON analytics_events(user_id, event, created_at DESC)'); } catch { /* noop */ }
   try { sqlite.run('ALTER TABLE coloring_templates ADD COLUMN original_media_key TEXT'); } catch { /* Existing local databases already migrated. */ }
+  try { sqlite.run("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','moderator','admin'))"); } catch { /* Existing local databases already migrated. */ }
 }

@@ -11,7 +11,8 @@
     "dev:postgres": "node --env-file=.env --watch index.js",
     "seed": "node seed.js",
     "migrate:postgres": "node scripts/migrate-postgres.js",
-    "check": "node scripts/check.js"
+    "check": "node scripts/check.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.750.0",

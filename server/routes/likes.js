@@ -2,11 +2,12 @@
 import { Router } from 'express';
 import { get, run } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { asyncRoute } from '../middleware/asyncRoute.js';
 
 const router = Router();
 
 // POST /posts/:id/like
-router.post('/:id/like', authMiddleware, async (req, res) => {
+router.post('/:id/like', authMiddleware, asyncRoute(async (req, res) => {
   const { id: postId } = req.params;
   const userId = req.userId;
 
@@ -26,10 +27,10 @@ router.post('/:id/like', authMiddleware, async (req, res) => {
 
   const updated = await get('SELECT like_count FROM posts WHERE id=?', [postId]);
   res.json({ success: true, is_liked: true, like_count: updated.like_count });
-});
+}));
 
 // DELETE /posts/:id/like
-router.delete('/:id/like', authMiddleware, async (req, res) => {
+router.delete('/:id/like', authMiddleware, asyncRoute(async (req, res) => {
   const { id: postId } = req.params;
   const userId = req.userId;
 
@@ -46,6 +47,6 @@ router.delete('/:id/like', authMiddleware, async (req, res) => {
 
   const updated = await get('SELECT like_count FROM posts WHERE id=?', [postId]);
   res.json({ success: true, is_liked: false, like_count: updated.like_count });
-});
+}));
 
 export default router;
