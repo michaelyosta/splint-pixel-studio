@@ -163,7 +163,7 @@ function App() {
 
   useEffect(() => { loadCatalog(); loadToday(); loadStreak(); loadAchievements(); loadCollections(); loadProfile(); }, [loadCatalog, loadToday, loadStreak, loadAchievements, loadCollections, loadProfile]);
   useEffect(() => () => {
-    if (saveQueueRef.current) saveQueueRef.current.reset(0);
+    if (saveQueueRef.current) saveQueueRef.current.dispose();
     window.clearTimeout(noticeTimerRef.current);
     window.clearTimeout(rewardTimerRef.current);
   }, []);
@@ -179,6 +179,7 @@ function App() {
       setTemplate(nextTemplate);
       setProgress(nextProgress);
       setZones(nextZones.zones || []);
+      if (saveQueueRef.current) saveQueueRef.current.dispose();
       saveQueueRef.current = createSaveQueue({
         putProgress: async ({ filled, revision, resultDataUrl }) => {
           return api(`/colorings/${nextTemplate.id}/progress`, {
