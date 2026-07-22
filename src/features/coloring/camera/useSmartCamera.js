@@ -132,17 +132,19 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
   }, []);
 
   const toggleAuto = useCallback(() => {
-    if (autoEnabledRef.current && isTemporarilyPaused) {
-      resumeAuto();
-      return;
-    }
-    const next = !autoEnabledRef.current;
-    autoEnabledRef.current = next;
-    setAutoEnabled(next);
-    if (next) {
+    if (autoEnabledRef.current) {
+      autoEnabledRef.current = false;
+      setAutoEnabled(false);
+      setTemporarilyPaused(false);
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+      pauseTimerRef.current = null;
+      cancelAnimation();
+    } else {
+      autoEnabledRef.current = true;
+      setAutoEnabled(true);
       setTemporarilyPaused(false);
     }
-  }, [isTemporarilyPaused, resumeAuto]);
+  }, [cancelAnimation]);
 
   const resumeAutoRef = useRef(resumeAuto);
   resumeAutoRef.current = resumeAuto;

@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, Compass, Download, Flag, Flame, Grid3X3, Heart, ImagePlus, LoaderCircle, Send, Share2, Sparkles, Star, Target, Trash2, UserRound, X, BookOpen, Lock } from 'lucide-react';
+import { Compass, Flag, Flame, Grid3X3, Heart, ImagePlus, LoaderCircle, Send, Sparkles, Star, Trash2, UserRound, BookOpen, Lock } from 'lucide-react';
 import { api, metaApi, catalogApi, DEV_USER_ID } from './api/client';
-import LegacyPixelCanvas from './components/LegacyPixelCanvas';
-import ColoringSession from './features/coloring/ColoringSession';
-
-const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE !== 'false';
+import PlayerView from './views/PlayerView';
 import { floodFillRegion } from './lib/floodFill';
 import { buildColoringFromImage, findRewardingColor, getProgress, renderCompletedImage } from './lib/pixelColoring';
 import { renderImageCropPreview, renderFitPreview, renderGridPreview, renderNumberedPreview } from './lib/imageCrop';
 import { assessQuality } from './lib/creatorQuality';
-import { getContextGoal, getRevealAction } from './lib/playLoop';
 import { createSaveQueue } from './lib/progressSaveQueue';
 import { createHistoryOperation } from './features/coloring/engine/historyOperations.js';
 import './App.css';
@@ -62,6 +58,7 @@ function App() {
   const [mineError, setMineError] = useState(false);
   const [feedError, setFeedError] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [notice, setNotice] = useState(null);
   const [feed, setFeed] = useState([]);
   const [commentsByPost, setCommentsByPost] = useState({});
@@ -97,7 +94,7 @@ function App() {
   const [hintMode, setHintMode] = useState(false);
   const [hintsRemaining, setHintsRemaining] = useState(5);
   const [fillMode, setFillMode] = useState(false);
-  const [playMode, setPlayMode] = useState('reveal');
+  const [playMode, setPlayMode] = useState('classic');
   const [completionOpen, setCompletionOpen] = useState(false);
   const [onboarding, setOnboarding] = useState(null);
   const [sharing, setSharing] = useState(false);
@@ -236,7 +233,7 @@ function App() {
       });
       saveQueueRef.current.reset(nextProgress.revision);
       setSelectedColor(findRewardingColor(nextTemplate, nextProgress.filled) ?? 0);
-      setPlayMode('reveal');
+      setPlayMode('classic');
       setFillMode(false);
       setHistory([]);
       setFuture([]);
@@ -303,52 +300,25 @@ function App() {
   }
 
   const zoneIndicesRef = useRef({});
-  function handlePaint(index, color) {
-    if (onboarding !== null) dismissOnboarding();
-    if (!progress || filledRef.current[index] !== -1) return;
+
+  function handleStrokeCommitted(nextFilled, operation) {
+    handleFirstPaint();
     const now = Date.now();
-    const nextCombo = now - lastPaintRef.current < 2200 ? comboRef.current + 1 : 1;
+    const strokeCount = operation?.stroke?.changes?.length || 1;
+    const nextCombo = now - lastPaintRef.current < 2200 ? comboRef.current + strokeCount : 1;
     lastPaintRef.current = now;
     comboRef.current = nextCombo;
     setCombo(nextCombo);
-    const nextFilled = [...filledRef.current];
-    nextFilled[index] = color;
+    applyFilled(nextFilled, operation ? { stroke: operation } : undefined);
     const nextProgress = getProgress(template.cells, nextFilled);
-    const reached = [25, 50, 75, 100].find((value) => nextProgress.percent >= value && !milestoneRef.current.has(value));
-    if (reached) {
-      milestoneRef.current.add(reached);
-      metaApi.track(`reach_${reached}`, { id: template.id });
-    }
-    const remainingForColor = template.cells.reduce((total, target, cellIndex) => total + (target === color && nextFilled[cellIndex] === -1 ? 1 : 0), 0);
-    if (remainingForColor === 0) {
-      const nextColor = findRewardingColor(template, nextFilled, color);
-      if (nextColor !== undefined) setSelectedColor(nextColor);
-    }
-    applyFilled(nextFilled, createHistoryOperation({ type: 'single', changes: [{ index, from: -1, to: color }] }));
+    [25, 50, 75, 100].forEach((value) => {
+      if (nextProgress.percent >= value && !milestoneRef.current.has(value)) {
+        milestoneRef.current.add(value);
+        metaApi.track(`reach_${value}`, { id: template.id }).catch(() => {});
+      }
+    });
     const nextZones = refreshZones(nextFilled);
     celebrateCompletedZone(nextZones);
-  }
-
-  function handleRevealAt(index) {
-    if (onboarding !== null) dismissOnboarding();
-    if (!progress) return;
-    const action = getRevealAction(template, filledRef.current, index, fillMode);
-    if (!action?.indices.length) return;
-    setSelectedColor(action.color);
-    handleFirstPaint();
-    if (action.indices.length === 1) {
-      handlePaint(action.indices[0], action.color);
-      return;
-    }
-
-    const nextFilled = [...filledRef.current];
-    action.indices.forEach((cell) => { nextFilled[cell] = action.color; });
-    const changes = action.indices.map((idx) => ({ index: idx, from: -1, to: action.color }));
-    applyFilled(nextFilled, createHistoryOperation({ type: 'fill', changes, color: action.color }));
-    const nextZones = refreshZones(nextFilled);
-    if (!celebrateCompletedZone(nextZones)) {
-      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('medium');
-    }
   }
 
   function handleFillAt(index) {
@@ -412,22 +382,28 @@ function App() {
   }
 
   async function publishCompleted() {
-    if (!progress?.artwork_id) return;
-    setSaving(true);
+    if (saving || !progress?.artwork_id) {
+      if (!progress?.artwork_id) showNotice('Работа ещё сохраняется. Подождите несколько секунд.', 'info');
+      return;
+    }
+    setPublishing(true);
     try {
       await api('/posts/create', { method: 'POST', body: { artworkId: progress.artwork_id, title: template.title, caption: `Завершил(а) раскраску «${template.title}»!`, commentsEnabled: true } });
       showNotice('Работа опубликована в ленте', 'success');
       metaApi.track('publish', { id: template.id });
+      setCompletionOpen(false);
+      loadFeed();
       setView('feed');
     } catch (error) {
       if (error.status === 409) {
         showNotice('Эта работа уже опубликована', 'info');
+        setCompletionOpen(false);
         setView('feed');
       } else {
         showNotice(error.message, 'error');
       }
     } finally {
-      setSaving(false);
+      setPublishing(false);
     }
   }
 
@@ -589,7 +565,8 @@ function App() {
     setFollowingAuthorId(post.author_id);
     try {
       const result = await api(`/users/${post.author_id}/follow`, { method: 'POST' });
-      setFeed((current) => current.map((item) => item.id === post.id ? { ...item, is_following: result.is_following } : item));
+      const isFollowing = result.is_following;
+      setFeed((current) => current.map((item) => item.author_id === post.author_id ? { ...item, is_following: isFollowing } : item));
     } catch (error) {
       showNotice(error.message, 'error');
     } finally {
@@ -652,12 +629,11 @@ function App() {
     localStorage.setItem('splint_onboarding_done', '1');
   }
 
-  function Catalog() {
+  const renderCatalog = () => {
     const progressMap = {};
     mine.forEach((item) => { if (item.progress?.percent > 0) progressMap[item.id] = item.progress.percent; });
     return <section className="page catalog-page">
       <div className="page-heading"><div><p className="eyebrow">PIXEL BY NUMBERS</p><h1>Раскраски</h1></div></div>
-
       {today?.for_you && <div className="editorial-banner">
         <p className="eyebrow">СЕГОДНЯ ДЛЯ ВАС</p>
         <button className="editorial-card" onClick={() => openColoring(today.for_you.id)}>
@@ -666,12 +642,10 @@ function App() {
           <Sparkles size={18} />
         </button>
       </div>}
-
       {streak && <div className="streak-banner">
         <Flame size={18} className={streak.done_today ? 'lit' : ''} />
         <span>{streak.done_today ? `Серия ${streak.current_streak} дн. — сегодня готово!` : `Серия ${streak.current_streak} дн. — раскрасьте сегодня!`}</span>
       </div>}
-
       {today?.quick?.length > 0 && <div className="quick-row">
         <span className="quick-label">Быстрая до 3 мин</span>
         <div className="quick-scroll">{today.quick.map((item) => <button key={item.id} className="quick-chip" onClick={() => openColoring(item.id)}>
@@ -679,7 +653,6 @@ function App() {
           <small>{item.est_minutes}м</small>
         </button>)}</div>
       </div>}
-
       <div className="filter-bar">
         <select value={filters.mood} onChange={(e) => setFilters((f) => ({ ...f, mood: e.target.value }))}>
           {MOODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
@@ -693,207 +666,48 @@ function App() {
           <option value="5">≤ 5 мин</option>
         </select>
       </div>
-
-      {loading ? <Loading /> : catalogError && !templates.length ? <div className="error-retry"><p>Не удалось загрузить каталог</p><button className="secondary-button" onClick={loadCatalog}>Повторить</button></div> : <div className="coloring-grid">{templates.map((item) => <article className="coloring-card" key={item.id}>
+      {loading ? <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div> : catalogError && !templates.length ? <div className="error-retry"><p>Не удалось загрузить каталог</p><button className="secondary-button" onClick={loadCatalog}>Повторить</button></div> : <div className="coloring-grid">{templates.map((item) => <article className="coloring-card" key={item.id}>
         <div className="card-preview" style={item.preview_url ? { backgroundImage: `linear-gradient(180deg, transparent, #14222e), url(${item.preview_url})` } : undefined}>{progressMap[item.id] > 0 ? <span className="progress-badge">{progressMap[item.id]}%</span> : <span>{item.est_minutes} мин</span>}</div>
-        <div className="card-body"><h2>{item.title}</h2><p>{item.description}</p><small>{item.width}×{item.height} · {item.palette.length} цветов · {formatDifficulty(item.difficulty)}</small><button className="primary-button" onClick={() => openColoring(item.id)}>Начать</button></div>
+        <div className="card-body"><h2 style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{item.title}</h2><p style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', minHeight: '2.6em' }}>{item.description}</p><small style={{ minHeight: '1.4em', display: 'block' }}>{item.width}×{item.height} · {item.palette.length} цветов · {formatDifficulty(item.difficulty)}</small><button className="primary-button" onClick={() => openColoring(item.id)}>Начать</button></div>
       </article>)}</div>}
     </section>;
-  }
+  };
 
-  function Player() {
-    const [menuOpen, setMenuOpen] = useState(false);
-    const [hudHidden, setHudHidden] = useState(false);
-    const startPaintTimerRef = useRef(null);
-    const declutter = () => {
-      window.clearTimeout(startPaintTimerRef.current);
-      startPaintTimerRef.current = window.setTimeout(() => setHudHidden(true), 2500);
-    };
-    const showHud = () => { setHudHidden(false); declutter(); };
-    if (!template || !progress || !gameProgress) return <Loading />;
-    const isComplete = gameProgress.percent === 100;
-    const totalXp = gameProgress.completed * 10;
-    const level = Math.floor(totalXp / 1000) + 1;
-    const contextGoal = getContextGoal(zones, zoneIndicesRef.current, template, progress.filled);
-    return <section className="page player-page">
-      {/* Top compact bar */}
-      <div className="player-topbar">
-        <button className="back-button" onClick={() => setView('catalog')}><ChevronLeft size={18} /></button>
-        <span className="player-topbar-title">{template.title}</span>
-        <button className="player-menu-btn" onClick={() => setMenuOpen(true)} aria-label="Меню игры"><span>•••</span></button>
-      </div>
-
-      {/* Context hint above canvas */}
-      <div className={`player-hint ${hudHidden ? 'faded' : ''}`} onClick={showHud}>
-        <span className="player-hint-target"><Target size={14} /> {contextGoal}</span>
-      </div>
-
-      {zoneReward && <div className="milestone zone"><Target size={17} /> {zoneReward}</div>}
-
-      {import.meta.env.DEV && <div className={`engine-badge ${USE_NEW_COLORING_ENGINE ? 'smart' : 'legacy'}`}>{USE_NEW_COLORING_ENGINE ? 'Engine: Smart' : 'Engine: Legacy'}</div>}
-
-      {USE_NEW_COLORING_ENGINE ? (
-        <ColoringSession
-          template={template}
-          progress={progress}
-          selectedColor={selectedColor}
-          onSelectColor={setSelectedColor}
-          onSaveProgress={(nextFilled, operation) => {
-            handleFirstPaint();
-            declutter();
-            const now = Date.now();
-            const strokeCount = operation?.stroke?.changes?.length || 1;
-            const nextCombo = now - lastPaintRef.current < 2200 ? comboRef.current + strokeCount : 1;
-            lastPaintRef.current = now;
-            comboRef.current = nextCombo;
-            setCombo(nextCombo);
-            applyFilled(nextFilled, operation ? { stroke: operation } : undefined);
-            const nextProgress = getProgress(template.cells, nextFilled);
-            [25, 50, 75, 100].forEach((value) => {
-              if (nextProgress.percent >= value && !milestoneRef.current.has(value)) {
-                milestoneRef.current.add(value);
-                metaApi.track(`reach_${value}`, { id: template.id }).catch(() => {});
-              }
-            });
-            const nextZones = refreshZones(nextFilled);
-            celebrateCompletedZone(nextZones);
-          }}
-          onFirstPaint={handleFirstPaint}
-          onWrongCell={handleWrongCell}
-          onUndo={undo}
-          onRedo={redo}
-          canUndo={history.length > 0}
-          canRedo={future.length > 0}
-          calmMode={calmMode}
-          hideNumbers={hideNumbers}
-          hintMode={playMode === 'classic' && hintMode}
-          interactionMode={playMode}
-          fillMode={fillMode}
-          combo={combo}
-          onFillAt={fillMode ? handleFillAt : undefined}
-          onOpenMenu={() => setMenuOpen(true)}
-          onTrack={(event, payload) => metaApi.track(event, payload).catch(() => {})}
-        />
-      ) : (
-        <>
-          <div className="player-canvas-area" onClick={showHud} onMouseMove={showHud}>
-            <LegacyPixelCanvas
-              template={template}
-              filled={progress.filled}
-              selectedColor={selectedColor}
-              onPaint={(index, color) => { declutter(); handlePaint(index, color); }}
-              onWrong={(index) => { declutter(); handleWrongCell(index); }}
-              onFirstPaint={(index) => { declutter(); handleFirstPaint(index); }}
-              calmMode={calmMode}
-              hideFilledNumbers={playMode === 'reveal' || hideNumbers}
-              hintMode={playMode === 'classic' && hintMode}
-              interactionMode={playMode}
-              onTapCell={playMode === 'reveal' ? handleRevealAt : fillMode ? handleFillAt : undefined}
-            />
-          </div>
-          <div className="player-dock" onClick={showHud}>
-            <div className="player-dock-mode">
-              <button className={playMode === 'reveal' ? 'active' : ''} onClick={() => setPlayMode('reveal')}>Раскрытие</button>
-              <button className={playMode === 'classic' ? 'active' : ''} onClick={() => { setPlayMode('classic'); setFillMode(false); }}>По номерам</button>
-            </div>
-            {playMode === 'classic' && <div className="palette" aria-label="Палитра цветов">{template.palette.map((color, index) => {
-              const remaining = template.cells.reduce((total, target, cellIndex) => total + (target === index && progress.filled[cellIndex] === -1 ? 1 : 0), 0);
-              return <button key={color} className={`color-swatch ${selectedColor === index ? 'selected' : ''}`} onClick={() => { setSelectedColor(index); window.Telegram?.WebApp?.HapticFeedback?.selectionChanged?.(); }} title={`Цвет ${index + 1}`}><i style={{ background: color }} /><span>{index + 1}</span><small>{remaining}</small></button>;
-            })}</div>}
-          </div>
-        </>
-      )}
-
-      {/* Bottom sheet menu */}
-      {menuOpen && <div className="bottom-sheet-overlay" role="presentation" onClick={() => setMenuOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
-        <section className="bottom-sheet" role="dialog" aria-modal="true" aria-label="Меню игры" onClick={(e) => e.stopPropagation()}>
-          <button className="bottom-sheet-close" onClick={() => setMenuOpen(false)} aria-label="Закрыть меню"><X size={20} /></button>
-          <h3>Меню игры</h3>
-          <div className="bottom-sheet-zone">
-            <b>Прогресс по участкам</b>
-            <div className="zone-track">{zones.map((zone) => <button key={zone.id} className={`zone-pill ${zone.percent === 100 ? 'done' : ''}`} disabled title={zone.title}>
-              <span className="zone-fill" style={{ width: `${zone.percent}%` }} />
-              <span className="zone-text">{zone.title}</span>
-              <span className="zone-pct">{zone.percent}%</span>
-            </button>)}</div>
-          </div>
-          <div className="bottom-sheet-info"><span>XP: {totalXp} · Уровень {level}</span><span>Комбо: ×{combo}</span></div>
-          <div className="bottom-sheet-actions">
-            <button onClick={() => { setFillMode((value) => !value); setMenuOpen(false); }} className={fillMode ? 'active' : ''}>Заполнять область</button>
-            {playMode === 'classic' && <>
-              <button onClick={() => { setHintMode((v) => { if (!v && hintsRemaining > 0) setHintsRemaining((h) => h - 1); return !v; }); setMenuOpen(false); }} disabled={hintsRemaining <= 0 && !hintMode}>Подсказка ({hintsRemaining})</button>
-              <button onClick={() => { setCalmMode((v) => !v); setMenuOpen(false); }} className={calmMode ? 'active' : ''}>Спокойный режим</button>
-              <button onClick={() => { setHideNumbers((v) => !v); setMenuOpen(false); }} className={hideNumbers ? 'active' : ''}>Скрыть номера</button>
-            </>}
-            <hr />
-            <button onClick={() => { undo(); setMenuOpen(false); }} disabled={!history.length}>Отмена</button>
-            <button onClick={() => { redo(); setMenuOpen(false); }} disabled={!future.length}>Повтор</button>
-            <button onClick={() => { if (window.confirm('Сбросить весь прогресс?')) { resetProgress(); setMenuOpen(false); } }}>Сбросить</button>
-          </div>
-        </section>
-      </div>}
-
-      {onboarding !== null && <div className="onboarding-overlay" role="dialog" aria-label="Обучение"><div className="onboarding-card"><b>{['Касайтесь картины — нужный цвет подберётся сам', 'Проведите пальцем, чтобы раскрыть несколько клеток подряд', 'Классический режим по номерам всегда доступен внизу'][onboarding]}</b><div className="onboarding-dots">{['', '', ''].map((_, i) => <span key={i} className={i === onboarding ? 'active' : ''} />)}</div><div className="onboarding-actions">{onboarding < 2 ? <button className="primary-button" onClick={() => setOnboarding(onboarding + 1)}>Далее</button> : <button className="primary-button" onClick={dismissOnboarding}>Раскрыть картину</button>}<button className="secondary-button" onClick={dismissOnboarding}>Пропустить</button></div></div></div>}
-      {isComplete && completionOpen && <div className="completion-overlay" role="presentation">
-        <section className="completion-dialog" ref={completionDialogRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="completion-title">
-          <button className="completion-close" onClick={() => setCompletionOpen(false)} aria-label="Закрыть карточку результата"><X size={20} /></button>
-          <div className="confetti" aria-hidden="true">✦ ◆ ✦</div>
-          <img src={completedPreview} alt={`Готовая работа ${template.title}`} />
-          <p className="eyebrow">Картина раскрыта · {formatDifficulty(template.difficulty)}</p>
-          <h2 id="completion-title">Картина раскрыта!</h2>
-          <p className="completion-work-title">{template.title}</p>
-          <div className="completion-rewards"><span><Sparkles size={16} /> Новая работа в галерее</span><span><Star size={16} /> +500 XP</span></div>
-          <p className="completion-copy">Прекрасный финал. Сохраните результат или покажите его друзьям.</p>
-          <div className="completion-actions">
-            <button className="primary-button" onClick={shareResult} disabled={sharing}>{sharing ? <><LoaderCircle className="spin" size={17} /> Открываем…</> : <><Share2 size={17} /> Поделиться</>}</button>
-            <button className="secondary-button" onClick={downloadResult}><Download size={17} /> Сохранить результат</button>
-          </div>
-          <div className="completion-links">
-            <button onClick={publishCompleted} disabled={saving}>{saving ? <><LoaderCircle className="spin" size={16} /> Публикуем…</> : 'Опубликовать в ленту'}</button>
-            <button onClick={() => { setCompletionOpen(false); setView('catalog'); }}>К каталогу</button>
-          </div>
-        </section>
-      </div>}
-    </section>;
-  }
-
-  function Gallery() {
+  const renderGallery = () => {
     return <section className="page"><div className="page-heading"><div><p className="eyebrow">МОИ РАБОТЫ</p><h1>Галерея</h1></div></div><div className="gallery-list">{mine.map((item) => <div className="gallery-row" key={item.id}><button className="gallery-open" onClick={() => openColoring(item.id)}><span className="mini-palette" style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : { background: item.palette[0] }}><Grid3X3 size={18} /></span><span><b>{item.title}</b><small>{item.progress.percent}% · {item.width}×{item.height}</small></span><span className="gallery-progress">{item.progress.percent}%</span></button>{item.source_type === 'user' && <button className="delete-button" onClick={() => deleteColoring(item)} aria-label={`Удалить ${item.title}`}><Trash2 size={17} /></button>}</div>)}{!mine.length ? mineError ? <div className="error-retry"><p>Не удалось загрузить галерею</p><button className="secondary-button" onClick={loadMine}>Повторить</button></div> : <p className="empty-state">Здесь появятся начатые и созданные вами раскраски.</p> : null}</div></section>;
-  }
+  };
 
-  function Feed() {
+  const renderFeed = () => {
     const viewerId = currentUser?.id || DEV_USER_ID;
-    const isFollowing = (post) => followingAuthorId === post.author_id;
-    const isLiking = (post) => likingPostId === post.id;
-    return <section className="page"><div className="page-heading"><div><p className="eyebrow">СООБЩЕСТВО</p><h1>Лента работ</h1></div></div><div className="feed-list">{feed.map((post) => <article className="feed-post" key={post.id}><div className="post-author"><button className="author-button" onClick={() => openProfile(post.author_id)}><img src={post.author?.avatar_url || '/favicon.svg'} alt="" /><span><b>{post.author?.nickname || 'Автор'}</b><small>{post.title}</small></span></button>{post.author_id !== viewerId && <button className="follow-button" disabled={isFollowing(post)} onClick={() => toggleFollow(post)}>{isFollowing(post) ? '…' : post.is_following ? 'Вы подписаны' : 'Подписаться'}</button>}</div><ArtworkPreview src={post.artwork?.image_url} alt={post.title} /><p>{post.caption}</p><div className="post-actions"><button className={`${post.is_liked ? 'liked' : ''} ${isLiking(post) ? 'loading' : ''}`} disabled={isLiking(post)} onClick={() => toggleLike(post)} aria-label={post.is_liked ? 'Убрать лайк' : 'Поставить лайк'}><Heart size={18} fill={post.is_liked ? 'currentColor' : 'none'} /> {post.like_count}</button>{post.comments_enabled && <button onClick={() => toggleComments(post.id)} aria-label="Комментарии"><Send size={17} /> {post.comment_count}</button>}<button className="report-button" onClick={() => reportPost(post.id)} aria-label="Пожаловаться"><Flag size={16} /></button></div>{openCommentsPostId === post.id && <div className="comments-panel">{(commentsByPost[post.id] || []).map((comment) => <div className="comment-row" key={comment.id}><b>{comment.author?.nickname || 'Автор'}</b><span>{comment.text}</span></div>)}{!(commentsByPost[post.id] || []).length && <p className="comments-empty">Пока нет комментариев.</p>}<form onSubmit={(event) => submitComment(event, post.id)}><input value={commentDraft} maxLength="300" placeholder="Напишите комментарий" onChange={(event) => setCommentDraft(event.target.value)} /><button type="submit" disabled={submittingComment || !commentDraft.trim()} aria-label="Отправить комментарий">{submittingComment ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}</button></form></div>}</article>)}{!feed.length ? feedError ? <div className="error-retry"><p>Не удалось загрузить ленту</p><button className="secondary-button" onClick={loadFeed}>Повторить</button></div> : <p className="empty-state">Завершите первую раскраску и опубликуйте её здесь.</p> : null}</div></section>;
-  }
+    return <section className="page"><div className="page-heading"><div><p className="eyebrow">СООБЩЕСТВО</p><h1>Лента работ</h1></div></div><div className="feed-list">{feed.map((post) => <article className="feed-post" key={post.id}><div className="post-author"><button className="author-button" onClick={() => openProfile(post.author_id)}><img src={post.author?.avatar_url || '/favicon.svg'} alt="" /><span><b>{post.author?.nickname || 'Автор'}</b><small>{post.title}</small></span></button>{post.author_id !== viewerId && <button className="follow-button" style={{ minWidth: 120 }} disabled={followingAuthorId === post.author_id} aria-busy={followingAuthorId === post.author_id} onClick={() => toggleFollow(post)}>{followingAuthorId === post.author_id ? <LoaderCircle className="spin" size={14} /> : post.is_following ? 'Вы подписаны' : 'Подписаться'}</button>}</div><ArtworkPreview src={post.artwork?.image_url} alt={post.title} /><p>{post.caption}</p><div className="post-actions"><button className={`${post.is_liked ? 'liked' : ''} ${likingPostId === post.id ? 'loading' : ''}`} disabled={likingPostId === post.id} onClick={() => toggleLike(post)} aria-label={post.is_liked ? 'Убрать лайк' : 'Поставить лайк'}><Heart size={18} fill={post.is_liked ? 'currentColor' : 'none'} /> {post.like_count}</button>{post.comments_enabled && <button onClick={() => toggleComments(post.id)} aria-label="Комментарии"><Send size={17} /> {post.comment_count}</button>}<button className="report-button" onClick={() => reportPost(post.id)} aria-label="Пожаловаться"><Flag size={16} /></button></div>{openCommentsPostId === post.id && <div className="comments-panel">{(commentsByPost[post.id] || []).map((comment) => <div className="comment-row" key={comment.id}><b>{comment.author?.nickname || 'Автор'}</b><span>{comment.text}</span></div>)}{!(commentsByPost[post.id] || []).length && <p className="comments-empty">Пока нет комментариев.</p>}<form onSubmit={(event) => submitComment(event, post.id)}><input value={commentDraft} maxLength="300" placeholder="Напишите комментарий" onChange={(event) => setCommentDraft(event.target.value)} /><button type="submit" disabled={submittingComment}>{submittingComment ? <LoaderCircle className="spin" size={14} /> : '→'}</button></form></div>}</article>)}{!feed.length ? feedError ? <div className="error-retry"><p>Не удалось загрузить ленту</p><button className="secondary-button" onClick={loadFeed}>Повторить</button></div> : <p className="empty-state">Лента загружается…</p> : null}</div></section>;
+  };
 
-  function Collections() {
+  const renderCollections = () => {
     return <section className="page"><div className="page-heading"><div><p className="eyebrow">АЛЬБОМЫ</p><h1>Коллекции</h1></div></div><div className="collection-list">{collections.map((col) => <button key={col.id} className="collection-card" onClick={async () => { const items = await metaApi.collectionTemplates(col.id); setTemplates(items); setView('catalog'); showNotice(`Открыта коллекция «${col.title}»`, 'info'); }}>
       <span className="collection-preview" style={col.image_url ? { backgroundImage: `url(${col.image_url})` } : undefined} />
       <span className="collection-info"><b>{col.title}</b><small>{col.completed_count}/{col.total_count} завершено · {col.rarity}</small></span>
       <BookOpen size={18} />
     </button>)}{!collections.length && <p className="empty-state">Коллекции появятся позже.</p>}</div></section>;
-  }
+  };
 
-  function Achievements() {
+  const renderAchievements = () => {
     return <section className="page"><div className="page-heading"><div><p className="eyebrow">ДОСТИЖЕНИЯ</p><h1>Награды</h1></div></div><div className="achievement-grid">{achievements.map((ach) => <div key={ach.id} className={`achievement ${ach.unlocked ? 'unlocked' : 'locked'}`}>
       <span className="achievement-icon">{ach.unlocked ? <Star size={20} /> : <Lock size={20} />}</span>
       <b>{ach.title}</b>
       <small>{ach.description}</small>
     </div>)}{!achievements.length && <p className="empty-state">Достижения загружаются…</p>}</div></section>;
-  }
+  };
 
-  function Profile() {
-    if (!profile) return <Loading />;
+  const renderProfile = () => {
+    if (!profile) return <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div>;
     const isOwnProfile = profile.id === currentUser?.id;
     return <section className="page profile-page"><div className="page-heading"><div><p className="eyebrow">ПРОФИЛЬ</p><h1>{profile.nickname}</h1></div>{!isOwnProfile && <button className="follow-button" onClick={toggleProfileFollow}>{profile.is_following ? 'Вы подписаны' : 'Подписаться'}</button>}</div><div className="profile-card"><img src={profile.avatar_url || '/favicon.svg'} alt="" /><div><b>{profile.nickname}</b><p>{profile.status || 'Любит раскрашивать пиксели по номерам.'}</p></div><div className="profile-stats"><span><b>{profile.posts_count}</b>публикаций</span><span><b>{profile.followers_count}</b>подписчиков</span><span><b>{profile.following_count}</b>подписок</span></div></div><h2 className="section-title">Готовые работы</h2><div className="profile-artworks">{profileArtworks.map((artwork) => <img key={artwork.id} src={artwork.image_url} alt={artwork.title} title={artwork.title} />)}{!profileArtworks.length && <p className="empty-state">Готовых работ пока нет.</p>}</div>
       <h2 className="section-title">Серия и достижения</h2>
       <div className="profile-stats"><span><b>{streak?.current_streak || 0}</b>дней подряд</span><span><b>{streak?.longest_streak || 0}</b>рекорд</span><span><b>{achievements.filter((a) => a.unlocked).length}</b>наград</span></div>
     </section>;
-  }
+  };
 
-  function Creator() {
+  const renderCreator = () => {
     const gridOptions = [
       { label: '16×16', w: 16, h: 16 },
       { label: '24×24', w: 24, h: 24 },
@@ -901,9 +715,7 @@ function App() {
     ];
     return <section className="page creator-page"><div className="page-heading"><div><p className="eyebrow">СВОЯ РАСКРАСКА</p><h1>Из изображения</h1></div></div><div className="creator-card">
       <label className="file-field"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const selected = event.target.files?.[0] || null; setFile(selected); setTitle('Моя пиксельная раскраска'); if (selected) prepareFromImage(selected); }} />{file ? file.name : 'Выбрать PNG, JPG или WebP'}</label>
-
       {file && <><label>Название<input value={title} maxLength="80" onChange={(event) => setTitle(event.target.value)} /></label>
-
         <div className="creator-crop-section"><h3>Кадрирование</h3>
           <div className="creator-crop-toggle"><button className={creatorCropMode === 'fit' ? 'selected' : ''} onClick={() => { setCreatorCropMode('fit'); setCreatorCrop({ scale: 1, offsetX: 0, offsetY: 0 }); }}>Вписать целиком</button><button className={creatorCropMode === 'crop' ? 'selected' : ''} onClick={() => setCreatorCropMode('crop')}>Кадрировать</button></div>
           {creatorCropMode === 'crop' && <><div className="creator-slider-row"><label>Масштаб <b>{creatorCrop.scale.toFixed(1)}×</b></label><input type="range" min="0.5" max="3" step="0.1" value={creatorCrop.scale} onChange={(event) => setCreatorCrop((prev) => ({ ...prev, scale: +event.target.value }))} /></div>
@@ -911,34 +723,26 @@ function App() {
             <div className="creator-slider-row"><label>Смещение по Y</label><input type="range" min="-200" max="200" step="1" value={creatorCrop.offsetY} onChange={(event) => setCreatorCrop((prev) => ({ ...prev, offsetY: +event.target.value }))} /><b>{creatorCrop.offsetY}</b></div>
             <button className="secondary-button" onClick={() => setCreatorCrop({ scale: 1, offsetX: 0, offsetY: 0 })}>Сбросить кадрирование</button></>}
         </div>
-
         <div className="creator-grid-section"><h3>Размер сетки</h3>
           <div className="creator-grid-options">{gridOptions.map((g) => <button key={g.label} className={creatorGrid.width === g.w ? 'selected' : ''} onClick={() => setCreatorGrid({ width: g.w, height: g.h })}>{g.label}</button>)}</div>
         </div>
-
         <div className="creator-colors-section"><h3>Количество цветов</h3>
           <div className="creator-slider-row"><input type="range" min="4" max="16" step="1" value={creatorColors} onChange={(event) => setCreatorColors(+event.target.value)} /><span className="creator-colors-badge">{creatorColors}</span></div>
         </div>
-
         <button className="primary-button create-button" disabled={creatorComputing} onClick={computeCreatorPreview}>{creatorComputing ? <LoaderCircle className="spin" size={18} /> : <Sparkles size={18} />} Обновить превью</button>
-
         {(creatorPreviews.original || creatorPreviews.pixel || creatorPreviews.numbered) && <div className="creator-previews">
           <div className="creator-preview-item"><h4>Исходное кадрирование</h4>{creatorPreviews.original ? <img src={creatorPreviews.original} alt="Кадрированное изображение" /> : <div className="preview-placeholder" />}</div>
           <div className="creator-preview-item"><h4>Пиксельная сетка</h4>{creatorPreviews.pixel ? <img src={creatorPreviews.pixel} alt="Пиксельная сетка" /> : <div className="preview-placeholder" />}</div>
           <div className="creator-preview-item"><h4>По номерам</h4>{creatorPreviews.numbered ? <img src={creatorPreviews.numbered} alt="По номерам" /> : <div className="preview-placeholder" />}</div>
         </div>}
-
         {creatorQuality && <div className={`creator-quality creator-quality-${creatorQuality.level}`}><span className="creator-quality-label">{creatorQuality.label}</span>{creatorQuality.hint && <p className="creator-quality-hint">{creatorQuality.hint}</p>}</div>}
-
         {creatorResult && <button className="primary-button create-button" disabled={creating} onClick={saveDraftColoring}>{creating ? <LoaderCircle className="spin" size={18} /> : <Star size={18} />} Сохранить и начать</button>}
       </>}
     </div></section>;
-  }
+  };
 
-  function Loading() { return <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div>; }
-
-  function CreatorSuccess() {
-    if (!createdColoring) return <Creator />;
+  const renderCreated = () => {
+    if (!createdColoring) return renderCreator();
     return <section className="page creator-success-page">
       <div className="creator-success-art" style={createdColoring.previewUrl ? { backgroundImage: `url(${createdColoring.previewUrl})` } : undefined} aria-hidden="true"><Sparkles size={34} /></div>
       <p className="eyebrow">НОВАЯ РАБОТА</p>
@@ -947,9 +751,77 @@ function App() {
       <button className="primary-button" onClick={() => openColoring(createdColoring.id)}><Sparkles size={18} /> Начать раскрашивать</button>
       <button className="secondary-button" onClick={() => { setCreatedColoring(null); setView('gallery'); }}>К моим работам</button>
     </section>;
+  };
+
+  let content;
+  if (view === 'play') {
+    content = (
+      <PlayerView
+        template={template}
+        progress={progress}
+        gameProgress={gameProgress}
+        selectedColor={selectedColor}
+        onSelectColor={setSelectedColor}
+        zones={zones}
+        zoneReward={zoneReward}
+        combo={combo}
+        calmMode={calmMode}
+        hideNumbers={hideNumbers}
+        hintMode={hintMode}
+        hintsRemaining={hintsRemaining}
+        setHintsRemaining={setHintsRemaining}
+        playMode={playMode}
+        fillMode={fillMode}
+        history={history}
+        future={future}
+        onboarding={onboarding}
+        setOnboarding={setOnboarding}
+        completionOpen={completionOpen}
+        setCompletionOpen={setCompletionOpen}
+        sharing={sharing}
+        saving={saving}
+        publishing={publishing}
+        setView={setView}
+        setPlayMode={setPlayMode}
+        setFillMode={setFillMode}
+        setCalmMode={setCalmMode}
+        setHideNumbers={setHideNumbers}
+        setHintMode={setHintMode}
+        onUndo={undo}
+        onRedo={redo}
+        onFirstPaint={handleFirstPaint}
+        onWrongCell={handleWrongCell}
+        onFillAt={handleFillAt}
+        onStrokeCommitted={handleStrokeCommitted}
+        onResetProgress={resetProgress}
+        onShareResult={shareResult}
+        onDownloadResult={downloadResult}
+        onPublishCompleted={publishCompleted}
+        onDismissOnboarding={dismissOnboarding}
+        onTrack={(event, payload) => metaApi.track(event, payload).catch(() => {})}
+        formatDifficulty={formatDifficulty}
+        completedPreview={completedPreview}
+        zoneIndices={zoneIndicesRef.current}
+      />
+    );
+  } else if (view === 'gallery') {
+    content = renderGallery();
+  } else if (view === 'feed') {
+    content = renderFeed();
+  } else if (view === 'create') {
+    content = renderCreator();
+  } else if (view === 'created') {
+    content = renderCreated();
+  } else if (view === 'profile') {
+    content = renderProfile();
+  } else if (view === 'collections') {
+    content = renderCollections();
+  } else if (view === 'achievements') {
+    content = renderAchievements();
+  } else {
+    content = renderCatalog();
   }
 
-  const content = view === 'play' ? <Player /> : view === 'gallery' ? <Gallery /> : view === 'feed' ? <Feed /> : view === 'create' ? <Creator /> : view === 'created' ? <CreatorSuccess /> : view === 'profile' ? <Profile /> : view === 'collections' ? <Collections /> : view === 'achievements' ? <Achievements /> : <Catalog />;
   return <main className="telegram-frame"><div className="app-container"><header className="app-header"><button className="brand-button" onClick={() => setView('catalog')}><span className="header-logo">SPLINT</span><small>pixel studio</small></button><button className="icon-header-button" onClick={() => { loadAchievements(); setView('achievements'); }} title="Достижения"><Star size={18} /></button><button className="icon-header-button" onClick={() => { loadStreak(); setView('profile'); }} title="Профиль"><UserRound size={18} /></button><span className="local-badge">LOCAL</span></header><div className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && <nav className="app-tab-bar"><button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')}><Compass size={19} />Каталог</button><button className={view === 'collections' ? 'active' : ''} onClick={() => setView('collections')}><BookOpen size={19} />Альбомы</button><button className={view === 'gallery' ? 'active' : ''} onClick={() => setView('gallery')}><Grid3X3 size={19} />Мои</button><button className={view === 'create' ? 'active' : ''} onClick={() => setView('create')}><ImagePlus size={19} />Создать</button><button className={view === 'feed' ? 'active' : ''} onClick={() => setView('feed')}><Send size={19} />Лента</button></nav>}</div>{notice && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
 }
 

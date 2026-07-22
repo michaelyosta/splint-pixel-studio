@@ -134,19 +134,24 @@ export default function ColoringSession({
     setWindowsGeneration(windowsGenerationRef.current);
   }, [progress?.filled, cancelAnimation]);
 
-  /* Auto-focus first window on initial load or color change */
+  /* Auto-focus initial window — prefer center, not top-left */
   useEffect(() => {
     if (!workingWindows.length || !isAutoActive || !isFirstFocusRef.current) return;
     if (containerSize.width === 0) return;
     isFirstFocusRef.current = false;
     const timer = setTimeout(() => {
-      if (windowsRef.current.length) {
-        tryFocusWindow(windowsRef.current[0], 0, true, false);
+      const wins = windowsRef.current;
+      if (!wins.length) return;
+      const center = { x: (template.width - 1) / 2, y: (template.height - 1) / 2 };
+      const best = selectNextWindow(wins, center, null, new Set());
+      if (best) {
+        const idx = wins.indexOf(best);
+        if (idx >= 0) tryFocusWindow(best, idx, true, false);
       }
     }, 400);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workingWindows, isAutoActive, focusOnWindow, containerSize]);
+  }, [workingWindows, isAutoActive, containerSize]);
 
   /* Window completion check — uses correct target color */
   function isWindowComplete(windowId, filled) {
@@ -277,7 +282,26 @@ export default function ColoringSession({
     onSelectColor(colorIndex);
   }, [onSelectColor]);
 
-  if (import.meta.env.DEV && containerSize.width === 0 && containerSize.height === 0 && template && progress) {
+  const [layoutError, setLayoutError] = useState(false);
+  const layoutTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (containerSize.width > 0 && containerSize.height > 0) {
+      if (layoutTimerRef.current) clearTimeout(layoutTimerRef.current);
+      setLayoutError(false);
+    }
+  }, [containerSize]);
+
+  useEffect(() => {
+    if (!template || !progress) return;
+    if (containerSize.width === 0 && containerSize.height === 0 && import.meta.env.DEV) {
+      layoutTimerRef.current = setTimeout(() => setLayoutError(true), 1400);
+      return () => { if (layoutTimerRef.current) clearTimeout(layoutTimerRef.current); };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (layoutError) {
     return (
       <div className="coloring-session" ref={containerRef}>
         <div className="coloring-canvas-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff6b6b', fontSize: '13px', flexDirection: 'column', gap: '4px' }}>
