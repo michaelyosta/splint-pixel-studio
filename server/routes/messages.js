@@ -4,7 +4,6 @@ import { v4 as uuid } from 'uuid';
 import { get, all, run } from '../db.js';
 import { authMiddleware, hasUrl } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
-import { payMessageRequest, StarsTransactionError } from '../services/stars-transactions.js';
 
 const router = Router();
 
@@ -54,33 +53,24 @@ router.post('/request/create', authMiddleware, asyncRoute(async (req, res) => {
 // POST /messages/request/pay
 router.post('/request/pay', authMiddleware, asyncRoute(async (req, res) => {
   const { requestId } = req.body;
-  const idempotencyKey = req.headers['idempotency-key'];
+  const mr = await get('SELECT * FROM message_requests WHERE id=?', [requestId]);
+  if (!mr) return res.status(404).json({ error: 'Запрос не найден' });
+  if (mr.sender_id !== req.userId) return res.status(403).json({ error: 'Нет прав' });
+  if (mr.status !== 'payment_pending') return res.status(400).json({ error: 'Запрос уже оплачен' });
 
-  if (!requestId || typeof requestId !== 'string') {
-    return res.status(400).json({ error: 'requestId обязателен' });
-  }
+  const sender = await get('SELECT * FROM users WHERE id=?', [mr.sender_id]);
+  if (sender.stars_balance < mr.price_in_stars) return res.status(402).json({ error: 'Недостаточно Stars' });
 
-  try {
-    const result = await payMessageRequest({
-      requestId,
-      authenticatedUserId: req.userId,
-      idempotencyKey,
-    });
+  const now     = new Date().toISOString();
+  const payout  = Math.floor(mr.price_in_stars * 0.8); // 20% platform fee
 
-    const enrichedRequest = await enrichReq(result.request);
+  await run('UPDATE users SET stars_balance=stars_balance-? WHERE id=?', [mr.price_in_stars, mr.sender_id]);
+  await run('UPDATE users SET stars_balance=stars_balance+? WHERE id=?', [payout, mr.receiver_id]);
+  await run("UPDATE message_requests SET status='delivered', updated_at=? WHERE id=?", [now, requestId]);
 
-    return res.json({
-      success: true,
-      idempotent: result.idempotent || false,
-      stars_balance: result.stars_balance,
-      request: enrichedRequest,
-    });
-  } catch (error) {
-    if (error instanceof StarsTransactionError) {
-      return res.status(error.statusCode).json({ error: error.message, code: error.code });
-    }
-    throw error;
-  }
+  const updated = await get('SELECT * FROM message_requests WHERE id=?', [requestId]);
+  const updatedSender = await get('SELECT stars_balance FROM users WHERE id=?', [mr.sender_id]);
+  res.json({ success: true, stars_balance: updatedSender.stars_balance, request: await enrichReq(updated) });
 }));
 
 // POST /messages/request/reply
