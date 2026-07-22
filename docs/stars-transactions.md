@@ -157,7 +157,21 @@ Explicit ownership tracking via `collection_ownerships` table:
 | user_id, collection_id | Composite primary key |
 | acquisition_type | `free`, `premium`, or `legacy` |
 | price_paid | Actual price charged |
-| stars_operation_id | Links to financial operation (NULL for free/legacy) |
+| stars_operation_id | Links to financial operation |
+
+### Operation ID contract
+
+- **premium**: `stars_operation_id` is always non-NULL, referencing the `stars_operations` row
+- **free**: `stars_operation_id` is non-NULL for idempotency tracking (a zero-value `stars_operations` row with `gross_amount=0, fee_amount=0` is created). This is NOT a financial ledger event — no `stars_ledger_entries` are created for free acquisitions.
+- **legacy**: `stars_operation_id` is always NULL (no financial operation was recorded historically)
+
+```
+Acquisition   | stars_operation_id | Ledger entries
+──────────────┼────────────────────┼────────────────
+premium       | non-NULL           | 1 collection_debit
+free          | non-NULL           | 0 (no entries)
+legacy        | NULL               | 0
+```
 
 ### Legacy backfill
 

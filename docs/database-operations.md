@@ -361,6 +361,9 @@ Added atomic financial infrastructure:
 
 - `PRIMARY KEY(user_id, collection_id)` ensures one ownership per user+collection
 - Legacy ownership backfilled from existing artworks (no financial records created)
+- Free acquisitions create a zero-value `stars_operations` row for idempotency tracking
+  (no `stars_ledger_entries` are created for free collections)
+- `stars_operation_id`: non-NULL for free/premium, NULL for legacy
 
 See [docs/stars-transactions.md](stars-transactions.md) for complete financial integrity guarantees.
 

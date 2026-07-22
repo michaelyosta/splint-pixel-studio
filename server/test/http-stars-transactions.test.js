@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -36,7 +36,7 @@ async function startServer(t, { dir, port, extraEnv = {} }) {
   });
   t.after(() => { server.kill(); });
   t.after(async () => { await rm(dir, { recursive: true, force: true }); });
-  return { server, port, url: `http://127.0.0.1:${port}` };
+  return { server, port, url: `http://127.0.0.1:${port}`, dbPath };
 }
 
 async function setupTestUsers(url) {
@@ -62,8 +62,8 @@ async function createMessageRequest(url, senderId, receiverId, text = 'test mess
 
 // ── Premium collection HTTP fixture ──────────────────────────────────
 
-async function startServerWithPremiumCollection(t, port) {
-  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
+async function startServerWithPremiumCollection(t, port, providedDir = null) {
+  const dir = providedDir || await mkdtemp(join(tmpdir(), 'splint-http-'));
   const dbPath = join(dir, 'test.db.bin');
 
   const SQL = await initSqlJs();
@@ -98,7 +98,7 @@ async function startServerWithPremiumCollection(t, port) {
   });
   t.after(() => { server.kill(); });
   t.after(async () => { await rm(dir, { recursive: true, force: true }); });
-  return { server, port, url: `http://127.0.0.1:${port}` };
+  return { server, port, url: `http://127.0.0.1:${port}`, dbPath };
 }
 
 async function giveStars(url, userId, count) {
@@ -247,7 +247,7 @@ test('HTTP: empty Idempotency-Key returns 400 INVALID_INPUT', async (t) => {
 
 test('HTTP: concurrent same-key — both succeed, one normal + one idempotent, state intact', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
-  const { url } = await startServer(t, { dir, port: 33009 });
+  const { url, server, dbPath } = await startServer(t, { dir, port: 33009 });
   await setupTestUsers(url);
   const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Concurrent');
   const key = 'concurrent-same-http-key';
@@ -275,18 +275,51 @@ test('HTTP: concurrent same-key — both succeed, one normal + one idempotent, s
   const replay = bodies.find(b => b.idempotent === true);
   assert.ok(normal);
   assert.ok(replay);
-
-  // State: sender debited once, status delivered
   assert.ok(normal.stars_balance !== undefined);
   assert.equal(normal.request.status, 'delivered');
   assert.ok(replay.request, 'Replay has request');
+
+  // Kill server and verify DB state
+  server.kill();
+  await new Promise(r => setTimeout(r, 300));
+
+  const SQL = await initSqlJs();
+  const db = new SQL.Database(await readFile(dbPath));
+  db.run('PRAGMA foreign_keys = ON;');
+
+  const sStmt = db.prepare('SELECT stars_balance FROM users WHERE id=?');
+  sStmt.bind(['test_sender']);
+  sStmt.step(); const sBal = sStmt.getAsObject().stars_balance; sStmt.free();
+
+  const rStmt = db.prepare('SELECT stars_balance FROM users WHERE id=?');
+  rStmt.bind(['test_receiver']);
+  rStmt.step(); const rBal = rStmt.getAsObject().stars_balance; rStmt.free();
+
+  const mrStmt = db.prepare('SELECT status FROM message_requests WHERE id=?');
+  mrStmt.bind([requestId]);
+  mrStmt.step(); const mrStatus = mrStmt.getAsObject().status; mrStmt.free();
+
+  const opsStmt = db.prepare("SELECT COUNT(*) as cnt FROM stars_operations WHERE idempotency_key=?");
+  opsStmt.bind([key]);
+  opsStmt.step(); const opsCnt = opsStmt.getAsObject().cnt; opsStmt.free();
+
+  const leStmt = db.prepare("SELECT COUNT(*) as cnt FROM stars_ledger_entries WHERE operation_id IN (SELECT id FROM stars_operations WHERE idempotency_key=?)");
+  leStmt.bind([key]);
+  leStmt.step(); const leCnt = leStmt.getAsObject().cnt; leStmt.free();
+
+  assert.equal(sBal, 500 - 50, 'Sender debited once');
+  const expectedPayout = Math.floor(50 * 80 / 100);
+  assert.equal(rBal, 0 + expectedPayout, 'Receiver credited once');
+  assert.equal(mrStatus, 'delivered');
+  assert.equal(opsCnt, 1, 'One operation');
+  assert.equal(leCnt, expectedPayout > 0 ? 2 : 1, 'Exact ledger entries');
 });
 
 // ── Payment: concurrent different-key ────────────────────────────────
 
-test('HTTP: concurrent different-key — one 200, one 409, one financial effect', async (t) => {
+test('HTTP: concurrent different-key — one 200, one 409, exact ALREADY_PROCESSED', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
-  const { url } = await startServer(t, { dir, port: 33010 });
+  const { url, server, dbPath } = await startServer(t, { dir, port: 33010 });
   await setupTestUsers(url);
   const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Diff keys');
 
@@ -307,10 +340,32 @@ test('HTTP: concurrent different-key — one 200, one 409, one financial effect'
   assert.equal(statuses.filter(s => s === 200).length, 1, 'Exactly one 200');
   assert.equal(statuses.filter(s => s === 409).length, 1, 'Exactly one 409');
 
-  // Verify 409 body
   const conflict = results.find(r => r.status === 'fulfilled' && r.value.status === 409);
   const conflictBody = await conflict.value.json();
-  assert.ok(conflictBody.code === 'ALREADY_PROCESSED' || conflictBody.code === 'IDEMPOTENCY_KEY_REUSED');
+  assert.equal(conflictBody.code, 'ALREADY_PROCESSED');
+
+  // Kill server and verify DB state
+  server.kill();
+  await new Promise(r => setTimeout(r, 300));
+
+  const SQL = await initSqlJs();
+  const db = new SQL.Database(await readFile(dbPath));
+  db.run('PRAGMA foreign_keys = ON;');
+
+  const sStmt = db.prepare('SELECT stars_balance FROM users WHERE id=?');
+  sStmt.bind(['test_sender']);
+  sStmt.step(); const sBal = sStmt.getAsObject().stars_balance; sStmt.free();
+
+  const mrStmt = db.prepare('SELECT status FROM message_requests WHERE id=?');
+  mrStmt.bind([requestId]);
+  mrStmt.step(); const mrStatus = mrStmt.getAsObject().status; mrStmt.free();
+
+  const opsStmt = db.prepare("SELECT COUNT(*) as cnt FROM stars_operations");
+  opsStmt.step(); const opsCnt = opsStmt.getAsObject().cnt; opsStmt.free();
+
+  assert.equal(sBal, 500 - 50, 'Debited once');
+  assert.equal(mrStatus, 'delivered');
+  assert.equal(opsCnt, 1, 'One financial effect');
 });
 
 // ── Premium collection: purchase success ─────────────────────────────
@@ -395,8 +450,9 @@ test('HTTP: premium collection different-key duplicate — 409 ALREADY_PROCESSED
 
 // ── Premium collection: insufficient balance ─────────────────────────
 
-test('HTTP: premium collection insufficient balance — 402', async (t) => {
-  const { url } = await startServerWithPremiumCollection(t, 33023);
+test('HTTP: premium collection insufficient balance — 402, no operation, no ownership, no artworks', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
+  const { url, server, dbPath: premPoorPath } = await startServerWithPremiumCollection(t, 33023, dir);
   await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'prem_poor' } });
 
   const res = await fetch(`${url}/users/collections/col_http_prem/add`, {
@@ -405,6 +461,27 @@ test('HTTP: premium collection insufficient balance — 402', async (t) => {
   });
   assert.equal(res.status, 402);
   assert.equal((await res.json()).code, 'INSUFFICIENT_STARS');
+
+  server.kill();
+  await new Promise(r => setTimeout(r, 300));
+
+  const SQL = await initSqlJs();
+  const db = new SQL.Database(await readFile(premPoorPath));
+  db.run('PRAGMA foreign_keys = ON;');
+
+  const opsStmt = db.prepare("SELECT COUNT(*) as cnt FROM stars_operations");
+  opsStmt.step(); assert.equal(opsStmt.getAsObject().cnt, 0, 'No operation'); opsStmt.free();
+
+  const leStmt = db.prepare("SELECT COUNT(*) as cnt FROM stars_ledger_entries");
+  leStmt.step(); assert.equal(leStmt.getAsObject().cnt, 0, 'No ledger'); leStmt.free();
+
+  const ownStmt = db.prepare("SELECT COUNT(*) as cnt FROM collection_ownerships WHERE user_id=? AND collection_id=?");
+  ownStmt.bind(['prem_poor', 'col_http_prem']);
+  ownStmt.step(); assert.equal(ownStmt.getAsObject().cnt, 0, 'No ownership'); ownStmt.free();
+
+  const artStmt = db.prepare("SELECT COUNT(*) as cnt FROM artworks WHERE owner_id=? AND collection_id=?");
+  artStmt.bind(['prem_poor', 'col_http_prem']);
+  artStmt.step(); assert.equal(artStmt.getAsObject().cnt, 0, 'No artworks'); artStmt.free();
 });
 
 // ── Premium collection: concurrent purchase ──────────────────────────
