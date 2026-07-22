@@ -1,14 +1,14 @@
 # Security Follow-ups
 
-The following items are out of scope for the `security/backend-auth-hardening` PR and should be addressed in separate follow-up tasks:
+The following items are out of scope for completed PRs and should be addressed in separate follow-up tasks:
 
-1. **Stars transactions** — Ensure atomic balance transfers, prevent race conditions, add audit logging.
-2. **Seed/reset of database** — Review seed data for security-sensitive defaults, ensure `resetDemoData` cannot be called in production.
+1. **Stars transactions** — Ensure atomic balance transfers, prevent race conditions, add audit logging. Use `withTransaction()` from PR #3. (NEXT PR: `security/stars-transactions`)
+2. ~~**Seed/reset of database**~~ — DONE in PR #3 `security/database-safety-foundation`. Demo seed requires explicit action, production reset is blocked.
 3. **Report abuse** — Add rate limiting and deduplication for the report endpoint.
 4. **Achievements validation** — Ensure achievements cannot be unlocked via direct API calls without actual progress.
 5. **N+1 queries** — Optimise enrichment functions (e.g. `enrichPost`, `enrichComment`) to avoid repeated DB round-trips.
 6. **Media-storage traversal** — Validate file keys to prevent path traversal attacks in `services/media-storage.js`.
-7. **SQLite/Postgres sync** — Ensure all schema features (roles, CHECK constraints) work identically on both backends.
+7. ~~**SQLite/Postgres sync**~~ — DONE in PR #3. Migration runner ensures same logical schema, backend-specific migrations with separate checksums.
 8. **Smart Coloring Engine** — Review rendering pipeline for potential injection vectors in user-uploaded images.
 9. **UI animations** — No known security issues, but validate that animation libraries are up to date.
 10. **Large `App.jsx` refactor** — Reduce attack surface by splitting monolith components.
