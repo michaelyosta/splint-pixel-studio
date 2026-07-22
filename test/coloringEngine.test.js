@@ -7,6 +7,7 @@ import { planCamera, clampCamera, getTransitionDuration } from '../src/features/
 import { applyStroke, undoStroke, redoStroke, createStrokeOperation } from '../src/features/coloring/engine/paintReducer.js';
 import { arraysEqual } from '../src/features/coloring/engine/coloringUtils.js';
 import { createHistoryOperation, applyChanges } from '../src/features/coloring/engine/historyOperations.js';
+import { centroid, distance, clampZoom, computePinchPan, isTapGesture } from '../src/features/coloring/engine/gestureMath.js';
 
 /* ── StrokeRasterizer ── */
 
@@ -731,6 +732,113 @@ test('all unfilled indices appear in at least one working window', () => {
       assert.ok(windowCovered.has(i), `unfilled index ${i} must be covered`);
     }
   }
+});
+
+/* ── Gesture math ── */
+
+function makePointerEvent(clientX, clientY) {
+  return { clientX, clientY };
+}
+
+test('pure pan at ratio=1 does not change zoom', () => {
+  const a = makePointerEvent(100, 100);
+  const b = makePointerEvent(200, 200);
+  const startDist = distance(a, b);
+  const startCent = centroid(a, b);
+  const startCam = { x: 50, y: 50, zoom: 1 };
+  const rect = { left: 0, top: 0 };
+  const a2 = makePointerEvent(150, 100);
+  const b2 = makePointerEvent(250, 200);
+  const result = computePinchPan({
+    a: a2, b: b2,
+    startDistance: startDist,
+    startCentroid: startCent,
+    startCamera: startCam,
+    rect,
+  });
+  assert.ok(Math.abs(result.zoom - 1) < 0.01, 'zoom should not change');
+  assert.ok(result.x !== 50 || result.y !== 50, 'camera should move');
+});
+
+test('pure pinch around fixed centroid does not shift center', () => {
+  const centX = 200;
+  const centY = 200;
+  const startDist = 100;
+  const startCam = { x: 0, y: 0, zoom: 1 };
+  const rect = { left: 0, top: 0 };
+  const a = makePointerEvent(centX - 50, centY);
+  const b = makePointerEvent(centX + 50, centY);
+  const startCentroid = { x: centX, y: centY };
+  const a2 = makePointerEvent(centX - 25, centY);
+  const b2 = makePointerEvent(centX + 25, centY);
+  const result = computePinchPan({
+    a: a2, b: b2,
+    startDistance: startDist,
+    startCentroid,
+    startCamera: startCam,
+    rect,
+  });
+  const cx = centX - rect.left;
+  const sx = startCentroid.x - rect.left;
+  const expectedX = cx + (startCam.x - sx) * (result.zoom / startCam.zoom);
+  assert.ok(Math.abs(result.x - expectedX) < 0.01);
+});
+
+test('combined pan and pinch modifies both zoom and position', () => {
+  const startDist = 200;
+  const startCam = { x: 100, y: 100, zoom: 1 };
+  const rect = { left: 10, top: 20 };
+  const a = makePointerEvent(200, 200);
+  const b = makePointerEvent(400, 200);
+  const startCentroid = centroid(a, b);
+  const a2 = makePointerEvent(220, 220);
+  const b2 = makePointerEvent(460, 220);
+  const result = computePinchPan({
+    a: a2, b: b2,
+    startDistance: startDist,
+    startCentroid,
+    startCamera: startCam,
+    rect,
+  });
+  assert.ok(result.zoom !== 1);
+  assert.ok(result.x !== 100 || result.y !== 100);
+});
+
+test('zoom is clamped between 0.25 and 4', () => {
+  assert.equal(clampZoom(10), 4);
+  assert.equal(clampZoom(0.1), 0.25);
+  assert.equal(clampZoom(1.5), 1.5);
+});
+
+test('isTapGesture returns true for small movement', () => {
+  const start = makePointerEvent(100, 100);
+  const end = makePointerEvent(103, 102);
+  assert.ok(isTapGesture(start, end));
+});
+
+test('isTapGesture returns false for large movement', () => {
+  const start = makePointerEvent(100, 100);
+  const end = makePointerEvent(120, 120);
+  assert.ok(!isTapGesture(start, end));
+});
+
+test('isTapGesture returns false for null input', () => {
+  assert.ok(!isTapGesture(null, makePointerEvent(100, 100)));
+  assert.ok(!isTapGesture(makePointerEvent(100, 100), null));
+});
+
+test('centroid computes midpoint correctly', () => {
+  const a = makePointerEvent(100, 200);
+  const b = makePointerEvent(200, 300);
+  const c = centroid(a, b);
+  assert.equal(c.x, 150);
+  assert.equal(c.y, 250);
+});
+
+test('distance computes correctly', () => {
+  const a = makePointerEvent(0, 0);
+  const b = makePointerEvent(3, 4);
+  assert.equal(distance(a, b), 5);
 });
 
 /* Helpers for camera tests */
