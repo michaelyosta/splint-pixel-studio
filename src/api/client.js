@@ -3,13 +3,21 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 export const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID || 'user_pixelhunter';
 
 async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signal } = {}) {
-  const telegramInitData = window.Telegram?.WebApp?.initData;
+  const telegramInitData = window.Telegram?.WebApp?.initData?.trim();
+  const allowDevAuth = import.meta.env.VITE_ALLOW_DEV_AUTH === 'true';
+
+  const authHeaders = telegramInitData
+    ? { 'X-Telegram-Init-Data': telegramInitData }
+    : allowDevAuth
+      ? { 'X-User-Id': userId }
+      : {};
+
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     signal,
     headers: {
       'Content-Type': 'application/json',
-      ...(telegramInitData ? { 'X-Telegram-Init-Data': telegramInitData } : { 'X-User-Id': userId }),
+      ...authHeaders,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });

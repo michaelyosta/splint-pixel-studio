@@ -10,6 +10,7 @@ import { buildColoringFromImage, findRewardingColor, getProgress, renderComplete
 import { renderImageCropPreview, renderFitPreview, renderGridPreview, renderNumberedPreview } from './lib/imageCrop';
 import { assessQuality } from './lib/creatorQuality';
 import { getContextGoal, getRevealAction } from './lib/playLoop';
+import { createSaveQueue } from './lib/progressSaveQueue';
 import './App.css';
 
 const DIFFICULTIES = {
@@ -104,10 +105,8 @@ function App() {
   const [followingAuthorId, setFollowingAuthorId] = useState(null);
   const sessionStartRef = useRef(0);
 
+  const saveQueueRef = useRef(null);
 
-  const revisionRef = useRef(0);
-  const saveTimerRef = useRef(null);
-  const localChangeRef = useRef(0);
   const noticeTimerRef = useRef(null);
   const lastPaintRef = useRef(0);
   const comboRef = useRef(0);
@@ -197,7 +196,7 @@ function App() {
     return () => window.clearTimeout(creatorTimerRef.current);
   }, [creatorGrid, creatorColors, creatorCrop, creatorCropMode, creatorImageUrl]);
   useEffect(() => () => {
-    window.clearTimeout(saveTimerRef.current);
+    if (saveQueueRef.current) saveQueueRef.current.dispose();
     window.clearTimeout(noticeTimerRef.current);
   }, []);
   useEffect(() => { if (view === 'gallery') loadMine(); }, [view, loadMine]);
@@ -214,7 +213,27 @@ function App() {
       filledRef.current = nextProgress.filled;
       setZones(nextZones.zones || []);
       zoneIndicesRef.current = Object.fromEntries((nextZones.zones || []).map((zone) => [zone.id, zone.indices || []]));
-      revisionRef.current = nextProgress.revision;
+      if (saveQueueRef.current) {
+        saveQueueRef.current.dispose();
+        setSaving(false);
+      }
+      saveQueueRef.current = createSaveQueue({
+        putProgress: async ({ filled, revision, resultDataUrl }) => {
+          return api(`/colorings/${nextTemplate.id}/progress`, {
+            method: 'PUT',
+            body: { filled, revision, resultDataUrl },
+          });
+        },
+        getResultDataUrl: (filled) => {
+          return filled.every((color, index) => color === nextTemplate.cells[index])
+            ? renderCompletedImage(nextTemplate, filled)
+            : null;
+        },
+        onProgress: (saved) => setProgress(saved),
+        onNotice: showNotice,
+        onSaving: setSaving,
+      });
+      saveQueueRef.current.reset(nextProgress.revision);
       setSelectedColor(findRewardingColor(nextTemplate, nextProgress.filled) ?? 0);
       setPlayMode('reveal');
       setFillMode(false);
@@ -236,26 +255,7 @@ function App() {
   }
 
   function queueSave(nextFilled) {
-    window.clearTimeout(saveTimerRef.current);
-    const version = ++localChangeRef.current;
-    saveTimerRef.current = window.setTimeout(async () => {
-      if (!template) return;
-      setSaving(true);
-      try {
-        const resultDataUrl = nextFilled.every((color, index) => color === template.cells[index]) ? renderCompletedImage(template, nextFilled) : null;
-        const saved = await api(`/colorings/${template.id}/progress`, { method: 'PUT', body: { filled: nextFilled, revision: revisionRef.current, resultDataUrl } });
-        revisionRef.current = saved.revision;
-        if (version === localChangeRef.current) setProgress(saved);
-      } catch (error) {
-        if (error.status === 409 && error.data?.progress) {
-          revisionRef.current = error.data.progress.revision;
-          if (version === localChangeRef.current) setProgress(error.data.progress);
-        }
-        showNotice(error.message, 'error');
-      } finally {
-        setSaving(false);
-      }
-    }, 450);
+    if (saveQueueRef.current) saveQueueRef.current.queueSave(nextFilled);
   }
 
   function applyFilled(nextFilled, change) {

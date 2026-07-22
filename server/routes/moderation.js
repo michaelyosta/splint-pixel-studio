@@ -3,19 +3,13 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { get, all, run } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireRole } from '../middleware/authorization.js';
+import { asyncRoute } from '../middleware/asyncRoute.js';
 
 const router = Router();
 
-function isMod(req, res) {
-  if (req.userId !== 'user_splintmod') {
-    res.status(403).json({ error: 'Только модератор имеет доступ к этому разделу' });
-    return false;
-  }
-  return true;
-}
-
 // POST /reports/create  (generic report)
-router.post('/reports/create', authMiddleware, async (req, res) => {
+router.post('/reports/create', authMiddleware, asyncRoute(async (req, res) => {
   const { targetType, targetId, reason = 'other' } = req.body;
   const now = new Date().toISOString();
   const id  = `rep_${uuid()}`;
@@ -27,11 +21,10 @@ router.post('/reports/create', authMiddleware, async (req, res) => {
     await run("UPDATE posts SET status='hidden', updated_at=? WHERE id=? AND status='active'", [now, targetId]);
   }
   res.json({ success: true });
-});
+}));
 
 // GET /moderation/reports  (mod only)
-router.get('/reports', authMiddleware, async (req, res) => {
-  if (!isMod(req, res)) return;
+router.get('/reports', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
   const reports = await all('SELECT * FROM reports ORDER BY created_at DESC');
   const enriched = await Promise.all(reports.map(async (r) => {
     const reporter = await get('SELECT nickname FROM users WHERE id=?', [r.reporter_id]);
@@ -49,51 +42,46 @@ router.get('/reports', authMiddleware, async (req, res) => {
     return { ...r, reporter_name: reporter?.nickname, target_info: targetInfo };
   }));
   res.json(enriched);
-});
+}));
 
 // POST /moderation/hide  (mod only)
-router.post('/hide', authMiddleware, async (req, res) => {
-  if (!isMod(req, res)) return;
+router.post('/hide', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
   const { targetType, targetId } = req.body;
   const now = new Date().toISOString();
   if (targetType === 'post')    await run("UPDATE posts    SET status='hidden',  updated_at=? WHERE id=?", [now, targetId]);
   if (targetType === 'comment') await run("UPDATE comments SET status='hidden',  updated_at=? WHERE id=?", [now, targetId]);
   await run("UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=?", [targetType, targetId]);
   res.json({ success: true });
-});
+}));
 
 // POST /moderation/approve  (mod only)
-router.post('/approve', authMiddleware, async (req, res) => {
-  if (!isMod(req, res)) return;
+router.post('/approve', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
   const { targetType, targetId } = req.body;
   const now = new Date().toISOString();
   if (targetType === 'post')    await run("UPDATE posts    SET status='active', updated_at=? WHERE id=?", [now, targetId]);
   if (targetType === 'comment') await run("UPDATE comments SET status='active', updated_at=? WHERE id=?", [now, targetId]);
   await run("UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=?", [targetType, targetId]);
   res.json({ success: true });
-});
+}));
 
 // POST /moderation/ban  (mod only)
-router.post('/ban', authMiddleware, async (req, res) => {
-  if (!isMod(req, res)) return;
+router.post('/ban', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
   const { userId } = req.body;
   await run('UPDATE users SET is_banned=1, updated_at=? WHERE id=?', [new Date().toISOString(), userId]);
   res.json({ success: true });
-});
+}));
 
 // POST /moderation/unban  (mod only)
-router.post('/unban', authMiddleware, async (req, res) => {
-  if (!isMod(req, res)) return;
+router.post('/unban', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
   const { userId } = req.body;
   await run('UPDATE users SET is_banned=0, updated_at=? WHERE id=?', [new Date().toISOString(), userId]);
   res.json({ success: true });
-});
+}));
 
 // GET /moderation/banned-users  (mod only)
-router.get('/banned-users', authMiddleware, async (req, res) => {
-  if (!isMod(req, res)) return;
+router.get('/banned-users', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
   const users = await all('SELECT id,nickname,avatar_url FROM users WHERE is_banned=1');
   res.json(users);
-});
+}));
 
 export default router;

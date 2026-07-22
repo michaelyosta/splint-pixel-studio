@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
-import { getDb, initDb } from './db.js';
+import { getDb, initDb, bootstrapSystemData, seedDemoData } from './db.js';
 
 import feedRouter        from './routes/feed.js';
 import postsRouter       from './routes/posts.js';
@@ -18,9 +18,29 @@ import metaRouter        from './routes/meta.js';
 
 const PORT = process.env.PORT || 3001;
 
+// ── Production safety checks ───────────────────────────────────────────────────
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEV_AUTH === 'true') {
+  throw new Error('ALLOW_DEV_AUTH cannot be enabled in production');
+}
+
+if (process.env.NODE_ENV === 'production' && !process.env.TELEGRAM_BOT_TOKEN) {
+  throw new Error('TELEGRAM_BOT_TOKEN is required in production');
+}
+
+if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO_DATA === 'true') {
+  throw new Error('SEED_DEMO_DATA cannot be enabled in production');
+}
+
 // ── Init DB before serving ────────────────────────────────────────────────────
 await initDb();
-console.log(`✅  ${getDb().mode} database ready`);
+const db = getDb();
+console.log(`${db.mode} database ready`);
+
+if (process.env.SEED_DEMO_DATA === 'true') {
+  await bootstrapSystemData();
+  await seedDemoData();
+  console.log('System bootstrapped and demo data seeded');
+}
 
 const app = express();
 
@@ -29,10 +49,10 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: '*' })); // In production, restrict to your frontend domain
 app.use(express.json({ limit: '15mb' }));
 
-// ── Global Rate Limit (100 req/min per IP) ────────────────────────────────────
+// ── Global Rate Limit (100 req/min per IP, configurable via RATE_LIMIT_MAX) ──
 app.use(rateLimit({
   windowMs: 60_000,
-  max: 100,
+  max: Number(process.env.RATE_LIMIT_MAX) || 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Слишком много запросов, попробуйте через минуту' }
@@ -54,11 +74,28 @@ app.use('/meta',        metaRouter);
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // ── Error handler ──────────────────────────────────────────────────────────────
-app.use((err, _req, res, _next) => {
-  console.error(err);
-  res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+app.use((err, req, res, next) => {
+  console.error({
+    method: req.method,
+    path: req.originalUrl,
+    error: err,
+  });
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  res.status(
+    Number.isInteger(err.status)
+      ? err.status
+      : 500,
+  ).json({
+    error:
+      err.publicMessage ||
+      'Внутренняя ошибка сервера',
+  });
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀  Splint API server running on http://localhost:${PORT}`);
+  console.log(`Splint API server running on http://localhost:${PORT}`);
 });
