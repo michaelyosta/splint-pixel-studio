@@ -424,8 +424,8 @@ async function setupTestData(pool, userId, templateId) {
 
   await pool.query("INSERT INTO users (id,nickname,role,created_at,updated_at) VALUES ($1,'test','user',NOW(),NOW()) ON CONFLICT DO NOTHING", [userId]);
   await pool.query(
-    "INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES ($1,'test',4,4,$2,$3,NOW(),NOW()) ON CONFLICT DO NOTHING",
-    [templateId, JSON.stringify(['#000000', '#ffffff']), JSON.stringify(new Array(16).fill(0))]
+    "INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES ($1,'test',8,8,$2,$3,NOW(),NOW()) ON CONFLICT DO NOTHING",
+    [templateId, JSON.stringify(['#000000', '#ffffff']), JSON.stringify(new Array(64).fill(0))]
   );
 }
 
@@ -449,13 +449,13 @@ test('POSTGRES: old revision fails CAS with changes=0, not throw', { skip: !data
 
   await pool.query(
     'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
-    [userId, templateId, JSON.stringify(new Array(16).fill(0)), 2]
+    [userId, templateId, JSON.stringify(new Array(64).fill(0)), 2]
   );
 
   const changes = await withTransaction({ mode: 'postgres', pool }, async (tx) => {
     const r = await tx.run(
       'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
-      [JSON.stringify(new Array(16).fill(1)), 3, userId, templateId, 1]
+      [JSON.stringify(new Array(64).fill(1)), 3, userId, templateId, 1]
     );
     return r.changes;
   });
@@ -486,13 +486,13 @@ test('POSTGRES: future revision fails CAS with changes=0', { skip: !databaseUrl 
 
   await pool.query(
     'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
-    [userId, templateId, JSON.stringify(new Array(16).fill(0)), 1]
+    [userId, templateId, JSON.stringify(new Array(64).fill(0)), 1]
   );
 
   const changes = await withTransaction({ mode: 'postgres', pool }, async (tx) => {
     const r = await tx.run(
       'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
-      [JSON.stringify(new Array(16).fill(1)), 2, userId, templateId, 3]
+      [JSON.stringify(new Array(64).fill(1)), 2, userId, templateId, 3]
     );
     return r.changes;
   });
@@ -523,21 +523,21 @@ test('POSTGRES: two concurrent PUTs with same revision — one success, one chan
 
   await pool.query(
     'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
-    [userId, templateId, JSON.stringify(new Array(16).fill(0)), 1]
+    [userId, templateId, JSON.stringify(new Array(64).fill(0)), 1]
   );
 
   const results = await Promise.allSettled([
     withTransaction({ mode: 'postgres', pool }, async (tx) => {
       const r = await tx.run(
         'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
-        [JSON.stringify(new Array(16).fill(1)), 2, userId, templateId, 1]
+        [JSON.stringify(new Array(64).fill(1)), 2, userId, templateId, 1]
       );
       return { changes: r.changes };
     }),
     withTransaction({ mode: 'postgres', pool }, async (tx) => {
       const r = await tx.run(
         'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
-        [JSON.stringify(new Array(16).fill(2)), 2, userId, templateId, 1]
+        [JSON.stringify(new Array(64).fill(2)), 2, userId, templateId, 1]
       );
       return { changes: r.changes };
     }),
@@ -580,13 +580,13 @@ test('POSTGRES: two concurrent initial inserts — one success, one unique viola
     withTransaction({ mode: 'postgres', pool }, async (tx) => {
       await tx.run(
         'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,$5,NOW(),NOW())',
-        [userId, templateId, JSON.stringify(new Array(16).fill(0)), 1, null]
+        [userId, templateId, JSON.stringify(new Array(64).fill(0)), 1, null]
       );
     }),
     withTransaction({ mode: 'postgres', pool }, async (tx) => {
       await tx.run(
         'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,$5,NOW(),NOW())',
-        [userId, templateId, JSON.stringify(new Array(16).fill(0)), 1, null]
+        [userId, templateId, JSON.stringify(new Array(64).fill(0)), 1, null]
       );
     }),
   ]);
@@ -624,13 +624,13 @@ test('POSTGRES: pool works after CAS conflict', { skip: !databaseUrl }, async (t
 
   await pool.query(
     'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
-    [userId, templateId, JSON.stringify(new Array(16).fill(0)), 1]
+    [userId, templateId, JSON.stringify(new Array(64).fill(0)), 1]
   );
 
   const changes = await withTransaction({ mode: 'postgres', pool }, async (tx) => {
     const r = await tx.run(
       'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
-      [JSON.stringify(new Array(16).fill(1)), 2, userId, templateId, 99]
+      [JSON.stringify(new Array(64).fill(1)), 2, userId, templateId, 99]
     );
     return r.changes;
   });
@@ -749,7 +749,7 @@ test('HTTP: initial save revision=0 returns 200 with revision=1', { skip: !datab
   const res = await fetch(`${url}/colorings/${templateId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(16).fill(0), revision: 0, resultDataUrl: null }),
+    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
   });
 
   assert.equal(res.status, 200, 'Initial save returns 200');
@@ -784,14 +784,14 @@ test('HTTP: second save revision=1 for JSONB returns 200 with revision=2', { ski
   const first = await fetch(`${url}/colorings/${templateId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(16).fill(0), revision: 0, resultDataUrl: null }),
+    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
   });
   assert.equal(first.status, 200);
 
   const firstBody = await first.json();
   assert.equal(firstBody.revision, 1);
 
-  const secondFilled = new Array(16).fill(1);
+  const secondFilled = new Array(64).fill(1);
   const second = await fetch(`${url}/colorings/${templateId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
@@ -832,7 +832,7 @@ test('HTTP: old revision returns 409 with current progress', { skip: !databaseUr
   const first = await fetch(`${url}/colorings/${templateId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(16).fill(0), revision: 0, resultDataUrl: null }),
+    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
   });
   assert.equal(first.status, 200);
   const firstBody = await first.json();
@@ -841,7 +841,7 @@ test('HTTP: old revision returns 409 with current progress', { skip: !databaseUr
   const second = await fetch(`${url}/colorings/${templateId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(16).fill(1), revision: 1, resultDataUrl: null }),
+    body: JSON.stringify({ filled: new Array(64).fill(1), revision: 1, resultDataUrl: null }),
   });
   assert.equal(second.status, 200);
   const secondBody = await second.json();
@@ -850,7 +850,7 @@ test('HTTP: old revision returns 409 with current progress', { skip: !databaseUr
   const third = await fetch(`${url}/colorings/${templateId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(16).fill(2), revision: 1, resultDataUrl: null }),
+    body: JSON.stringify({ filled: new Array(64).fill(2), revision: 1, resultDataUrl: null }),
   });
 
   assert.equal(third.status, 409, 'Old revision returns 409');
@@ -892,7 +892,7 @@ test('HTTP: future revision returns 409', { skip: !databaseUrl }, async (t) => {
   const first = await fetch(`${url}/colorings/${templateId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(16).fill(0), revision: 0, resultDataUrl: null }),
+    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
   });
   assert.equal(first.status, 200);
   assert.equal((await first.json()).revision, 1);
@@ -900,7 +900,7 @@ test('HTTP: future revision returns 409', { skip: !databaseUrl }, async (t) => {
   const second = await fetch(`${url}/colorings/${templateId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(16).fill(1), revision: 5, resultDataUrl: null }),
+    body: JSON.stringify({ filled: new Array(64).fill(1), revision: 5, resultDataUrl: null }),
   });
 
   assert.equal(second.status, 409, 'Future revision returns 409');
@@ -937,7 +937,7 @@ test('HTTP: two concurrent PUTs with same revision — one 200, one 409', { skip
   const init = await fetch(`${url}/colorings/${templateId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(16).fill(0), revision: 0, resultDataUrl: null }),
+    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
   });
   assert.equal(init.status, 200);
   assert.equal((await init.json()).revision, 1);
@@ -946,12 +946,12 @@ test('HTTP: two concurrent PUTs with same revision — one 200, one 409', { skip
     fetch(`${url}/colorings/${templateId}/progress`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: JSON.stringify({ filled: new Array(16).fill(1), revision: 1, resultDataUrl: null }),
+      body: JSON.stringify({ filled: new Array(64).fill(1), revision: 1, resultDataUrl: null }),
     }),
     fetch(`${url}/colorings/${templateId}/progress`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: JSON.stringify({ filled: new Array(16).fill(2), revision: 1, resultDataUrl: null }),
+      body: JSON.stringify({ filled: new Array(64).fill(2), revision: 1, resultDataUrl: null }),
     }),
   ]);
 
@@ -997,12 +997,12 @@ test('HTTP: two concurrent initial PUTs with revision=0 — one 200, one 409', {
     fetch(`${url}/colorings/${templateId}/progress`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: JSON.stringify({ filled: new Array(16).fill(0), revision: 0, resultDataUrl: null }),
+      body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
     }),
     fetch(`${url}/colorings/${templateId}/progress`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: JSON.stringify({ filled: new Array(16).fill(0), revision: 0, resultDataUrl: null }),
+      body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
     }),
   ]);
 
