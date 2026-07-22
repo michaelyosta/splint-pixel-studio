@@ -291,7 +291,7 @@ test('Migration runner applies all migrations on clean DB', async (t) => {
   while (stmt.step()) versions.push(stmt.getAsObject().version);
   stmt.free();
   assert.ok(versions.includes('001'), 'Should have version 001');
-  assert.ok(versions.includes('005'), 'Should have version 005');
+  assert.ok(versions.includes('004'), 'Should have version 004');
 });
 
 test('Migration runner is idempotent', async (t) => {
@@ -305,7 +305,7 @@ test('Migration runner is idempotent', async (t) => {
   const result2 = await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
 
   assert.equal(result2.applied, 0, 'Second run should apply zero migrations');
-  assert.equal(result2.skipped, 5, 'Second run should skip all 5 migrations');
+  assert.equal(result2.skipped, 4, 'Second run should skip all 4 migrations');
 });
 
 test('Changed checksum causes error', async (t) => {
@@ -326,7 +326,7 @@ test('Changed checksum causes error', async (t) => {
   );
 });
 
-test('Legacy database (no schema_migrations) upgrades and applies 004-005', async (t) => {
+test('Legacy database (no schema_migrations) upgrades and applies 004', async (t) => {
   const SQL = await initSqlJs();
   const db = new SQL.Database();
   db.run('PRAGMA foreign_keys = ON;');
@@ -338,20 +338,19 @@ test('Legacy database (no schema_migrations) upgrades and applies 004-005', asyn
   db.run(`CREATE TABLE IF NOT EXISTS achievements (id TEXT PRIMARY KEY, title TEXT, created_at TEXT);`);
   db.run(`CREATE TABLE IF NOT EXISTS collections (id TEXT PRIMARY KEY, title TEXT NOT NULL, price_in_stars INTEGER DEFAULT 0);`);
   db.run(`CREATE TABLE IF NOT EXISTS message_requests (id TEXT PRIMARY KEY, sender_id TEXT, receiver_id TEXT, price_in_stars INTEGER DEFAULT 0, text TEXT, status TEXT DEFAULT 'created', created_at TEXT, updated_at TEXT);`);
-  db.run(`CREATE TABLE IF NOT EXISTS artworks (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, source_type TEXT DEFAULT 'user', image_url TEXT, title TEXT NOT NULL, collection_id TEXT, collection_title TEXT, rarity TEXT, is_completed INTEGER DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);`);
 
   const migrationsDir = join(serverDir, 'migrations', 'sqlite');
 
   const result = await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
 
-  assert.equal(result.applied, 2, 'Legacy DB: should apply migrations 004 and 005');
+  assert.equal(result.applied, 1, 'Legacy DB: should apply migration 004');
   assert.equal(result.skipped, 3, 'Legacy DB: should skip baseline 001-003');
 
   const stmt = db.prepare('SELECT version FROM schema_migrations ORDER BY version');
   const versions = [];
   while (stmt.step()) versions.push(stmt.getAsObject().version);
   stmt.free();
-  assert.deepStrictEqual(versions, ['001', '002', '003', '004', '005'], 'All 5 versions recorded');
+  assert.deepStrictEqual(versions, ['001', '002', '003', '004'], 'All 4 versions recorded');
 
   assert.throws(() => {
     db.run("INSERT INTO users (id,nickname,stars_balance,role,created_at,updated_at) VALUES ('lb1','Bad',-5,'user','2024-01-01','2024-01-01')");

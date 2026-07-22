@@ -332,41 +332,6 @@ Valid message_requests statuses:
 For SQLite, these constraints are enforced via `BEFORE INSERT/UPDATE` triggers
 (since `ALTER TABLE ADD CONSTRAINT CHECK` is not supported).
 
-## Stars Transactions (Migration 005)
-
-Added atomic financial infrastructure:
-
-| Table | Purpose |
-|-------|---------|
-| `stars_operations` | Immutable record of each financial operation |
-| `stars_ledger_entries` | Append-only ledger of balance changes |
-| `collection_ownerships` | Explicit ownership tracking (free/premium/legacy) |
-
-### stars_operations
-
-- `operation_type`: `message_payment` or `collection_purchase`
-- `reference_key`: Canonical natural reference (e.g., `message_request:123`)
-- `UNIQUE(operation_type, reference_key)` prevents double-processing
-- `idempotency_key`: Client-supplied key with UNIQUE constraint
-- `request_fingerprint`: Server-computed fingerprint for replay detection
-- UPDATE/DELETE blocked by database triggers
-
-### stars_ledger_entries
-
-- Append-only (UPDATE/DELETE blocked by triggers)
-- `UNIQUE(operation_id, user_id, entry_type)` prevents duplicate entries
-- `delta <> 0` and `balance_after >= 0` enforced by CHECK constraints
-
-### collection_ownerships
-
-- `PRIMARY KEY(user_id, collection_id)` ensures one ownership per user+collection
-- Legacy ownership backfilled from existing artworks (no financial records created)
-- Free acquisitions create a zero-value `stars_operations` row for idempotency tracking
-  (no `stars_ledger_entries` are created for free collections)
-- `stars_operation_id`: non-NULL for free/premium, NULL for legacy
-
-See [docs/stars-transactions.md](stars-transactions.md) for complete financial integrity guarantees.
-
 ### Pre-validation
 
 Before applying migration 004, the runner checks existing data:
