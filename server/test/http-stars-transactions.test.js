@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { once } from 'node:events';
 import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -20,6 +21,13 @@ function cloneEnv(overrides = {}) {
   return { ...env, ...overrides };
 }
 
+async function stopServer(server) {
+  if (server.exitCode !== null || server.killed) return;
+  const exited = once(server, 'exit');
+  server.kill();
+  await exited;
+}
+
 async function startServer(t, { dir, port, extraEnv = {} }) {
   const dbPath = join(dir, 'test.db.bin');
   const server = spawn('node', ['index.js'], {
@@ -34,8 +42,12 @@ async function startServer(t, { dir, port, extraEnv = {} }) {
     });
     server.once('error', reject);
   });
-  t.after(() => { server.kill(); });
-  t.after(async () => { await rm(dir, { recursive: true, force: true }); });
+  t.after(async () => {
+    if (server.exitCode === null && !server.killed) {
+      await stopServer(server);
+    }
+    await rm(dir, { recursive: true, force: true });
+  });
   return { server, port, url: `http://127.0.0.1:${port}`, dbPath };
 }
 
@@ -60,6 +72,30 @@ async function createMessageRequest(url, senderId, receiverId, text = 'test mess
   return body.id;
 }
 
+function openDb(filePath) {
+  const SQL = initSqlJs;
+  return SQL;
+}
+
+async function queryDb(dbPath, queries) {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database(await readFile(dbPath));
+  db.run('PRAGMA foreign_keys = ON;');
+  const results = {};
+  for (const [key, { sql, params }] of Object.entries(queries)) {
+    const stmt = db.prepare(sql);
+    stmt.bind(params || []);
+    if (stmt.step()) results[key] = stmt.getAsObject();
+    else results[key] = null;
+    stmt.free();
+  }
+  return results;
+}
+
+function q(sql, params) {
+  return { sql, params: params || [] };
+}
+
 // ── Premium collection HTTP fixture ──────────────────────────────────
 
 async function startServerWithPremiumCollection(t, port, providedDir = null) {
@@ -73,14 +109,10 @@ async function startServerWithPremiumCollection(t, port, providedDir = null) {
   await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
 
   const now = new Date().toISOString();
-  db.run("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES (?,?,?,?)",
-    ['col_http_prem', 'HTTP Premium Test', 'premium', 40]);
-  db.run("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES (?,?,?,?)",
-    ['col_http_free', 'HTTP Free Test', 'free', 0]);
-  db.run("INSERT INTO achievements (id,title,description,category,icon,rarity,created_at) VALUES (?,?,?,?,?,?,?)",
-    ['ach_test', 'Test', '', 'ritual', 'star', 'common', now]);
-  db.run("INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    ['tpl_test', 'Test', 8, 8, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(64).fill(0)), now, now]);
+  db.run("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES (?,?,?,?)", ['col_http_prem', 'HTTP Premium Test', 'premium', 40]);
+  db.run("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES (?,?,?,?)", ['col_http_free', 'HTTP Free Test', 'free', 0]);
+  db.run("INSERT INTO achievements (id,title,description,category,icon,rarity,created_at) VALUES (?,?,?,?,?,?,?)", ['ach_test', 'Test', '', 'ritual', 'star', 'common', now]);
+  db.run("INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ['tpl_test', 'Test', 8, 8, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(64).fill(0)), now, now]);
 
   await writeFile(dbPath, Buffer.from(db.export()));
 
@@ -96,8 +128,12 @@ async function startServerWithPremiumCollection(t, port, providedDir = null) {
     });
     server.once('error', reject);
   });
-  t.after(() => { server.kill(); });
-  t.after(async () => { await rm(dir, { recursive: true, force: true }); });
+  t.after(async () => {
+    if (server.exitCode === null && !server.killed) {
+      await stopServer(server);
+    }
+    await rm(dir, { recursive: true, force: true });
+  });
   return { server, port, url: `http://127.0.0.1:${port}`, dbPath };
 }
 
@@ -130,9 +166,53 @@ test('HTTP: POST /messages/request/pay successful', async (t) => {
 
 // ── Payment: insufficient balance ────────────────────────────────────
 
-test('HTTP: insufficient balance returns 402', { skip: 'message creation pre-checks balance; covered by service test' }, async (t) => {
-  // Covered by stars-transactions.test.js service-level test
-  t.skip();
+test('HTTP: insufficient balance returns 402 with correct state', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
+  const dbPath = join(dir, 'test.db.bin');
+
+  // Pre-build DB with sender having just enough stars to create a paid request
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  const migDir = join(serverDir, 'migrations', 'sqlite');
+  await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir: migDir });
+
+  const now = new Date().toISOString();
+  db.run("INSERT INTO users (id,telegram_id,nickname,stars_balance,role,created_at,updated_at) VALUES (?,?,?,?,?,?,?)", ['poor_s', null, 'Poor', 500, 'user', now, now]);
+  db.run("INSERT INTO users (id,telegram_id,nickname,stars_balance,role,created_at,updated_at) VALUES (?,?,?,?,?,?,?)", ['rich_r', null, 'Rich', 0, 'user', now, now]);
+  db.run("UPDATE users SET paid_open=1, price_in_stars=500 WHERE id='rich_r'");
+  db.run("INSERT INTO achievements (id,title,description,category,icon,rarity,created_at) VALUES (?,?,?,?,?,?,?)", ['ach_402', 'Test', '', 'ritual', 'star', 'common', now]);
+  db.run("INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ['tpl_402', 'Test', 8, 8, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(64).fill(0)), now, now]);
+  db.run("INSERT INTO message_requests (id,sender_id,receiver_id,price_in_stars,text,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ['req_402', 'poor_s', 'rich_r', 500, 'expensive', 'payment_pending', now, now]);
+  // Drain sender balance below price
+  db.run("UPDATE users SET stars_balance=10 WHERE id='poor_s'");
+
+  await writeFile(dbPath, Buffer.from(db.export()));
+
+  const { url, server } = await startServer(t, { dir, port: 33005 });
+
+  const res = await fetch(`${url}/messages/request/pay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'poor_s', 'Idempotency-Key': 'poor-pay-key-01' },
+    body: JSON.stringify({ requestId: 'req_402' }),
+  });
+  assert.equal(res.status, 402);
+  assert.equal((await res.json()).code, 'INSUFFICIENT_STARS');
+
+  await stopServer(server);
+
+  const state = await queryDb(dbPath, {
+    sBal: q('SELECT stars_balance FROM users WHERE id=?', ['poor_s']),
+    rBal: q('SELECT stars_balance FROM users WHERE id=?', ['rich_r']),
+    mrStatus: q('SELECT status FROM message_requests WHERE id=?', ['req_402']),
+    opsCnt: q('SELECT COUNT(*) as cnt FROM stars_operations'),
+    leCnt: q('SELECT COUNT(*) as cnt FROM stars_ledger_entries'),
+  });
+  assert.equal(state.sBal.stars_balance, 10, 'Sender balance unchanged');
+  assert.equal(state.rBal.stars_balance, 0, 'Receiver unchanged');
+  assert.equal(state.mrStatus.status, 'payment_pending');
+  assert.equal(state.opsCnt.cnt, 0, 'No operation');
+  assert.equal(state.leCnt.cnt, 0, 'No ledger');
 });
 
 // ── Payment: same-key replay ─────────────────────────────────────────
@@ -165,7 +245,7 @@ test('HTTP: same-key payment replay returns idempotent:true', async (t) => {
   assert.ok(b2.stars_balance !== undefined);
 });
 
-// ── Payment: reused key different request ────────────────────────────
+// ── Payment: reused key ──────────────────────────────────────────────
 
 test('HTTP: reused Idempotency-Key with different request returns 409', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
@@ -213,7 +293,7 @@ test('HTTP: sequential different-key payment duplicate returns 409', async (t) =
   assert.equal((await r2.json()).code, 'ALREADY_PROCESSED');
 });
 
-// ── Payment: invalid key ─────────────────────────────────────────────
+// ── Payment: invalid keys ────────────────────────────────────────────
 
 test('HTTP: short Idempotency-Key returns 400 INVALID_INPUT', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
@@ -243,9 +323,9 @@ test('HTTP: empty Idempotency-Key returns 400 INVALID_INPUT', async (t) => {
   assert.equal((await res.json()).code, 'INVALID_INPUT');
 });
 
-// ── Payment: concurrent same-key ─────────────────────────────────────
+// ── Concurrent same-key payment ──────────────────────────────────────
 
-test('HTTP: concurrent same-key — both succeed, one normal + one idempotent, state intact', async (t) => {
+test('HTTP: concurrent same-key — both succeed, exact DB state', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url, server, dbPath } = await startServer(t, { dir, port: 33009 });
   await setupTestUsers(url);
@@ -253,125 +333,64 @@ test('HTTP: concurrent same-key — both succeed, one normal + one idempotent, s
   const key = 'concurrent-same-http-key';
 
   const results = await Promise.allSettled([
-    fetch(`${url}/messages/request/pay`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': key },
-      body: JSON.stringify({ requestId }),
-    }),
-    fetch(`${url}/messages/request/pay`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': key },
-      body: JSON.stringify({ requestId }),
-    }),
+    fetch(`${url}/messages/request/pay`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': key }, body: JSON.stringify({ requestId }) }),
+    fetch(`${url}/messages/request/pay`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': key }, body: JSON.stringify({ requestId }) }),
   ]);
 
   const fulfilled = results.filter(r => r.status === 'fulfilled');
-  assert.equal(fulfilled.length, 2, 'Both succeed');
-  const bodies = await Promise.all(fulfilled.map(async r => {
-    assert.equal(r.value.status, 200);
-    return r.value.json();
-  }));
-  const normal = bodies.find(b => b.idempotent === false);
-  const replay = bodies.find(b => b.idempotent === true);
-  assert.ok(normal);
-  assert.ok(replay);
-  assert.ok(normal.stars_balance !== undefined);
-  assert.equal(normal.request.status, 'delivered');
-  assert.ok(replay.request, 'Replay has request');
+  assert.equal(fulfilled.length, 2);
+  const bodies = await Promise.all(fulfilled.map(async r => { assert.equal(r.value.status, 200); return r.value.json(); }));
+  assert.ok(bodies.find(b => b.idempotent === false));
+  assert.ok(bodies.find(b => b.idempotent === true));
 
-  // Kill server and verify DB state
-  server.kill();
-  await new Promise(r => setTimeout(r, 300));
-
-  const SQL = await initSqlJs();
-  const db = new SQL.Database(await readFile(dbPath));
-  db.run('PRAGMA foreign_keys = ON;');
-
-  const sStmt = db.prepare('SELECT stars_balance FROM users WHERE id=?');
-  sStmt.bind(['test_sender']);
-  sStmt.step(); const sBal = sStmt.getAsObject().stars_balance; sStmt.free();
-
-  const rStmt = db.prepare('SELECT stars_balance FROM users WHERE id=?');
-  rStmt.bind(['test_receiver']);
-  rStmt.step(); const rBal = rStmt.getAsObject().stars_balance; rStmt.free();
-
-  const mrStmt = db.prepare('SELECT status FROM message_requests WHERE id=?');
-  mrStmt.bind([requestId]);
-  mrStmt.step(); const mrStatus = mrStmt.getAsObject().status; mrStmt.free();
-
-  const opsStmt = db.prepare("SELECT COUNT(*) as cnt FROM stars_operations WHERE idempotency_key=?");
-  opsStmt.bind([key]);
-  opsStmt.step(); const opsCnt = opsStmt.getAsObject().cnt; opsStmt.free();
-
-  const leStmt = db.prepare("SELECT COUNT(*) as cnt FROM stars_ledger_entries WHERE operation_id IN (SELECT id FROM stars_operations WHERE idempotency_key=?)");
-  leStmt.bind([key]);
-  leStmt.step(); const leCnt = leStmt.getAsObject().cnt; leStmt.free();
-
-  assert.equal(sBal, 500 - 50, 'Sender debited once');
+  await stopServer(server);
+  const state = await queryDb(dbPath, {
+    sBal: q('SELECT stars_balance FROM users WHERE id=?', ['test_sender']),
+    rBal: q('SELECT stars_balance FROM users WHERE id=?', ['test_receiver']),
+    mrStatus: q('SELECT status FROM message_requests WHERE id=?', [requestId]),
+    opsCnt: q('SELECT COUNT(*) as cnt FROM stars_operations'),
+    leCnt: q('SELECT COUNT(*) as cnt FROM stars_ledger_entries'),
+  });
   const expectedPayout = Math.floor(50 * 80 / 100);
-  assert.equal(rBal, 0 + expectedPayout, 'Receiver credited once');
-  assert.equal(mrStatus, 'delivered');
-  assert.equal(opsCnt, 1, 'One operation');
-  assert.equal(leCnt, expectedPayout > 0 ? 2 : 1, 'Exact ledger entries');
+  assert.equal(state.sBal.stars_balance, 500 - 50, 'Sender debited once');
+  assert.equal(state.rBal.stars_balance, expectedPayout, 'Receiver credited once');
+  assert.equal(state.mrStatus.status, 'delivered');
+  assert.equal(state.opsCnt.cnt, 1, 'One operation');
+  assert.equal(state.leCnt.cnt, expectedPayout > 0 ? 2 : 1, 'Exact ledger');
 });
 
-// ── Payment: concurrent different-key ────────────────────────────────
+// ── Concurrent different-key payment ─────────────────────────────────
 
-test('HTTP: concurrent different-key — one 200, one 409, exact ALREADY_PROCESSED', async (t) => {
+test('HTTP: concurrent different-key — one 200, one 409 ALREADY_PROCESSED, one financial effect', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url, server, dbPath } = await startServer(t, { dir, port: 33010 });
   await setupTestUsers(url);
   const requestId = await createMessageRequest(url, 'test_sender', 'test_receiver', 'Diff keys');
 
   const results = await Promise.allSettled([
-    fetch(`${url}/messages/request/pay`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': 'diff-key-A-http' },
-      body: JSON.stringify({ requestId }),
-    }),
-    fetch(`${url}/messages/request/pay`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': 'diff-key-B-http' },
-      body: JSON.stringify({ requestId }),
-    }),
+    fetch(`${url}/messages/request/pay`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': 'diff-key-A-http' }, body: JSON.stringify({ requestId }) }),
+    fetch(`${url}/messages/request/pay`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'test_sender', 'Idempotency-Key': 'diff-key-B-http' }, body: JSON.stringify({ requestId }) }),
   ]);
 
   const statuses = results.map(r => r.status === 'fulfilled' ? r.value.status : -1);
-  assert.equal(statuses.filter(s => s === 200).length, 1, 'Exactly one 200');
-  assert.equal(statuses.filter(s => s === 409).length, 1, 'Exactly one 409');
-
+  assert.equal(statuses.filter(s => s === 200).length, 1);
+  assert.equal(statuses.filter(s => s === 409).length, 1);
   const conflict = results.find(r => r.status === 'fulfilled' && r.value.status === 409);
-  const conflictBody = await conflict.value.json();
-  assert.equal(conflictBody.code, 'ALREADY_PROCESSED');
+  assert.equal((await conflict.value.json()).code, 'ALREADY_PROCESSED');
 
-  // Kill server and verify DB state
-  server.kill();
-  await new Promise(r => setTimeout(r, 300));
-
-  const SQL = await initSqlJs();
-  const db = new SQL.Database(await readFile(dbPath));
-  db.run('PRAGMA foreign_keys = ON;');
-
-  const sStmt = db.prepare('SELECT stars_balance FROM users WHERE id=?');
-  sStmt.bind(['test_sender']);
-  sStmt.step(); const sBal = sStmt.getAsObject().stars_balance; sStmt.free();
-
-  const mrStmt = db.prepare('SELECT status FROM message_requests WHERE id=?');
-  mrStmt.bind([requestId]);
-  mrStmt.step(); const mrStatus = mrStmt.getAsObject().status; mrStmt.free();
-
-  const opsStmt = db.prepare("SELECT COUNT(*) as cnt FROM stars_operations");
-  opsStmt.step(); const opsCnt = opsStmt.getAsObject().cnt; opsStmt.free();
-
-  assert.equal(sBal, 500 - 50, 'Debited once');
-  assert.equal(mrStatus, 'delivered');
-  assert.equal(opsCnt, 1, 'One financial effect');
+  await stopServer(server);
+  const state = await queryDb(dbPath, {
+    sBal: q('SELECT stars_balance FROM users WHERE id=?', ['test_sender']),
+    opsCnt: q('SELECT COUNT(*) as cnt FROM stars_operations'),
+  });
+  assert.equal(state.sBal.stars_balance, 500 - 50);
+  assert.equal(state.opsCnt.cnt, 1);
 });
 
 // ── Premium collection: purchase success ─────────────────────────────
 
-test('HTTP: premium collection purchase — 200, balance reduced, ownership, operation, artworks', async (t) => {
-  const { url } = await startServerWithPremiumCollection(t, 33020);
+test('HTTP: premium purchase — exact ownership, operation, ledger, artworks', async (t) => {
+  const { url, server, dbPath } = await startServerWithPremiumCollection(t, 33020);
   await giveStars(url, 'prem_user', 5);
 
   const res = await fetch(`${url}/users/collections/col_http_prem/add`, {
@@ -380,26 +399,31 @@ test('HTTP: premium collection purchase — 200, balance reduced, ownership, ope
   });
   assert.equal(res.status, 200);
   const body = await res.json();
-  assert.equal(body.success, true);
   assert.equal(body.idempotent, false);
-  assert.ok(body.stars_balance !== undefined);
-  assert.ok(body.stars_balance < 500, 'Balance decreased');
+  assert.ok(body.stars_balance < 500);
 
-  // Verify state via API
-  const meRes = await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'prem_user' } });
-  const me = await meRes.json();
-  assert.ok(me.stars_balance < 500);
-
-  const artsRes = await fetch(`${url}/users/prem_user/artworks`, { headers: { 'X-User-Id': 'prem_user' } });
-  const arts = await artsRes.json();
-  const collArts = arts.filter(a => a.collection_id === 'col_http_prem');
-  assert.equal(collArts.length, 2, 'Two artworks created');
+  await stopServer(server);
+  const state = await queryDb(dbPath, {
+    sBal: q('SELECT stars_balance FROM users WHERE id=?', ['prem_user']),
+    own: q('SELECT * FROM collection_ownerships WHERE user_id=? AND collection_id=?', ['prem_user', 'col_http_prem']),
+    opsCnt: q("SELECT COUNT(*) as cnt FROM stars_operations WHERE operation_type='collection_purchase'"),
+    leCnt: q('SELECT COUNT(*) as cnt FROM stars_ledger_entries'),
+    artCnt: q('SELECT COUNT(*) as cnt FROM artworks WHERE owner_id=? AND collection_id=?', ['prem_user', 'col_http_prem']),
+  });
+  assert.equal(state.sBal.stars_balance, 500 - 40, 'Balance reduced by price');
+  assert.ok(state.own, 'Ownership exists');
+  assert.equal(state.own.acquisition_type, 'premium');
+  assert.equal(state.own.price_paid, 40);
+  assert.ok(state.own.stars_operation_id, 'operation_id non-null');
+  assert.equal(state.opsCnt.cnt, 1, 'One operation');
+  assert.equal(state.leCnt.cnt, 1, 'One collection_debit entry');
+  assert.equal(state.artCnt.cnt, 2, 'Two artworks');
 });
 
 // ── Premium collection: same-key replay ──────────────────────────────
 
-test('HTTP: premium collection same-key replay — 200 idempotent:true', async (t) => {
-  const { url } = await startServerWithPremiumCollection(t, 33021);
+test('HTTP: premium replay — no duplicate state', async (t) => {
+  const { url, server, dbPath } = await startServerWithPremiumCollection(t, 33021);
   await giveStars(url, 'prem_replay', 5);
   const key = 'prem-replay-key-http';
 
@@ -408,38 +432,40 @@ test('HTTP: premium collection same-key replay — 200 idempotent:true', async (
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_replay', 'Idempotency-Key': key },
   });
   assert.equal(r1.status, 200);
-  const b1 = await r1.json();
-  assert.equal(b1.idempotent, false);
-  assert.equal(b1.success, true);
+  assert.equal((await r1.json()).idempotent, false);
 
   const r2 = await fetch(`${url}/users/collections/col_http_prem/add`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_replay', 'Idempotency-Key': key },
   });
   assert.equal(r2.status, 200);
-  const b2 = await r2.json();
-  assert.equal(b2.idempotent, true);
-  assert.equal(b2.success, true);
+  assert.equal((await r2.json()).idempotent, true);
 
-  // Artworks not duplicated
-  const artsRes = await fetch(`${url}/users/prem_replay/artworks`, { headers: { 'X-User-Id': 'prem_replay' } });
-  const arts = await artsRes.json();
-  const collArts = arts.filter(a => a.collection_id === 'col_http_prem');
-  assert.equal(collArts.length, 2, 'Still exactly 2 artworks');
+  await stopServer(server);
+  const state = await queryDb(dbPath, {
+    sBal: q('SELECT stars_balance FROM users WHERE id=?', ['prem_replay']),
+    ownCnt: q('SELECT COUNT(*) as cnt FROM collection_ownerships WHERE user_id=? AND collection_id=?', ['prem_replay', 'col_http_prem']),
+    opsCnt: q('SELECT COUNT(*) as cnt FROM stars_operations'),
+    leCnt: q('SELECT COUNT(*) as cnt FROM stars_ledger_entries'),
+    artCnt: q('SELECT COUNT(*) as cnt FROM artworks WHERE owner_id=? AND collection_id=?', ['prem_replay', 'col_http_prem']),
+  });
+  assert.equal(state.sBal.stars_balance, 500 - 40, 'Balance not changed by replay');
+  assert.equal(state.ownCnt.cnt, 1);
+  assert.equal(state.opsCnt.cnt, 1);
+  assert.equal(state.leCnt.cnt, 1);
+  assert.equal(state.artCnt.cnt, 2);
 });
 
 // ── Premium collection: different-key duplicate ──────────────────────
 
-test('HTTP: premium collection different-key duplicate — 409 ALREADY_PROCESSED', async (t) => {
+test('HTTP: premium different-key duplicate — 409', async (t) => {
   const { url } = await startServerWithPremiumCollection(t, 33022);
   await giveStars(url, 'prem_dup', 5);
 
-  const r1 = await fetch(`${url}/users/collections/col_http_prem/add`, {
+  await fetch(`${url}/users/collections/col_http_prem/add`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_dup', 'Idempotency-Key': 'prem-dup-aaa1' },
   });
-  assert.equal(r1.status, 200);
-
   const r2 = await fetch(`${url}/users/collections/col_http_prem/add`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_dup', 'Idempotency-Key': 'prem-dup-bbb2' },
@@ -450,9 +476,9 @@ test('HTTP: premium collection different-key duplicate — 409 ALREADY_PROCESSED
 
 // ── Premium collection: insufficient balance ─────────────────────────
 
-test('HTTP: premium collection insufficient balance — 402, no operation, no ownership, no artworks', async (t) => {
+test('HTTP: premium insufficient balance — 402, no effects', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
-  const { url, server, dbPath: premPoorPath } = await startServerWithPremiumCollection(t, 33023, dir);
+  const { url, server, dbPath } = await startServerWithPremiumCollection(t, 33023, dir);
   await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'prem_poor' } });
 
   const res = await fetch(`${url}/users/collections/col_http_prem/add`, {
@@ -462,99 +488,74 @@ test('HTTP: premium collection insufficient balance — 402, no operation, no ow
   assert.equal(res.status, 402);
   assert.equal((await res.json()).code, 'INSUFFICIENT_STARS');
 
-  server.kill();
-  await new Promise(r => setTimeout(r, 300));
-
-  const SQL = await initSqlJs();
-  const db = new SQL.Database(await readFile(premPoorPath));
-  db.run('PRAGMA foreign_keys = ON;');
-
-  const opsStmt = db.prepare("SELECT COUNT(*) as cnt FROM stars_operations");
-  opsStmt.step(); assert.equal(opsStmt.getAsObject().cnt, 0, 'No operation'); opsStmt.free();
-
-  const leStmt = db.prepare("SELECT COUNT(*) as cnt FROM stars_ledger_entries");
-  leStmt.step(); assert.equal(leStmt.getAsObject().cnt, 0, 'No ledger'); leStmt.free();
-
-  const ownStmt = db.prepare("SELECT COUNT(*) as cnt FROM collection_ownerships WHERE user_id=? AND collection_id=?");
-  ownStmt.bind(['prem_poor', 'col_http_prem']);
-  ownStmt.step(); assert.equal(ownStmt.getAsObject().cnt, 0, 'No ownership'); ownStmt.free();
-
-  const artStmt = db.prepare("SELECT COUNT(*) as cnt FROM artworks WHERE owner_id=? AND collection_id=?");
-  artStmt.bind(['prem_poor', 'col_http_prem']);
-  artStmt.step(); assert.equal(artStmt.getAsObject().cnt, 0, 'No artworks'); artStmt.free();
+  await stopServer(server);
+  const state = await queryDb(dbPath, {
+    opsCnt: q('SELECT COUNT(*) as cnt FROM stars_operations'),
+    leCnt: q('SELECT COUNT(*) as cnt FROM stars_ledger_entries'),
+    ownCnt: q('SELECT COUNT(*) as cnt FROM collection_ownerships WHERE user_id=? AND collection_id=?', ['prem_poor', 'col_http_prem']),
+    artCnt: q('SELECT COUNT(*) as cnt FROM artworks WHERE owner_id=? AND collection_id=?', ['prem_poor', 'col_http_prem']),
+  });
+  assert.equal(state.opsCnt.cnt, 0);
+  assert.equal(state.leCnt.cnt, 0);
+  assert.equal(state.ownCnt.cnt, 0);
+  assert.equal(state.artCnt.cnt, 0);
 });
 
 // ── Premium collection: concurrent purchase ──────────────────────────
 
-test('HTTP: concurrent premium purchase — one 200, one 409, one ownership', async (t) => {
-  const { url } = await startServerWithPremiumCollection(t, 33024);
+test('HTTP: concurrent premium — one 200, one 409, exact state', async (t) => {
+  const { url, server, dbPath } = await startServerWithPremiumCollection(t, 33024);
   await giveStars(url, 'prem_conc', 5);
 
   const results = await Promise.allSettled([
-    fetch(`${url}/users/collections/col_http_prem/add`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_conc', 'Idempotency-Key': 'prem-conc-aa1' },
-    }),
-    fetch(`${url}/users/collections/col_http_prem/add`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_conc', 'Idempotency-Key': 'prem-conc-bb2' },
-    }),
+    fetch(`${url}/users/collections/col_http_prem/add`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_conc', 'Idempotency-Key': 'prem-conc-aa1' } }),
+    fetch(`${url}/users/collections/col_http_prem/add`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'prem_conc', 'Idempotency-Key': 'prem-conc-bb2' } }),
   ]);
-
   const statuses = results.map(r => r.status === 'fulfilled' ? r.value.status : -1);
-  assert.equal(statuses.filter(s => s === 200).length, 1, 'One 200');
-  assert.equal(statuses.filter(s => s === 409).length, 1, 'One 409');
+  assert.equal(statuses.filter(s => s === 200).length, 1);
+  assert.equal(statuses.filter(s => s === 409).length, 1);
+  const conflict = results.find(r => r.status === 'fulfilled' && r.value.status === 409);
+  assert.equal((await conflict.value.json()).code, 'ALREADY_PROCESSED');
 
-  const artsRes = await fetch(`${url}/users/prem_conc/artworks`, { headers: { 'X-User-Id': 'prem_conc' } });
-  const arts = await artsRes.json();
-  const collArts = arts.filter(a => a.collection_id === 'col_http_prem');
-  assert.equal(collArts.length, 2, 'Exact artworks created once');
+  await stopServer(server);
+  const state = await queryDb(dbPath, {
+    sBal: q('SELECT stars_balance FROM users WHERE id=?', ['prem_conc']),
+    ownCnt: q('SELECT COUNT(*) as cnt FROM collection_ownerships WHERE user_id=? AND collection_id=?', ['prem_conc', 'col_http_prem']),
+    opsCnt: q('SELECT COUNT(*) as cnt FROM stars_operations'),
+    leCnt: q('SELECT COUNT(*) as cnt FROM stars_ledger_entries'),
+    artCnt: q('SELECT COUNT(*) as cnt FROM artworks WHERE owner_id=? AND collection_id=?', ['prem_conc', 'col_http_prem']),
+  });
+  assert.equal(state.sBal.stars_balance, 500 - 40);
+  assert.equal(state.ownCnt.cnt, 1);
+  assert.equal(state.opsCnt.cnt, 1);
+  assert.equal(state.leCnt.cnt, 1);
+  assert.equal(state.artCnt.cnt, 2);
 });
 
 // ── Premium collection: legacy ownership ─────────────────────────────
 
-test('HTTP: legacy ownership rejects premium purchase', async (t) => {
-  // Use pre-built DB with legacy ownership
+test('HTTP: legacy ownership rejects purchase, no new operation', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const dbPath = join(dir, 'test.db.bin');
 
   const SQL = await initSqlJs();
   const db = new SQL.Database();
   db.run('PRAGMA foreign_keys = ON;');
-  const migrationsDir = join(serverDir, 'migrations', 'sqlite');
-  await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
+  const migDir = join(serverDir, 'migrations', 'sqlite');
+  await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir: migDir });
 
   const now = new Date().toISOString();
-  db.run("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES (?,?,?,?)",
-    ['col_http_leg', 'Legacy Test', 'premium', 40]);
-  db.run("INSERT INTO users (id,telegram_id,nickname,stars_balance,role,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
-    ['leg_user', null, 'Legacy', 0, 'user', now, now]);
-  db.run("INSERT INTO achievements (id,title,description,category,icon,rarity,created_at) VALUES (?,?,?,?,?,?,?)",
-    ['ach_tl', 'Test', '', 'ritual', 'star', 'common', now]);
-  db.run("INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",
-    ['tpl_tl', 'Test', 8, 8, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(64).fill(0)), now, now]);
-  db.run("INSERT INTO collection_ownerships (user_id,collection_id,acquisition_type,price_paid,stars_operation_id,created_at) VALUES (?,?,?,?,?,?)",
-    ['leg_user', 'col_http_leg', 'legacy', 0, null, now]);
+  db.run("INSERT INTO collections (id,title,pack_type,price_in_stars) VALUES (?,?,?,?)", ['col_http_leg', 'Legacy Test', 'premium', 40]);
+  db.run("INSERT INTO users (id,telegram_id,nickname,stars_balance,role,created_at,updated_at) VALUES (?,?,?,?,?,?,?)", ['leg_user', null, 'Legacy', 500, 'user', now, now]);
+  db.run("INSERT INTO achievements (id,title,description,category,icon,rarity,created_at) VALUES (?,?,?,?,?,?,?)", ['ach_tl', 'Test', '', 'ritual', 'star', 'common', now]);
+  db.run("INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)", ['tpl_tl', 'Test', 8, 8, JSON.stringify(['#000','#fff']), JSON.stringify(new Array(64).fill(0)), now, now]);
+  db.run("INSERT INTO collection_ownerships (user_id,collection_id,acquisition_type,price_paid,stars_operation_id,created_at) VALUES (?,?,?,?,?,?)", ['leg_user', 'col_http_leg', 'legacy', 0, null, now]);
 
+  const opsBefore = db.exec("SELECT COUNT(*) as cnt FROM stars_operations");
   await writeFile(dbPath, Buffer.from(db.export()));
 
-  const server = spawn('node', ['index.js'], {
-    cwd: serverDir,
-    env: cloneEnv({ PORT: '33025', SQLITE_DB_PATH: dbPath, ALLOW_DEV_AUTH: 'true' }),
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Server did not start on port 33025')), 15_000);
-    server.stdout.on('data', (chunk) => {
-      if (chunk.toString().includes('running on')) { clearTimeout(timer); resolve(); }
-    });
-    server.once('error', reject);
-  });
-  t.after(() => { server.kill(); });
-  t.after(async () => { await rm(dir, { recursive: true, force: true }); });
-  const url = `http://127.0.0.1:33025`;
+  const { url, server } = await startServer(t, { dir, port: 33025 });
 
-  await giveStars(url, 'leg_user', 5);
   const res = await fetch(`${url}/users/collections/col_http_leg/add`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'leg_user', 'Idempotency-Key': 'leg-buy-key-01' },
@@ -565,36 +566,35 @@ test('HTTP: legacy ownership rejects premium purchase', async (t) => {
   const meRes = await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'leg_user' } });
   const me = await meRes.json();
   assert.equal(me.stars_balance, 500, 'Balance unchanged');
+
+  await stopServer(server);
+  const state = await queryDb(dbPath, {
+    opsCnt: q('SELECT COUNT(*) as cnt FROM stars_operations'),
+    leCnt: q('SELECT COUNT(*) as cnt FROM stars_ledger_entries'),
+  });
+  assert.equal(state.opsCnt.cnt, 0, 'No new operation');
+  assert.equal(state.leCnt.cnt, 0, 'No ledger entries');
 });
 
-// ── Free collection test (renamed from "premium") ────────────────────
+// ── Free collection tests ────────────────────────────────────────────
 
 test('HTTP: free collection add successful', async (t) => {
   const { url } = await startServerWithPremiumCollection(t, 33026);
   await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'free_buyer' } });
-
   const res = await fetch(`${url}/users/collections/col_http_free/add`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': 'free_buyer', 'Idempotency-Key': 'free-col-key-01' },
   });
   assert.equal(res.status, 200);
-  const body = await res.json();
-  assert.equal(body.success, true);
+  assert.equal((await res.json()).success, true);
 });
 
 test('HTTP: free collection duplicate returns 409', async (t) => {
   const { url } = await startServerWithPremiumCollection(t, 33027);
   await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'free_dup' } });
-
-  await fetch(`${url}/users/collections/col_http_free/add`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'free_dup', 'Idempotency-Key': 'free-dup-aaa1' },
-  });
-  const res2 = await fetch(`${url}/users/collections/col_http_free/add`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'free_dup', 'Idempotency-Key': 'free-dup-bbb2' },
-  });
-  assert.equal(res2.status, 409);
+  await fetch(`${url}/users/collections/col_http_free/add`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'free_dup', 'Idempotency-Key': 'free-dup-aaa1' } });
+  const r2 = await fetch(`${url}/users/collections/col_http_free/add`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'free_dup', 'Idempotency-Key': 'free-dup-bbb2' } });
+  assert.equal(r2.status, 409);
 });
 
 // ── Settings: price validation ───────────────────────────────────────
@@ -602,13 +602,8 @@ test('HTTP: free collection duplicate returns 409', async (t) => {
 test('HTTP: settings price_in_stars=1 returns 400', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url } = await startServer(t, { dir, port: 33030 });
-  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'settings_test' } });
-
-  const res = await fetch(`${url}/users/settings_test/settings`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'settings_test' },
-    body: JSON.stringify({ price_in_stars: 1 }),
-  });
+  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'st1' } });
+  const res = await fetch(`${url}/users/st1/settings`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'st1' }, body: JSON.stringify({ price_in_stars: 1 }) });
   assert.equal(res.status, 400);
   assert.equal((await res.json()).code, 'INVALID_INPUT');
 });
@@ -616,13 +611,8 @@ test('HTTP: settings price_in_stars=1 returns 400', async (t) => {
 test('HTTP: settings price_in_stars="2abc" returns 400', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url } = await startServer(t, { dir, port: 33031 });
-  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'settings_test2' } });
-
-  const res = await fetch(`${url}/users/settings_test2/settings`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'settings_test2' },
-    body: JSON.stringify({ price_in_stars: "2abc" }),
-  });
+  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'st2' } });
+  const res = await fetch(`${url}/users/st2/settings`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'st2' }, body: JSON.stringify({ price_in_stars: "2abc" }) });
   assert.equal(res.status, 400);
   assert.equal((await res.json()).code, 'INVALID_INPUT');
 });
@@ -630,12 +620,7 @@ test('HTTP: settings price_in_stars="2abc" returns 400', async (t) => {
 test('HTTP: settings price_in_stars=2 returns 200', async (t) => {
   const dir = await mkdtemp(join(tmpdir(), 'splint-http-'));
   const { url } = await startServer(t, { dir, port: 33032 });
-  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'settings_test3' } });
-
-  const res = await fetch(`${url}/users/settings_test3/settings`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'X-User-Id': 'settings_test3' },
-    body: JSON.stringify({ price_in_stars: 2 }),
-  });
+  await fetch(`${url}/users/me`, { headers: { 'X-User-Id': 'st3' } });
+  const res = await fetch(`${url}/users/st3/settings`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-User-Id': 'st3' }, body: JSON.stringify({ price_in_stars: 2 }) });
   assert.equal(res.status, 200);
 });
