@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { runMigrations } from './database/migrations.js';
 import { withTransaction } from './database/transaction.js';
+import { getTransactionContext } from './database/runtime-context.js';
+import { scheduleSqliteOperation } from './database/sqlite-scheduler.js';
 
 const { Pool } = pg;
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -84,30 +86,59 @@ export function getDb() {
   return { mode, sqlite, pool };
 }
 
+function routeThroughContext(operation) {
+  const ctx = getTransactionContext();
+  if (!ctx) return null;
+  if (!mode) return operation(ctx.tx);
+  if (ctx.mode === mode && ctx.databaseIdentity === (mode === 'postgres' ? pool : sqlite)) {
+    return operation(ctx.tx);
+  }
+  return null;
+}
+
 export async function all(sql, params = []) {
+  const routed = routeThroughContext((tx) => tx.all(sql, params));
+  if (routed !== null) return routed;
+
+  if (!mode) throw new Error('Database not initialized. Call initDb() first.');
+
   if (mode === 'postgres') {
     const result = await pool.query(toPostgres(sql), params);
     return result.rows;
   }
-  const statement = sqlite.prepare(sql);
-  statement.bind(params);
-  const rows = [];
-  while (statement.step()) rows.push(statement.getAsObject());
-  statement.free();
-  return rows;
+
+  return scheduleSqliteOperation(sqlite, () => {
+    const statement = sqlite.prepare(sql);
+    statement.bind(params);
+    const rows = [];
+    while (statement.step()) rows.push(statement.getAsObject());
+    statement.free();
+    return rows;
+  });
 }
 
 export async function get(sql, params = []) {
-  return (await all(sql, params))[0] ?? null;
+  const rows = await all(sql, params);
+  return rows[0] ?? null;
 }
 
 export async function run(sql, params = []) {
+  const routed = routeThroughContext((tx) => tx.run(sql, params));
+  if (routed !== null) return routed;
+
+  if (!mode) throw new Error('Database not initialized. Call initDb() first.');
+
   if (mode === 'postgres') {
-    await pool.query(toPostgres(sql), params);
-    return;
+    const result = await pool.query(toPostgres(sql), params);
+    return { changes: result.rowCount };
   }
-  sqlite.run(sql, params);
-  persist();
+
+  return scheduleSqliteOperation(sqlite, () => {
+    sqlite.run(sql, params);
+    const changes = sqlite.getRowsModified();
+    persist();
+    return { changes };
+  });
 }
 
 export async function withDbTransaction(callback) {
