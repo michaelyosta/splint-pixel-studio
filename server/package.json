@@ -17,7 +17,7 @@
     "check": "node scripts/check.js",
     "test": "node --test test/*.test.js",
     "test:sqlite": "node --test test/*.test.js",
-    "test:postgres": "node --test test/database.test.js test/postgres-database.test.js"
+    "test:postgres": "node --test test/database.test.js test/postgres-database.test.js test/postgres-stars-transactions.test.js test/postgres-http-stars-transactions.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.750.0",
