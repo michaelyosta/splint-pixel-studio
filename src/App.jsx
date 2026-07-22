@@ -11,6 +11,7 @@ import { renderImageCropPreview, renderFitPreview, renderGridPreview, renderNumb
 import { assessQuality } from './lib/creatorQuality';
 import { getContextGoal, getRevealAction } from './lib/playLoop';
 import { createSaveQueue } from './lib/progressSaveQueue';
+import { createHistoryOperation } from './features/coloring/engine/historyOperations.js';
 import './App.css';
 
 const DIFFICULTIES = {
@@ -262,15 +263,7 @@ function App() {
     filledRef.current = nextFilled;
     setProgress((current) => ({ ...current, filled: nextFilled, ...getProgress(template.cells, nextFilled) }));
     if (change) {
-      let historyEntry = change;
-      if (change.stroke) {
-        const changes = change.stroke.changes;
-        historyEntry = {
-          indices: changes.map((c) => c.index),
-          from: -1,
-          to: changes[0]?.to ?? -1,
-        };
-      }
+      const historyEntry = change.stroke || change;
       setHistory((current) => [...current.slice(-99), historyEntry]);
       setFuture([]);
     }
@@ -331,7 +324,7 @@ function App() {
       const nextColor = findRewardingColor(template, nextFilled, color);
       if (nextColor !== undefined) setSelectedColor(nextColor);
     }
-    applyFilled(nextFilled, { index, from: -1, to: color });
+    applyFilled(nextFilled, createHistoryOperation({ type: 'single', changes: [{ index, from: -1, to: color }] }));
     const nextZones = refreshZones(nextFilled);
     celebrateCompletedZone(nextZones);
   }
@@ -350,7 +343,8 @@ function App() {
 
     const nextFilled = [...filledRef.current];
     action.indices.forEach((cell) => { nextFilled[cell] = action.color; });
-    applyFilled(nextFilled, { indices: action.indices, from: -1, to: action.color });
+    const changes = action.indices.map((idx) => ({ index: idx, from: -1, to: action.color }));
+    applyFilled(nextFilled, createHistoryOperation({ type: 'fill', changes, color: action.color }));
     const nextZones = refreshZones(nextFilled);
     if (!celebrateCompletedZone(nextZones)) {
       window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('medium');
@@ -366,7 +360,8 @@ function App() {
     if (!region.length) return;
     const nextFilled = [...filledRef.current];
     region.forEach((cell) => { nextFilled[cell] = targetColor; });
-    applyFilled(nextFilled, { indices: region, from: -1, to: targetColor });
+    const changes = region.map((idx) => ({ index: idx, from: -1, to: targetColor }));
+    applyFilled(nextFilled, createHistoryOperation({ type: 'fill', changes, color: targetColor }));
     const nextZones = refreshZones(nextFilled);
     if (!celebrateCompletedZone(nextZones)) window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('medium');
     handleFirstPaint();
@@ -382,8 +377,9 @@ function App() {
     const last = history.at(-1);
     if (!last || !progress) return;
     const nextFilled = [...filledRef.current];
-    const indices = last.indices || [last.index];
-    indices.forEach((index) => { nextFilled[index] = last.from; });
+    for (const change of last.changes) {
+      nextFilled[change.index] = change.from;
+    }
     setHistory((current) => current.slice(0, -1));
     setFuture((current) => [...current, last]);
     applyFilled(nextFilled);
@@ -394,8 +390,9 @@ function App() {
     const next = future.at(-1);
     if (!next || !progress) return;
     const nextFilled = [...filledRef.current];
-    const indices = next.indices || [next.index];
-    indices.forEach((index) => { nextFilled[index] = next.to; });
+    for (const change of next.changes) {
+      nextFilled[change.index] = change.to;
+    }
     setFuture((current) => current.slice(0, -1));
     setHistory((current) => [...current, next]);
     applyFilled(nextFilled);

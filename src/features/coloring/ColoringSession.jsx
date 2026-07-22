@@ -217,7 +217,7 @@ export default function ColoringSession({
       operation = { type: 'stroke', color: -1, timestamp: Date.now(), changes };
     } else {
       nextFilled = applyStroke(filledRef.current, stroke);
-      operation = createStrokeOperation(stroke, progress?.filled || filledRef.current);
+      operation = createStrokeOperation(stroke, filledRef.current);
     }
     filledRef.current = nextFilled;
     setLocalFilled(nextFilled);
