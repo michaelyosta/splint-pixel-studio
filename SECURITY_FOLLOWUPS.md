@@ -2,7 +2,7 @@
 
 The following items are out of scope for completed PRs and should be addressed in separate follow-up tasks:
 
-1. **Stars transactions** — Ensure atomic balance transfers, prevent race conditions, add audit logging. Use `withTransaction()` from PR #3. (NEXT PR: `security/stars-transactions`)
+1. **Stars transactions** — Ensure atomic balance transfers, prevent race conditions, add audit logging. Use `withTransaction()` with the runtime context from PR #4. (NEXT PR: `security/stars-transactions`)
 2. ~~**Seed/reset of database**~~ — DONE in PR #3 `security/database-safety-foundation`. Demo seed requires explicit action, production reset is blocked.
 3. **Report abuse** — Add rate limiting and deduplication for the report endpoint.
 4. **Achievements validation** — Ensure achievements cannot be unlocked via direct API calls without actual progress.
@@ -13,3 +13,4 @@ The following items are out of scope for completed PRs and should be addressed i
 9. **UI animations** — No known security issues, but validate that animation libraries are up to date.
 10. **Large `App.jsx` refactor** — Reduce attack surface by splitting monolith components.
 11. **AWS SDK audit** — Run `npm audit fix` and review dependency tree for known CVEs.
+12. ~~**Database runtime integrity**~~ — DONE in PR #4 `security/database-runtime-integrity`. Unified SQLite scheduler, AsyncLocalStorage transaction context, optimistic locking for progress, CAS semantics, client 409 handling. This is the required foundation for Stars transactions.

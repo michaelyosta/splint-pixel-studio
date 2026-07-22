@@ -1,11 +1,25 @@
 import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
-import { all, get, run } from '../db.js';
+import { all, get, run, withDbTransaction } from '../db.js';
+import { isUniqueConstraintError } from '../database/sql.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
 import { deletePrivateOriginal, storePrivateOriginal } from '../services/media-storage.js';
 
 const router = Router();
+
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 async function touchStreak(userId) {
   const now = new Date().toISOString();
@@ -39,8 +53,8 @@ function parseTemplate(row) {
     est_minutes: Number(row.est_minutes || 3),
     zone_count: Number(row.zone_count || 1),
     daily_featured: Number(row.daily_featured || 0),
-    palette: Array.isArray(row.palette_json) ? row.palette_json : JSON.parse(row.palette_json),
-    cells: Array.isArray(row.cells_json) ? row.cells_json : JSON.parse(row.cells_json),
+    palette: parseJsonArray(row.palette_json),
+    cells: parseJsonArray(row.cells_json),
     palette_json: undefined,
     cells_json: undefined,
     original_media_key: undefined,
@@ -73,7 +87,7 @@ function isComplete(template, filled) {
 }
 
 function progressPayload(template, row) {
-  const parsedFilled = row ? (Array.isArray(row.filled_json) ? row.filled_json : JSON.parse(row.filled_json)) : null;
+  const parsedFilled = row ? parseJsonArray(row.filled_json) : null;
   const compatible = parsedFilled?.length === template.cells.length;
   const filled = compatible ? parsedFilled : emptyProgress(template);
   const completedCount = filled.reduce((count, color, index) => count + (color === template.cells[index] ? 1 : 0), 0);
@@ -120,10 +134,10 @@ router.get('/:id/zones', authMiddleware, asyncRoute(async (req, res) => {
   const template = parseTemplate(await get("SELECT * FROM coloring_templates WHERE id=? AND status='active'", [req.params.id]));
   if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
   const progress = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
-  const filled = progress ? (Array.isArray(progress.filled_json) ? progress.filled_json : JSON.parse(progress.filled_json)) : emptyProgress(template);
+  const filled = progress ? parseJsonArray(progress.filled_json) : emptyProgress(template);
   const zoneRows = await all('SELECT * FROM coloring_zones WHERE template_id=? ORDER BY id', [template.id]);
   const zones = zoneRows.map((row) => {
-    const indices = Array.isArray(row.cell_indices_json) ? row.cell_indices_json : JSON.parse(row.cell_indices_json);
+    const indices = parseJsonArray(row.cell_indices_json);
     const done = indices.reduce((count, index) => count + (filled[index] === template.cells[index] ? 1 : 0), 0);
     return { id: row.id, title: row.title, total: indices.length, done, percent: indices.length ? Math.round((done / indices.length) * 100) : 100, indices };
   });
@@ -215,29 +229,80 @@ router.get('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
 router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   const template = parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=? AND status=\'active\'', [req.params.id]));
   if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
-  const existing = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
-  const clientRevision = Number(req.body.revision);
-  if (existing && Number.isInteger(clientRevision) && clientRevision < Number(existing.revision)) {
-    return res.status(409).json({ error: 'Прогресс уже обновлён на другом устройстве', progress: progressPayload(template, existing) });
-  }
+
   const filled = req.body.filled;
   const validationError = validateMap(template, filled);
   if (validationError) return res.status(400).json({ error: validationError });
   if (!validateResultDataUrl(req.body.resultDataUrl)) return res.status(400).json({ error: 'Некорректное изображение результата' });
 
+  const clientRevision = Number(req.body.revision);
+  if (!Number.isInteger(clientRevision) || clientRevision < 0) {
+    return res.status(400).json({ error: 'Некорректная revision' });
+  }
+
   const now = new Date().toISOString();
   const completed = isComplete(template, filled);
-  const completedAt = completed ? (existing?.completed_at || now) : null;
-  const wasEmpty = !existing || JSON.parse(existing.filled_json).every((color) => color === -1);
-  const revision = Number(existing?.revision || 0) + 1;
-  await run(`INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?)
-    ON CONFLICT(user_id,template_id) DO UPDATE SET filled_json=excluded.filled_json, revision=excluded.revision, completed_at=excluded.completed_at, updated_at=excluded.updated_at`,
-    [req.userId, template.id, JSON.stringify(filled), revision, completedAt, existing?.created_at || now, now]);
+
+  const casResult = await withDbTransaction(async (tx) => {
+      const existing = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
+
+      if (existing) {
+        const serverRevision = Number(existing.revision);
+        if (clientRevision !== serverRevision) {
+          return { conflict: true, progress: progressPayload(template, existing) };
+        }
+      } else {
+        if (clientRevision !== 0) {
+          return { conflict: true, progress: null, badRequest: true };
+        }
+      }
+
+      const nextRevision = clientRevision + 1;
+      const completedAt = completed ? (existing?.completed_at || now) : null;
+
+      if (existing) {
+        const updateResult = await tx.run(
+          'UPDATE coloring_progress SET filled_json=?, revision=?, completed_at=?, updated_at=? WHERE user_id=? AND template_id=? AND revision=?',
+          [JSON.stringify(filled), nextRevision, completedAt, now, req.userId, template.id, clientRevision],
+        );
+
+        if (updateResult.changes === 0) {
+          const serverProgress = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
+          return { conflict: true, progress: progressPayload(template, serverProgress) };
+        }
+      } else {
+        try {
+          await tx.run(
+            'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',
+            [req.userId, template.id, JSON.stringify(filled), nextRevision, completedAt, now, now],
+          );
+        } catch (e) {
+          if (isUniqueConstraintError(e, 'sqlite') || isUniqueConstraintError(e, 'postgres')) {
+            return { conflict: true, progress: null, insertConflict: true };
+          }
+          throw e;
+        }
+      }
+
+      const wasEmpty = !existing || parseJsonArray(existing.filled_json)?.every((color) => color === -1);
+      return { conflict: false, revision: nextRevision, completed, wasEmpty };
+    });
+
+  if (casResult.conflict) {
+    if (casResult.badRequest) {
+      return res.status(400).json({ error: 'Прогресс не найден, начните с revision 0' });
+    }
+    let progress = casResult.progress;
+    if (!progress) {
+      const serverProgress = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
+      progress = serverProgress ? progressPayload(template, serverProgress) : null;
+    }
+    return res.status(409).json({ error: 'Прогресс уже обновлён на другом устройстве', progress });
+  }
 
   await touchStreak(req.userId);
-  if (wasEmpty && filled.some((color) => color !== -1)) await unlockAchievement(req.userId, 'ach_first_pixel');
-  if (completed) {
+  if (casResult.wasEmpty && filled.some((color) => color !== -1)) await unlockAchievement(req.userId, 'ach_first_pixel');
+  if (casResult.completed) {
     await unlockAchievement(req.userId, 'ach_first_zone');
     const finished = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.source_type='catalog'", [req.userId]);
     if ((finished[0]?.c || 0) >= 5) await unlockAchievement(req.userId, 'ach_complete_5');
@@ -256,7 +321,7 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   }
 
   let artworkId = null;
-  if (completed) {
+  if (casResult.completed) {
     const artwork = await get("SELECT id FROM artworks WHERE owner_id=? AND source_type='coloring' AND collection_id=?", [req.userId, template.id]);
     artworkId = artwork?.id || `art_${uuid()}`;
     if (!artwork) {
@@ -266,6 +331,7 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
       await run('UPDATE artworks SET image_url=?, title=?, updated_at=? WHERE id=?', [req.body.resultDataUrl, template.title, now, artworkId]);
     }
   }
+
   const saved = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
   res.json({ ...progressPayload(template, saved), artwork_id: artworkId });
 }));

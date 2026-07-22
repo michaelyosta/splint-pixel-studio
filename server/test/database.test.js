@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import initSqlJs from 'sql.js';
 import { runMigrations } from '../database/migrations.js';
 import { withTransaction, NestedTransactionError, TransactionClosedError } from '../database/transaction.js';
+import { scheduleSqliteOperation, isSqliteLocked } from '../database/sqlite-scheduler.js';
+import { runInTransactionContext, getTransactionContext } from '../database/runtime-context.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverDir = join(__dirname, '..');
@@ -582,4 +584,484 @@ test('Valid values are accepted', async (t) => {
   stmt.step();
   assert.equal(stmt.getAsObject().stars_balance, 50);
   stmt.free();
+});
+
+// ── Concurrency tests (Test A-G) ────────────────────────────────────
+
+test('Test A: external write waits for commit', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_a (id INTEGER PRIMARY KEY, value TEXT);');
+
+  let persistCount = 0;
+  const persistFn = () => { persistCount++; };
+
+  let barrierResolve;
+  const barrier = new Promise((resolve) => { barrierResolve = resolve; });
+
+  let externalRunDone = false;
+  let txDone = false;
+
+  const txPromise = withTransaction({ mode: 'sqlite', sqlite: db, persistFn }, async (tx) => {
+    await tx.run('INSERT INTO test_a (id, value) VALUES (?, ?)', [1, 'tx-one']);
+    await barrier;
+    await tx.run('INSERT INTO test_a (id, value) VALUES (?, ?)', [2, 'tx-two']);
+    txDone = true;
+  });
+
+  await new Promise((r) => setTimeout(r, 30));
+
+  const externalPromise = scheduleSqliteOperation(db, () => {
+    assert.ok(txDone, 'External write should execute after tx commit');
+    db.run('INSERT INTO test_a (id, value) VALUES (?, ?)', [3, 'external']);
+    externalRunDone = true;
+  });
+
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(!externalRunDone, 'External write should NOT have executed yet');
+
+  barrierResolve();
+  await txPromise;
+  await externalPromise;
+
+  assert.ok(externalRunDone, 'External write executed after commit');
+
+  const stmt = db.prepare('SELECT COUNT(*) as cnt FROM test_a');
+  stmt.step();
+  const cnt = stmt.getAsObject().cnt;
+  stmt.free();
+  assert.equal(cnt, 3, 'All three inserts committed');
+  assert.equal(persistCount, 1, 'Only one persist after commit');
+});
+
+test('Test B: external write survives rollback', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_b (id INTEGER PRIMARY KEY, value TEXT);');
+
+  let persistCount = 0;
+  const persistFn = () => { persistCount++; };
+
+  let externalRunDone = false;
+
+  try {
+    await withTransaction({ mode: 'sqlite', sqlite: db, persistFn }, async (tx) => {
+      await tx.run('INSERT INTO test_b (id, value) VALUES (?, ?)', [1, 'rollback-me']);
+      throw new Error('Intentional rollback for test B');
+    });
+  } catch (e) {
+    assert.equal(e.message, 'Intentional rollback for test B');
+  }
+
+  await scheduleSqliteOperation(db, () => {
+    db.run('INSERT INTO test_b (id, value) VALUES (?, ?)', [2, 'survivor']);
+    persistFn();
+    externalRunDone = true;
+  });
+
+  assert.ok(externalRunDone, 'External write executed after rollback');
+
+  const stmt = db.prepare('SELECT value FROM test_b ORDER BY id');
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject().value);
+  stmt.free();
+  assert.deepStrictEqual(rows, ['survivor'], 'Rollback insert gone, external insert remains');
+});
+
+test('Test C: external read does not see dirty data', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_c (id INTEGER PRIMARY KEY, value TEXT);');
+
+  let barrierResolve;
+  const barrier = new Promise((resolve) => { barrierResolve = resolve; });
+
+  let externalReadDone = false;
+  let externalRow = null;
+
+  const txPromise = withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
+    await tx.run('INSERT INTO test_c (id, value) VALUES (?, ?)', [1, 'dirty']);
+    await barrier;
+    await tx.run('INSERT INTO test_c (id, value) VALUES (?, ?)', [2, 'clean']);
+  });
+
+  await new Promise((r) => setTimeout(r, 30));
+
+  const externalPromise = scheduleSqliteOperation(db, () => {
+    const stmt = db.prepare('SELECT * FROM test_c WHERE id=?');
+    stmt.bind([1]);
+    if (stmt.step()) externalRow = stmt.getAsObject();
+    stmt.free();
+    externalReadDone = true;
+  });
+
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(!externalReadDone, 'External read should wait for transaction');
+
+  barrierResolve();
+  await txPromise;
+  await externalPromise;
+
+  assert.ok(externalReadDone, 'External read executed');
+  assert.ok(externalRow, 'External read saw committed row 1');
+  assert.equal(externalRow.value, 'dirty');
+});
+
+test('Test C-rollback: external read after rollback does not see uncommitted', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_c2 (id INTEGER PRIMARY KEY, value TEXT);');
+
+  try {
+    await withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
+      await tx.run('INSERT INTO test_c2 (id, value) VALUES (?, ?)', [1, 'gone']);
+      throw new Error('Rollback');
+    });
+  } catch { /* expected */ }
+
+  const stmt = db.prepare('SELECT COUNT(*) as cnt FROM test_c2');
+  stmt.step();
+  const cnt = stmt.getAsObject().cnt;
+  stmt.free();
+  assert.equal(cnt, 0, 'Rollback discarded insert');
+});
+
+test('Test D: global helper inside transaction uses tx', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_d (id INTEGER PRIMARY KEY, value TEXT);');
+
+  let persistCount = 0;
+  const persistFn = () => { persistCount++; };
+
+  let contextInsideHelper = null;
+
+  async function helperInsert(id, value) {
+    contextInsideHelper = getTransactionContext();
+    const { run } = await import('../db.js');
+    await run('INSERT INTO test_d (id, value) VALUES (?, ?)', [id, value]);
+  }
+
+  try {
+    await withTransaction({ mode: 'sqlite', sqlite: db, persistFn }, async (tx) => {
+      await helperInsert(1, 'via-helper');
+      throw new Error('Rollback to verify helper rolled back');
+    });
+  } catch { /* expected */ }
+
+  assert.ok(contextInsideHelper, 'Helper saw transaction context');
+  assert.equal(contextInsideHelper.mode, 'sqlite');
+
+  const stmt = db.prepare('SELECT COUNT(*) as cnt FROM test_d');
+  stmt.step();
+  const cnt = stmt.getAsObject().cnt;
+  stmt.free();
+  assert.equal(cnt, 0, 'Helper insert rolled back with transaction');
+  assert.equal(persistCount, 0, 'No intermediate persist inside transaction');
+});
+
+test('Test D-commit: global helper inside transaction survives commit', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_d2 (id INTEGER PRIMARY KEY, value TEXT);');
+
+  let persistCount = 0;
+  const persistFn = () => { persistCount++; };
+
+  async function helperInsertCommit(id, value) {
+    const { run } = await import('../db.js');
+    const result = await run('INSERT INTO test_d2 (id, value) VALUES (?, ?)', [id, value]);
+    assert.ok(result && typeof result.changes === 'number', 'run() returns changes');
+    return result;
+  }
+
+  await withTransaction({ mode: 'sqlite', sqlite: db, persistFn }, async (tx) => {
+    await helperInsertCommit(1, 'committed');
+  });
+
+  assert.equal(persistCount, 1, 'Persist exactly once after commit');
+
+  const stmt = db.prepare('SELECT COUNT(*) as cnt FROM test_d2');
+  stmt.step();
+  const cnt = stmt.getAsObject().cnt;
+  stmt.free();
+  assert.equal(cnt, 1, 'Helper insert committed');
+});
+
+test('Test E: independent SQLite instances do not block each other', async (t) => {
+  const SQL = await initSqlJs();
+  const dbA = new SQL.Database();
+  dbA.run('PRAGMA foreign_keys = ON;');
+  dbA.run('CREATE TABLE test_e_a (id INTEGER PRIMARY KEY, value TEXT);');
+
+  const dbB = new SQL.Database();
+  dbB.run('PRAGMA foreign_keys = ON;');
+  dbB.run('CREATE TABLE test_e_b (id INTEGER PRIMARY KEY, value TEXT);');
+
+  let barrierResolve;
+  const barrier = new Promise((resolve) => { barrierResolve = resolve; });
+
+  let txADone = false;
+  let txBDone = false;
+
+  const txA = withTransaction({ mode: 'sqlite', sqlite: dbA }, async (tx) => {
+    await tx.run('INSERT INTO test_e_a (id, value) VALUES (?, ?)', [1, 'a']);
+    await barrier;
+    txADone = true;
+  });
+
+  const txB = withTransaction({ mode: 'sqlite', sqlite: dbB }, async (tx) => {
+    assert.ok(!txADone || txADone, 'DB B should not wait for DB A lock');
+    await tx.run('INSERT INTO test_e_b (id, value) VALUES (?, ?)', [1, 'b']);
+    txBDone = true;
+  });
+
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(txBDone, 'DB B completed without waiting for DB A');
+
+  barrierResolve();
+  await txA;
+  assert.ok(txADone, 'DB A completed');
+
+  const stmtA = dbA.prepare('SELECT COUNT(*) as cnt FROM test_e_a');
+  stmtA.step();
+  assert.equal(stmtA.getAsObject().cnt, 1);
+  stmtA.free();
+
+  const stmtB = dbB.prepare('SELECT COUNT(*) as cnt FROM test_e_b');
+  stmtB.step();
+  assert.equal(stmtB.getAsObject().cnt, 1);
+  stmtB.free();
+});
+
+test('Test F: queue recovers after error', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_f (id INTEGER PRIMARY KEY, value TEXT);');
+
+  let secondOpDone = false;
+
+  const firstPromise = scheduleSqliteOperation(db, () => {
+    throw new Error('First op fails');
+  });
+
+  await firstPromise.catch(() => {});
+
+  await scheduleSqliteOperation(db, () => {
+    db.run('INSERT INTO test_f (id, value) VALUES (?, ?)', [1, 'second']);
+    secondOpDone = true;
+  });
+
+  assert.ok(secondOpDone, 'Second operation executed after first error');
+
+  const stmt = db.prepare('SELECT COUNT(*) as cnt FROM test_f');
+  stmt.step();
+  assert.equal(stmt.getAsObject().cnt, 1);
+  stmt.free();
+});
+
+test('Test G: nested transaction is rejected via context', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+
+  let errorCaught = false;
+  try {
+    await withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
+      await withTransaction({ mode: 'sqlite', sqlite: db }, async (tx2) => {
+      });
+    });
+  } catch (e) {
+    assert.ok(e instanceof NestedTransactionError, 'Should throw NestedTransactionError');
+    errorCaught = true;
+  }
+  assert.ok(errorCaught, 'Nested transaction error was caught');
+});
+
+test('Test G-parallel: independent concurrent transaction waits in queue, not nested', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_g2 (id INTEGER PRIMARY KEY, value TEXT);');
+
+  let barrierResolve;
+  const barrier = new Promise((resolve) => { barrierResolve = resolve; });
+
+  let tx1Done = false;
+  let tx2Done = false;
+
+  const tx1 = withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
+    await tx.run('INSERT INTO test_g2 (id, value) VALUES (?, ?)', [1, 'first']);
+    await barrier;
+    tx1Done = true;
+  });
+
+  const tx2 = withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
+    assert.ok(tx1Done, 'tx2 started only after tx1 completed');
+    await tx.run('INSERT INTO test_g2 (id, value) VALUES (?, ?)', [2, 'second']);
+    tx2Done = true;
+  });
+
+  await new Promise((r) => setTimeout(r, 30));
+  assert.ok(!tx2Done, 'tx2 should not have started yet');
+
+  barrierResolve();
+  await Promise.all([tx1, tx2]);
+
+  assert.ok(tx1Done);
+  assert.ok(tx2Done);
+
+  const stmt = db.prepare('SELECT COUNT(*) as cnt FROM test_g2');
+  stmt.step();
+  assert.equal(stmt.getAsObject().cnt, 2, 'Both transactions committed');
+  stmt.free();
+});
+
+// ── Runtime context unit tests ──────────────────────────────────────
+
+test('AsyncLocalStorage context exists inside callback', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+
+  let contextSeen = null;
+
+  await withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
+    contextSeen = getTransactionContext();
+  });
+
+  assert.ok(contextSeen, 'Context exists inside callback');
+  assert.equal(contextSeen.mode, 'sqlite');
+  assert.ok(contextSeen.tx, 'Context has tx adapter');
+});
+
+test('AsyncLocalStorage context absent after callback', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+
+  await withTransaction({ mode: 'sqlite', sqlite: db }, async () => {});
+
+  const ctx = getTransactionContext();
+  assert.equal(ctx, null, 'Context absent after callback');
+});
+
+test('AsyncLocalStorage context absent after throw', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+
+  try {
+    await withTransaction({ mode: 'sqlite', sqlite: db }, async () => {
+      throw new Error('Test throw');
+    });
+  } catch { /* expected */ }
+
+  const ctx = getTransactionContext();
+  assert.equal(ctx, null, 'Context absent after throw');
+});
+
+test('AsyncLocalStorage context does not leak to independent operation', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+
+  let externalCtx = null;
+
+  const txPromise = withTransaction({ mode: 'sqlite', sqlite: db }, async () => {
+    externalCtx = getTransactionContext();
+  });
+
+  await txPromise;
+
+  const currentCtx = getTransactionContext();
+  assert.equal(currentCtx, null, 'No context after transaction');
+  assert.ok(externalCtx, 'Context was captured inside');
+});
+
+// ── run() changes tests ─────────────────────────────────────────────
+
+test('SQLite transaction run() returns changes', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_changes (id INTEGER PRIMARY KEY, value TEXT);');
+
+  await withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
+    const r = await tx.run('INSERT INTO test_changes (id, value) VALUES (?, ?)', [1, 'one']);
+    assert.equal(r.changes, 1, 'changes should be 1 for single insert');
+  });
+});
+
+test('SQLite global run() returns changes', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+
+  await scheduleSqliteOperation(db, () => {
+    db.run('CREATE TABLE test_global_changes (id INTEGER PRIMARY KEY, value TEXT)');
+    db.run('INSERT INTO test_global_changes (id, value) VALUES (?, ?)', [1, 'one']);
+    const changes = db.getRowsModified();
+    assert.equal(changes, 1, 'getRowsModified returns 1');
+  });
+});
+
+// ── Placeholder conversion tests ────────────────────────────────────
+
+test('? placeholders convert to $1, $2 for PostgreSQL', async (t) => {
+  if (!process.env.DATABASE_URL) {
+    t.skip('No DATABASE_URL');
+    return;
+  }
+
+  const pool = new (await import('pg')).default.Pool({ connectionString: process.env.DATABASE_URL });
+  const tableName = `test_placeholders_${Date.now()}`;
+
+  t.after(async () => {
+    await pool.query(`DROP TABLE IF EXISTS ${tableName}`);
+    await pool.end();
+  });
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, value TEXT)`);
+
+  const { withTransaction } = await import('../database/transaction.js');
+  await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+    const r = await tx.run(`INSERT INTO ${tableName} (value) VALUES (?)`, ['test']);
+    assert.ok(typeof r.changes === 'number', 'run returns changes');
+  });
+
+  const result = await pool.query(`SELECT * FROM ${tableName}`);
+  assert.equal(result.rows.length, 1);
+});
+
+test('Native $1 placeholders are not corrupted by converter', async (t) => {
+  if (!process.env.DATABASE_URL) {
+    t.skip('No DATABASE_URL');
+    return;
+  }
+
+  const pool = new (await import('pg')).default.Pool({ connectionString: process.env.DATABASE_URL });
+  const tableName = `test_native_ph_${Date.now()}`;
+
+  t.after(async () => {
+    await pool.query(`DROP TABLE IF EXISTS ${tableName}`);
+    await pool.end();
+  });
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, value TEXT, num INTEGER)`);
+
+  const { withTransaction } = await import('../database/transaction.js');
+  await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+    await tx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['native']);
+  });
+
+  const result = await pool.query(`SELECT value FROM ${tableName}`);
+  assert.equal(result.rows[0].value, 'native');
 });

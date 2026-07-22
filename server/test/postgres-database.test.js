@@ -2,8 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import express from 'express';
 
 const databaseUrl = process.env.DATABASE_URL;
+
+if (databaseUrl) {
+  process.env.ALLOW_DEV_AUTH = 'true';
+  if (process.env.NODE_ENV === 'production') {
+    delete process.env.NODE_ENV;
+  }
+}
 
 if (!databaseUrl) {
   test('PostgreSQL tests skipped (no DATABASE_URL)', { skip: true }, () => {});
@@ -16,7 +24,7 @@ async function getPool() {
   return new pgModule.Pool({ connectionString: databaseUrl });
 }
 
-// ── PostgreSQL tests ────────────────────────────────────────────────
+// ── Low-level transaction tests (use withTransaction, not withDbTransaction) ───
 
 test('PostgreSQL withTransaction commit saves all operations', { skip: !databaseUrl }, async (t) => {
   const { withTransaction } = await import('../database/transaction.js');
@@ -205,7 +213,6 @@ test('PostgreSQL financial constraints reject negative values', { skip: !databas
 // ── Migration runner tests for PostgreSQL ───────────────────────────
 
 async function dropAllTables(pool) {
-  // Must use CASCADE because of foreign-key dependencies
   await pool.query(`
     DROP TABLE IF EXISTS
       analytics_events,
@@ -237,7 +244,6 @@ test('PostgreSQL runMigrations is idempotent', { skip: !databaseUrl }, async (t)
     try { await dropAllTables(pool); } finally { await pool.end(); }
   });
 
-  // Clean up any pre-existing tables from migrate:postgres step
   await dropAllTables(pool);
 
   const result1 = await runMigrations({
@@ -268,7 +274,6 @@ test('PostgreSQL schema_migrations contains correct versions and checksums', { s
     try { await dropAllTables(pool); } finally { await pool.end(); }
   });
 
-  // Clean up any pre-existing tables from migrate:postgres step
   await dropAllTables(pool);
 
   await runMigrations({
@@ -302,21 +307,18 @@ test('PostgreSQL withTransaction uses dedicated client', { skip: !databaseUrl },
 
   await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, value TEXT)`);
 
-  // Verify that tx operations use a client obtained from pool.connect(),
-  // not the global pool.query. We do this by checking that a ROLLBACK
-  // inside the transaction properly discards the insert.
-
   try {
     await withTransaction({ mode: 'postgres', pool }, async (tx) => {
       await tx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['tx-scope']);
       throw new Error('Rollback to verify client isolation');
     });
-  } catch { /* expected */ }
+  } catch (e) {
+    assert.equal(e.message, 'Rollback to verify client isolation');
+  }
 
   const result = await pool.query(`SELECT COUNT(*) as cnt FROM ${tableName}`);
-  assert.equal(parseInt(result.rows[0].cnt, 10), 0, 'Dedicated client: insert rolled back, proving client isolation');
+  assert.equal(parseInt(result.rows[0].cnt, 10), 0, 'Dedicated client: insert rolled back');
 
-  // Now verify commit path also works with dedicated client
   await withTransaction({ mode: 'postgres', pool }, async (tx) => {
     await tx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['committed']);
   });
@@ -325,10 +327,12 @@ test('PostgreSQL withTransaction uses dedicated client', { skip: !databaseUrl },
   assert.equal(parseInt(after.rows[0].cnt, 10), 1, 'Dedicated client: commit works');
 });
 
-test('PostgreSQL nested transaction uses savepoints', { skip: !databaseUrl }, async (t) => {
-  const { withTransaction } = await import('../database/transaction.js');
+// ── Nested transaction test (must be rejected, not savepoints) ───────
+
+test('PostgreSQL nested transaction is rejected with NestedTransactionError', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction, NestedTransactionError } = await import('../database/transaction.js');
   const pool = await getPool();
-  const tableName = `test_savepoint_${Date.now()}`;
+  const tableName = `test_nested_${Date.now()}`;
 
   t.after(async () => {
     await pool.query(`DROP TABLE IF EXISTS ${tableName}`);
@@ -337,41 +341,696 @@ test('PostgreSQL nested transaction uses savepoints', { skip: !databaseUrl }, as
 
   await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, value TEXT)`);
 
-  // PostgreSQL adapter must support nested transactions via savepoints.
-  // If it rejects with NestedTransactionError, document that behaviour.
+  await assert.rejects(
+    () => withTransaction({ mode: 'postgres', pool }, async () => {
+      await withTransaction({ mode: 'postgres', pool }, async () => {
+      });
+    }),
+    NestedTransactionError,
+    'Nested PostgreSQL transactions must throw NestedTransactionError',
+  );
+
+  const result = await pool.query(`SELECT COUNT(*) as cnt FROM ${tableName}`);
+  assert.equal(parseInt(result.rows[0].cnt, 10), 0, 'Outer transaction fully rolled back');
+});
+
+// ── SQL utilities tests ──────────────────────────────────────────────
+
+test('POSTGRES: toPostgres preserves ? in string literals', async () => {
+  const { toPostgres } = await import('../database/sql.js');
+
+  assert.equal(
+    toPostgres("SELECT * FROM x WHERE a=? AND b=?"),
+    "SELECT * FROM x WHERE a=$1 AND b=$2",
+    'Basic placeholder conversion',
+  );
+
+  assert.equal(
+    toPostgres("SELECT * FROM x WHERE id=$1"),
+    "SELECT * FROM x WHERE id=$1",
+    'Native $1 preserved',
+  );
+
+  assert.equal(
+    toPostgres("SELECT '$1', value FROM x WHERE id=?"),
+    "SELECT '$1', value FROM x WHERE id=$1",
+    'Literal $1 in string preserved, placeholder converted',
+  );
+
+  assert.equal(
+    toPostgres("SELECT '?' AS literal, value FROM x WHERE id=?"),
+    "SELECT '?' AS literal, value FROM x WHERE id=$1",
+    '? in string literal preserved',
+  );
+
+  assert.equal(
+    toPostgres("SELECT 'it''s ?' AS literal, value FROM x WHERE id=?"),
+    "SELECT 'it''s ?' AS literal, value FROM x WHERE id=$1",
+    '? with escaped quote preserved',
+  );
+});
+
+test('POSTGRES: toPostgres converts MAX to GREATEST', async () => {
+  const { toPostgres } = await import('../database/sql.js');
+
+  assert.equal(
+    toPostgres("UPDATE t SET x=MAX(0, column)"),
+    "UPDATE t SET x=GREATEST(0, column)",
+    'MAX converted to GREATEST',
+  );
+});
+
+test('POSTGRES: isUniqueConstraintError detects postgres unique violation', async () => {
+  const { isUniqueConstraintError } = await import('../database/sql.js');
+
+  assert.equal(isUniqueConstraintError({ code: '23505' }, 'postgres'), true, 'Code 23505 is unique violation');
+  assert.equal(isUniqueConstraintError({ code: '23502' }, 'postgres'), false, 'Code 23502 is not');
+  assert.equal(isUniqueConstraintError(null, 'postgres'), false, 'null is not');
+  assert.equal(isUniqueConstraintError(undefined, 'postgres'), false, 'undefined is not');
+});
+
+test('POSTGRES: isUniqueConstraintError detects sqlite unique violation', async () => {
+  const { isUniqueConstraintError } = await import('../database/sql.js');
+
+  assert.equal(isUniqueConstraintError(new Error('UNIQUE constraint failed: users.email'), 'sqlite'), true);
+  assert.equal(isUniqueConstraintError(new Error('NOT NULL constraint'), 'sqlite'), false);
+  assert.equal(isUniqueConstraintError(null, 'sqlite'), false);
+});
+
+// ── CAS low-level tests (use withTransaction, not withDbTransaction) ─
+
+async function setupTestData(pool, userId, templateId) {
+  const { runMigrations } = await import('../database/migrations.js');
+  await runMigrations({
+    mode: 'postgres',
+    pool,
+    sqlite: null,
+    persistFn: null,
+    migrationsDir: join(serverDir, 'migrations'),
+  });
+
+  await pool.query("INSERT INTO users (id,nickname,role,created_at,updated_at) VALUES ($1,'test','user',NOW(),NOW()) ON CONFLICT DO NOTHING", [userId]);
+  await pool.query(
+    "INSERT INTO coloring_templates (id,title,width,height,palette_json,cells_json,created_at,updated_at) VALUES ($1,'test',8,8,$2,$3,NOW(),NOW()) ON CONFLICT DO NOTHING",
+    [templateId, JSON.stringify(['#000000', '#ffffff']), JSON.stringify(new Array(64).fill(0))]
+  );
+}
+
+test('POSTGRES: old revision fails CAS with changes=0, not throw', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction } = await import('../database/transaction.js');
+  const pool = await getPool();
+  const userId = `pg_oldrev_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await setupTestData(pool, userId, templateId);
+
+  await pool.query(
+    'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
+    [userId, templateId, JSON.stringify(new Array(64).fill(0)), 2]
+  );
+
+  const changes = await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+    const r = await tx.run(
+      'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
+      [JSON.stringify(new Array(64).fill(1)), 3, userId, templateId, 1]
+    );
+    return r.changes;
+  });
+
+  assert.equal(changes, 0, 'CAS returns changes=0 for old revision');
+
+  const row = await pool.query('SELECT revision FROM coloring_progress WHERE user_id=$1 AND template_id=$2', [userId, templateId]);
+  assert.equal(parseInt(row.rows[0].revision, 10), 2, 'Revision unchanged');
+});
+
+test('POSTGRES: future revision fails CAS with changes=0', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction } = await import('../database/transaction.js');
+  const pool = await getPool();
+  const userId = `pg_futrev_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await setupTestData(pool, userId, templateId);
+
+  await pool.query(
+    'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
+    [userId, templateId, JSON.stringify(new Array(64).fill(0)), 1]
+  );
+
+  const changes = await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+    const r = await tx.run(
+      'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
+      [JSON.stringify(new Array(64).fill(1)), 2, userId, templateId, 3]
+    );
+    return r.changes;
+  });
+
+  assert.equal(changes, 0, 'CAS returns changes=0 for future revision');
+
+  const row = await pool.query('SELECT revision FROM coloring_progress WHERE user_id=$1 AND template_id=$2', [userId, templateId]);
+  assert.equal(parseInt(row.rows[0].revision, 10), 1, 'Revision unchanged');
+});
+
+test('POSTGRES: two concurrent PUTs with same revision — one success, one changes=0', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction } = await import('../database/transaction.js');
+  const pool = await getPool();
+  const userId = `pg_concur_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await setupTestData(pool, userId, templateId);
+
+  await pool.query(
+    'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
+    [userId, templateId, JSON.stringify(new Array(64).fill(0)), 1]
+  );
+
+  const results = await Promise.allSettled([
+    withTransaction({ mode: 'postgres', pool }, async (tx) => {
+      const r = await tx.run(
+        'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
+        [JSON.stringify(new Array(64).fill(1)), 2, userId, templateId, 1]
+      );
+      return { changes: r.changes };
+    }),
+    withTransaction({ mode: 'postgres', pool }, async (tx) => {
+      const r = await tx.run(
+        'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
+        [JSON.stringify(new Array(64).fill(2)), 2, userId, templateId, 1]
+      );
+      return { changes: r.changes };
+    }),
+  ]);
+
+  assert.equal(results.length, 2, 'Both promises settled');
+  assert.ok(results.every((r) => r.status === 'fulfilled'), 'Both operations completed without error');
+
+  const successCount = results.filter((r) => r.value.changes === 1).length;
+  const conflictCount = results.filter((r) => r.value.changes === 0).length;
+
+  assert.equal(successCount, 1, 'Exactly one request returns changes=1');
+  assert.equal(conflictCount, 1, 'Exactly one request returns changes=0');
+  assert.equal(successCount + conflictCount, 2, 'All results are either success or conflict');
+
+  const row = await pool.query('SELECT revision FROM coloring_progress WHERE user_id=$1 AND template_id=$2', [userId, templateId]);
+  assert.equal(parseInt(row.rows[0].revision, 10), 2, 'Revision incremented exactly once');
+});
+
+test('POSTGRES: two concurrent initial inserts — one success, one unique violation', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction } = await import('../database/transaction.js');
+  const { isUniqueConstraintError } = await import('../database/sql.js');
+  const pool = await getPool();
+  const userId = `pg_ins2_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await setupTestData(pool, userId, templateId);
+
+  const results = await Promise.allSettled([
+    withTransaction({ mode: 'postgres', pool }, async (tx) => {
+      await tx.run(
+        'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,$5,NOW(),NOW())',
+        [userId, templateId, JSON.stringify(new Array(64).fill(0)), 1, null]
+      );
+    }),
+    withTransaction({ mode: 'postgres', pool }, async (tx) => {
+      await tx.run(
+        'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,$5,NOW(),NOW())',
+        [userId, templateId, JSON.stringify(new Array(64).fill(0)), 1, null]
+      );
+    }),
+  ]);
+
+  const fulfilled = results.filter((r) => r.status === 'fulfilled');
+  const rejected = results.filter((r) => r.status === 'rejected');
+
+  assert.equal(fulfilled.length, 1, 'Exactly one insert succeeds');
+  assert.equal(rejected.length, 1, 'One insert rejected');
+
+  const rejection = rejected[0].reason;
+  assert.ok(isUniqueConstraintError(rejection, 'postgres'), `Expected unique violation, got: ${rejection.message || rejection.code || rejection}`);
+
+  const row = await pool.query('SELECT COUNT(*) as cnt FROM coloring_progress WHERE user_id=$1 AND template_id=$2', [userId, templateId]);
+  assert.equal(parseInt(row.rows[0].cnt, 10), 1, 'Only one row in database');
+});
+
+test('POSTGRES: pool works after CAS conflict', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction } = await import('../database/transaction.js');
+  const pool = await getPool();
+  const userId = `pg_afterconf_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  t.after(async () => {
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  await setupTestData(pool, userId, templateId);
+
+  await pool.query(
+    'INSERT INTO coloring_progress (user_id,template_id,filled_json,revision,created_at,updated_at) VALUES ($1,$2,$3::jsonb,$4,NOW(),NOW())',
+    [userId, templateId, JSON.stringify(new Array(64).fill(0)), 1]
+  );
+
+  const changes = await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+    const r = await tx.run(
+      'UPDATE coloring_progress SET filled_json=$1::jsonb, revision=$2, updated_at=NOW() WHERE user_id=$3 AND template_id=$4 AND revision=$5',
+      [JSON.stringify(new Array(64).fill(1)), 2, userId, templateId, 99]
+    );
+    return r.changes;
+  });
+
+  assert.equal(changes, 0, 'CAS conflict returns changes=0');
+
+  const result = await pool.query('SELECT 1 as alive');
+  assert.equal(result.rows[0].alive, 1, 'Pool still works after conflict');
+});
+
+test('POSTGRES: adapter closed after commit (low-level)', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction, TransactionClosedError } = await import('../database/transaction.js');
+  const pool = await getPool();
+  const tableName = `test_adapter_commit_${Date.now()}`;
+
+  t.after(async () => {
+    await pool.query(`DROP TABLE IF EXISTS ${tableName}`);
+    await pool.end();
+  });
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, value TEXT)`);
+
+  let capturedTx;
+  await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+    capturedTx = tx;
+    await tx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['test']);
+  });
+
   try {
-    await withTransaction({ mode: 'postgres', pool }, async (outer) => {
-      await outer.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['outer']);
-
-      let nestedError = false;
-      try {
-        await withTransaction({ mode: 'postgres', pool }, async (inner) => {
-          await inner.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['inner-fail']);
-          throw new Error('Inner rollback');
-        });
-      } catch (e) {
-        nestedError = true;
-        assert.equal(e.message, 'Inner rollback', 'Inner error propagated');
-      }
-      assert.ok(nestedError, 'Inner transaction error was caught');
-
-      await outer.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['outer2']);
-    });
-
-    const result = await pool.query(`SELECT value FROM ${tableName} ORDER BY id`);
-    const values = result.rows.map((r) => r.value);
-    // If savepoints are supported: ['outer', 'outer2']
-    // If nested is rejected: caught by catch block below
-    assert.deepStrictEqual(values, ['outer', 'outer2'], 'Outer inserts committed, inner rolled back via savepoint');
+    await capturedTx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['bad']);
+    assert.fail('Should throw TransactionClosedError');
   } catch (e) {
-    // If NestedTransactionError is thrown, verify its type
-    const { NestedTransactionError } = await import('../database/transaction.js');
-    if (e instanceof NestedTransactionError) {
-      // Documented: PostgreSQL adapter rejects nested transactions
-      const result = await pool.query(`SELECT COUNT(*) as cnt FROM ${tableName}`);
-      assert.equal(parseInt(result.rows[0].cnt, 10), 0, 'No data when nested rejected');
-    } else {
-      throw e;
+    assert.ok(e instanceof TransactionClosedError, 'Adapter closed after commit');
+  }
+});
+
+test('POSTGRES: adapter closed after rollback (low-level)', { skip: !databaseUrl }, async (t) => {
+  const { withTransaction, TransactionClosedError } = await import('../database/transaction.js');
+  const pool = await getPool();
+  const tableName = `test_adapter_rollback_${Date.now()}`;
+
+  t.after(async () => {
+    await pool.query(`DROP TABLE IF EXISTS ${tableName}`);
+    await pool.end();
+  });
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, value TEXT)`);
+
+  let capturedTx;
+  try {
+    await withTransaction({ mode: 'postgres', pool }, async (tx) => {
+      capturedTx = tx;
+      await tx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['test']);
+      throw new Error('Rollback');
+    });
+  } catch (e) {
+    assert.equal(e.message, 'Rollback');
+  }
+
+  try {
+    await capturedTx.run(`INSERT INTO ${tableName} (value) VALUES ($1)`, ['bad']);
+    assert.fail('Should throw TransactionClosedError');
+  } catch (e) {
+    assert.ok(e instanceof TransactionClosedError, 'Closed after rollback');
+  }
+});
+
+// ── HTTP integration tests (real Express routes against PostgreSQL) ──
+
+async function createTestApp() {
+  const { initDb, getDb } = await import('../db.js');
+  await initDb();
+
+  const { default: coloringsRouter } = await import('../routes/colorings.js');
+
+  const app = express();
+  app.use(express.json());
+  app.use('/colorings', coloringsRouter);
+
+  return app;
+}
+
+async function createTestServer() {
+  const app = await createTestApp();
+  return new Promise((resolve, reject) => {
+    const server = app.listen(0, () => {
+      const { port } = server.address();
+      resolve({ server, port, url: `http://127.0.0.1:${port}` });
+    });
+    server.on('error', reject);
+  });
+}
+
+test('HTTP: initial save revision=0 returns 200 with revision=1', { skip: !databaseUrl }, async (t) => {
+  const userId = `http_init_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  const { server, url } = await createTestServer();
+
+  t.after(async () => {
+    await new Promise((r) => server.close(r));
+    const pool = await getPool();
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  const pool = await getPool();
+  await setupTestData(pool, userId, templateId);
+  await pool.end();
+
+  const res = await fetch(`${url}/colorings/${templateId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+  });
+
+  assert.equal(res.status, 200, 'Initial save returns 200');
+
+  const body = await res.json();
+  assert.equal(body.revision, 1, 'Response revision is 1');
+  assert.ok(Array.isArray(body.filled), 'filled is array');
+});
+
+test('HTTP: second save revision=1 for JSONB returns 200 with revision=2', { skip: !databaseUrl }, async (t) => {
+  const userId = `http_second_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  const { server, url } = await createTestServer();
+
+  t.after(async () => {
+    await new Promise((r) => server.close(r));
+    const pool = await getPool();
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  const pool = await getPool();
+  await setupTestData(pool, userId, templateId);
+  await pool.end();
+
+  const first = await fetch(`${url}/colorings/${templateId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+  });
+  assert.equal(first.status, 200);
+
+  const firstBody = await first.json();
+  assert.equal(firstBody.revision, 1);
+
+  const secondFilled = new Array(64).fill(1);
+  const second = await fetch(`${url}/colorings/${templateId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+    body: JSON.stringify({ filled: secondFilled, revision: 1, resultDataUrl: null }),
+  });
+
+  assert.equal(second.status, 200, 'Second save returns 200 (no 500)');
+
+  const secondBody = await second.json();
+  assert.equal(secondBody.revision, 2, 'Response revision is 2');
+
+  const filledArray = Array.isArray(secondBody.filled) ? secondBody.filled : JSON.parse(secondBody.filled);
+  assert.equal(filledArray[0], 1, 'First cell matches second request');
+});
+
+test('HTTP: old revision returns 409 with current progress', { skip: !databaseUrl }, async (t) => {
+  const userId = `http_old_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  const { server, url } = await createTestServer();
+
+  t.after(async () => {
+    await new Promise((r) => server.close(r));
+    const pool = await getPool();
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  const pool = await getPool();
+  await setupTestData(pool, userId, templateId);
+  await pool.end();
+
+  const first = await fetch(`${url}/colorings/${templateId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+  });
+  assert.equal(first.status, 200);
+  const firstBody = await first.json();
+  assert.equal(firstBody.revision, 1);
+
+  const second = await fetch(`${url}/colorings/${templateId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+    body: JSON.stringify({ filled: new Array(64).fill(1), revision: 1, resultDataUrl: null }),
+  });
+  assert.equal(second.status, 200);
+  const secondBody = await second.json();
+  assert.equal(secondBody.revision, 2);
+
+  const third = await fetch(`${url}/colorings/${templateId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+    body: JSON.stringify({ filled: new Array(64).fill(1), revision: 1, resultDataUrl: null }),
+  });
+
+  assert.equal(third.status, 409, 'Old revision returns 409');
+
+  const thirdBody = await third.json();
+  assert.ok(thirdBody.error, 'Error message present');
+  assert.ok(thirdBody.progress, 'Current progress included');
+  assert.equal(thirdBody.progress.revision, 2, 'Response has current revision=2');
+
+  const getRes = await fetch(`${url}/colorings/${templateId}/progress`, {
+    headers: { 'X-User-Id': userId },
+  });
+  const getBody = await getRes.json();
+  assert.equal(getBody.revision, 2, 'DB revision unchanged at 2');
+});
+
+test('HTTP: future revision returns 409', { skip: !databaseUrl }, async (t) => {
+  const userId = `http_fut_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  const { server, url } = await createTestServer();
+
+  t.after(async () => {
+    await new Promise((r) => server.close(r));
+    const pool = await getPool();
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  const pool = await getPool();
+  await setupTestData(pool, userId, templateId);
+  await pool.end();
+
+  const first = await fetch(`${url}/colorings/${templateId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+  });
+  assert.equal(first.status, 200);
+  assert.equal((await first.json()).revision, 1);
+
+  const second = await fetch(`${url}/colorings/${templateId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+    body: JSON.stringify({ filled: new Array(64).fill(1), revision: 5, resultDataUrl: null }),
+  });
+
+  assert.equal(second.status, 409, 'Future revision returns 409');
+
+  const getRes = await fetch(`${url}/colorings/${templateId}/progress`, {
+    headers: { 'X-User-Id': userId },
+  });
+  const getBody = await getRes.json();
+  assert.equal(getBody.revision, 1, 'DB revision unchanged');
+});
+
+test('HTTP: two concurrent PUTs with same revision — one 200, one 409', { skip: !databaseUrl }, async (t) => {
+  const userId = `http_conc_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  const { server, url } = await createTestServer();
+
+  t.after(async () => {
+    await new Promise((r) => server.close(r));
+    const pool = await getPool();
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  const pool = await getPool();
+  await setupTestData(pool, userId, templateId);
+  await pool.end();
+
+  const init = await fetch(`${url}/colorings/${templateId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+  });
+  assert.equal(init.status, 200);
+  assert.equal((await init.json()).revision, 1);
+
+  const results = await Promise.allSettled([
+    fetch(`${url}/colorings/${templateId}/progress`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+      body: JSON.stringify({ filled: new Array(64).fill(1), revision: 1, resultDataUrl: null }),
+    }),
+    fetch(`${url}/colorings/${templateId}/progress`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+      body: JSON.stringify({ filled: new Array(64).fill(0), revision: 1, resultDataUrl: null }),
+    }),
+  ]);
+
+  const statuses = results.map((r) => (r.status === 'fulfilled' ? r.value.status : -1));
+
+  const successCount = statuses.filter((s) => s === 200).length;
+  const conflictCount = statuses.filter((s) => s === 409).length;
+
+  assert.equal(successCount, 1, 'Exactly one HTTP 200');
+  assert.equal(conflictCount, 1, 'Exactly one HTTP 409');
+  assert.equal(successCount + conflictCount, 2, 'Both requests completed with expected statuses');
+
+  const getRes = await fetch(`${url}/colorings/${templateId}/progress`, {
+    headers: { 'X-User-Id': userId },
+  });
+  const getBody = await getRes.json();
+  assert.equal(getBody.revision, 2, 'Revision incremented exactly once (1 -> 2)');
+});
+
+test('HTTP: two concurrent initial PUTs with revision=0 — one 200, one 409', { skip: !databaseUrl }, async (t) => {
+  const userId = `http_cins_${Date.now()}`;
+  const templateId = `tpl_${Date.now()}`;
+
+  const { server, url } = await createTestServer();
+
+  t.after(async () => {
+    await new Promise((r) => server.close(r));
+    const pool = await getPool();
+    try {
+      await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM users WHERE id=$1', [userId]);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  const pool = await getPool();
+  await setupTestData(pool, userId, templateId);
+  await pool.end();
+
+  const results = await Promise.allSettled([
+    fetch(`${url}/colorings/${templateId}/progress`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+      body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+    }),
+    fetch(`${url}/colorings/${templateId}/progress`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
+      body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+    }),
+  ]);
+
+  const statuses = results.map((r) => (r.status === 'fulfilled' ? r.value.status : -1));
+
+  const successCount = statuses.filter((s) => s === 200).length;
+  const conflictCount = statuses.filter((s) => s === 409).length;
+
+  assert.equal(successCount, 1, 'Exactly one HTTP 200');
+  assert.equal(conflictCount, 1, 'Exactly one HTTP 409');
+
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value.status === 200) {
+      const body = await result.value.json();
+      assert.equal(body.revision, 1, 'Successful save returns revision=1');
     }
   }
+
+  const getRes = await fetch(`${url}/colorings/${templateId}/progress`, {
+    headers: { 'X-User-Id': userId },
+  });
+  const getBody = await getRes.json();
+  assert.equal(getBody.revision, 1, 'Only one row created, revision=1');
 });
