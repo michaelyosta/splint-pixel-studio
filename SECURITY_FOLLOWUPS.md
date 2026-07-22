@@ -2,7 +2,11 @@
 
 The following items are out of scope for completed PRs and should be addressed in separate follow-up tasks:
 
-1. **Stars transactions** — IN PROGRESS in PR #5 `security/stars-transactions`. Atomic balance transfers with conditional debit, append-only immutable ledger (stars_operations + stars_ledger_entries), idempotency-key contract, collection ownership tracking with legacy backfill, concurrent test coverage on SQLite. Awaiting PostgreSQL CI and HTTP integration tests.
+1. ~~**Stars transactions**~~ — DONE in PR #7.
+Atomic message payments and collection purchases use database
+transactions, idempotency keys, conditional debits, immutable
+stars_operations and stars_ledger_entries, explicit collection ownership,
+and concurrent SQLite/PostgreSQL HTTP coverage.
 2. ~~**Seed/reset of database**~~ — DONE in PR #3 `security/database-safety-foundation`. Demo seed requires explicit action, production reset is blocked.
 3. **Report abuse** — Add rate limiting and deduplication for the report endpoint.
 4. **Achievements validation** — Ensure achievements cannot be unlocked via direct API calls without actual progress.
