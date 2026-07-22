@@ -324,24 +324,39 @@ test('Changed checksum causes error', async (t) => {
   );
 });
 
-test('Legacy database (no schema_migrations) upgrades successfully', async (t) => {
+test('Legacy database (no schema_migrations) upgrades and applies 004', async (t) => {
   const SQL = await initSqlJs();
   const db = new SQL.Database();
   db.run('PRAGMA foreign_keys = ON;');
 
   db.run(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, telegram_id INTEGER, nickname TEXT, avatar_url TEXT, status TEXT DEFAULT '', karma INTEGER DEFAULT 0, stars_balance INTEGER DEFAULT 0, messages_disabled INTEGER DEFAULT 0, followers_only INTEGER DEFAULT 0, paid_open INTEGER DEFAULT 0, price_in_stars INTEGER DEFAULT 10, is_banned INTEGER DEFAULT 0, role TEXT NOT NULL DEFAULT 'user', created_at TEXT, updated_at TEXT);`);
+  db.run(`CREATE TABLE IF NOT EXISTS coloring_templates (id TEXT PRIMARY KEY, owner_id TEXT, title TEXT NOT NULL, mood TEXT NOT NULL DEFAULT 'calm', theme TEXT NOT NULL DEFAULT 'featured', source_type TEXT DEFAULT 'catalog', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);`);
+  db.run(`CREATE TABLE IF NOT EXISTS posts (id TEXT PRIMARY KEY, author_id TEXT, title TEXT, published_at TEXT, created_at TEXT, updated_at TEXT);`);
+  db.run(`CREATE TABLE IF NOT EXISTS daily_streaks (user_id TEXT PRIMARY KEY, current_streak INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT);`);
+  db.run(`CREATE TABLE IF NOT EXISTS achievements (id TEXT PRIMARY KEY, title TEXT, created_at TEXT);`);
+  db.run(`CREATE TABLE IF NOT EXISTS collections (id TEXT PRIMARY KEY, title TEXT NOT NULL, price_in_stars INTEGER DEFAULT 0);`);
+  db.run(`CREATE TABLE IF NOT EXISTS message_requests (id TEXT PRIMARY KEY, sender_id TEXT, receiver_id TEXT, price_in_stars INTEGER DEFAULT 0, text TEXT, status TEXT DEFAULT 'created', created_at TEXT, updated_at TEXT);`);
 
   const migrationsDir = join(serverDir, 'migrations', 'sqlite');
 
   const result = await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
 
-  assert.equal(result.applied, 0, 'Legacy DB should have all versions pre-registered');
+  assert.equal(result.applied, 1, 'Legacy DB: should apply migration 004');
+  assert.equal(result.skipped, 3, 'Legacy DB: should skip baseline 001-003');
 
   const stmt = db.prepare('SELECT version FROM schema_migrations ORDER BY version');
   const versions = [];
   while (stmt.step()) versions.push(stmt.getAsObject().version);
   stmt.free();
-  assert.ok(versions.includes('004'), 'Legacy DB should have all versions recorded');
+  assert.deepStrictEqual(versions, ['001', '002', '003', '004'], 'All 4 versions recorded');
+
+  assert.throws(() => {
+    db.run("INSERT INTO users (id,nickname,stars_balance,role,created_at,updated_at) VALUES ('lb1','Bad',-5,'user','2024-01-01','2024-01-01')");
+  }, /stars_balance/, 'Financial trigger active after legacy upgrade');
+
+  assert.throws(() => {
+    db.run("INSERT INTO collections (id,title,price_in_stars) VALUES ('col1','Test',-1)");
+  }, /price_in_stars/, 'Collection trigger active after legacy upgrade');
 });
 
 // ── Transaction tests ───────────────────────────────────────────────
@@ -406,7 +421,6 @@ test('SQLite nested transaction is rejected', async (t) => {
   try {
     await withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
       await withTransaction({ mode: 'sqlite', sqlite: db }, async (tx2) => {
-        // should not reach here
       });
     });
     assert.fail('Should have thrown NestedTransactionError');
@@ -415,7 +429,42 @@ test('SQLite nested transaction is rejected', async (t) => {
   }
 });
 
-test('Transaction adapter rejects usage after close', async (t) => {
+test('Parallel SQLite transactions are serialized, not rejected', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_parallel (id INTEGER PRIMARY KEY, value TEXT);');
+
+  let barrierResolve;
+  const barrier = new Promise((resolve) => { barrierResolve = resolve; });
+
+  let tx1Done = false;
+
+  const tx1 = withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
+    await tx.run('INSERT INTO test_parallel (id, value) VALUES (?, ?)', [1, 'one']);
+    await barrier;
+    await tx.run('INSERT INTO test_parallel (id, value) VALUES (?, ?)', [2, 'two']);
+    tx1Done = true;
+  });
+
+  const tx2 = withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
+    assert.ok(tx1Done, 'tx2 should only start after tx1 completes');
+    await tx.run('INSERT INTO test_parallel (id, value) VALUES (?, ?)', [3, 'three']);
+  });
+
+  await new Promise((r) => setTimeout(r, 50));
+  barrierResolve();
+
+  await Promise.all([tx1, tx2]);
+
+  const stmt = db.prepare('SELECT COUNT(*) as cnt FROM test_parallel');
+  stmt.step();
+  const cnt = stmt.getAsObject().cnt;
+  stmt.free();
+  assert.equal(cnt, 3, 'All three inserts committed');
+});
+
+test('Transaction adapter rejects usage after close (commit)', async (t) => {
   const SQL = await initSqlJs();
   const db = new SQL.Database();
   db.run('PRAGMA foreign_keys = ON;');
@@ -433,6 +482,30 @@ test('Transaction adapter rejects usage after close', async (t) => {
     assert.fail('Should throw TransactionClosedError');
   } catch (e) {
     assert.ok(e instanceof TransactionClosedError, 'Should throw TransactionClosedError');
+  }
+});
+
+test('Transaction adapter rejects usage after close (rollback)', async (t) => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+  db.run('CREATE TABLE test_tx4 (id INTEGER);');
+
+  let capturedTx;
+
+  try {
+    await withTransaction({ mode: 'sqlite', sqlite: db }, async (tx) => {
+      capturedTx = tx;
+      await tx.run('INSERT INTO test_tx4 (id) VALUES (1);');
+      throw new Error('Rollback test');
+    });
+  } catch { /* expected */ }
+
+  try {
+    await capturedTx.run('INSERT INTO test_tx4 (id) VALUES (2);');
+    assert.fail('Should throw TransactionClosedError');
+  } catch (e) {
+    assert.ok(e instanceof TransactionClosedError, 'Should throw TransactionClosedError after rollback');
   }
 });
 

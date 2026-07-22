@@ -14,21 +14,9 @@ function parseMigrationName(filename) {
 }
 
 function stripTransactionWrappers(sql) {
-  let content = sql.trim();
-  if (content.toUpperCase().startsWith('BEGIN')) {
-    const semiIndex = content.indexOf(';');
-    if (semiIndex !== -1) {
-      content = content.substring(semiIndex + 1);
-    }
-  }
-  const trimmedEnd = content.trimEnd();
-  if (trimmedEnd.toUpperCase().endsWith('COMMIT')) {
-    const lastLine = trimmedEnd.substring(trimmedEnd.lastIndexOf('\n') + 1).trim();
-    if (lastLine.toUpperCase() === 'COMMIT') {
-      content = trimmedEnd.substring(0, trimmedEnd.lastIndexOf('\n')).trimEnd();
-    }
-  }
-  return content.trim();
+  let content = sql.replace(/^\s*BEGIN\s*;\s*/i, '').trimStart();
+  content = content.replace(/\s*COMMIT\s*;?\s*$/i, '').trimEnd();
+  return content;
 }
 
 async function discoverMigrations(directory) {
@@ -117,42 +105,87 @@ async function ensureMigrationsTable(mode, pool, sqlite, persistFn) {
   if (persistFn) persistFn();
 }
 
-function isLegacySqLite(sqlite) {
+function tableExists(sqlite, tableName) {
   try {
-    const stmt = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
-    const hasUsers = stmt.step();
+    const stmt = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?");
+    stmt.bind([tableName]);
+    const exists = stmt.step();
     stmt.free();
-    if (!hasUsers) return false;
-
-    try {
-      const mgrStmt = sqlite.prepare('SELECT COUNT(*) as cnt FROM schema_migrations');
-      let count = 0;
-      if (mgrStmt.step()) {
-        count = mgrStmt.getAsObject().cnt;
-      }
-      mgrStmt.free();
-      return count === 0;
-    } catch {
-      return true;
-    }
+    return exists;
   } catch {
     return false;
   }
 }
 
-async function recordLegacyAsApplied(mode, pool, sqlite, migrations, persistFn) {
-  if (mode === 'postgres') return;
+function columnExists(sqlite, tableName, columnName) {
+  try {
+    const stmt = sqlite.prepare(`PRAGMA table_info(${tableName})`);
+    let found = false;
+    while (stmt.step()) {
+      if (stmt.getAsObject().name === columnName) {
+        found = true;
+        break;
+      }
+    }
+    stmt.free();
+    return found;
+  } catch {
+    return false;
+  }
+}
 
-  if (isLegacySqLite(sqlite)) {
-    const now = new Date().toISOString();
-    for (const migration of migrations) {
+function hasSchemaMigrations(sqlite) {
+  try {
+    const stmt = sqlite.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'");
+    const hasTable = stmt.step();
+    stmt.free();
+    if (!hasTable) return false;
+
+    const countStmt = sqlite.prepare('SELECT COUNT(*) as cnt FROM schema_migrations');
+    if (countStmt.step()) {
+      const cnt = countStmt.getAsObject().cnt;
+      countStmt.free();
+      return cnt > 0;
+    }
+    countStmt.free();
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+async function recordLegacyBaseline(sqlite, migrations, persistFn) {
+  if (!tableExists(sqlite, 'users')) return;
+  if (hasSchemaMigrations(sqlite)) return;
+
+  const now = new Date().toISOString();
+  const baselineVersions = new Set();
+
+  if (tableExists(sqlite, 'users') && tableExists(sqlite, 'coloring_templates') && tableExists(sqlite, 'posts')) {
+    baselineVersions.add('001');
+  }
+
+  if (tableExists(sqlite, 'daily_streaks') && tableExists(sqlite, 'achievements') &&
+      columnExists(sqlite, 'coloring_templates', 'mood')) {
+    baselineVersions.add('002');
+  }
+
+  if (columnExists(sqlite, 'users', 'role')) {
+    baselineVersions.add('003');
+  }
+
+  if (baselineVersions.size === 0) return;
+
+  for (const migration of migrations) {
+    if (baselineVersions.has(migration.version)) {
       sqlite.run(
         `INSERT OR IGNORE INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)`,
         [migration.version, migration.name, migration.checksum, now],
       );
     }
-    if (persistFn) persistFn();
   }
+
+  if (persistFn) persistFn();
 }
 
 function splitSqliteStatements(sql) {
@@ -196,13 +229,23 @@ function splitSqliteStatements(sql) {
 async function preValidateFinancialData(mode, pool, sqlite) {
   async function doRun(sql, params) {
     if (mode === 'postgres') {
-      return (await pool.query(sql, params)).rows[0];
+      try {
+        return (await pool.query(sql, params)).rows[0];
+      } catch (e) {
+        if (e.message && e.message.includes('does not exist')) return null;
+        throw e;
+      }
     }
-    const stmt = sqlite.prepare(sql);
-    stmt.bind(params);
-    const result = stmt.step() ? stmt.getAsObject() : null;
-    stmt.free();
-    return result;
+    try {
+      const stmt = sqlite.prepare(sql);
+      stmt.bind(params);
+      const result = stmt.step() ? stmt.getAsObject() : null;
+      stmt.free();
+      return result;
+    } catch (e) {
+      if (e.message && e.message.includes('no such table')) return { cnt: 0 };
+      throw e;
+    }
   }
 
   const badBalance = await doRun('SELECT COUNT(*) as cnt FROM users WHERE stars_balance < 0');
@@ -259,7 +302,9 @@ export async function runMigrations({
 
   await ensureMigrationsTable(mode, pool, sqlite, persistFn);
 
-  await recordLegacyAsApplied(mode, pool, sqlite, migrations, persistFn);
+  if (mode === 'sqlite') {
+    await recordLegacyBaseline(sqlite, migrations, persistFn);
+  }
 
   const appliedMap = await getAppliedMigrations(mode, pool, sqlite);
 

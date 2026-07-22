@@ -1,29 +1,42 @@
-import { initDb, runMigrations } from './database/migrations.js';
 import initSqlJs from 'sql.js';
+import { writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync, readFileSync } from 'node:fs';
+import { runMigrations } from '../database/migrations.js';
 
 const directory = dirname(fileURLToPath(import.meta.url));
+const serverRoot = join(directory, '..');
+const dbPath = process.env.SQLITE_DB_PATH || join(serverRoot, 'splint.db.bin');
 
-if (process.env.DATABASE_URL) {
-  await (await import('./scripts/migrate-postgres.js')).default;
-} else {
-  const SQL = await initSqlJs();
-  const dbPath = process.env.SQLITE_DB_PATH || join(directory, 'splint.db.bin');
-  const sqlite = existsSync(dbPath) ? new SQL.Database(readFileSync(dbPath)) : new SQL.Database();
-  sqlite.run('PRAGMA foreign_keys = ON;');
+const SQL = await initSqlJs();
+const sqlite = existsSync(dbPath)
+  ? new SQL.Database(readFileSync(dbPath))
+  : new SQL.Database();
 
-  try {
-    const result = await runMigrations({
-      mode: 'sqlite',
-      pool: null,
-      sqlite,
-      persistFn: null,
-      migrationsDir: join(directory, 'migrations', 'sqlite'),
-    });
-    console.log(`SQLite migrations: ${result.applied} applied, ${result.skipped} skipped`);
-  } finally {
-    sqlite.close();
+sqlite.run('PRAGMA foreign_keys = ON;');
+
+function persist() {
+  writeFileSync(dbPath, Buffer.from(sqlite.export()));
+}
+
+try {
+  const result = await runMigrations({
+    mode: 'sqlite',
+    pool: null,
+    sqlite,
+    persistFn: persist,
+    migrationsDir: join(serverRoot, 'migrations', 'sqlite'),
+  });
+  console.log(`SQLite migrations: ${result.applied} applied, ${result.skipped} skipped`);
+
+  if (result.applied > 0 || !existsSync(dbPath)) {
+    persist();
   }
+
+  console.log('SQLite migrations complete.');
+} catch (error) {
+  console.error('Migration failed:', error.message);
+  process.exit(1);
+} finally {
+  sqlite.close();
 }
