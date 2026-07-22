@@ -1,7 +1,7 @@
 import initSqlJs from 'sql.js';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, existsSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverDir = join(__dirname, '..', '..');
@@ -18,13 +18,11 @@ export function createTestDbPath(label) {
   const rand = Math.random().toString(36).slice(2, 8);
   const filename = `splint-test-${label}-${ts}-${rand}.db.bin`;
   const tmpdir = join(__dirname, '..', '..', '.test-tmp');
-  try { require('node:fs').mkdirSync(tmpdir, { recursive: true }); } catch {}
+  if (!existsSync(tmpdir)) mkdirSync(tmpdir, { recursive: true });
   return join(tmpdir, filename);
 }
 
 export function createFreshSqliteDb() {
-  const SQL = require('sql.js') || null;
-  // We need to use getSqlJs() instead
   throw new Error('Use createFreshSqliteDbAsync() instead');
 }
 
