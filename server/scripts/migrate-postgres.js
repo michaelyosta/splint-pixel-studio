@@ -1,22 +1,30 @@
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import pg from 'pg';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { runMigrations } from './database/migrations.js';
 
 const { Pool } = pg;
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
-  throw new Error('DATABASE_URL is required. Copy server/.env.example and start PostgreSQL with docker compose.');
+  console.error('DATABASE_URL is required for PostgreSQL migrations.');
+  process.exit(1);
 }
 
-const directory = dirname(fileURLToPath(import.meta.url));
-const migrationPath = resolve(directory, '../migrations/001_initial.sql');
-const migration = await readFile(migrationPath, 'utf8');
 const pool = new Pool({ connectionString: databaseUrl });
+const directory = dirname(fileURLToPath(import.meta.url));
 
 try {
-  await pool.query(migration);
-  console.log('PostgreSQL schema is ready.');
+  const result = await runMigrations({
+    mode: 'postgres',
+    pool,
+    sqlite: null,
+    persistFn: null,
+    migrationsDir: join(directory, 'migrations'),
+  });
+  console.log(`PostgreSQL migrations: ${result.applied} applied, ${result.skipped} skipped`);
+} catch (error) {
+  console.error('Migration failed:', error.message);
+  process.exit(1);
 } finally {
   await pool.end();
 }
