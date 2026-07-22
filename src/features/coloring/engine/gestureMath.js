@@ -16,14 +16,16 @@ export function clampZoom(zoom) {
 export function computePinchPan({ a, b, startDistance, startCentroid, startCamera, rect }) {
   const currentDistance = distance(a, b);
   const currentCentroid = centroid(a, b);
-  const ratio = currentDistance / startDistance;
+  const safeStartDistance = Math.max(startDistance, 0.001);
+  const ratio = currentDistance / safeStartDistance;
   const newZoom = clampZoom(startCamera.zoom * ratio);
   const cx = currentCentroid.x - rect.left;
   const cy = currentCentroid.y - rect.top;
   const scx = startCentroid.x - rect.left;
   const scy = startCentroid.y - rect.top;
-  const newX = cx + (startCamera.x - scx) * (newZoom / startCamera.zoom);
-  const newY = cy + (startCamera.y - scy) * (newZoom / startCamera.zoom);
+  const safeStartZoom = Math.max(startCamera.zoom, 0.01);
+  const newX = cx + (startCamera.x - scx) * (newZoom / safeStartZoom);
+  const newY = cy + (startCamera.y - scy) * (newZoom / safeStartZoom);
   return { x: newX, y: newY, zoom: newZoom };
 }
 

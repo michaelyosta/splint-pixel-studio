@@ -139,6 +139,10 @@ export default function ColoringCanvas({
       return;
     }
     const committedIndices = stroke.indices.slice();
+    if (!hasPaintedRef.current) {
+      hasPaintedRef.current = true;
+      onFirstPaint?.();
+    }
     onStrokeComplete({
       strokeId: stroke.strokeId,
       color: stroke.color,
@@ -183,10 +187,6 @@ export default function ColoringCanvas({
       }
 
       drawingRef.current = true;
-      if (!hasPaintedRef.current) {
-        hasPaintedRef.current = true;
-        if (onFirstPaint) onFirstPaint();
-      }
       const now = Date.now();
       strokeRef.current = {
         strokeId: `stroke_${now}_${Math.random().toString(36).slice(2, 6)}`,
