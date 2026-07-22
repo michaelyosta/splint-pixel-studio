@@ -841,6 +841,25 @@ test('distance computes correctly', () => {
   assert.equal(distance(a, b), 5);
 });
 
+test('zero startDistance produces finite camera values', () => {
+  const a = makePointerEvent(200, 200);
+  const b = makePointerEvent(200, 200);
+  const startCentroid = centroid(a, b);
+  const result = computePinchPan({
+    a: makePointerEvent(210, 200),
+    b: makePointerEvent(210, 200),
+    startDistance: 0,
+    startCentroid,
+    startCamera: { x: 100, y: 100, zoom: 1 },
+    rect: { left: 0, top: 0 },
+  });
+  assert.ok(Number.isFinite(result.x), 'x must be finite');
+  assert.ok(Number.isFinite(result.y), 'y must be finite');
+  assert.ok(Number.isFinite(result.zoom), 'zoom must be finite');
+  assert.ok(result.zoom >= 0.25, 'zoom must be clamped');
+  assert.ok(result.zoom <= 4, 'zoom must be clamped');
+});
+
 /* Helpers for camera tests */
 function createCameraHarness(stubPending, stubFocusOnWindow) {
   let _autoEnabled = true;
