@@ -1,5 +1,6 @@
 import { getTransactionContext, runInTransactionContext } from './runtime-context.js';
 import { scheduleSqliteOperation } from './sqlite-scheduler.js';
+import { toPostgres } from './sql.js';
 
 export class TransactionClosedError extends Error {
   constructor() {
@@ -13,13 +14,6 @@ export class NestedTransactionError extends Error {
     super('Nested transactions are not supported.');
     this.name = 'NestedTransactionError';
   }
-}
-
-function toPostgres(sql) {
-  let position = 0;
-  return sql
-    .replace(/\?/g, () => `$${++position}`)
-    .replace(/MAX\(0,\s*([^)]+)\)/gi, 'GREATEST(0, $1)');
 }
 
 function createPostgresTx(client) {

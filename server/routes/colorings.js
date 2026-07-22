@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { all, get, run, withDbTransaction } from '../db.js';
+import { isUniqueConstraintError } from '../database/sql.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
 import { deletePrivateOriginal, storePrivateOriginal } from '../services/media-storage.js';
@@ -9,7 +10,14 @@ const router = Router();
 
 function parseJsonArray(value) {
   if (Array.isArray(value)) return value;
-  if (typeof value === 'string') return JSON.parse(value);
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
   return null;
 }
 
@@ -235,10 +243,7 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   const now = new Date().toISOString();
   const completed = isComplete(template, filled);
 
-  let casResult;
-
-  try {
-    casResult = await withDbTransaction(async (tx) => {
+  const casResult = await withDbTransaction(async (tx) => {
       const existing = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
 
       if (existing) {
@@ -272,17 +277,21 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
             [req.userId, template.id, JSON.stringify(filled), nextRevision, completedAt, now, now],
           );
         } catch (e) {
-          const serverProgress = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
-          return { conflict: true, progress: serverProgress ? progressPayload(template, serverProgress) : null };
+          if (isUniqueConstraintError(e, 'sqlite')) {
+            const serverProgress = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
+            return { conflict: true, progress: serverProgress ? progressPayload(template, serverProgress) : null };
+          }
+          if (isUniqueConstraintError(e, 'postgres')) {
+            const serverProgress = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
+            return { conflict: true, progress: serverProgress ? progressPayload(template, serverProgress) : null };
+          }
+          throw e;
         }
       }
 
-      const wasEmpty = !existing || parseJsonArray(existing.filled_json).every((color) => color === -1);
+      const wasEmpty = !existing || parseJsonArray(existing.filled_json)?.every((color) => color === -1);
       return { conflict: false, revision: nextRevision, completed, wasEmpty };
     });
-  } catch (error) {
-    throw error;
-  }
 
   if (casResult.conflict) {
     if (casResult.badRequest) {
