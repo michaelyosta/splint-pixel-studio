@@ -242,7 +242,7 @@ test('Role-based authorization', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'splint-roles-'));
   const server = spawn('node', ['index.js'], {
     cwd: serverDir,
-    env: { ...process.env, NODE_ENV: 'test', PORT: String(port + 5), SQLITE_DB_PATH: join(directory, 'test.db.bin'), MEDIA_STORAGE_ROOT: join(directory, 'uploads'), ALLOW_DEV_AUTH: 'true' },
+    env: { ...process.env, NODE_ENV: 'test', PORT: String(port + 5), SQLITE_DB_PATH: join(directory, 'test.db.bin'), MEDIA_STORAGE_ROOT: join(directory, 'uploads'), ALLOW_DEV_AUTH: 'true', SEED_DEMO_DATA: 'true' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -312,7 +312,7 @@ test('Debug stars endpoint is dev-only', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'splint-stars-'));
   const server = spawn('node', ['index.js'], {
     cwd: serverDir,
-    env: { ...process.env, PORT: String(port + 6), SQLITE_DB_PATH: join(directory, 'test.db.bin'), MEDIA_STORAGE_ROOT: join(directory, 'uploads'), ALLOW_DEV_AUTH: 'true' },
+    env: { ...process.env, PORT: String(port + 6), SQLITE_DB_PATH: join(directory, 'test.db.bin'), MEDIA_STORAGE_ROOT: join(directory, 'uploads'), ALLOW_DEV_AUTH: 'true', SEED_DEMO_DATA: 'true' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

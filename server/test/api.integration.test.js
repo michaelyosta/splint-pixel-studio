@@ -27,7 +27,7 @@ test('coloring progress can become a social post', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'splint-api-'));
   const server = spawn('node', ['index.js'], {
     cwd: serverDir,
-    env: { ...process.env, PORT: String(port), SQLITE_DB_PATH: join(directory, 'test.db.bin'), MEDIA_STORAGE_ROOT: join(directory, 'uploads'), ALLOW_DEV_AUTH: 'true' },
+    env: { ...process.env, PORT: String(port), SQLITE_DB_PATH: join(directory, 'test.db.bin'), MEDIA_STORAGE_ROOT: join(directory, 'uploads'), ALLOW_DEV_AUTH: 'true', SEED_DEMO_DATA: 'true' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
