@@ -263,7 +263,7 @@ test('PostgreSQL runMigrations is idempotent', { skip: !databaseUrl }, async (t)
     migrationsDir: join(serverDir, 'migrations'),
   });
   assert.equal(result2.applied, 0, 'Second run should apply zero migrations');
-  assert.equal(result2.skipped, 4, 'Second run should skip all 4 migrations');
+  assert.equal(result2.skipped, 5, 'Second run should skip all 5 migrations');
 });
 
 test('PostgreSQL schema_migrations contains correct versions and checksums', { skip: !databaseUrl }, async (t) => {
@@ -288,8 +288,8 @@ test('PostgreSQL schema_migrations contains correct versions and checksums', { s
   const versions = result.rows.map((r) => r.version);
   const checksums = result.rows.map((r) => r.checksum);
 
-  assert.deepStrictEqual(versions, ['001', '002', '003', '004'], 'Must contain exactly 001-004');
-  assert.equal(checksums.length, 4, 'All 4 migrations have checksums');
+  assert.deepStrictEqual(versions, ['001', '002', '003', '004', '005'], 'Must contain exactly 001-005');
+  assert.equal(checksums.length, 5, 'All 5 migrations have checksums');
   for (const cs of checksums) {
     assert.ok(cs && cs.length > 0, `Checksum must be non-empty, got: ${cs}`);
   }
