@@ -10,6 +10,8 @@ const serviceDirectory = join(root, 'services');
 const serviceFiles = (await readdir(serviceDirectory)).filter((file) => file.endsWith('.js')).map((file) => join(serviceDirectory, file));
 const databaseDirectory = join(root, 'database');
 const databaseFiles = (await readdir(databaseDirectory)).filter((file) => file.endsWith('.js')).map((file) => join(databaseDirectory, file));
+const scriptsDirectory = join(root, 'scripts');
+const scriptFiles = (await readdir(scriptsDirectory)).filter((file) => file.endsWith('.js')).map((file) => join(scriptsDirectory, file));
 const files = [
   join(root, 'index.js'),
   join(root, 'db.js'),
@@ -22,6 +24,7 @@ const files = [
   ...routeFiles,
   ...serviceFiles,
   ...databaseFiles,
+  ...scriptFiles,
 ];
 
 for (const file of files) {

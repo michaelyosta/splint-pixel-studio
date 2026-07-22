@@ -12,6 +12,36 @@ export class NestedTransactionError extends Error {
   }
 }
 
+const dbStates = new Map();
+
+function getState(sqlite) {
+  let state = dbStates.get(sqlite);
+  if (!state) {
+    state = { lockQueue: [], lockActive: false, depth: 0 };
+    dbStates.set(sqlite, state);
+  }
+  return state;
+}
+
+function acquireLock(state) {
+  return new Promise((resolve) => {
+    state.lockQueue.push(resolve);
+    processNext(state);
+  });
+}
+
+function releaseLock(state) {
+  state.lockActive = false;
+  processNext(state);
+}
+
+function processNext(state) {
+  if (state.lockActive || state.lockQueue.length === 0) return;
+  state.lockActive = true;
+  const next = state.lockQueue.shift();
+  next();
+}
+
 function createPostgresTx(client) {
   let closed = false;
 
@@ -76,29 +106,6 @@ function createSqliteTx(sqlite) {
   };
 }
 
-let nestedDepth = 0;
-let lockQueue = [];
-let lockActive = false;
-
-function acquireLock() {
-  return new Promise((resolve) => {
-    lockQueue.push(resolve);
-    processNext();
-  });
-}
-
-function releaseLock() {
-  lockActive = false;
-  processNext();
-}
-
-function processNext() {
-  if (lockActive || lockQueue.length === 0) return;
-  lockActive = true;
-  const next = lockQueue.shift();
-  next();
-}
-
 export async function withTransaction(db, callback) {
   if (db.mode === 'postgres') {
     return withPostgresTransaction(db, callback);
@@ -116,42 +123,41 @@ async function withPostgresTransaction(db, callback) {
     await client.query('BEGIN');
     const result = await callback(tx);
     await client.query('COMMIT');
-    tx.markClosed();
     return result;
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch { /* ignore */ }
-    tx.markClosed();
     throw error;
   } finally {
+    tx.markClosed();
     client.release();
   }
 }
 
 async function withSqliteTransaction(db, callback) {
   const { sqlite, persistFn } = db;
+  const state = getState(sqlite);
 
-  if (nestedDepth > 0) {
+  if (state.depth > 0) {
     throw new NestedTransactionError();
   }
 
-  await acquireLock();
+  await acquireLock(state);
 
-  if (nestedDepth > 0) {
-    releaseLock();
+  if (state.depth > 0) {
+    releaseLock(state);
     throw new NestedTransactionError();
   }
 
-  nestedDepth++;
+  state.depth++;
+
+  const tx = createSqliteTx(sqlite);
 
   try {
     sqlite.run('BEGIN IMMEDIATE');
 
-    const tx = createSqliteTx(sqlite);
-
     const result = await callback(tx);
 
     sqlite.run('COMMIT');
-    tx.markClosed();
 
     if (persistFn) persistFn();
 
@@ -160,7 +166,8 @@ async function withSqliteTransaction(db, callback) {
     try { sqlite.run('ROLLBACK'); } catch { /* ignore */ }
     throw error;
   } finally {
-    nestedDepth--;
-    releaseLock();
+    tx.markClosed();
+    state.depth--;
+    releaseLock(state);
   }
 }

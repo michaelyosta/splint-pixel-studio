@@ -1,7 +1,7 @@
 import pg from 'pg';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runMigrations } from './database/migrations.js';
+import { runMigrations } from '../database/migrations.js';
 
 const { Pool } = pg;
 const databaseUrl = process.env.DATABASE_URL;
@@ -12,6 +12,7 @@ if (!databaseUrl) {
 
 const pool = new Pool({ connectionString: databaseUrl });
 const directory = dirname(fileURLToPath(import.meta.url));
+const serverRoot = join(directory, '..');
 
 try {
   const result = await runMigrations({
@@ -19,7 +20,7 @@ try {
     pool,
     sqlite: null,
     persistFn: null,
-    migrationsDir: join(directory, 'migrations'),
+    migrationsDir: join(serverRoot, 'migrations'),
   });
   console.log(`PostgreSQL migrations: ${result.applied} applied, ${result.skipped} skipped`);
 } catch (error) {

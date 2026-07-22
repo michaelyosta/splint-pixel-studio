@@ -286,38 +286,30 @@ export async function resetDemoData() {
     throw new Error('ALLOW_DESTRUCTIVE_DB_RESET must be set to "true" for PostgreSQL reset');
   }
 
-  const now = new Date().toISOString();
+  await withDbTransaction(async (tx) => {
+    await tx.run('DELETE FROM analytics_events WHERE user_id IN (?,?,?,?)', DEMO_USER_IDS);
 
-  await run('DELETE FROM analytics_events WHERE user_id IN (SELECT id FROM users WHERE id IN (?,?,?,?))',
-    DEMO_USER_IDS);
+    for (const postId of DEMO_POST_IDS) {
+      await tx.run('DELETE FROM likes WHERE post_id=?', [postId]);
+      await tx.run('DELETE FROM comments WHERE post_id=?', [postId]);
+      await tx.run("DELETE FROM reports WHERE target_type='post' AND target_id=?", [postId]);
+    }
 
-  for (const postId of DEMO_POST_IDS) {
-    await run('DELETE FROM likes WHERE post_id=?', [postId]);
-    await run('DELETE FROM comments WHERE post_id=?', [postId]);
-    await run("DELETE FROM reports WHERE target_type='post' AND target_id=?", [postId]);
-  }
+    await tx.run('DELETE FROM posts WHERE id IN (?,?,?)', DEMO_POST_IDS);
+    await tx.run('DELETE FROM artworks WHERE id IN (?,?,?)', DEMO_ARTWORK_IDS);
 
-  await run('DELETE FROM posts WHERE id IN (?,?,?)', DEMO_POST_IDS);
-  await run('DELETE FROM artworks WHERE id IN (?,?,?)', DEMO_ARTWORK_IDS);
+    await tx.run('DELETE FROM message_requests WHERE sender_id IN (?,?,?,?) OR receiver_id IN (?,?,?,?)',
+      [...DEMO_USER_IDS, ...DEMO_USER_IDS]);
 
-  for (const artId of DEMO_ARTWORK_IDS) {
-    const artwork = await get('SELECT id FROM artworks WHERE id=?', [artId]);
-    if (!artwork) continue;
-    await run('DELETE FROM posts WHERE artwork_id=?', [artId]);
-    await run('DELETE FROM artworks WHERE id=?', [artId]);
-  }
+    await tx.run('DELETE FROM follows WHERE follower_id IN (?,?,?,?) OR following_id IN (?,?,?,?)',
+      [...DEMO_USER_IDS, ...DEMO_USER_IDS]);
 
-  await run('DELETE FROM message_requests WHERE sender_id IN (?,?,?,?) OR receiver_id IN (?,?,?,?)',
-    [...DEMO_USER_IDS, ...DEMO_USER_IDS]);
-
-  await run('DELETE FROM follows WHERE follower_id IN (?,?,?,?) OR following_id IN (?,?,?,?)',
-    [...DEMO_USER_IDS, ...DEMO_USER_IDS]);
-
-  await run('DELETE FROM likes WHERE user_id IN (?,?,?,?)', DEMO_USER_IDS);
-  await run('DELETE FROM comments WHERE author_id IN (?,?,?,?)', DEMO_USER_IDS);
-  await run('DELETE FROM reports WHERE reporter_id IN (?,?,?,?)', DEMO_USER_IDS);
-  await run('DELETE FROM user_achievements WHERE user_id IN (?,?,?,?)', DEMO_USER_IDS);
-  await run('DELETE FROM coloring_progress WHERE user_id IN (?,?,?,?)', DEMO_USER_IDS);
-  await run('DELETE FROM daily_streaks WHERE user_id IN (?,?,?,?)', DEMO_USER_IDS);
-  await run('DELETE FROM users WHERE id IN (?,?,?,?)', DEMO_USER_IDS);
+    await tx.run('DELETE FROM likes WHERE user_id IN (?,?,?,?)', DEMO_USER_IDS);
+    await tx.run('DELETE FROM comments WHERE author_id IN (?,?,?,?)', DEMO_USER_IDS);
+    await tx.run('DELETE FROM reports WHERE reporter_id IN (?,?,?,?)', DEMO_USER_IDS);
+    await tx.run('DELETE FROM user_achievements WHERE user_id IN (?,?,?,?)', DEMO_USER_IDS);
+    await tx.run('DELETE FROM coloring_progress WHERE user_id IN (?,?,?,?)', DEMO_USER_IDS);
+    await tx.run('DELETE FROM daily_streaks WHERE user_id IN (?,?,?,?)', DEMO_USER_IDS);
+    await tx.run('DELETE FROM users WHERE id IN (?,?,?,?)', DEMO_USER_IDS);
+  });
 }
