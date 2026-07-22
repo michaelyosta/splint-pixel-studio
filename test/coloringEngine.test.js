@@ -860,6 +860,101 @@ test('zero startDistance produces finite camera values', () => {
   assert.ok(result.zoom <= 4, 'zoom must be clamped');
 });
 
+/* ── History contract regression ── */
+
+test('ColoringSession callback payload has changes directly', () => {
+  const operation = {
+    type: 'stroke',
+    color: 2,
+    timestamp: Date.now(),
+    changes: [
+      { index: 1, from: -1, to: 2 },
+      { index: 3, from: -1, to: 2 },
+    ],
+  };
+  assert.ok(Array.isArray(operation.changes), 'operation.changes must be an array');
+  assert.equal(operation.changes.length, 2);
+  assert.ok(!('stroke' in operation), 'operation must not contain stroke field');
+});
+
+test('stroke commit creates one history entry', () => {
+  const operation = createStrokeOperation({ color: 1, indices: [0, 1, 2] }, [-1, -1, -1, -1]);
+  assert.equal(operation.type, 'stroke');
+  assert.equal(operation.changes.length, 3);
+});
+
+test('history entry has no nested stroke field', () => {
+  const op = createHistoryOperation({
+    type: 'stroke',
+    changes: [{ index: 0, from: -1, to: 0 }],
+  });
+  const entry = op;
+  assert.ok(!('stroke' in entry), 'history entry must not have stroke field');
+  assert.ok(Array.isArray(entry.changes), 'changes must be an array');
+  assert.equal(entry.type, 'stroke');
+});
+
+test('undo after stroke does not throw', () => {
+  const filled = [1, 1, -1, -1];
+  const history = [{
+    type: 'stroke',
+    color: 1,
+    timestamp: Date.now(),
+    changes: [
+      { index: 0, from: -1, to: 1 },
+      { index: 1, from: -1, to: 1 },
+    ],
+  }];
+  const result = undoStroke(filled, history);
+  assert.equal(result.filled[0], -1);
+  assert.equal(result.filled[1], -1);
+  assert.ok(result.undone);
+});
+
+test('stroke undo redo round-trip returns exact state', () => {
+  const initial = Array(4).fill(-1);
+  const op = {
+    type: 'stroke',
+    color: 1,
+    timestamp: Date.now(),
+    changes: [
+      { index: 0, from: -1, to: 1 },
+      { index: 1, from: -1, to: 1 },
+    ],
+  };
+  const painted = applyChanges(initial, op.changes, 'to');
+  assert.equal(painted[0], 1);
+  assert.equal(painted[1], 1);
+  const undone = applyChanges(painted, op.changes, 'from');
+  assert.deepEqual(undone, initial);
+  const redone = applyChanges(undone, op.changes, 'to');
+  assert.deepEqual(redone, painted);
+});
+
+test('reveal heterogeneous stroke survives undo redo chain', () => {
+  const initial = Array(4).fill(-1);
+  const op = {
+    type: 'stroke',
+    color: -1,
+    timestamp: Date.now(),
+    changes: [
+      { index: 0, from: -1, to: 0 },
+      { index: 1, from: -1, to: 1 },
+      { index: 2, from: -1, to: 2 },
+    ],
+  };
+  const painted = applyChanges(initial, op.changes, 'to');
+  assert.equal(painted[0], 0);
+  assert.equal(painted[1], 1);
+  assert.equal(painted[2], 2);
+  const undone = applyChanges(painted, op.changes, 'from');
+  assert.ok(undone.every(f => f === -1));
+  const redone = applyChanges(undone, op.changes, 'to');
+  assert.equal(redone[0], 0);
+  assert.equal(redone[1], 1);
+  assert.equal(redone[2], 2);
+});
+
 /* Helpers for camera tests */
 function createCameraHarness(stubPending, stubFocusOnWindow) {
   let _autoEnabled = true;
