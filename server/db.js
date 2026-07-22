@@ -7,6 +7,7 @@ import { runMigrations } from './database/migrations.js';
 import { withTransaction } from './database/transaction.js';
 import { getTransactionContext } from './database/runtime-context.js';
 import { scheduleSqliteOperation } from './database/sqlite-scheduler.js';
+import { toPostgres } from './database/sql.js';
 
 const { Pool } = pg;
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -20,13 +21,6 @@ let pool = null;
 function persist() {
   if (mode !== 'sqlite') return;
   writeFileSync(dbPath, Buffer.from(sqlite.export()));
-}
-
-function toPostgres(sql) {
-  let position = 0;
-  return sql
-    .replace(/\?/g, () => `$${++position}`)
-    .replace(/MAX\(0,\s*([^)]+)\)/gi, 'GREATEST(0, $1)');
 }
 
 export async function initDb() {
