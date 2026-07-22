@@ -7,12 +7,17 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "start:postgres": "node --env-file=.env index.js",
-    "dev:postgres": "node --env-file=.env --watch index.js",
-    "seed": "node seed.js",
+    "start:postgres": "node index.js",
+    "dev:postgres": "node --watch index.js",
+    "migrate": "node scripts/migrate.js",
     "migrate:postgres": "node scripts/migrate-postgres.js",
+    "bootstrap:system": "node bootstrap-system.js",
+    "seed:demo": "node seed-demo.js",
+    "reset:demo": "node reset-demo.js",
     "check": "node scripts/check.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "test:sqlite": "node --test test/*.test.js",
+    "test:postgres": "node --test test/database.test.js test/postgres-database.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.750.0",
