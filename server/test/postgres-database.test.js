@@ -857,7 +857,7 @@ test('HTTP: old revision returns 409 with current progress', { skip: !databaseUr
   const third = await fetch(`${url}/colorings/${templateId}/progress`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(64).fill(2), revision: 1, resultDataUrl: null }),
+    body: JSON.stringify({ filled: new Array(64).fill(1), revision: 1, resultDataUrl: null }),
   });
 
   assert.equal(third.status, 409, 'Old revision returns 409');
@@ -958,7 +958,7 @@ test('HTTP: two concurrent PUTs with same revision — one 200, one 409', { skip
     fetch(`${url}/colorings/${templateId}/progress`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: JSON.stringify({ filled: new Array(64).fill(2), revision: 1, resultDataUrl: null }),
+      body: JSON.stringify({ filled: new Array(64).fill(0), revision: 1, resultDataUrl: null }),
     }),
   ]);
 
