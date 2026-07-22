@@ -2,7 +2,7 @@
 
 The following items are out of scope for completed PRs and should be addressed in separate follow-up tasks:
 
-1. **Stars transactions** — Ensure atomic balance transfers, prevent race conditions, add audit logging. Use `withTransaction()` with the runtime context from PR #4. (NEXT PR: `security/stars-transactions`)
+1. ~~**Stars transactions**~~ — DONE in PR #5 `security/stars-transactions`. Atomic balance transfers, conditional debit, append-only immutable ledger, idempotency-key contract, collection ownership backfill, concurrent test coverage on both SQLite and PostgreSQL.
 2. ~~**Seed/reset of database**~~ — DONE in PR #3 `security/database-safety-foundation`. Demo seed requires explicit action, production reset is blocked.
 3. **Report abuse** — Add rate limiting and deduplication for the report endpoint.
 4. **Achievements validation** — Ensure achievements cannot be unlocked via direct API calls without actual progress.
