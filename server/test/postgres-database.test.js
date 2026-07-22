@@ -6,6 +6,10 @@ import express from 'express';
 
 const databaseUrl = process.env.DATABASE_URL;
 
+if (databaseUrl) {
+  process.env.ALLOW_DEV_AUTH = 'true';
+}
+
 if (!databaseUrl) {
   test('PostgreSQL tests skipped (no DATABASE_URL)', { skip: true }, () => {});
 }
