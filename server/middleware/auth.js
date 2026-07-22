@@ -47,6 +47,13 @@ export const authMiddleware = asyncRoute(
     if (devUserId && allowDevelopmentAuth) {
       req.userId = String(devUserId);
       req.authMode = 'development';
+
+      const now = new Date().toISOString();
+      if (!await get('SELECT id FROM users WHERE id=?', [req.userId])) {
+        await run(`INSERT INTO users (id,telegram_id,nickname,avatar_url,status,karma,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,is_banned,role,created_at,updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [req.userId, null, req.userId, null, '', 0, 0, 0, 0, 0, 10, 0, 'user', now, now]);
+      }
       return next();
     }
     return res.status(401).json({ error: 'Telegram Mini Apps authorization required' });

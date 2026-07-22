@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
-import { getDb, initDb } from './db.js';
+import { getDb, initDb, bootstrapSystemData, seedDemoData } from './db.js';
 
 import feedRouter        from './routes/feed.js';
 import postsRouter       from './routes/posts.js';
@@ -27,9 +27,20 @@ if (process.env.NODE_ENV === 'production' && !process.env.TELEGRAM_BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN is required in production');
 }
 
+if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO_DATA === 'true') {
+  throw new Error('SEED_DEMO_DATA cannot be enabled in production');
+}
+
 // ── Init DB before serving ────────────────────────────────────────────────────
 await initDb();
-console.log(`✅  ${getDb().mode} database ready`);
+const db = getDb();
+console.log(`${db.mode} database ready`);
+
+if (process.env.SEED_DEMO_DATA === 'true') {
+  await bootstrapSystemData();
+  await seedDemoData();
+  console.log('System bootstrapped and demo data seeded');
+}
 
 const app = express();
 
@@ -86,5 +97,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀  Splint API server running on http://localhost:${PORT}`);
+  console.log(`Splint API server running on http://localhost:${PORT}`);
 });
