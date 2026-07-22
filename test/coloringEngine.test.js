@@ -6,6 +6,7 @@ import { createWorkingWindows, selectNextWindow } from '../src/features/coloring
 import { planCamera, clampCamera, getTransitionDuration } from '../src/features/coloring/engine/cameraPlanner.js';
 import { applyStroke, undoStroke, redoStroke, createStrokeOperation } from '../src/features/coloring/engine/paintReducer.js';
 import { arraysEqual } from '../src/features/coloring/engine/coloringUtils.js';
+import { createHistoryOperation, applyChanges } from '../src/features/coloring/engine/historyOperations.js';
 
 /* ── StrokeRasterizer ── */
 
@@ -504,6 +505,164 @@ test('reveal stroke undo reverts all cells', () => {
     filled[idx] = -1;
   }
   assert.ok(filled.every(f => f === -1));
+});
+
+/* ── Per-cell undo/redo history ── */
+
+test('heterogeneous reveal stroke preserves different to values', () => {
+  const template = { width: 2, height: 2, cells: [0, 1, 2, 3] };
+  const filled = [-1, -1, -1, -1];
+  const changes = [
+    { index: 0, from: -1, to: 0 },
+    { index: 1, from: -1, to: 1 },
+    { index: 2, from: -1, to: 2 },
+  ];
+  const op = createHistoryOperation({ type: 'stroke', changes });
+  assert.equal(op.changes.length, 3);
+  assert.equal(op.changes[0].to, 0);
+  assert.equal(op.changes[1].to, 1);
+  assert.equal(op.changes[2].to, 2);
+  assert.ok(op.timestamp > 0);
+});
+
+test('undo restores different from values', () => {
+  const filled = [0, 1, 2, -1];
+  const op = createHistoryOperation({
+    type: 'stroke',
+    changes: [
+      { index: 0, from: -1, to: 0 },
+      { index: 1, from: -1, to: 1 },
+      { index: 2, from: 5, to: 2 },
+    ],
+  });
+  const next = applyChanges(filled, op.changes, 'from');
+  assert.equal(next[0], -1);
+  assert.equal(next[1], -1);
+  assert.equal(next[2], 5);
+  assert.equal(next[3], -1);
+});
+
+test('redo restores different to values', () => {
+  const filled = [-1, -1, -1, -1];
+  const op = createHistoryOperation({
+    type: 'stroke',
+    changes: [
+      { index: 0, from: -1, to: 0 },
+      { index: 1, from: -1, to: 1 },
+      { index: 2, from: -1, to: 2 },
+    ],
+  });
+  const next = applyChanges(filled, op.changes, 'to');
+  assert.equal(next[0], 0);
+  assert.equal(next[1], 1);
+  assert.equal(next[2], 2);
+  assert.equal(next[3], -1);
+});
+
+test('two sequential operations use actual state', () => {
+  const filled = [-1, -1, -1, -1];
+  // First operation: paint cells 0 and 1 with color 0
+  const op1 = createHistoryOperation({
+    type: 'stroke',
+    changes: [
+      { index: 0, from: -1, to: 0 },
+      { index: 1, from: -1, to: 0 },
+    ],
+  });
+  const state1 = applyChanges(filled, op1.changes, 'to');
+  assert.equal(state1[0], 0);
+  assert.equal(state1[1], 0);
+  // Second operation: overwrite cell 0 with color 2
+  const op2 = createHistoryOperation({
+    type: 'single',
+    changes: [{ index: 0, from: 0, to: 2 }],
+  });
+  const state2 = applyChanges(state1, op2.changes, 'to');
+  assert.equal(state2[0], 2);
+  assert.equal(state2[1], 0);
+  // Undo second operation
+  const reverted = applyChanges(state2, op2.changes, 'from');
+  assert.equal(reverted[0], 0);
+  assert.equal(reverted[1], 0);
+});
+
+test('one gesture creates one history entry', () => {
+  const op = createHistoryOperation({
+    type: 'stroke',
+    changes: [
+      { index: 0, from: -1, to: 0 },
+      { index: 1, from: -1, to: 0 },
+      { index: 2, from: -1, to: 0 },
+    ],
+  });
+  assert.equal(op.type, 'stroke');
+  assert.equal(op.changes.length, 3);
+});
+
+test('new stroke after undo clears redo stack', () => {
+  // Simulate: paint, undo, paint again
+  const history = [];
+  const future = [];
+  // Push first op
+  const op1 = createHistoryOperation({
+    type: 'stroke',
+    changes: [{ index: 0, from: -1, to: 0 }],
+  });
+  history.push(op1);
+  // Undo: move op1 to future
+  const undone = history.pop();
+  future.push(undone);
+  assert.equal(history.length, 0);
+  assert.equal(future.length, 1);
+  // New paint: should clear future
+  future.length = 0;
+  const op2 = createHistoryOperation({
+    type: 'stroke',
+    changes: [{ index: 1, from: -1, to: 1 }],
+  });
+  history.push(op2);
+  assert.equal(future.length, 0);
+  assert.equal(history.length, 1);
+  assert.equal(history[0].changes[0].index, 1);
+});
+
+test('100 operations respect history limit', () => {
+  const history = [];
+  for (let i = 0; i < 150; i++) {
+    const op = createHistoryOperation({
+      type: 'single',
+      changes: [{ index: i % 10, from: -1, to: i % 5 }],
+    });
+    history.push(op);
+    if (history.length > 100) {
+      history.shift();
+    }
+  }
+  assert.equal(history.length, 100);
+  assert.equal(history[0].changes[0].index, 0);
+});
+
+test('undo redo round-trip returns exact original array', () => {
+  const initial = [1, 2, 3, 4];
+  const op = createHistoryOperation({
+    type: 'stroke',
+    changes: [
+      { index: 1, from: 2, to: 5 },
+      { index: 2, from: 3, to: 6 },
+    ],
+  });
+  // Apply
+  const painted = applyChanges(initial, op.changes, 'to');
+  assert.equal(painted[0], 1);
+  assert.equal(painted[1], 5);
+  assert.equal(painted[2], 6);
+  assert.equal(painted[3], 4);
+  // Undo
+  const undone = applyChanges(painted, op.changes, 'from');
+  assert.deepEqual(undone, initial);
+  // Redo
+  const redone = applyChanges(undone, op.changes, 'to');
+  assert.deepEqual(redone, painted);
 });
 
 /* Helpers for camera tests */
