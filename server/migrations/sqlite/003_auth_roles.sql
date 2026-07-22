@@ -1,0 +1,3 @@
+-- The role column is already created in 001_initial.sql for SQLite.
+-- This migration exists to match the PostgreSQL migration version.
+-- No schema changes needed for SQLite.

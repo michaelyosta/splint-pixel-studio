@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
 import { all, get, run } from '../db.js';
 import { authMiddleware, hasProfanity, hasUrl } from '../middleware/auth.js';
+import { asyncRoute } from '../middleware/asyncRoute.js';
 
 const router = Router();
 
@@ -20,7 +21,7 @@ async function enrichPost(post, userId) {
 }
 
 // POST /posts/create
-router.post('/create', authMiddleware, async (req, res) => {
+router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
   const { artworkId, postType, title, caption = '', commentsEnabled = true } = req.body;
   const userId = req.userId;
 
@@ -65,44 +66,46 @@ router.post('/create', authMiddleware, async (req, res) => {
 
   const post = await get('SELECT * FROM posts WHERE id=?', [id]);
   res.status(201).json(await enrichPost(post, userId));
-});
+}));
 
 // GET /posts/:id
-router.get('/:id', authMiddleware, async (req, res) => {
+router.get('/:id', authMiddleware, asyncRoute(async (req, res) => {
   const post = await get('SELECT * FROM posts WHERE id=?', [req.params.id]);
   if (!post) return res.status(404).json({ error: 'Пост не найден' });
   res.json(await enrichPost(post, req.userId));
-});
+}));
 
 // GET /posts/:id/by-user — posts for profile tab
-router.get('/by-user/:authorId', authMiddleware, async (req, res) => {
+router.get('/by-user/:authorId', authMiddleware, asyncRoute(async (req, res) => {
   const posts = await all("SELECT * FROM posts WHERE author_id=? AND status='active' ORDER BY published_at DESC", [req.params.authorId]);
   res.json(await Promise.all(posts.map((post) => enrichPost(post, req.userId))));
-});
+}));
 
 // DELETE /posts/:id
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete('/:id', authMiddleware, asyncRoute(async (req, res) => {
   const post = await get('SELECT * FROM posts WHERE id=?', [req.params.id]);
   if (!post) return res.status(404).json({ error: 'Пост не найден' });
-  if (post.author_id !== req.userId && req.userId !== 'user_splintmod') {
+  const currentUser = await get('SELECT role FROM users WHERE id=?', [req.userId]);
+  const isMod = currentUser && (currentUser.role === 'moderator' || currentUser.role === 'admin');
+  if (post.author_id !== req.userId && !isMod) {
     return res.status(403).json({ error: 'У вас нет прав на удаление этого поста' });
   }
   await run("UPDATE posts SET status='deleted', updated_at=? WHERE id=?", [new Date().toISOString(), req.params.id]);
   res.json({ success: true });
-});
+}));
 
 // POST /posts/:id/toggle-comments
-router.post('/:id/toggle-comments', authMiddleware, async (req, res) => {
+router.post('/:id/toggle-comments', authMiddleware, asyncRoute(async (req, res) => {
   const post = await get('SELECT * FROM posts WHERE id=?', [req.params.id]);
   if (!post) return res.status(404).json({ error: 'Пост не найден' });
   if (post.author_id !== req.userId) return res.status(403).json({ error: 'Только автор может менять настройки комментариев' });
   const next = post.comments_enabled ? 0 : 1;
   await run('UPDATE posts SET comments_enabled=?, updated_at=? WHERE id=?', [next, new Date().toISOString(), req.params.id]);
   res.json({ success: true, comments_enabled: !!next });
-});
+}));
 
 // POST /posts/:id/report
-router.post('/:id/report', authMiddleware, async (req, res) => {
+router.post('/:id/report', authMiddleware, asyncRoute(async (req, res) => {
   const { reason = 'other' } = req.body;
   const now = new Date().toISOString();
   const id  = `rep_${uuid()}`;
@@ -114,6 +117,6 @@ router.post('/:id/report', authMiddleware, async (req, res) => {
   if (cnt.c >= 3) await run("UPDATE posts SET status='hidden', updated_at=? WHERE id=? AND status='active'", [now, req.params.id]);
 
   res.json({ success: true });
-});
+}));
 
 export default router;

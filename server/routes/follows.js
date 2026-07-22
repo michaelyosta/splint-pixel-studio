@@ -2,11 +2,12 @@
 import { Router } from 'express';
 import { get, run, all } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { asyncRoute } from '../middleware/asyncRoute.js';
 
 const router = Router();
 
 // POST /users/:id/follow  (toggle)
-router.post('/:id/follow', authMiddleware, async (req, res) => {
+router.post('/:id/follow', authMiddleware, asyncRoute(async (req, res) => {
   const followingId = req.params.id;
   const followerId  = req.userId;
 
@@ -30,26 +31,26 @@ router.post('/:id/follow', authMiddleware, async (req, res) => {
   await run('INSERT INTO follows (follower_id,following_id,created_at) VALUES (?,?,?)',
     [followerId, followingId, new Date().toISOString()]);
   res.json({ success: true, is_following: true });
-});
+}));
 
 // GET /users/:id/followers
-router.get('/:id/followers', authMiddleware, async (req, res) => {
+router.get('/:id/followers', authMiddleware, asyncRoute(async (req, res) => {
   const rows = await all(`
     SELECT u.id, u.nickname, u.avatar_url, u.karma FROM follows f
     JOIN users u ON u.id = f.follower_id
     WHERE f.following_id=?
   `, [req.params.id]);
   res.json(rows);
-});
+}));
 
 // GET /users/:id/following
-router.get('/:id/following', authMiddleware, async (req, res) => {
+router.get('/:id/following', authMiddleware, asyncRoute(async (req, res) => {
   const rows = await all(`
     SELECT u.id, u.nickname, u.avatar_url, u.karma FROM follows f
     JOIN users u ON u.id = f.following_id
     WHERE f.follower_id=?
   `, [req.params.id]);
   res.json(rows);
-});
+}));
 
 export default router;
