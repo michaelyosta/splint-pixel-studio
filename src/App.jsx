@@ -179,7 +179,10 @@ function App() {
       setTemplate(nextTemplate);
       setProgress(nextProgress);
       setZones(nextZones.zones || []);
-      if (saveQueueRef.current) saveQueueRef.current.dispose();
+      if (saveQueueRef.current) {
+        saveQueueRef.current.dispose();
+        setSaving(false);
+      }
       saveQueueRef.current = createSaveQueue({
         putProgress: async ({ filled, revision, resultDataUrl }) => {
           return api(`/colorings/${nextTemplate.id}/progress`, {
