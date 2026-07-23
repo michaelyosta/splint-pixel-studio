@@ -65,7 +65,7 @@ then starts backend and frontend. Uses `DATABASE_URL` from `.env.local`.
 Shows:
 - API PID and Vite PID (if managed by the launcher)
 - `/health` status
-- Authenticated endpoint status (`GET /api/colorings` with `X-User-Id`)
+- Authenticated endpoint status (`GET /colorings` with `X-User-Id`)
 - Active Tailscale Serve URL
 - Active Cloudflare URL
 - Log file locations
@@ -82,7 +82,7 @@ Can be added before any mode to stop existing launcher-managed processes first:
 
 ## Diagnosing 401 on Authenticated Endpoints
 
-If `status` shows `401` for `/api/colorings`:
+If `status` shows `401` for `/colorings`:
 1. Check that `.env.local` contains `ALLOW_DEV_AUTH=true`
 2. Restart the server: `.\launch-splint.bat -Restart local`
 3. The API must be started via `npm run dev:api` or the launcher (both read
@@ -110,6 +110,16 @@ Both `.logs/` and `.run/` (PID files) are in `.gitignore`.
 
 Requires Node.js >= 20.6 (for `--env-file` support). The launcher checks this
 automatically on startup.
+
+## PowerShell Compatibility
+
+The launcher (`scripts/start-splint.ps1`) is written for **Windows PowerShell 5.1**
+(the version built into Windows 10/11) and is also compatible with PowerShell 7.
+No PowerShell 7-only syntax (`??`, `?:`, `??=`, `&&`, `||`) is used.
+
+`launch-splint.bat` automatically prefers `pwsh.exe` if it is available, but
+falls back to the built-in `powershell.exe`. Manual PowerShell 7 installation
+is optional, not required.
 
 ## Environment File
 
