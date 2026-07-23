@@ -175,13 +175,13 @@ function Show-LogTail([string]$logFile, [int]$lines = 8) {
 
 function Start-ManagedProcess([string]$label, [string]$workingDir, [string]$command, [string]$pidFile, [string]$logFile) {
   Write-Host "Starting $label..." -ForegroundColor Cyan
+  $fullCommand = "$command 2>&1"
   $proc = Start-Process -FilePath 'cmd.exe' `
-    -ArgumentList '/d', '/s', '/c', $command `
+    -ArgumentList '/d', '/s', '/c', $fullCommand `
     -WorkingDirectory $workingDir `
     -WindowStyle Hidden `
     -PassThru `
-    -RedirectStandardOutput $logFile `
-    -RedirectStandardError $logFile
+    -RedirectStandardOutput $logFile
 
   Write-PidFile $pidFile $proc.Id
   Write-Host "$label started (PID $($proc.Id))" -ForegroundColor Green
