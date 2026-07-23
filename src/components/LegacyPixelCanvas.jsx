@@ -82,6 +82,12 @@ export default function PixelCanvas({
 
   function paintIndex(index) {
     if (index == null || filled[index] !== -1) return;
+    if (interactionMode === 'reveal') {
+      const targetColor = template.cells[index];
+      onFirstPaint?.();
+      onPaint(index, targetColor);
+      return;
+    }
     if (template.cells[index] !== selectedColor) {
       if (calmMode) return;
       setWrongCell(index);
