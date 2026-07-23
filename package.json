@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:api": "npm --prefix server run dev",
+    "dev:api": "npm --prefix server run dev:local",
     "build": "vite build",
     "catalog:build": "python server/scripts/build-catalog-assets.py",
     "lint": "oxlint",

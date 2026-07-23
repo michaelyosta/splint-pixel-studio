@@ -19,6 +19,8 @@ server/uploads/
 server/*.log
 assets/*.pid
 assets/*_pid.txt
+.run/
+.logs/
 
 # Editor directories and files
 .vscode/*
