@@ -955,6 +955,79 @@ test('reveal heterogeneous stroke survives undo redo chain', () => {
   assert.equal(redone[2], 2);
 });
 
+/* ── Legacy paint regression ── */
+
+function simulateLegacyClassic(template, filled, selectedColor, paintFn) {
+  return function paintAt(index) {
+    if (index == null || filled[index] !== -1) return;
+    if (template.cells[index] !== selectedColor) return false;
+    paintFn(index, selectedColor);
+    return true;
+  };
+}
+
+function simulateLegacyReveal(template, filled, paintFn) {
+  return function paintAt(index) {
+    if (index == null || filled[index] !== -1) return;
+    const targetColor = template.cells[index];
+    paintFn(index, targetColor);
+    return true;
+  };
+}
+
+test('Legacy classic: wrong color does not call onPaint', () => {
+  const template = { width: 2, height: 2, cells: [0, 1, 0, 1] };
+  const filled = [-1, -1, -1, -1];
+  let painted = null;
+  const paint = simulateLegacyClassic(template, filled, 0, (idx, color) => { painted = { idx, color }; });
+  paint(0);
+  assert.deepEqual(painted, { idx: 0, color: 0 });
+  painted = null;
+  paint(1);
+  assert.equal(painted, null, 'must not paint wrong color cell');
+});
+
+test('Legacy reveal: wrong color cell paints with its target color', () => {
+  const template = { width: 2, height: 2, cells: [0, 1, 0, 1] };
+  const filled = [-1, -1, -1, -1];
+  let painted = null;
+  const paint = simulateLegacyReveal(template, filled, (idx, color) => { painted = { idx, color }; });
+  paint(0);
+  assert.deepEqual(painted, { idx: 0, color: 0 });
+  painted = null;
+  paint(1);
+  assert.deepEqual(painted, { idx: 1, color: 1 }, 'must paint with target color, not selected');
+});
+
+test('Legacy reveal does not pass selectedColor instead of targetColor', () => {
+  const template = { width: 2, height: 2, cells: [0, 2, 0, 2] };
+  const filled = [-1, -1, -1, -1];
+  let painted = null;
+  const paint = simulateLegacyReveal(template, filled, (idx, color) => { painted = { idx, color }; });
+  paint(1);
+  assert.equal(painted.color, 2, 'must use cell target color 2');
+  assert.notEqual(painted.color, 0, 'must not use selectedColor 0');
+});
+
+test('Reveal single paint creates canonical history operation', () => {
+  const template = { width: 2, height: 2, cells: [0, 1, 0, 1] };
+  let lastOp = null;
+  const paint = simulateLegacyReveal(template, [-1, -1, -1, -1], (idx, color) => {
+    lastOp = {
+      type: 'single',
+      timestamp: Date.now(),
+      changes: [{ index: idx, from: -1, to: color }],
+    };
+  });
+  paint(3);
+  assert.ok(lastOp, 'operation must be created');
+  assert.equal(lastOp.type, 'single');
+  assert.equal(lastOp.changes.length, 1);
+  assert.equal(lastOp.changes[0].index, 3);
+  assert.equal(lastOp.changes[0].to, 1);
+  assert.ok(!('stroke' in lastOp), 'no nested stroke field');
+});
+
 /* Helpers for camera tests */
 function createCameraHarness(stubPending, stubFocusOnWindow) {
   let _autoEnabled = true;

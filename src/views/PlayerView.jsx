@@ -159,7 +159,7 @@ export default function PlayerView({
               hideFilledNumbers={playMode === 'reveal' || hideNumbers}
               hintMode={playMode === 'classic' && hintMode}
               interactionMode={playMode}
-              onTapCell={playMode === 'reveal' ? undefined : fillMode ? onFillAt : undefined}
+              onTapCell={fillMode ? onFillAt : undefined}
             />
           </div>
           <div className="player-dock" onClick={showHud}>
