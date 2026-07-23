@@ -126,15 +126,36 @@ function Test-ProcessAlive([int]$procId) {
   catch { return $false }
 }
 
-function Stop-ManagedProcess([string]$pidFile, [string]$label) {
+function Stop-ManagedProcess([string]$pidFile, [string]$label, [int]$port = 0) {
   $procId = Read-PidFile $pidFile
-  if (-not $procId) { Write-Host "$label not running (no PID file)" -ForegroundColor DarkGray; return }
-  if (-not (Test-ProcessAlive $procId)) { Write-Host "$label PID $procId already exited" -ForegroundColor DarkGray; Remove-PidFile $pidFile; return }
-  Write-Host "Stopping $label (PID $procId)..." -ForegroundColor Yellow
-  Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
-  Start-Sleep -Milliseconds 500
-  Remove-PidFile $pidFile
-  Write-Host "$label stopped" -ForegroundColor Green
+
+  if ($procId -and (Test-ProcessAlive $procId)) {
+    Write-Host "Stopping $label (PID $procId)..." -ForegroundColor Yellow
+    & taskkill /PID $procId /T /F 2>$null | Out-Null
+    Start-Sleep -Milliseconds 500
+    Remove-PidFile $pidFile
+    Write-Host "$label stopped" -ForegroundColor Green
+    return
+  }
+
+  if ($procId -and -not (Test-ProcessAlive $procId)) {
+    Write-Host "$label PID $procId already exited" -ForegroundColor DarkGray
+    Remove-PidFile $pidFile
+  }
+
+  if ($port -gt 0 -and (Test-ListeningPort $port)) {
+    $owner = Get-PortOwner $port
+    if ($owner) {
+      Write-Host "Stopping $label by port $port (PID $($owner.PID))..." -ForegroundColor Yellow
+      & taskkill /PID $owner.PID /T /F 2>$null | Out-Null
+      Start-Sleep -Milliseconds 500
+      Write-Host "Port $port freed" -ForegroundColor Green
+    }
+  }
+
+  if (-not $procId -and -not (Test-ListeningPort $port)) {
+    Write-Host "$label not running (no PID file)" -ForegroundColor DarkGray
+  }
 }
 
 function Invoke-HealthCheck([int]$port) {
@@ -175,7 +196,7 @@ function Show-LogTail([string]$logFile, [int]$lines = 8) {
 
 function Start-ManagedProcess([string]$label, [string]$workingDir, [string]$command, [string]$pidFile, [string]$logFile) {
   Write-Host "Starting $label..." -ForegroundColor Cyan
-  $fullCommand = "$command 2>&1"
+  $fullCommand = $command + ' 2>&1'
   $proc = Start-Process -FilePath 'cmd.exe' `
     -ArgumentList '/d', '/s', '/c', $fullCommand `
     -WorkingDirectory $workingDir `
@@ -266,8 +287,8 @@ function Show-Status {
 function Invoke-Stop {
   Write-Banner
   Write-Host 'STOPPING all launcher-managed processes...' -ForegroundColor Yellow
-  Stop-ManagedProcess $apiPidFile 'API'
-  Stop-ManagedProcess $vitePidFile 'Vite'
+  Stop-ManagedProcess $apiPidFile 'API' $apiPort
+  Stop-ManagedProcess $vitePidFile 'Vite' $vitePort
   Stop-ManagedProcess $cloudflaredPidFile 'Cloudflared'
   Write-Host 'Done.' -ForegroundColor Green
 }
@@ -340,10 +361,13 @@ function Start-Api {
 function Start-Vite([string[]]$hostFlags = @(), [string]$additionalAllowedHosts = '') {
   $envBlock = ''
   if ($additionalAllowedHosts) {
-    $envBlock = "set __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=$additionalAllowedHosts && "
+    $envBlock = 'set __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=' + $additionalAllowedHosts + ' & '
   }
-  $hostArg = if ($hostFlags.Count -gt 0) { " $($hostFlags -join ' ')" } else { '' }
-  $viteCommand = "${envBlock}npm.cmd run dev --$hostArg"
+  $hostArg = ''
+  if ($hostFlags.Count -gt 0) {
+    $hostArg = ' ' + ($hostFlags -join ' ')
+  }
+  $viteCommand = $envBlock + 'npm.cmd run dev --' + $hostArg
   Start-ManagedProcess 'Vite' $projectRoot $viteCommand $vitePidFile $viteLogFile
 }
 
