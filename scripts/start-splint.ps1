@@ -95,25 +95,25 @@ function Test-ListeningPort([int]$Port) {
 function Get-PortOwner([int]$Port) {
   $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
   if (-not $connections) { return $null }
-  $pid = $connections[0].OwningProcess
-  if (-not $pid -or $pid -eq 0) { return $null }
+  $procId = $connections[0].OwningProcess
+  if (-not $procId -or $procId -eq 0) { return $null }
   try {
-    $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
-    return @{ PID = $pid; Name = $proc.Name; CommandLine = (Get-WmiObject Win32_Process -Filter "ProcessId=$pid" -ErrorAction SilentlyContinue).CommandLine }
+    $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
+    return @{ PID = $procId; Name = $proc.Name; CommandLine = (Get-WmiObject Win32_Process -Filter "ProcessId=$procId" -ErrorAction SilentlyContinue).CommandLine }
   } catch {
-    return @{ PID = $pid; Name = 'unknown'; CommandLine = 'unknown' }
+    return @{ PID = $procId; Name = 'unknown'; CommandLine = 'unknown' }
   }
 }
 
-function Write-PidFile([string]$path, [int]$pid) {
-  $pid | Out-File -FilePath $path -NoNewline
+function Write-PidFile([string]$path, [int]$procId) {
+  $procId | Out-File -FilePath $path -NoNewline
 }
 
 function Read-PidFile([string]$path) {
   if (-not (Test-Path $path)) { return $null }
   try {
-    $pid = [int](Get-Content $path -Raw).Trim()
-    return $pid
+    $procId = [int](Get-Content $path -Raw).Trim()
+    return $procId
   } catch { return $null }
 }
 
@@ -121,17 +121,17 @@ function Remove-PidFile([string]$path) {
   if (Test-Path $path) { Remove-Item $path -Force }
 }
 
-function Test-ProcessAlive([int]$pid) {
-  try { return (Get-Process -Id $pid -ErrorAction SilentlyContinue) -ne $null }
+function Test-ProcessAlive([int]$procId) {
+  try { return (Get-Process -Id $procId -ErrorAction SilentlyContinue) -ne $null }
   catch { return $false }
 }
 
 function Stop-ManagedProcess([string]$pidFile, [string]$label) {
-  $pid = Read-PidFile $pidFile
-  if (-not $pid) { Write-Host "$label not running (no PID file)" -ForegroundColor DarkGray; return }
-  if (-not (Test-ProcessAlive $pid)) { Write-Host "$label PID $pid already exited" -ForegroundColor DarkGray; Remove-PidFile $pidFile; return }
-  Write-Host "Stopping $label (PID $pid)..." -ForegroundColor Yellow
-  Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+  $procId = Read-PidFile $pidFile
+  if (-not $procId) { Write-Host "$label not running (no PID file)" -ForegroundColor DarkGray; return }
+  if (-not (Test-ProcessAlive $procId)) { Write-Host "$label PID $procId already exited" -ForegroundColor DarkGray; Remove-PidFile $pidFile; return }
+  Write-Host "Stopping $label (PID $procId)..." -ForegroundColor Yellow
+  Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
   Start-Sleep -Milliseconds 500
   Remove-PidFile $pidFile
   Write-Host "$label stopped" -ForegroundColor Green
@@ -486,7 +486,11 @@ function Start-SplintCloudflare {
     }
   }
 
-  Set-Content -Path $cloudflaredLogFile -Value '' -Force
+  try {
+    Set-Content -Path $cloudflaredLogFile -Value '' -Force -ErrorAction Stop
+  } catch {
+    Write-Warning "Could not clear cloudflared log (file may be locked by a previous tunnel). Continuing..."
+  }
 
   $cfProc = Start-Process -FilePath $cloudflared.Source `
     -ArgumentList 'tunnel', '--url', "http://127.0.0.1:$vitePort", '--no-autoupdate' `
