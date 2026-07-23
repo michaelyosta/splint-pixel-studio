@@ -1,3 +1,5 @@
+#requires -Version 5.1
+
 param(
   [switch]$Restart,
   [switch]$UnsafePublicDevAuth,
@@ -69,6 +71,23 @@ function Read-EnvLocal {
   return $envVars
 }
 
+function Get-EnvValueOrDefault {
+  param(
+    [hashtable]$Values,
+    [string]$Name,
+    [string]$DefaultValue
+  )
+
+  if ($Values.ContainsKey($Name)) {
+    $value = [string]$Values[$Name]
+    if (-not [string]::IsNullOrWhiteSpace($value)) {
+      return $value
+    }
+  }
+
+  return $DefaultValue
+}
+
 function Test-ListeningPort([int]$Port) {
   return [bool](Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
 }
@@ -130,7 +149,7 @@ function Invoke-HealthCheck([int]$port) {
 function Invoke-AuthCheck([int]$port, [string]$devUserId) {
   try {
     $headers = @{ 'X-User-Id' = $devUserId }
-    $response = Invoke-WebRequest -Uri "http://127.0.0.1:$port/api/colorings" -Headers $headers -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+    $response = Invoke-WebRequest -Uri "http://127.0.0.1:$port/colorings" -Headers $headers -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
     return @{ StatusCode = $response.StatusCode }
   } catch {
     if ($_.Exception.Response) {
@@ -203,9 +222,9 @@ function Show-Status {
 
   if (Test-ListeningPort $apiPort) {
     $envVars = Read-EnvLocal
-    $devUser = $envVars['VITE_DEV_USER_ID'] ?? 'user_pixelhunter'
+    $devUser = Get-EnvValueOrDefault $envVars 'VITE_DEV_USER_ID' 'user_pixelhunter'
     $authCheck = Invoke-AuthCheck $apiPort $devUser
-    Write-Host "API /api/colorings (X-User-Id): $(if ($authCheck.StatusCode -eq 200) { '200 OK' } elseif ($authCheck.StatusCode -eq 401) { '401 (dev auth disabled?)' } else { "$($authCheck.StatusCode)" })"
+    Write-Host "API /colorings (X-User-Id): $(if ($authCheck.StatusCode -eq 200) { '200 OK' } elseif ($authCheck.StatusCode -eq 401) { '401 (dev auth disabled?)' } else { "$($authCheck.StatusCode)" })"
   }
 
   if (Test-ListeningPort $vitePort) {
@@ -294,14 +313,14 @@ function Test-ApiReady([string]$devUserId) {
 
   $auth = Invoke-AuthCheck $apiPort $devUserId
   if ($auth.StatusCode -eq 401) {
-    Write-Warning 'API is running but returns 401 on /api/colorings'
+    Write-Warning 'API is running but returns 401 on /colorings'
     Write-Warning 'Check that ALLOW_DEV_AUTH=true is set in .env.local'
     Write-Warning 'Restart the server with correct settings.'
     return $false
   }
 
   if ($auth.StatusCode -ne 200) {
-    Write-Warning "API /api/colorings returned $($auth.StatusCode)"
+    Write-Warning "API /colorings returned $($auth.StatusCode)"
     Show-LogTail $apiLogFile
     return $false
   }
@@ -347,7 +366,7 @@ function Start-SplintLocal([bool]$openBrowser = $true) {
   }
 
   $envVars = Read-EnvLocal
-  $devUser = $envVars['VITE_DEV_USER_ID'] ?? 'user_pixelhunter'
+  $devUser = Get-EnvValueOrDefault $envVars 'VITE_DEV_USER_ID' 'user_pixelhunter'
   Test-ApiReady $devUser | Out-Null
 
   $localUrl = "http://127.0.0.1:$vitePort/"
@@ -375,7 +394,7 @@ function Start-SplintLan {
   }
 
   $envVars = Read-EnvLocal
-  $devUser = $envVars['VITE_DEV_USER_ID'] ?? 'user_pixelhunter'
+  $devUser = Get-EnvValueOrDefault $envVars 'VITE_DEV_USER_ID' 'user_pixelhunter'
   Test-ApiReady $devUser | Out-Null
 
   $lanIp = Get-LanIPv4
