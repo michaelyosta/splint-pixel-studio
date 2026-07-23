@@ -584,7 +584,12 @@ function Start-SplintFull {
 
 Test-NodeVersion
 
-$modeList = @($ModeArgs | ForEach-Object { $_.ToLowerInvariant() })
+$modeList = @()
+if ($ModeArgs) {
+  foreach ($arg in $ModeArgs) {
+    $modeList += $arg.ToLowerInvariant()
+  }
+}
 $interactive = $modeList.Count -eq 0
 
 if ($interactive) {
@@ -592,7 +597,11 @@ if ($interactive) {
   Write-Host 'Modes: local  lan  tailscale  cloudflare  full  status  stop'
   Write-Host ''
   $input = Read-Host 'Choose mode'
-  $modeList = @($input -split '\s+' | ForEach-Object { $_.ToLowerInvariant() })
+  if ($input) {
+    $modeList = @($input -split '\s+' | ForEach-Object { $_.ToLowerInvariant() })
+  } else {
+    $modeList = @()
+  }
 }
 
 if (-not $modeList.Count) {
