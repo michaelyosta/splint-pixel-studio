@@ -121,7 +121,7 @@ function renderPreview(width, height, palette, cells) {
   return preview.toDataURL('image/png');
 }
 
-export async function buildColoringFromImage(file, { width, height, colors }) {
+export async function buildColoringFromImage(file, { width, height, colors, crop }) {
   const bitmap = await createImageBitmap(file);
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -129,17 +129,30 @@ export async function buildColoringFromImage(file, { width, height, colors }) {
   const context = canvas.getContext('2d', { willReadFrequently: true });
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = 'high';
-  const sourceRatio = bitmap.width / bitmap.height;
-  const targetRatio = width / height;
-  let drawWidth = sourceRatio > targetRatio ? width : height * sourceRatio;
-  let drawHeight = sourceRatio > targetRatio ? width / sourceRatio : height;
-  drawWidth *= .94;
-  drawHeight *= .94;
-  const offsetX = (width - drawWidth) / 2;
-  const offsetY = (height - drawHeight) / 2;
-  context.fillStyle = '#101820';
-  context.fillRect(0, 0, width, height);
-  context.drawImage(bitmap, offsetX, offsetY, drawWidth, drawHeight);
+  if (crop) {
+    const cropSize = Math.min(bitmap.width, bitmap.height) / crop.scale;
+    const cx = bitmap.width / 2 + crop.offsetX;
+    const cy = bitmap.height / 2 + crop.offsetY;
+    const sx = Math.max(0, Math.min(bitmap.width - cropSize, cx - cropSize / 2));
+    const sy = Math.max(0, Math.min(bitmap.height - cropSize, cy - cropSize / 2));
+    const sw = Math.min(cropSize, bitmap.width - sx);
+    const sh = Math.min(cropSize, bitmap.height - sy);
+    context.fillStyle = '#101820';
+    context.fillRect(0, 0, width, height);
+    context.drawImage(bitmap, sx, sy, sw, sh, 0, 0, width, height);
+  } else {
+    const sourceRatio = bitmap.width / bitmap.height;
+    const targetRatio = width / height;
+    let drawWidth = sourceRatio > targetRatio ? width : height * sourceRatio;
+    let drawHeight = sourceRatio > targetRatio ? width / sourceRatio : height;
+    drawWidth *= .94;
+    drawHeight *= .94;
+    const offsetX = (width - drawWidth) / 2;
+    const offsetY = (height - drawHeight) / 2;
+    context.fillStyle = '#101820';
+    context.fillRect(0, 0, width, height);
+    context.drawImage(bitmap, offsetX, offsetY, drawWidth, drawHeight);
+  }
   bitmap.close();
   const pixels = context.getImageData(0, 0, width, height).data;
   const sourcePixels = [];
