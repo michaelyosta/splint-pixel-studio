@@ -609,14 +609,14 @@ function App() {
   }, [gameProgress?.percent, template, view]);
 
   useEffect(() => {
-    if (view === 'play' && template && !onboarding && !localStorage.getItem('splint_onboarding_done')) {
+    if (view === 'play' && template && onboarding === null && localStorage.getItem('splint_onboarding_version') !== '2') {
       setOnboarding(0);
     }
   }, [view, template, onboarding]);
 
   function dismissOnboarding() {
     setOnboarding(null);
-    localStorage.setItem('splint_onboarding_done', '1');
+    localStorage.setItem('splint_onboarding_version', '2');
   }
 
   const renderCatalog = () => {

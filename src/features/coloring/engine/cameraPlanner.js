@@ -4,28 +4,43 @@ export function planCamera(target, viewWidth, viewHeight, templateWidth, templat
   const zoom = target.zoom || 1;
   const totalW = templateWidth * BASE_CELL * zoom;
   const totalH = templateHeight * BASE_CELL * zoom;
+  const left = safeArea?.left || 0;
+  const top = safeArea?.top || 0;
+  const right = viewWidth - (safeArea?.right || 0);
+  const bottom = viewHeight - (safeArea?.bottom || 0);
+  const usableW = right - left;
+  const usableH = bottom - top;
+  const targetCenterX = target.centerX * BASE_CELL * zoom;
+  const targetCenterY = target.centerY * BASE_CELL * zoom;
 
-  let x = viewWidth / 2 - target.centerX * BASE_CELL * zoom;
-  let y = viewHeight / 2 - target.centerY * BASE_CELL * zoom;
+  let x = viewWidth / 2 - targetCenterX;
+  let y = viewHeight / 2 - targetCenterY;
 
-  let minX = viewWidth - totalW;
-  let minY = viewHeight - totalH;
-  let maxX = 0;
-  let maxY = 0;
-
-  if (safeArea) {
-    const left = safeArea.left || 0;
-    const top = safeArea.top || 0;
-    const right = safeArea.right || 0;
-    const bottom = safeArea.bottom || 0;
-    minX = Math.max(viewWidth - totalW, left + right < viewWidth ? left : 0);
-    minY = Math.max(viewHeight - totalH, top + bottom < viewHeight ? top : 0);
-    maxX = Math.min(0, viewWidth - right);
-    maxY = Math.min(0, viewHeight - bottom);
+  if (target.bounds) {
+    const targetLeft = x + target.bounds.minX * BASE_CELL * zoom;
+    const targetRight = x + (target.bounds.maxX + 1) * BASE_CELL * zoom;
+    const targetTop = y + target.bounds.minY * BASE_CELL * zoom;
+    const targetBottom = y + (target.bounds.maxY + 1) * BASE_CELL * zoom;
+    if (targetRight - targetLeft <= usableW) {
+      if (targetLeft < left) x += left - targetLeft;
+      if (targetRight > right) x -= targetRight - right;
+    }
+    if (targetBottom - targetTop <= usableH) {
+      if (targetTop < top) y += top - targetTop;
+      if (targetBottom > bottom) y -= targetBottom - bottom;
+    }
   }
 
-  x = Math.min(maxX, Math.max(minX, x));
-  y = Math.min(maxY, Math.max(minY, y));
+  if (totalW <= usableW) {
+    x = left + (usableW - totalW) / 2;
+  } else {
+    x = Math.min(left, Math.max(right - totalW, x));
+  }
+  if (totalH <= usableH) {
+    y = top + (usableH - totalH) / 2;
+  } else {
+    y = Math.min(top, Math.max(bottom - totalH, y));
+  }
   return { x, y, zoom };
 }
 

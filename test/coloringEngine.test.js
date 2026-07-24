@@ -1311,7 +1311,7 @@ test('buildTargetId produces deterministic id', () => {
   const id1 = buildTargetId(t, win, 0);
   const id2 = buildTargetId(t, win, 0);
   assert.equal(id1, id2, 'same inputs must produce same id');
-  assert.ok(id1.startsWith('tgt_'), 'id must have prefix');
+  assert.ok(id1.startsWith('target:'), 'id must have stable target prefix');
 });
 
 test('buildTargetId different color produces different id', () => {
@@ -1333,7 +1333,7 @@ test('buildTargetId reveal mode (null color) produces id', () => {
   const t = makeTemplate(4, 4);
   const win = { cells: [0, 1], bounds: { minX: 0, minY: 0, maxX: 1, maxY: 0, width: 2, height: 1 }, cellCount: 2 };
   const id = buildTargetId(t, win, null);
-  assert.ok(id.includes('_-1_'), 'null routing color should encode as -1');
+  assert.ok(id.includes(':-1:'), 'reveal targets encode their neutral color');
 });
 
 test('buildTargetId survives array rebuild', () => {
@@ -1487,7 +1487,7 @@ test('AUTO advance: target with all visible cells filled triggers advance', () =
   assert.ok(visibleUnfilled === 0 && globalUnfilled > 0, 'AUTO should advance when visible cells done');
 });
 
-test('AUTO advance: target with hidden unfilled cells still triggers advance', () => {
+test('active target with hidden unfilled cells does not complete', () => {
   const t = { width: 4, height: 4, cells: Array(16).fill(0), palette: ['#fff'] };
   const target = { cells: [0, 1, 8, 9], centerX: 0.5, centerY: 0.5, zoom: 2, cellCount: 4 };
   const camera = { x: -400, y: -400, zoom: 2 };
@@ -1495,7 +1495,7 @@ test('AUTO advance: target with hidden unfilled cells still triggers advance', (
   const visible = computeVisibleUnfilledCount(target, camera, t, filled, 400, 300, { top: 0, right: 0, bottom: 0, left: 0 });
   assert.equal(visible, 0, 'camera shifted so cells are off-screen');
   const done = isTargetConsideredDone(target, camera, t, filled, 400, 300, { top: 0, right: 0, bottom: 0, left: 0 });
-  assert.ok(done, 'visible unfilled=0 triggers done');
+  assert.ok(!done, 'completion requires every work cell, not viewport visibility');
 });
 
 test('AUTO advance: after color change, new target is selected', () => {
