@@ -8,28 +8,18 @@ import { getDb, initDb, bootstrapSystemData, seedDemoData } from './db.js';
 import feedRouter        from './routes/feed.js';
 import postsRouter       from './routes/posts.js';
 import likesRouter       from './routes/likes.js';
-import commentsRouter    from './routes/comments.js';
+import commentsRouter, { commentActionsRouter } from './routes/comments.js';
 import followsRouter     from './routes/follows.js';
 import profilesRouter    from './routes/profiles.js';
 import messagesRouter    from './routes/messages.js';
 import moderationRouter  from './routes/moderation.js';
 import coloringsRouter   from './routes/colorings.js';
 import metaRouter        from './routes/meta.js';
+import { validateProductionConfiguration } from './config.js';
 
 const PORT = process.env.PORT || 3001;
-
-// ── Production safety checks ───────────────────────────────────────────────────
-if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEV_AUTH === 'true') {
-  throw new Error('ALLOW_DEV_AUTH cannot be enabled in production');
-}
-
-if (process.env.NODE_ENV === 'production' && !process.env.TELEGRAM_BOT_TOKEN) {
-  throw new Error('TELEGRAM_BOT_TOKEN is required in production');
-}
-
-if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO_DATA === 'true') {
-  throw new Error('SEED_DEMO_DATA cannot be enabled in production');
-}
+const productionConfig = validateProductionConfiguration();
+const { isProduction, allowedOrigins, trustProxy } = productionConfig;
 
 // ── Init DB before serving ────────────────────────────────────────────────────
 await initDb();
@@ -43,11 +33,16 @@ if (process.env.SEED_DEMO_DATA === 'true') {
 }
 
 const app = express();
+if (trustProxy) app.set('trust proxy', trustProxy);
 
 // ── Security & Parsing ────────────────────────────────────────────────────────
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: '*' })); // In production, restrict to your frontend domain
-app.use(express.json({ limit: '15mb' }));
+app.use(helmet());
+app.use(cors({
+  origin: isProduction
+    ? (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin))
+    : '*',
+  credentials: isProduction,
+}));
 
 // ── Global Rate Limit (100 req/min per IP, configurable via RATE_LIMIT_MAX) ──
 app.use(rateLimit({
@@ -57,12 +52,14 @@ app.use(rateLimit({
   legacyHeaders: false,
   message: { error: 'Слишком много запросов, попробуйте через минуту' }
 }));
+app.use(express.json({ limit: '15mb' }));
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/feed',        feedRouter);
 app.use('/posts',       postsRouter);
 app.use('/posts',       likesRouter);       // POST /posts/:id/like
 app.use('/posts',       commentsRouter);    // GET/POST /posts/:id/comments
+app.use('/comments',    commentActionsRouter);
 app.use('/users',       followsRouter);     // POST /users/:id/follow
 app.use('/users',       profilesRouter);    // GET /users/:id/profile etc.
 app.use('/messages',    messagesRouter);
