@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, useEffectEvent, useLayoutEffect } from 'react';
 import ColoringCanvas from './ColoringCanvas.jsx';
 import ColoringPalette from './ColoringPalette.jsx';
 import ColoringHud from './ColoringHud.jsx';
@@ -10,11 +10,10 @@ import { applyStroke, createStrokeOperation } from './engine/paintReducer.js';
 import { arraysEqual } from './engine/coloringUtils.js';
 import { findRewardingColor } from '../../lib/pixelColoring.js';
 import {
-  buildTargetId, computeVisibleUnfilledCount, createActiveTarget, ensureActionableViewport, isTargetConsideredDone, normalizeSafeArea,
+  computeVisibleUnfilledCount, createActiveTarget, ensureActionableViewport,
+  isTargetConsideredDone, normalizeSafeArea, resolveNextOutcome,
 } from './engine/routeTargeting.js';
 import './coloring.css';
-
-const BASE_CELL = 32;
 
 function createRouteState() {
   return {
@@ -25,13 +24,6 @@ function createRouteState() {
     reason: null,
     visibleRemaining: 0,
     targetRemaining: 0,
-  };
-}
-
-function cellCenter(idx, templateWidth) {
-  return {
-    x: (idx % templateWidth) + 0.5,
-    y: Math.floor(idx / templateWidth) + 0.5,
   };
 }
 
@@ -65,20 +57,16 @@ export default function ColoringSession({
   const visitedTargetsRef = useRef(new Set());
   const routeStateRef = useRef(createRouteState());
   const [routeDisplay, setRouteDisplay] = useState(createRouteState());
-  const pendingAutoRef = useRef(null);
   const lastColorRef = useRef(selectedColor);
-  const recoveryCountRef = useRef(0);
-  const maxRecoveryAttempts = 3;
-  const sessionTokenRef = useRef(0);
+  const transitionTokenRef = useRef(0);
 
   const safeArea = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
 
   const {
-    camera, cameraReady, markCameraReady, setCamera, setCameraInstant, isAutoActive, autoState,
-    toggleAuto, pauseAuto, resumeAuto, enableAuto, forceDisableAuto,
-    focusOnWindow, focusOverview,
+    camera, cameraReady, markCameraReady, setCamera, autoState,
+    pauseAuto, resumeAuto, focusOverview, prepareFocusOnWindow, commitFocusOnWindow,
     cancelAnimation, beginInteraction, endInteraction, setSafeArea,
-    lastCenterRef, prevCenterRef, safeAreaRef,
+    lastCenterRef, prevCenterRef,
   } = useSmartCamera(template, containerSize.width, containerSize.height);
 
   const hudSizeRef = useRef({ width: 0, height: 0 });
@@ -122,11 +110,11 @@ export default function ColoringSession({
 
   const routingColor = interactionMode === 'reveal' ? null : selectedColor;
 
-  const workingWindows = useMemo(() => {
-    if (!template || !filledRef.current.length) return [];
-    const clusters = routingColor != null
-      ? findClusters(template, filledRef.current, routingColor)
-      : findUnfilledClusters(template, filledRef.current);
+  const computeWorkingWindows = useCallback((filled, color) => {
+    if (!template || !filled?.length) return [];
+    const clusters = color != null
+      ? findClusters(template, filled, color)
+      : findUnfilledClusters(template, filled);
     const merged = mergeClusters(clusters, template.width);
     if (!merged.length) return [];
     const allWindows = [];
@@ -138,7 +126,15 @@ export default function ColoringSession({
       allWindows.push(...wins);
     }
     return allWindows;
-  }, [template, interactionMode, routingColor, containerSize, windowsGeneration]);
+  }, [template, containerSize.width, containerSize.height]);
+
+  const workingWindows = useMemo(
+    () => {
+      void windowsGeneration;
+      return computeWorkingWindows(filledRef.current, routingColor);
+    },
+    [computeWorkingWindows, routingColor, windowsGeneration],
+  );
 
   useEffect(() => {
     windowsRef.current = workingWindows;
@@ -177,99 +173,172 @@ export default function ColoringSession({
     setRouteDisplay({ ...routeStateRef.current });
   }
 
-  function activateTarget(target, options = {}) {
+  function candidateForCells(cells, zoom = 1) {
+    const minX = Math.min(...cells.map((index) => index % template.width));
+    const maxX = Math.max(...cells.map((index) => index % template.width));
+    const minY = Math.min(...cells.map((index) => Math.floor(index / template.width)));
+    const maxY = Math.max(...cells.map((index) => Math.floor(index / template.width)));
+    return {
+      cells,
+      centerX: (minX + maxX + 1) / 2,
+      centerY: (minY + maxY + 1) / 2,
+      zoom,
+      cellCount: cells.length,
+      bounds: { minX, maxX, minY, maxY, width: maxX - minX + 1, height: maxY - minY + 1 },
+    };
+  }
+
+  function prepareTarget(candidate, options = {}) {
     const {
       immediate = false,
-      force = false,
-      reason = 'unknown',
-      markVisited = true,
+      targetColor = routingColor != null ? routingColor : template?.cells[candidate?.cells?.[0]],
     } = options;
 
-    if (!target || !template) return false;
-    routeStateRef.current = { ...routeStateRef.current, status: 'preparingTarget', reason };
-    syncRouteDisplay();
-
+    if (!candidate || !template) return { ok: false, reason: 'invalid_candidate' };
     const filled = filledRef.current;
-    const targetColor = routingColor != null ? routingColor : template.cells[target.cells?.[0]];
-    const activation = createActiveTarget(template, target, targetColor, filled, {
+    let focusCandidate = candidate;
+    let activation = createActiveTarget(template, focusCandidate, targetColor, filled, {
       width: containerSize.width,
       height: containerSize.height,
       safeArea: safeArea.current,
     });
-    if (!activation.ok && !force) {
-      routeStateRef.current = {
-        ...routeStateRef.current,
-        status: 'error',
-        reason: `${reason}:${activation.reason}`,
-      };
-      syncRouteDisplay();
-      return { ok: false, reason: activation.reason };
-    }
     if (!activation.ok) return { ok: false, reason: activation.reason };
-    const activeTarget = activation.target;
-    const unfilledCount = activeTarget.workCells.length;
+    let cameraTransition = prepareFocusOnWindow(focusCandidate, immediate);
+    if (!cameraTransition) return { ok: false, reason: 'invalid_camera_plan' };
+    let readiness = ensureActionableViewport({
+      activeTarget: activation.target,
+      progress: filled,
+      camera: cameraTransition.camera,
+      viewport: containerSize,
+      safeArea: safeArea.current,
+      template,
+    });
+
+    if (!readiness.actionable && readiness.reason === 'partial_target_visibility') {
+      const smaller = activation.target.workCells
+        .map((cell) => candidateForCells([cell], focusCandidate.zoom))
+        .find((single) => {
+          const singleActivation = createActiveTarget(template, single, targetColor, filled, {
+            width: containerSize.width,
+            height: containerSize.height,
+            safeArea: safeArea.current,
+          });
+          const singleTransition = prepareFocusOnWindow(single, immediate);
+          if (!singleActivation.ok || !singleTransition) return false;
+          const singleReadiness = ensureActionableViewport({
+            activeTarget: singleActivation.target,
+            progress: filled,
+            camera: singleTransition.camera,
+            viewport: containerSize,
+            safeArea: safeArea.current,
+            template,
+          });
+          if (!singleReadiness.actionable) return false;
+          activation = singleActivation;
+          cameraTransition = singleTransition;
+          readiness = singleReadiness;
+          return true;
+        });
+      if (!smaller) return { ok: false, reason: readiness.reason };
+      focusCandidate = smaller;
+    } else if (!readiness.actionable) {
+      return { ok: false, reason: readiness.reason };
+    }
+
+    return {
+      ok: true,
+      candidate: focusCandidate,
+      activeTarget: activation.target,
+      cameraTransition,
+      readiness,
+    };
+  }
+
+  function commitTarget(prepared, options = {}) {
+    const {
+      force = false,
+      reason = 'unknown',
+      markVisited = true,
+    } = options;
+    if (!prepared?.ok) return prepared || { ok: false, reason: 'target_not_prepared' };
+
+    const previous = {
+      route: routeStateRef.current,
+      visited: new Set(visitedTargetsRef.current),
+      lastCenter: lastCenterRef.current ? { ...lastCenterRef.current } : null,
+      prevCenter: prevCenterRef.current ? { ...prevCenterRef.current } : null,
+    };
+    const { activeTarget, candidate, cameraTransition, readiness } = prepared;
     const targetId = activeTarget.id;
-    const prevTargetId = routeStateRef.current.targetId;
+    const prevTargetId = previous.route.targetId;
+    const token = ++transitionTokenRef.current;
 
-    prevCenterRef.current = lastCenterRef.current
-      ? { ...lastCenterRef.current }
-      : null;
-    lastCenterRef.current = { x: target.centerX, y: target.centerY };
-
-    if (markVisited) {
-      visitedTargetsRef.current.add(targetId);
-    }
-
-    if (prevTargetId && prevTargetId !== targetId) {
-      visitedTargetsRef.current.add(prevTargetId);
-    }
-
-    routeStateRef.current = { ...routeStateRef.current, status: 'focusingTarget', reason };
-    syncRouteDisplay();
-    const camResult = focusOnWindow(target, immediate, force);
-    if (!camResult) return { ok: false, reason: 'invalid_camera_plan' };
-
-    const visRemaining = computeVisibleUnfilledCount(
-      activeTarget, camResult, template, filled,
-      containerSize.width, containerSize.height, safeArea.current,
-    );
+    prevCenterRef.current = previous.lastCenter;
+    lastCenterRef.current = { x: candidate.centerX, y: candidate.centerY };
+    if (markVisited) visitedTargetsRef.current.add(targetId);
+    if (prevTargetId && prevTargetId !== targetId) visitedTargetsRef.current.add(prevTargetId);
 
     routeStateRef.current = {
       status: 'focusingTarget',
-      generation: routeStateRef.current.generation + 1,
+      generation: previous.route.generation + 1,
       targetId,
       target: activeTarget,
       reason,
-      visibleRemaining: visRemaining,
-      targetRemaining: unfilledCount,
-    };
-    const readiness = ensureActionableViewport({
-      activeTarget, progress: filled, camera: camResult,
-      viewport: containerSize, safeArea: safeArea.current, template,
-    });
-    if (!readiness.actionable) {
-      routeStateRef.current = { ...routeStateRef.current, status: 'error', reason: `${reason}:${readiness.reason}` };
-      syncRouteDisplay();
-      return { ok: false, reason: readiness.reason };
-    }
-    routeStateRef.current = {
-      ...routeStateRef.current,
-      status: 'ready',
       visibleRemaining: readiness.visibleUnfilledCells,
-      allTargetCellsVisible: readiness.allTargetCellsVisible,
+      targetRemaining: activeTarget.workCells.length,
+      allTargetCellsVisible: true,
     };
     syncRouteDisplay();
 
-    if (onTrack) onTrack('camera_activate_target', {
-      templateId: template?.id,
-      targetId,
-      reason,
-      targetCells: activeTarget.workCells.length,
-      unfilledCount,
-      visibleRemaining: visRemaining,
+    const committed = commitFocusOnWindow(cameraTransition, force, (actualCamera) => {
+      if (transitionTokenRef.current !== token) return;
+      const actualReadiness = ensureActionableViewport({
+        activeTarget,
+        progress: filledRef.current,
+        camera: actualCamera,
+        viewport: containerSize,
+        safeArea: safeArea.current,
+        template,
+      });
+      routeStateRef.current = actualReadiness.actionable
+        ? {
+            ...routeStateRef.current,
+            status: 'ready',
+            visibleRemaining: actualReadiness.visibleUnfilledCells,
+            allTargetCellsVisible: true,
+          }
+        : {
+            ...routeStateRef.current,
+            status: 'error',
+            reason: `${reason}:${actualReadiness.reason}`,
+          };
+      syncRouteDisplay();
+      if (actualReadiness.actionable && onTrack) onTrack('camera_activate_target', {
+        templateId: template?.id,
+        targetId,
+        reason,
+        targetCells: activeTarget.workCells.length,
+        unfilledCount: activeTarget.workCells.length,
+        visibleRemaining: actualReadiness.visibleUnfilledCells,
+      });
     });
 
-    return { ok: true, target: activeTarget, camera: camResult };
+    if (!committed) {
+      transitionTokenRef.current += 1;
+      routeStateRef.current = previous.route;
+      visitedTargetsRef.current = previous.visited;
+      lastCenterRef.current = previous.lastCenter;
+      prevCenterRef.current = previous.prevCenter;
+      syncRouteDisplay();
+      return { ok: false, reason: 'camera_commit_rejected' };
+    }
+    return { ok: true, target: activeTarget, camera: cameraTransition.camera };
+  }
+
+  function activateTarget(candidate, options = {}) {
+    const prepared = prepareTarget(candidate, options);
+    if (!prepared.ok) return prepared;
+    return commitTarget(prepared, options);
   }
 
   function findBestInitialTarget(wins) {
@@ -294,109 +363,72 @@ export default function ColoringSession({
     return best;
   }
 
-  function findNextTarget(currentTargetId, wins) {
-    if (!wins.length || !template) return null;
+  function buildNextOutcome(currentTargetId = routeStateRef.current.targetId) {
     const filled = filledRef.current;
-    const blockedIds = new Set(visitedTargetsRef.current);
-    if (currentTargetId) blockedIds.add(currentTargetId);
-
-    const validWins = wins.filter((win, i) => {
-      const tid = buildTargetId(template, win, routingColor);
-      if (blockedIds.has(tid)) return false;
-      return win.cells.some(idx => filled[idx] === -1);
+    const candidates = computeWorkingWindows(filled, routingColor);
+    const nextColor = routingColor != null
+      ? findRewardingColor(template, filled, routingColor)
+      : null;
+    const nextColorCandidates = nextColor != null && nextColor !== routingColor
+      ? computeWorkingWindows(filled, nextColor)
+      : [];
+    return resolveNextOutcome({
+      template,
+      filled,
+      routingColor,
+      candidates,
+      currentTargetId,
+      visitedTargetIds: visitedTargetsRef.current,
+      currentCenter: lastCenterRef.current,
+      nextColor,
+      nextColorCandidates,
     });
-
-    if (!validWins.length) return null;
-
-    const center = lastCenterRef.current
-      ? { x: lastCenterRef.current.x, y: lastCenterRef.current.y }
-      : { x: 0, y: 0 };
-
-    let best = null;
-    let bestScore = -Infinity;
-    for (const win of validWins) {
-      const dx = win.centerX - center.x;
-      const dy = win.centerY - center.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const unfilled = win.cells.reduce((c, idx) => c + (filled[idx] === -1 ? 1 : 0), 0);
-      const score = -dist * 0.5 + unfilled * 0.1 + win.cellCount * 0.005;
-      if (score > bestScore) {
-        bestScore = score;
-        best = win;
-      }
-    }
-    return best;
   }
 
-  function focusOnUnfilledCell() {
-    const filled = filledRef.current;
-    let found = -1;
-    let bestDist = Infinity;
-    const cx = (template.width - 1) / 2;
-    const cy = (template.height - 1) / 2;
-    for (let i = 0; i < filled.length; i++) {
-      if (filled[i] !== -1) continue;
-      const dx = (i % template.width) - cx;
-      const dy = Math.floor(i / template.width) - cy;
-      const dist = dx * dx + dy * dy;
-      if (dist < bestDist) {
-        bestDist = dist;
-        found = i;
-      }
+  function applyNextOutcome(outcome, reason, force = false) {
+    if (outcome.type === 'target_changed') {
+      if (outcome.resetVisited) visitedTargetsRef.current = new Set();
+      return activateTarget(outcome.target, { immediate: false, force, reason, markVisited: true });
     }
-    if (found >= 0) {
-      const cp = cellCenter(found, template.width);
-      const fakeTarget = {
-        cells: [found],
-        centerX: cp.x,
-        centerY: cp.y,
-        zoom: 2,
-        cellCount: 1,
-        bounds: { minX: found % template.width, maxX: found % template.width, minY: Math.floor(found / template.width), maxY: Math.floor(found / template.width), width: 1, height: 1 },
-      };
-      activateTarget(fakeTarget, { immediate: false, force: true, reason: 'fallback-cell', markVisited: false });
+    if (outcome.type === 'color_changed') {
+      visitedTargetsRef.current = new Set();
+      lastColorRef.current = outcome.color;
+      onSelectColor(outcome.color);
+      return activateTarget(outcome.target, {
+        immediate: false,
+        force,
+        reason: `${reason}:color_changed`,
+        markVisited: true,
+        targetColor: outcome.color,
+      });
     }
-  }
-
-  const handleNextCluster = useCallback(() => {
-    const wins = windowsRef.current;
-    if (!wins.length && !hasUnfilledCells()) {
-      routeStateRef.current = { ...routeStateRef.current, status: 'artworkComplete', reason: 'manual-next:no_remaining' };
+    if (outcome.type === 'last_cell') {
+      const targetColor = routingColor != null
+        ? routingColor
+        : template.cells[outcome.target.cells[0]];
+      return activateTarget(outcome.target, {
+        immediate: false,
+        force,
+        reason: `${reason}:last_cell`,
+        markVisited: true,
+        targetColor,
+      });
+    }
+    if (outcome.type === 'artwork_complete') {
+      routeStateRef.current = { ...routeStateRef.current, status: 'artworkComplete', reason: `${reason}:complete` };
       syncRouteDisplay();
-      return;
+      return { ok: true, complete: true };
     }
-    const currentTargetId = routeStateRef.current.targetId;
-    const next = findNextTarget(currentTargetId, wins);
-    if (next && buildTargetId(template, next, routingColor) !== currentTargetId) {
-      activateTarget(next, { immediate: false, force: true, reason: 'manual-next', markVisited: true });
-      if (onTrack) onTrack('camera_next_cluster', { templateId: template?.id });
-    } else {
-      if (hasUnfilledCells()) {
-        visitedTargetsRef.current = new Set();
-        windowsGenerationRef.current += 1;
-        setWindowsGeneration(windowsGenerationRef.current);
-        const fresh = windowsRef.current;
-        const nextFresh = findNextTarget(null, fresh);
-        if (nextFresh) activateTarget(nextFresh, { immediate: false, force: true, reason: 'manual-next-rebuilt', markVisited: true });
-        else focusOnUnfilledCell();
-      } else {
-        routeStateRef.current = {
-          ...routeStateRef.current,
-          status: 'completed',
-          reason: 'manual-next:no_remaining',
-        };
-        syncRouteDisplay();
-        if (onTrack) onTrack('auto_completed', { templateId: template?.id });
-      }
-    }
-  }, [template, routingColor, focusOverview, enableAuto, onTrack]);
+    routeStateRef.current = { ...routeStateRef.current, status: 'error', reason: `${reason}:${outcome.reason}` };
+    syncRouteDisplay();
+    return { ok: false, reason: outcome.reason };
+  }
 
-  const handleFindRemaining = useCallback(() => {
-    if (!template) return;
+  function handleNextCluster() {
     resumeAuto();
-    focusOnUnfilledCell();
-    if (onTrack) onTrack('camera_find_remaining', { templateId: template?.id });
-  }, [template, resumeAuto, onTrack]);
+    const result = applyNextOutcome(buildNextOutcome(), 'manual-next', true);
+    if (result.ok && onTrack) onTrack('camera_next_cluster', { templateId: template?.id });
+  }
 
   const handleColorSelect = useCallback((colorIndex) => {
     onSelectColor(colorIndex);
@@ -404,32 +436,16 @@ export default function ColoringSession({
 
   useEffect(() => {
     return () => {
-      if (pendingAutoRef.current) clearTimeout(pendingAutoRef.current);
-      sessionTokenRef.current += 1;
+      transitionTokenRef.current += 1;
     };
   }, []);
 
-  useLayoutEffect(() => {
+  const initializeRoute = useEffectEvent(() => {
     if (!containerSize.width || !containerSize.height) return;
     const wins = windowsRef.current;
 
     if (autoState !== AUTO_STATE.ACTIVE) {
       markCameraReady();
-      const sa = normalizeSafeArea(safeArea.current, containerSize.width, containerSize.height);
-      safeArea.current = sa;
-      setSafeArea(sa);
-      const usableW = containerSize.width - sa.left - sa.right;
-      const usableH = containerSize.height - sa.top - sa.bottom;
-      const zoomX = usableW / (template.width * BASE_CELL);
-      const zoomY = usableH / (template.height * BASE_CELL);
-      const zoom = Math.min(zoomX, zoomY, 1);
-      const totalW = template.width * BASE_CELL * zoom;
-      const totalH = template.height * BASE_CELL * zoom;
-      setCameraInstant({
-        x: (containerSize.width - totalW) / 2,
-        y: (containerSize.height - totalH) / 2,
-        zoom,
-      });
       return;
     }
 
@@ -453,23 +469,27 @@ export default function ColoringSession({
     const sa = normalizeSafeArea(safeArea.current, containerSize.width, containerSize.height);
     safeArea.current = sa;
     setSafeArea(sa);
-    if (routeStateRef.current.targetId && ['ready', 'freeExploration'].includes(routeStateRef.current.status)) return;
+    if (routeStateRef.current.targetId && ['ready', 'freeExploration', 'focusingTarget'].includes(routeStateRef.current.status)) return;
     visitedTargetsRef.current = new Set();
     const best = findBestInitialTarget(wins);
     if (best) {
-      activateTarget(best, { immediate: true, force: false, reason: 'initial', markVisited: true });
+      const result = activateTarget(best, { immediate: true, force: false, reason: 'initial', markVisited: true });
+      if (!result.ok) {
+        routeStateRef.current = { ...routeStateRef.current, status: 'error', reason: `initial:${result.reason}` };
+        syncRouteDisplay();
+      }
     }
-  }, [containerSize, template, workingWindows, autoState]);
+  });
+
+  useLayoutEffect(() => {
+    initializeRoute();
+  }, [containerSize, workingWindows, autoState]);
 
   function tryAdvanceAUTO() {
     if (autoState !== AUTO_STATE.ACTIVE) return;
-    if (pendingAutoRef.current) return;
 
     const rs = routeStateRef.current;
-    if (!rs.targetId || rs.status === 'completed') return;
-
-    const wins = windowsRef.current;
-    if (!wins.length) return;
+    if (!rs.targetId || rs.status !== 'ready') return;
 
     const targetDone = isTargetConsideredDone(
       rs.target, camera, template, filledRef.current,
@@ -477,47 +497,18 @@ export default function ColoringSession({
     );
 
     if (!targetDone) return;
-
-    recoveryCountRef.current = 0;
-    const next = findNextTarget(rs.targetId, wins);
-
-    if (next && buildTargetId(template, next, routingColor) !== rs.targetId) {
-      activateTarget(next, { immediate: false, force: false, reason: 'auto-advance', markVisited: true });
-    } else if (hasUnfilledCells()) {
-      if (onTrack) onTrack('auto_route_empty', {
-        templateId: template?.id,
-        visitedCount: visitedTargetsRef.current.size,
-        totalWindows: wins.length,
-      });
-
-      recoveryCountRef.current += 1;
-      if (recoveryCountRef.current > maxRecoveryAttempts) {
-        forceDisableAuto();
-        if (onTrack) onTrack('auto_recovered', { templateId: template?.id, outcome: 'max_attempts_exceeded' });
-        return;
-      }
-
-      visitedTargetsRef.current = new Set();
-      windowsGenerationRef.current += 1;
-      setWindowsGeneration(windowsGenerationRef.current);
-
-      if (onTrack) onTrack('auto_route_rebuilt', {
-        templateId: template?.id,
-        attempt: recoveryCountRef.current,
-      });
-
-      enableAuto();
-      const freshNext = findNextTarget(null, windowsRef.current);
-      if (freshNext) activateTarget(freshNext, { immediate: false, force: false, reason: 'auto-rebuilt', markVisited: true });
-      else focusOnUnfilledCell();
-    }
+    applyNextOutcome(buildNextOutcome(rs.targetId), 'auto-advance', false);
   }
 
+  const advanceRoute = useEffectEvent(() => {
+    tryAdvanceAUTO();
+  });
+
   useEffect(() => {
-    if (!workingWindows.length || autoState !== AUTO_STATE.ACTIVE) return;
+    if (autoState !== AUTO_STATE.ACTIVE) return;
     const targetId = routeStateRef.current.targetId;
     if (!targetId) return;
-    tryAdvanceAUTO();
+    advanceRoute();
   }, [localFilled, autoState, workingWindows]);
 
   const handleStrokeComplete = useCallback((stroke) => {
@@ -577,34 +568,53 @@ export default function ColoringSession({
     if (onFirstPaint) onFirstPaint();
   }, [onFirstPaint]);
 
-  const enterFreeExploration = useCallback(() => {
+  function enterFreeExploration() {
     const current = routeStateRef.current;
     if (!current.target) return;
     pauseAuto();
     routeStateRef.current = { ...current, status: 'freeExploration', reason: 'manual_exploration' };
     syncRouteDisplay();
-  }, [pauseAuto]);
+  }
 
-  const returnToTarget = useCallback(() => {
+  function handleOverview() {
+    const current = routeStateRef.current;
+    if (!current.target) return;
+    pauseAuto();
+    routeStateRef.current = { ...current, status: 'freeExploration', reason: 'overview' };
+    syncRouteDisplay();
+    focusOverview();
+  }
+
+  function returnToTarget() {
     const current = routeStateRef.current;
     if (!current.target) return;
     const cells = current.target.workCells;
-    const minX = Math.min(...cells.map((i) => i % template.width));
-    const maxX = Math.max(...cells.map((i) => i % template.width));
-    const minY = Math.min(...cells.map((i) => Math.floor(i / template.width)));
-    const maxY = Math.max(...cells.map((i) => Math.floor(i / template.width)));
-    focusOnWindow({ cells, cellCount: cells.length, centerX: (minX + maxX + 1) / 2, centerY: (minY + maxY + 1) / 2, bounds: { minX, maxX, minY, maxY, width: maxX - minX + 1, height: maxY - minY + 1 } }, false, true);
     resumeAuto();
-    routeStateRef.current = { ...current, status: 'ready', reason: 'return_to_target' };
-    syncRouteDisplay();
-  }, [template, focusOnWindow, resumeAuto]);
+    const candidate = candidateForCells(cells);
+    const result = activateTarget(candidate, {
+      immediate: false,
+      force: true,
+      reason: 'return_to_target',
+      markVisited: false,
+      targetColor: current.target.color,
+    });
+    if (!result.ok) {
+      routeStateRef.current = current;
+      syncRouteDisplay();
+    }
+  }
 
   if (!template || !progress) return null;
 
-  const showCanvas = cameraReady && ['ready', 'freeExploration'].includes(routeDisplay.status) && containerSize.width > 0 && containerSize.height > 0;
+  const showCanvas = cameraReady && ['ready', 'freeExploration', 'focusingTarget'].includes(routeDisplay.status) && containerSize.width > 0 && containerSize.height > 0;
 
   return (
-    <div className="coloring-session">
+    <div
+      className="coloring-session"
+      data-route-status={routeDisplay.status}
+      data-target-id={routeDisplay.targetId || ''}
+      data-target-generation={routeDisplay.generation}
+    >
       <div className="coloring-canvas-container" ref={containerRef}>
         {['ready', 'freeExploration'].includes(routeDisplay.status) && routeDisplay.target && (
           <div className="coloring-task-context" aria-live="polite">
@@ -636,6 +646,7 @@ export default function ColoringSession({
             activeWorkCells={routeDisplay.target?.workCells || []}
             activeTargetColor={routeDisplay.target?.color ?? null}
             onManualExplore={enterFreeExploration}
+            interactionDisabled={routeDisplay.status === 'focusingTarget'}
           />
         )}
         {!showCanvas && (
@@ -660,7 +671,7 @@ export default function ColoringSession({
           routeState={routeDisplay}
           onReturnToTarget={returnToTarget}
           onNextCluster={handleNextCluster}
-          onOverview={focusOverview}
+          onOverview={handleOverview}
           combo={combo}
           isPainting={false}
           onResize={handleHudResize}

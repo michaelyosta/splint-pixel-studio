@@ -4,7 +4,10 @@ import { rasterizeLine, rasterizeStroke } from '../src/features/coloring/engine/
 import { findClusters, getClusterBounds, mergeClusters, findUnfilledClusters } from '../src/features/coloring/engine/clusterGraph.js';
 import { createWorkingWindows, selectNextWindow } from '../src/features/coloring/engine/workingWindows.js';
 import { planCamera, clampCamera, getTransitionDuration, computeInitialCamera, isTargetVisible } from '../src/features/coloring/engine/cameraPlanner.js';
-import { buildTargetId, computeVisibleUnfilledCount, isTargetConsideredDone, computeViewportCellBounds, normalizeSafeArea } from '../src/features/coloring/engine/routeTargeting.js';
+import {
+  buildTargetId, computeVisibleUnfilledCount, ensureActionableViewport,
+  isTargetConsideredDone, computeViewportCellBounds, normalizeSafeArea, resolveNextOutcome,
+} from '../src/features/coloring/engine/routeTargeting.js';
 import { scoreTargetQuality } from '../src/features/coloring/engine/workingWindows.js';
 import { applyStroke, undoStroke, redoStroke, createStrokeOperation } from '../src/features/coloring/engine/paintReducer.js';
 import { arraysEqual } from '../src/features/coloring/engine/coloringUtils.js';
@@ -1380,6 +1383,72 @@ test('computeVisibleUnfilledCount safe area excludes right zone', () => {
   const filled = [-1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
   const count = computeVisibleUnfilledCount(target, camera, t, filled, 400, 300, { top: 0, right: 200, bottom: 0, left: 0 });
   assert.ok(count >= 0 && count <= 4, 'safe area should not affect these cells at this zoom');
+});
+
+test('computeVisibleUnfilledCount requires the full cell rectangle', () => {
+  const template = { width: 1, height: 1, cells: [0] };
+  const target = { workCells: [0] };
+  const count = computeVisibleUnfilledCount(
+    target,
+    { x: 1, y: 0, zoom: 1 },
+    template,
+    [-1],
+    32,
+    32,
+    null,
+  );
+  assert.equal(count, 0);
+});
+
+test('ensureActionableViewport rejects a partially visible target', () => {
+  const template = { width: 4, height: 1, cells: [0, 0, 0, 0] };
+  const activeTarget = { workCells: [0, 3] };
+  const result = ensureActionableViewport({
+    activeTarget,
+    progress: [-1, -1, -1, -1],
+    camera: { x: 0, y: 0, zoom: 1 },
+    viewport: { width: 120, height: 120 },
+    safeArea: null,
+    template,
+  });
+  assert.equal(result.actionable, false);
+  assert.equal(result.reason, 'partial_target_visibility');
+  assert.equal(result.visibleUnfilledCells, 1);
+});
+
+test('resolveNextOutcome synchronously selects a new target', () => {
+  const template = { id: 'route', width: 3, height: 1, cells: [0, 0, 0] };
+  const current = { cells: [0], centerX: 0.5, centerY: 0.5, cellCount: 1 };
+  const next = { cells: [1], centerX: 1.5, centerY: 0.5, cellCount: 1 };
+  const outcome = resolveNextOutcome({
+    template,
+    filled: [-1, -1, -1],
+    routingColor: 0,
+    candidates: [current, next],
+    currentTargetId: buildTargetId(template, current, 0),
+    visitedTargetIds: [],
+    currentCenter: { x: 0.5, y: 0.5 },
+  });
+  assert.equal(outcome.type, 'target_changed');
+  assert.deepEqual(outcome.target.cells, [1]);
+});
+
+test('resolveNextOutcome changes color when the current color has no new target', () => {
+  const template = { id: 'route', width: 2, height: 1, cells: [0, 1] };
+  const nextColorTarget = { cells: [1], centerX: 1.5, centerY: 0.5, cellCount: 1 };
+  const outcome = resolveNextOutcome({
+    template,
+    filled: [0, -1],
+    routingColor: 0,
+    candidates: [],
+    currentTargetId: 'finished',
+    visitedTargetIds: [],
+    nextColor: 1,
+    nextColorCandidates: [nextColorTarget],
+  });
+  assert.equal(outcome.type, 'color_changed');
+  assert.equal(outcome.color, 1);
+  assert.deepEqual(outcome.target.cells, [1]);
 });
 
 /* ── Target Completion ── */

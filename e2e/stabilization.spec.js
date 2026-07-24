@@ -17,6 +17,31 @@ async function clickActiveWorkCell(page) {
   });
 }
 
+async function readCamera(page) {
+  const viewport = page.locator('.coloring-canvas-viewport');
+  return {
+    x: Number(await viewport.getAttribute('data-camera-x')),
+    y: Number(await viewport.getAttribute('data-camera-y')),
+    zoom: Number(await viewport.getAttribute('data-camera-zoom')),
+  };
+}
+
+async function paintActiveTarget(page) {
+  const canvas = page.locator('canvas.coloring-canvas');
+  const activeCells = (await canvas.getAttribute('data-active-work-cells')).split(',').map(Number);
+  const templateWidth = Number(await canvas.getAttribute('data-template-width'));
+  const box = await canvas.boundingBox();
+  for (const index of activeCells) {
+    await canvas.click({
+      force: true,
+      position: {
+        x: ((index % templateWidth) + 0.5) * box.width / templateWidth,
+        y: (Math.floor(index / templateWidth) + 0.5) * box.width / templateWidth,
+      },
+    });
+  }
+}
+
 test.describe('Stabilization — Smart Coloring Engine', () => {
 
   async function dismissOnboarding(page) {
@@ -173,14 +198,73 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     await expect(canvas).not.toHaveAttribute('data-active-work-cells', '');
     const targetBefore = await canvas.getAttribute('data-active-work-cells');
     const viewport = page.locator('.coloring-canvas-viewport');
+    const cameraBefore = await readCamera(page);
     await viewport.hover();
     await page.mouse.wheel(0, -120);
 
     await expect(page.locator('.coloring-task-context')).toContainText('Свободный просмотр');
+    const cameraAfterWheel = await readCamera(page);
+    expect(cameraAfterWheel.zoom).not.toBeCloseTo(cameraBefore.zoom, 4);
+    await page.waitForTimeout(1000);
+    const cameraAfterOneSecond = await readCamera(page);
+    expect(cameraAfterOneSecond.x).toBeCloseTo(cameraAfterWheel.x, 3);
+    expect(cameraAfterOneSecond.y).toBeCloseTo(cameraAfterWheel.y, 3);
+    expect(cameraAfterOneSecond.zoom).toBeCloseTo(cameraAfterWheel.zoom, 4);
     const returnButton = page.locator('.coloring-hud button:has-text("Вернуться к участку")');
     await expect(returnButton).toBeVisible();
     await returnButton.click();
     await expect(page.locator('.coloring-task-context')).toContainText('Закрась выделенный участок');
     await expect(canvas).toHaveAttribute('data-active-work-cells', targetBefore);
+  });
+
+  test('10. Overview explicitly enters free exploration', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await dismissOnboarding(page);
+
+    await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'ready');
+    await page.locator('.coloring-hud button:has-text("Обзор")').click();
+
+    await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'freeExploration');
+    await expect(page.locator('.coloring-task-context')).toContainText('Свободный просмотр');
+    await expect(page.locator('.coloring-hud button:has-text("Вернуться к участку")')).toBeVisible();
+  });
+
+  test('11. Auto transition remains focusing until camera animation completes', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await dismissOnboarding(page);
+
+    const session = page.locator('.coloring-session');
+    await expect(session).toHaveAttribute('data-route-status', 'ready');
+    const generationBefore = Number(await session.getAttribute('data-target-generation'));
+    await paintActiveTarget(page);
+
+    await expect(session).toHaveAttribute('data-route-status', 'focusingTarget');
+    await expect(page.locator('.coloring-canvas-viewport')).toHaveAttribute('data-interaction-disabled', 'true');
+    await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 2000 });
+    await expect(page.locator('.coloring-canvas-viewport')).toHaveAttribute('data-interaction-disabled', 'false');
+    const generationAfter = Number(await session.getAttribute('data-target-generation'));
+    expect(generationAfter).toBeGreaterThan(generationBefore);
+  });
+
+  test('12. Ten Next actions always change target or finish', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await dismissOnboarding(page);
+
+    const session = page.locator('.coloring-session');
+    const nextButton = page.locator('.coloring-hud button:has-text("Следующий участок")');
+    await expect(session).toHaveAttribute('data-route-status', 'ready');
+
+    for (let i = 0; i < 10; i++) {
+      const before = await session.getAttribute('data-target-id');
+      await nextButton.click();
+      const status = await session.getAttribute('data-route-status');
+      if (status === 'artworkComplete') break;
+      await expect(session).toHaveAttribute('data-route-status', 'focusingTarget');
+      await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 2000 });
+      await expect(session).not.toHaveAttribute('data-target-id', before);
+    }
   });
 });

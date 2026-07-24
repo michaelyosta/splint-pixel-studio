@@ -46,11 +46,13 @@ export function computeVisibleUnfilledCount(target, camera, template, filled, vi
   let count = 0;
   for (const idx of target.workCells || target.cells || []) {
     if (filled[idx] !== -1) continue;
-    const cx = (idx % template.width) * BASE_CELL + BASE_CELL / 2;
-    const cy = Math.floor(idx / template.width) * BASE_CELL + BASE_CELL / 2;
-    const sx = camera.x + cx * zoom;
-    const sy = camera.y + cy * zoom;
-    if (sx >= left && sx <= right && sy >= top && sy <= bottom) {
+    const cellX = (idx % template.width) * BASE_CELL;
+    const cellY = Math.floor(idx / template.width) * BASE_CELL;
+    const cellLeft = camera.x + cellX * zoom;
+    const cellTop = camera.y + cellY * zoom;
+    const cellRight = cellLeft + BASE_CELL * zoom;
+    const cellBottom = cellTop + BASE_CELL * zoom;
+    if (cellLeft >= left && cellRight <= right && cellTop >= top && cellBottom <= bottom) {
       count++;
     }
   }
@@ -71,8 +73,81 @@ export function ensureActionableViewport({ activeTarget, progress, camera, viewp
   if (viewport.width - sa.left - sa.right < 1 || viewport.height - sa.top - sa.bottom < 1) return { actionable: false, reason: 'invalid_safe_area' };
   const visibleUnfilledCells = computeVisibleUnfilledCount(activeTarget, camera, template, filled, viewport.width, viewport.height, sa);
   if (!visibleUnfilledCells) return { actionable: false, reason: 'no_visible_work_cells' };
-  const allTargetCellsVisible = visibleUnfilledCells === cells.filter((index) => filled[index] === -1).length;
-  return { actionable: true, visibleUnfilledCells, allTargetCellsVisible };
+  const remainingTargetCells = cells.filter((index) => filled[index] === -1).length;
+  const allTargetCellsVisible = visibleUnfilledCells === remainingTargetCells;
+  if (!allTargetCellsVisible) {
+    return { actionable: false, reason: 'partial_target_visibility', visibleUnfilledCells, allTargetCellsVisible };
+  }
+  return { actionable: true, visibleUnfilledCells, allTargetCellsVisible: true };
+}
+
+function chooseCandidate(template, filled, routingColor, candidates, blockedIds, currentCenter) {
+  let best = null;
+  let bestScore = -Infinity;
+  for (const candidate of candidates || []) {
+    const id = buildTargetId(template, candidate, routingColor);
+    if (blockedIds.has(id)) continue;
+    const remaining = (candidate.cells || candidate.workCells || [])
+      .reduce((count, index) => count + (filled[index] === -1 ? 1 : 0), 0);
+    if (!remaining) continue;
+    const dx = candidate.centerX - (currentCenter?.x || 0);
+    const dy = candidate.centerY - (currentCenter?.y || 0);
+    const score = -Math.hypot(dx, dy) * 0.5 + remaining * 0.1 + (candidate.cellCount || remaining) * 0.005;
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+export function resolveNextOutcome({
+  template,
+  filled,
+  routingColor,
+  candidates,
+  currentTargetId,
+  visitedTargetIds = [],
+  currentCenter,
+  nextColor,
+  nextColorCandidates = [],
+}) {
+  if (!template || !filled) return { type: 'error', reason: 'invalid_route_input' };
+  if (!filled.some((color) => color === -1)) return { type: 'artwork_complete' };
+
+  const blocked = new Set(visitedTargetIds);
+  if (currentTargetId) blocked.add(currentTargetId);
+  let target = chooseCandidate(template, filled, routingColor, candidates, blocked, currentCenter);
+  if (target) return { type: 'target_changed', target, resetVisited: false };
+
+  const currentOnly = new Set(currentTargetId ? [currentTargetId] : []);
+  target = chooseCandidate(template, filled, routingColor, candidates, currentOnly, currentCenter);
+  if (target) return { type: 'target_changed', target, resetVisited: true };
+
+  if (nextColor != null && nextColor !== routingColor) {
+    target = chooseCandidate(template, filled, nextColor, nextColorCandidates, new Set(), currentCenter);
+    if (target) return { type: 'color_changed', color: nextColor, target };
+  }
+
+  const lastCell = filled.findIndex((paint, index) =>
+    paint === -1 && (routingColor == null || template.cells[index] === routingColor));
+  if (lastCell >= 0) {
+    const x = lastCell % template.width;
+    const y = Math.floor(lastCell / template.width);
+    return {
+      type: 'last_cell',
+      target: {
+        cells: [lastCell],
+        centerX: x + 0.5,
+        centerY: y + 0.5,
+        zoom: 1,
+        cellCount: 1,
+        bounds: { minX: x, maxX: x, minY: y, maxY: y, width: 1, height: 1 },
+      },
+    };
+  }
+
+  return { type: 'error', reason: 'no_actionable_outcome' };
 }
 
 export function computeViewportCellBounds(camera, viewWidth, viewHeight, safeArea, templateWidth, templateHeight) {
@@ -90,7 +165,7 @@ export function computeViewportCellBounds(camera, viewWidth, viewHeight, safeAre
   return { minCellX, minCellY, maxCellX, maxCellY, cellsVisible: (maxCellX - minCellX + 1) * (maxCellY - minCellY + 1) };
 }
 
-export function isTargetConsideredDone(target, camera, template, filled, viewWidth, viewHeight, safeArea) {
+export function isTargetConsideredDone(target, camera, template, filled, _viewWidth, _viewHeight, _safeArea) {
   if (!target || !template) return false;
   const cells = target.workCells || target.cells || [];
   return cells.length > 0 && cells.every((index) => filled[index] !== -1);
