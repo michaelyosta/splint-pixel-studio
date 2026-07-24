@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid';
 import { all, get, run } from '../db.js';
 import { authMiddleware, hasProfanity, hasUrl } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
+import { createReport, sendReportError } from '../services/reporting.js';
 
 const router = Router();
 
@@ -11,7 +12,7 @@ async function enrichPost(post, userId) {
   const author  = await get('SELECT id,nickname,avatar_url,karma,messages_disabled,followers_only,paid_open,price_in_stars FROM users WHERE id=?', [post.author_id]);
   let artwork = post.artwork_id ? await get('SELECT * FROM artworks WHERE id=?', [post.artwork_id]) : null;
   if (artwork && (!artwork.image_url || (artwork.image_url.startsWith('data:') && artwork.image_url.length < 100))) {
-    const template = artwork.collection_id ? await get('SELECT preview_url FROM coloring_templates WHERE id=?', [artwork.collection_id]) : null;
+    const template = artwork.template_id ? await get('SELECT preview_url FROM coloring_templates WHERE id=?', [artwork.template_id]) : null;
     const fallback = template?.preview_url && (!template.preview_url.startsWith('data:') || template.preview_url.length >= 100) ? template.preview_url : '/assets/catalog/neon-cat-pixel.png';
     artwork = { ...artwork, image_url: fallback };
   }
@@ -70,7 +71,7 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
 
 // GET /posts/:id
 router.get('/:id', authMiddleware, asyncRoute(async (req, res) => {
-  const post = await get('SELECT * FROM posts WHERE id=?', [req.params.id]);
+  const post = await get("SELECT * FROM posts WHERE id=? AND status='active'", [req.params.id]);
   if (!post) return res.status(404).json({ error: 'Пост не найден' });
   res.json(await enrichPost(post, req.userId));
 }));
@@ -106,17 +107,16 @@ router.post('/:id/toggle-comments', authMiddleware, asyncRoute(async (req, res) 
 
 // POST /posts/:id/report
 router.post('/:id/report', authMiddleware, asyncRoute(async (req, res) => {
-  const { reason = 'other' } = req.body;
-  const now = new Date().toISOString();
-  const id  = `rep_${uuid()}`;
-  await run(`INSERT INTO reports (id,reporter_id,target_type,target_id,reason,status,created_at) VALUES (?,?,?,?,?,?,?)`,
-    [id, req.userId, 'post', req.params.id, reason, 'pending', now]);
-
-  // Auto-hide at 3 reports
-  const cnt = await get('SELECT COUNT(*) as c FROM reports WHERE target_type=? AND target_id=?', ['post', req.params.id]);
-  if (cnt.c >= 3) await run("UPDATE posts SET status='hidden', updated_at=? WHERE id=? AND status='active'", [now, req.params.id]);
-
-  res.json({ success: true });
+  try {
+    res.json(await createReport({
+      reporterId: req.userId,
+      targetType: 'post',
+      targetId: req.params.id,
+      reason: req.body.reason,
+    }));
+  } catch (error) {
+    return sendReportError(res, error);
+  }
 }));
 
 export default router;
