@@ -42,6 +42,62 @@ async function paintActiveTarget(page) {
   }
 }
 
+async function expectActiveTargetFullyVisible(page) {
+  const session = page.locator('.coloring-session');
+  const viewport = page.locator('.coloring-canvas-viewport');
+  const canvas = page.locator('canvas.coloring-canvas');
+  await expect.poll(async () => {
+    if (await session.getAttribute('data-route-status') !== 'ready') return false;
+    const currentCamera = await readCamera(page);
+    const currentViewportBox = await viewport.boundingBox();
+    const currentCells = (await canvas.getAttribute('data-active-work-cells')).split(',').map(Number);
+    const currentTemplateWidth = Number(await canvas.getAttribute('data-template-width'));
+    const currentSafe = {
+      top: Number(await session.getAttribute('data-safe-top')),
+      right: Number(await session.getAttribute('data-safe-right')),
+      bottom: Number(await session.getAttribute('data-safe-bottom')),
+      left: Number(await session.getAttribute('data-safe-left')),
+    };
+    return currentCells.length > 0 && currentCells.every((index) => {
+      const x = index % currentTemplateWidth;
+      const y = Math.floor(index / currentTemplateWidth);
+      const left = currentCamera.x + x * 32 * currentCamera.zoom;
+      const top = currentCamera.y + y * 32 * currentCamera.zoom;
+      const right = left + 32 * currentCamera.zoom;
+      const bottom = top + 32 * currentCamera.zoom;
+      return left >= currentSafe.left - 0.5
+        && top >= currentSafe.top - 0.5
+        && right <= currentViewportBox.width - currentSafe.right + 0.5
+        && bottom <= currentViewportBox.height - currentSafe.bottom + 0.5;
+    });
+  }, { timeout: 3000 }).toBe(true);
+
+  const camera = await readCamera(page);
+  const viewportBox = await viewport.boundingBox();
+  const cells = (await canvas.getAttribute('data-active-work-cells')).split(',').map(Number);
+  const templateWidth = Number(await canvas.getAttribute('data-template-width'));
+  const safe = {
+    top: Number(await session.getAttribute('data-safe-top')),
+    right: Number(await session.getAttribute('data-safe-right')),
+    bottom: Number(await session.getAttribute('data-safe-bottom')),
+    left: Number(await session.getAttribute('data-safe-left')),
+  };
+
+  expect(cells.length).toBeGreaterThan(0);
+  for (const index of cells) {
+    const x = index % templateWidth;
+    const y = Math.floor(index / templateWidth);
+    const left = camera.x + x * 32 * camera.zoom;
+    const top = camera.y + y * 32 * camera.zoom;
+    const right = left + 32 * camera.zoom;
+    const bottom = top + 32 * camera.zoom;
+    expect(left).toBeGreaterThanOrEqual(safe.left - 0.5);
+    expect(top).toBeGreaterThanOrEqual(safe.top - 0.5);
+    expect(right).toBeLessThanOrEqual(viewportBox.width - safe.right + 0.5);
+    expect(bottom).toBeLessThanOrEqual(viewportBox.height - safe.bottom + 0.5);
+  }
+}
+
 test.describe('Stabilization — Smart Coloring Engine', () => {
 
   async function dismissOnboarding(page) {
@@ -266,5 +322,124 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
       await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 2000 });
       await expect(session).not.toHaveAttribute('data-target-id', before);
     }
+  });
+
+  test('13. Manual palette selection atomically activates a target of that color', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await dismissOnboarding(page);
+
+    const session = page.locator('.coloring-session');
+    const canvas = page.locator('canvas.coloring-canvas');
+    await expect(session).toHaveAttribute('data-route-status', 'ready');
+    const targetBefore = await session.getAttribute('data-target-id');
+    const nextSwatch = page.locator('.color-swatch:not(.selected):not(.completed)').first();
+    const nextColor = Number(await nextSwatch.locator('span').textContent()) - 1;
+
+    await nextSwatch.click();
+    await expect(session).toHaveAttribute('data-route-status', 'focusingTarget');
+    await expect(page.locator('.coloring-canvas-viewport')).toHaveAttribute('data-interaction-disabled', 'true');
+    await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 2000 });
+    await expect(session).toHaveAttribute('data-target-color', String(nextColor));
+    await expect(canvas).toHaveAttribute('data-active-target-color', String(nextColor));
+    await expect(session).not.toHaveAttribute('data-target-id', targetBefore);
+    await expectActiveTargetFullyVisible(page);
+  });
+
+  test('13b. Selecting a completed color keeps a truthful active target', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await dismissOnboarding(page);
+
+    const session = page.locator('.coloring-session');
+    const canvas = page.locator('canvas.coloring-canvas');
+    await expect(session).toHaveAttribute('data-route-status', 'ready');
+    const completedColor = Number(await session.getAttribute('data-target-color'));
+    const completedSwatch = page.locator('.color-swatch').nth(completedColor);
+    await expect(completedSwatch.locator('small')).toHaveText('1');
+    await paintActiveTarget(page);
+    await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 3000 });
+    await expect(completedSwatch).toHaveClass(/completed/);
+
+    await completedSwatch.click();
+    await expect(session).toHaveAttribute('data-route-status', 'focusingTarget');
+    await expect(page.locator('.coloring-canvas-viewport')).toHaveAttribute('data-interaction-disabled', 'true');
+    await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 3000 });
+    await expect(session).not.toHaveAttribute('data-target-color', String(completedColor));
+    const activeColor = await session.getAttribute('data-target-color');
+    await expect(canvas).toHaveAttribute('data-active-target-color', activeColor);
+    await expect(page.locator('.color-swatch.selected')).toHaveAttribute(
+      'title',
+      `Цвет ${Number(activeColor) + 1}`,
+    );
+  });
+
+  test('14. Guided target is revalidated across required viewport sizes', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await dismissOnboarding(page);
+
+    const session = page.locator('.coloring-session');
+    await expect(session).toHaveAttribute('data-route-status', 'ready');
+    const targetId = await session.getAttribute('data-target-id');
+    const sizes = [
+      { width: 360, height: 640 },
+      { width: 640, height: 360 },
+      { width: 390, height: 844 },
+      { width: 844, height: 390 },
+      { width: 1366, height: 768 },
+      { width: 1920, height: 1080 },
+    ];
+
+    for (const size of sizes) {
+      await page.setViewportSize(size);
+      await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 3000 });
+      await expect(session).toHaveAttribute('data-target-id', targetId);
+      await expectActiveTargetFullyVisible(page);
+    }
+  });
+
+  test('15. Expanding the HUD preserves and revalidates the same target', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await dismissOnboarding(page);
+
+    const session = page.locator('.coloring-session');
+    await expect(session).toHaveAttribute('data-route-status', 'ready');
+    const targetId = await session.getAttribute('data-target-id');
+    await page.locator('.hud-btn--collapse').click();
+    await expect(page.locator('.coloring-hud--collapsed')).toBeVisible();
+    await page.locator('.hud-btn--expand').click();
+    await expect(page.locator('.coloring-hud:not(.coloring-hud--collapsed)')).toBeVisible();
+    await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 3000 });
+    await expect(session).toHaveAttribute('data-target-id', targetId);
+    await expectActiveTargetFullyVisible(page);
+  });
+
+  test('16. Resize in free exploration preserves manual camera and target', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await dismissOnboarding(page);
+
+    const session = page.locator('.coloring-session');
+    const targetId = await session.getAttribute('data-target-id');
+    await page.locator('.coloring-hud button:has-text("Обзор")').click();
+    await expect(session).toHaveAttribute('data-route-status', 'freeExploration');
+    await page.waitForTimeout(500);
+    const freeCamera = await readCamera(page);
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.waitForTimeout(500);
+    await expect(session).toHaveAttribute('data-route-status', 'freeExploration');
+    await expect(session).toHaveAttribute('data-target-id', targetId);
+    const resizedCamera = await readCamera(page);
+    expect(resizedCamera.x).toBeCloseTo(freeCamera.x, 3);
+    expect(resizedCamera.y).toBeCloseTo(freeCamera.y, 3);
+    expect(resizedCamera.zoom).toBeCloseTo(freeCamera.zoom, 4);
+
+    await page.locator('.coloring-hud button:has-text("Вернуться к участку")').click();
+    await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 3000 });
+    await expect(session).toHaveAttribute('data-target-id', targetId);
+    await expectActiveTargetFullyVisible(page);
   });
 });

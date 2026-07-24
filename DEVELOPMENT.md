@@ -97,6 +97,9 @@ Requires Node.js >= 20.6 (for `--env-file` support).
 loaded by:
 - `npm run dev:api` → `node --env-file=../.env.local --watch index.js`
 
+Do not set `NODE_ENV` in `.env.local`. Vite selects development mode for
+`npm run dev` and production mode for `npm run build`.
+
 `VITE_*` variables are bundled into the client at build time. They must
 never contain secrets or tokens.
 

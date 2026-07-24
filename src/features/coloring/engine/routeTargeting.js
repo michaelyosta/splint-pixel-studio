@@ -101,6 +101,44 @@ function chooseCandidate(template, filled, routingColor, candidates, blockedIds,
   return best;
 }
 
+export function resolveColorTransition({
+  template,
+  filled,
+  currentColor,
+  requestedColor,
+  requestedCandidates = [],
+  fallbackColor = null,
+  fallbackCandidates = [],
+  currentCenter,
+}) {
+  if (!template || !filled || !Number.isInteger(requestedColor)) {
+    return { type: 'error', reason: 'invalid_color_transition' };
+  }
+  if (!filled.some((color) => color === -1)) return { type: 'artwork_complete' };
+  if (requestedColor === currentColor) return { type: 'unchanged', color: currentColor };
+
+  let target = chooseCandidate(
+    template, filled, requestedColor, requestedCandidates, new Set(), currentCenter,
+  );
+  if (target) return { type: 'color_changed', color: requestedColor, target };
+
+  if (fallbackColor != null && fallbackColor !== requestedColor) {
+    target = chooseCandidate(
+      template, filled, fallbackColor, fallbackCandidates, new Set(), currentCenter,
+    );
+    if (target) {
+      return {
+        type: 'color_changed',
+        color: fallbackColor,
+        target,
+        requestedColorComplete: true,
+      };
+    }
+  }
+
+  return { type: 'color_complete', color: requestedColor };
+}
+
 export function resolveNextOutcome({
   template,
   filled,
@@ -172,17 +210,17 @@ export function isTargetConsideredDone(target, camera, template, filled, _viewWi
 }
 
 export function normalizeSafeArea(sa, viewWidth, viewHeight) {
-  const MIN_USABLE = 120;
+  const MIN_USABLE = BASE_CELL;
 
   let top = Number.isFinite(sa?.top) ? Math.max(0, sa.top) : 0;
   let right = Number.isFinite(sa?.right) ? Math.max(0, sa.right) : 0;
   let bottom = Number.isFinite(sa?.bottom) ? Math.max(0, sa.bottom) : 0;
   let left = Number.isFinite(sa?.left) ? Math.max(0, sa.left) : 0;
 
-  top = Math.min(top, viewHeight - MIN_USABLE, viewHeight);
-  right = Math.min(right, viewWidth - MIN_USABLE, viewWidth);
-  bottom = Math.min(bottom, viewHeight - MIN_USABLE, viewHeight);
-  left = Math.min(left, viewWidth - MIN_USABLE, viewWidth);
+  top = Math.max(0, Math.min(top, viewHeight - MIN_USABLE, viewHeight));
+  right = Math.max(0, Math.min(right, viewWidth - MIN_USABLE, viewWidth));
+  bottom = Math.max(0, Math.min(bottom, viewHeight - MIN_USABLE, viewHeight));
+  left = Math.max(0, Math.min(left, viewWidth - MIN_USABLE, viewWidth));
 
   const usableW = viewWidth - left - right;
   const usableH = viewHeight - top - bottom;

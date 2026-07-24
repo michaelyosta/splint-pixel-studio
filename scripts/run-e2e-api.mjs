@@ -14,6 +14,7 @@ const child = spawn(process.execPath, ['--env-file=../.env.local', 'index.js'], 
   cwd: join(projectRoot, 'server'),
   env: {
     ...process.env,
+    PORT: process.env.E2E_API_PORT || process.env.PORT || '3001',
     SQLITE_DB_PATH: runtimeDb,
     MEDIA_STORAGE_ROOT: mediaDir,
     STORAGE_DRIVER: 'local',

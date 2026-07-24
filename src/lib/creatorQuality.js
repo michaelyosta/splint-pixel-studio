@@ -1,7 +1,7 @@
 export function assessQuality(width, height, palette, cells) {
   const total = cells.length;
   const colorUsed = new Set(cells).size;
-  const regionCounts = countSmallRegions(width, height, cells);
+  const regionCounts = countSmallRegionCells(width, height, cells);
   const smallRegionRatio = regionCounts / total;
   const colorEfficiency = colorUsed / palette.length;
 
@@ -14,7 +14,7 @@ export function assessQuality(width, height, palette, cells) {
   return { level: 'noisy', label: 'Слишком много мелких деталей', hint: 'Попробуйте кадрировать, увеличить сетку или выбрать больше цветов.' };
 }
 
-function countSmallRegions(width, height, cells) {
+export function countSmallRegionCells(width, height, cells) {
   const visited = new Set();
   let small = 0;
   for (let index = 0; index < cells.length; index += 1) {
@@ -25,15 +25,15 @@ function countSmallRegions(width, height, cells) {
     while (stack.length) {
       const i = stack.pop();
       if (visited.has(i)) continue;
-      visited.add(i);
       if (cells[i] !== color) continue;
+      visited.add(i);
       region.push(i);
       const x = i % width;
       const y = Math.floor(i / width);
-      if (x > 0) stack.push(i - 1);
-      if (x < width - 1) stack.push(i + 1);
-      if (y > 0) stack.push(i - width);
-      if (y < height - 1) stack.push(i + width);
+      if (x > 0 && cells[i - 1] === color) stack.push(i - 1);
+      if (x < width - 1 && cells[i + 1] === color) stack.push(i + 1);
+      if (y > 0 && cells[i - width] === color) stack.push(i - width);
+      if (y < height - 1 && cells[i + width] === color) stack.push(i + width);
     }
     if (region.length <= 2) small += region.length;
   }

@@ -11,7 +11,7 @@ import { arraysEqual } from './engine/coloringUtils.js';
 import { findRewardingColor } from '../../lib/pixelColoring.js';
 import {
   computeVisibleUnfilledCount, createActiveTarget, ensureActionableViewport,
-  isTargetConsideredDone, normalizeSafeArea, resolveNextOutcome,
+  isTargetConsideredDone, normalizeSafeArea, resolveColorTransition, resolveNextOutcome,
 } from './engine/routeTargeting.js';
 import './coloring.css';
 
@@ -25,6 +25,13 @@ function createRouteState() {
     visibleRemaining: 0,
     targetRemaining: 0,
   };
+}
+
+function safeAreasEqual(first, second) {
+  return first.top === second.top
+    && first.right === second.right
+    && first.bottom === second.bottom
+    && first.left === second.left;
 }
 
 export default function ColoringSession({
@@ -61,6 +68,12 @@ export default function ColoringSession({
   const transitionTokenRef = useRef(0);
 
   const safeArea = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
+  const [safeAreaState, setSafeAreaState] = useState(safeArea.current);
+  const viewportGeometry = useMemo(() => ({
+    width: containerSize.width,
+    height: containerSize.height,
+    safeArea: safeAreaState,
+  }), [containerSize.width, containerSize.height, safeAreaState]);
 
   const {
     camera, cameraReady, markCameraReady, setCamera, autoState,
@@ -71,18 +84,19 @@ export default function ColoringSession({
 
   const hudSizeRef = useRef({ width: 0, height: 0 });
 
-  const handleHudResize = useCallback((w, h, left, top) => {
+  const handleHudResize = useCallback((w, h, left, _top) => {
     hudSizeRef.current = { width: w, height: h };
     if (containerRef.current) {
       const containerRect = containerRef.current.getBoundingClientRect();
       const hudLeftRel = left - containerRect.left;
-      const hudTopRel = top - containerRect.top;
       const rightInset = Math.max(0, containerRect.width - hudLeftRel + 8);
-      const topInset = Math.max(0, hudTopRel + h + 8);
-      const raw = { top: topInset, right: rightInset, bottom: 0, left: 0 };
+      const raw = { top: 0, right: rightInset, bottom: 0, left: 0 };
       const normalized = normalizeSafeArea(raw, containerSize.width || 400, containerSize.height || 400);
-      safeArea.current = normalized;
-      setSafeArea(normalized);
+      if (!safeAreasEqual(safeArea.current, normalized)) {
+        safeArea.current = normalized;
+        setSafeArea(normalized);
+        setSafeAreaState(normalized);
+      }
     }
   }, [containerSize.width, containerSize.height, setSafeArea]);
 
@@ -93,7 +107,9 @@ export default function ColoringSession({
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0) {
-          setContainerSize({ width, height });
+          setContainerSize((current) => (
+            current.width === width && current.height === height ? current : { width, height }
+          ));
         }
       }
     });
@@ -118,7 +134,7 @@ export default function ColoringSession({
     const merged = mergeClusters(clusters, template.width);
     if (!merged.length) return [];
     const allWindows = [];
-    const sa = safeArea.current;
+    const sa = safeAreaState;
     const usableW = containerSize.width || 400;
     const usableH = containerSize.height || 400;
     for (const cluster of merged) {
@@ -126,7 +142,7 @@ export default function ColoringSession({
       allWindows.push(...wins);
     }
     return allWindows;
-  }, [template, containerSize.width, containerSize.height]);
+  }, [template, containerSize.width, containerSize.height, safeAreaState]);
 
   const workingWindows = useMemo(
     () => {
@@ -341,6 +357,74 @@ export default function ColoringSession({
     return commitTarget(prepared, options);
   }
 
+  function refocusExistingTarget(current, reason) {
+    const target = current?.target;
+    if (!target?.workCells?.length) return { ok: false, reason: 'no_active_target' };
+    const candidate = candidateForCells(target.workCells);
+    const cameraTransition = prepareFocusOnWindow(candidate, false);
+    if (!cameraTransition) return { ok: false, reason: 'invalid_camera_plan' };
+    const plannedReadiness = ensureActionableViewport({
+      activeTarget: target,
+      progress: filledRef.current,
+      camera: cameraTransition.camera,
+      viewport: containerSize,
+      safeArea: safeArea.current,
+      template,
+    });
+    if (!plannedReadiness.actionable) return { ok: false, reason: plannedReadiness.reason };
+
+    const token = ++transitionTokenRef.current;
+    cancelAnimation();
+    routeStateRef.current = {
+      ...current,
+      status: 'focusingTarget',
+      generation: current.generation + 1,
+      reason,
+      visibleRemaining: plannedReadiness.visibleUnfilledCells,
+      targetRemaining: target.workCells.reduce(
+        (count, index) => count + (filledRef.current[index] === -1 ? 1 : 0),
+        0,
+      ),
+      allTargetCellsVisible: true,
+    };
+    syncRouteDisplay();
+
+    const committed = commitFocusOnWindow(cameraTransition, true, (actualCamera) => {
+      if (transitionTokenRef.current !== token) return;
+      const actualReadiness = ensureActionableViewport({
+        activeTarget: target,
+        progress: filledRef.current,
+        camera: actualCamera,
+        viewport: {
+          width: containerRef.current?.clientWidth || containerSize.width,
+          height: containerRef.current?.clientHeight || containerSize.height,
+        },
+        safeArea: safeArea.current,
+        template,
+      });
+      routeStateRef.current = actualReadiness.actionable
+        ? {
+            ...routeStateRef.current,
+            status: 'ready',
+            visibleRemaining: actualReadiness.visibleUnfilledCells,
+            allTargetCellsVisible: true,
+          }
+        : {
+            ...routeStateRef.current,
+            status: 'error',
+            reason: `${reason}:${actualReadiness.reason}`,
+          };
+      syncRouteDisplay();
+    });
+    if (!committed) {
+      transitionTokenRef.current += 1;
+      routeStateRef.current = current;
+      syncRouteDisplay();
+      return { ok: false, reason: 'camera_commit_rejected' };
+    }
+    return { ok: true, target, camera: cameraTransition.camera };
+  }
+
   function findBestInitialTarget(wins) {
     if (!wins.length || !template) return null;
     const filled = filledRef.current;
@@ -391,16 +475,21 @@ export default function ColoringSession({
       return activateTarget(outcome.target, { immediate: false, force, reason, markVisited: true });
     }
     if (outcome.type === 'color_changed') {
-      visitedTargetsRef.current = new Set();
-      lastColorRef.current = outcome.color;
-      onSelectColor(outcome.color);
-      return activateTarget(outcome.target, {
+      const prepared = prepareTarget(outcome.target, {
         immediate: false,
+        targetColor: outcome.color,
+      });
+      if (!prepared.ok) return prepared;
+      const committed = commitTarget(prepared, {
         force,
         reason: `${reason}:color_changed`,
         markVisited: true,
-        targetColor: outcome.color,
       });
+      if (!committed.ok) return committed;
+      visitedTargetsRef.current = new Set([committed.target.id]);
+      lastColorRef.current = outcome.color;
+      onSelectColor(outcome.color);
+      return committed;
     }
     if (outcome.type === 'last_cell') {
       const targetColor = routingColor != null
@@ -430,9 +519,78 @@ export default function ColoringSession({
     if (result.ok && onTrack) onTrack('camera_next_cluster', { templateId: template?.id });
   }
 
-  const handleColorSelect = useCallback((colorIndex) => {
-    onSelectColor(colorIndex);
-  }, [onSelectColor]);
+  function transitionToColor(requestedColor, reason = 'manual-color') {
+    if (requestedColor === routingColor) return { ok: true, unchanged: true };
+
+    const requestedCandidates = computeWorkingWindows(filledRef.current, requestedColor);
+    const fallbackColor = findRewardingColor(template, filledRef.current, requestedColor);
+    const fallbackCandidates = fallbackColor != null
+      ? computeWorkingWindows(filledRef.current, fallbackColor)
+      : [];
+    const outcome = resolveColorTransition({
+      template,
+      filled: filledRef.current,
+      currentColor: routingColor,
+      requestedColor,
+      requestedCandidates,
+      fallbackColor,
+      fallbackCandidates,
+      currentCenter: lastCenterRef.current,
+    });
+
+    if (outcome.type === 'artwork_complete') {
+      routeStateRef.current = {
+        ...routeStateRef.current,
+        status: 'artworkComplete',
+        reason: `${reason}:artwork_complete`,
+      };
+      syncRouteDisplay();
+      return { ok: true, complete: true };
+    }
+    if (outcome.type === 'color_complete') {
+      routeStateRef.current = {
+        ...routeStateRef.current,
+        reason: `${reason}:color_complete:${requestedColor}`,
+      };
+      syncRouteDisplay();
+      return { ok: false, reason: 'color_complete' };
+    }
+    if (outcome.type !== 'color_changed') {
+      return { ok: false, reason: outcome.reason || outcome.type };
+    }
+
+    transitionTokenRef.current += 1;
+    cancelAnimation();
+    const prepared = prepareTarget(outcome.target, {
+      immediate: false,
+      targetColor: outcome.color,
+    });
+    if (!prepared.ok) return prepared;
+
+    const committed = commitTarget(prepared, {
+      force: true,
+      reason: outcome.requestedColorComplete
+        ? `${reason}:requested_color_complete`
+        : reason,
+      markVisited: true,
+    });
+    if (!committed.ok) return committed;
+
+    lastColorRef.current = outcome.color;
+    resumeAuto();
+    onSelectColor(outcome.color);
+    if (onTrack) onTrack('coloring_manual_color_change', {
+      templateId: template?.id,
+      requestedColor,
+      color: outcome.color,
+      requestedColorComplete: Boolean(outcome.requestedColorComplete),
+    });
+    return committed;
+  }
+
+  function handleColorSelect(colorIndex) {
+    transitionToColor(colorIndex);
+  }
 
   useEffect(() => {
     return () => {
@@ -448,6 +606,11 @@ export default function ColoringSession({
       markCameraReady();
       return;
     }
+
+    if (
+      routeStateRef.current.targetId
+      && ['ready', 'freeExploration', 'focusingTarget'].includes(routeStateRef.current.status)
+    ) return;
 
     if (!wins.length) {
       markCameraReady();
@@ -469,7 +632,6 @@ export default function ColoringSession({
     const sa = normalizeSafeArea(safeArea.current, containerSize.width, containerSize.height);
     safeArea.current = sa;
     setSafeArea(sa);
-    if (routeStateRef.current.targetId && ['ready', 'freeExploration', 'focusingTarget'].includes(routeStateRef.current.status)) return;
     visitedTargetsRef.current = new Set();
     const best = findBestInitialTarget(wins);
     if (best) {
@@ -484,6 +646,49 @@ export default function ColoringSession({
   useLayoutEffect(() => {
     initializeRoute();
   }, [containerSize, workingWindows, autoState]);
+
+  const revalidateViewportGeometry = useEffectEvent(() => {
+    if (!containerSize.width || !containerSize.height) return;
+    const current = routeStateRef.current;
+    if (!current.target) return;
+
+    const readiness = ensureActionableViewport({
+      activeTarget: current.target,
+      progress: filledRef.current,
+      camera,
+      viewport: containerSize,
+      safeArea: safeArea.current,
+      template,
+    });
+
+    if (current.status === 'freeExploration') {
+      routeStateRef.current = {
+        ...current,
+        visibleRemaining: readiness.visibleUnfilledCells || 0,
+        allTargetCellsVisible: Boolean(readiness.allTargetCellsVisible),
+      };
+      syncRouteDisplay();
+      return;
+    }
+
+    if (current.status === 'ready' && readiness.actionable) {
+      routeStateRef.current = {
+        ...current,
+        visibleRemaining: readiness.visibleUnfilledCells,
+        allTargetCellsVisible: true,
+      };
+      syncRouteDisplay();
+      return;
+    }
+
+    if (['ready', 'focusingTarget'].includes(current.status)) {
+      refocusExistingTarget(current, 'geometry_changed');
+    }
+  });
+
+  useLayoutEffect(() => {
+    revalidateViewportGeometry();
+  }, [viewportGeometry]);
 
   function tryAdvanceAUTO() {
     if (autoState !== AUTO_STATE.ACTIVE) return;
@@ -613,13 +818,24 @@ export default function ColoringSession({
       className="coloring-session"
       data-route-status={routeDisplay.status}
       data-target-id={routeDisplay.targetId || ''}
+      data-target-color={routeDisplay.target?.color ?? ''}
       data-target-generation={routeDisplay.generation}
+      data-safe-top={safeAreaState.top}
+      data-safe-right={safeAreaState.right}
+      data-safe-bottom={safeAreaState.bottom}
+      data-safe-left={safeAreaState.left}
     >
       <div className="coloring-canvas-container" ref={containerRef}>
         {['ready', 'freeExploration'].includes(routeDisplay.status) && routeDisplay.target && (
           <div className="coloring-task-context" aria-live="polite">
             <b>Цвет {routeDisplay.target.color + 1} · Осталось {routeDisplay.targetRemaining} клеток</b>
-            <span>{routeDisplay.status === 'freeExploration' ? 'Свободный просмотр' : 'Закрась выделенный участок'}</span>
+            <span>{
+              routeDisplay.reason?.includes(':color_complete:')
+                ? `Выбранный цвет ${Number(routeDisplay.reason.split(':').at(-1)) + 1} уже завершён`
+                : routeDisplay.status === 'freeExploration'
+                  ? 'Свободный просмотр'
+                  : 'Закрась выделенный участок'
+            }</span>
           </div>
         )}
         {showCanvas && (
@@ -684,6 +900,7 @@ export default function ColoringSession({
             filled={localFilled}
             selectedColor={selectedColor}
             onSelectColor={handleColorSelect}
+            disabled={routeDisplay.status === 'focusingTarget'}
           />
           <div className="coloring-dock-actions">
             <button onClick={onUndo} disabled={!canUndo}>Отмена</button>
