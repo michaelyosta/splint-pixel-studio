@@ -55,6 +55,13 @@ test('coloring progress can become a social post', async (t) => {
   const me = await request('/users/me');
   assert.equal(me.response.status, 200);
   assert.equal(me.json.id, 'user_pixelhunter');
+  assert.ok(Object.hasOwn(me.json, 'stars_balance'));
+
+  const publicProfile = await request('/users/user_lenaart/profile');
+  assert.equal(publicProfile.response.status, 200);
+  for (const sensitiveField of ['telegram_id', 'stars_balance', 'role', 'is_banned', 'messages_disabled', 'followers_only', 'paid_open', 'price_in_stars']) {
+    assert.equal(Object.hasOwn(publicProfile.json, sensitiveField), false);
+  }
 
   const custom = await request('/colorings/create', {
     method: 'POST',
@@ -100,8 +107,51 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(feedPost.comment_count, 1);
   assert.equal(feedPost.is_liked, true);
 
-  const report = await request(`/posts/${post.json.id}/report`, { method: 'POST', body: { reason: 'other' } });
+  const report = await request(`/posts/${post.json.id}/report`, { userId: 'user_lenaart', method: 'POST', body: { reason: 'other' } });
   assert.equal(report.response.status, 200);
+  const duplicateReport = await request(`/posts/${post.json.id}/report`, { userId: 'user_lenaart', method: 'POST', body: { reason: 'spam' } });
+  assert.equal(duplicateReport.response.status, 409);
+
+  const deletedComment = await request(`/comments/${comment.json.id}`, { userId: 'user_lenaart', method: 'DELETE' });
+  assert.equal(deletedComment.response.status, 200);
+
+  const reportableComment = await request(`/posts/${post.json.id}/comments`, {
+    userId: 'user_artvibe',
+    method: 'POST',
+    body: { text: 'A second integration comment' },
+  });
+  assert.equal(reportableComment.response.status, 201);
+  const commentReport = await request(`/comments/${reportableComment.json.id}/report`, {
+    userId: 'user_lenaart',
+    method: 'POST',
+    body: { reason: 'spam' },
+  });
+  assert.equal(commentReport.response.status, 200);
+  const duplicateCommentReport = await request(`/comments/${reportableComment.json.id}/report`, {
+    userId: 'user_lenaart',
+    method: 'POST',
+    body: { reason: 'other' },
+  });
+  assert.equal(duplicateCommentReport.response.status, 409);
+
+  await request(`/posts/${post.json.id}/report`, { userId: 'user_artvibe', method: 'POST', body: { reason: 'spam' } });
+  await request(`/posts/${post.json.id}/report`, { userId: 'user_splintmod', method: 'POST', body: { reason: 'spam' } });
+  const hiddenPost = await request(`/posts/${post.json.id}`);
+  assert.equal(hiddenPost.response.status, 404);
+  const hiddenComments = await request(`/posts/${post.json.id}/comments`);
+  assert.equal(hiddenComments.response.status, 404);
+  const publicArtworks = await request('/users/user_pixelhunter/artworks', { userId: 'user_lenaart' });
+  assert.equal(publicArtworks.json.some((artwork) => artwork.id === completed.json.artwork_id), false);
+
+  const ban = await request('/moderation/ban', {
+    userId: 'user_splintmod',
+    method: 'POST',
+    body: { userId: 'user_artvibe' },
+  });
+  assert.equal(ban.response.status, 200);
+  const bannedAction = await request('/meta/streak', { userId: 'user_artvibe' });
+  assert.equal(bannedAction.response.status, 403);
+  assert.equal(bannedAction.json.code, 'ACCOUNT_BANNED');
 
   const deleted = await request(`/colorings/${custom.json.id}`, { method: 'DELETE' });
   assert.equal(deleted.response.status, 200);
