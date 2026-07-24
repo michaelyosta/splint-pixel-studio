@@ -150,7 +150,7 @@ router.delete('/:id', authMiddleware, asyncRoute(async (req, res) => {
   if (!template) return res.status(404).json({ error: 'Раскраска не найдена' });
   if (template.owner_id !== req.userId || template.source_type !== 'user') return res.status(403).json({ error: 'Можно удалить только свою загруженную раскраску' });
 
-  const artworks = await all('SELECT id FROM artworks WHERE owner_id=? AND collection_id=?', [req.userId, template.id]);
+  const artworks = await all('SELECT id FROM artworks WHERE owner_id=? AND template_id=?', [req.userId, template.id]);
   for (const artwork of artworks) {
     const posts = await all('SELECT id FROM posts WHERE artwork_id=?', [artwork.id]);
     for (const post of posts) {
@@ -221,7 +221,7 @@ router.get('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   const template = parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=? AND status=\'active\'', [req.params.id]));
   if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
   const progress = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
-  const artwork = await get("SELECT id FROM artworks WHERE owner_id=? AND source_type='coloring' AND collection_id=?", [req.userId, template.id]);
+  const artwork = await get("SELECT id FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
   res.json({ ...progressPayload(template, progress), artwork_id: artwork?.id || null });
 }));
 
@@ -304,29 +304,29 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   if (casResult.wasEmpty && filled.some((color) => color !== -1)) await unlockAchievement(req.userId, 'ach_first_pixel');
   if (casResult.completed) {
     await unlockAchievement(req.userId, 'ach_first_zone');
-    const finished = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.source_type='catalog'", [req.userId]);
+    const finished = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.source_type='catalog'", [req.userId]);
     if ((finished[0]?.c || 0) >= 5) await unlockAchievement(req.userId, 'ach_complete_5');
     if (template.theme === 'night-city' || template.theme === 'space') {
-      const nightCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('night-city','space')", [req.userId]);
+      const nightCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('night-city','space')", [req.userId]);
       if ((nightCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_night');
     }
     if (template.theme === 'forest' || template.theme === 'cozy') {
-      const forestCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('forest','cozy')", [req.userId]);
+      const forestCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('forest','cozy')", [req.userId]);
       if ((forestCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_forest');
     }
     if (template.theme === 'space' || template.theme === 'sea') {
-      const spaceCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('space','sea')", [req.userId]);
+      const spaceCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('space','sea')", [req.userId]);
       if ((spaceCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_space');
     }
   }
 
   let artworkId = null;
   if (casResult.completed) {
-    const artwork = await get("SELECT id FROM artworks WHERE owner_id=? AND source_type='coloring' AND collection_id=?", [req.userId, template.id]);
+    const artwork = await get("SELECT id FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
     artworkId = artwork?.id || `art_${uuid()}`;
     if (!artwork) {
-      await run(`INSERT INTO artworks (id,owner_id,source_type,image_url,title,collection_id,collection_title,rarity,is_completed,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [artworkId, req.userId, 'coloring', req.body.resultDataUrl || template.preview_url, template.title, template.id, template.title, template.difficulty, 1, now, now]);
+      await run(`INSERT INTO artworks (id,owner_id,source_type,image_url,title,template_id,collection_id,collection_title,rarity,is_completed,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, [artworkId, req.userId, 'coloring', req.body.resultDataUrl || template.preview_url, template.title, template.id, template.collection_id || null, template.title, template.difficulty, 1, now, now]);
     } else if (req.body.resultDataUrl) {
       await run('UPDATE artworks SET image_url=?, title=?, updated_at=? WHERE id=?', [req.body.resultDataUrl, template.title, now, artworkId]);
     }

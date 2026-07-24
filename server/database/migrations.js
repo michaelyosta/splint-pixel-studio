@@ -7,6 +7,13 @@ function sha256(content) {
   return createHash('sha256').update(content, 'utf8').digest('hex');
 }
 
+// Migration 005 originally treated template ids as collection ids. The corrected
+// file is allowed to replace only those two known historical checksums.
+const LEGACY_CHECKSUMS = new Map([
+  ['005:f55030925d0775648787579656dea86195a5e0dc7a3af7951033a7e7a7b2baf4', true],
+  ['005:0dd133ddcad2ffd756f86cd107a1b437c0ef5699682cd31850bf1bac5b34577f', true],
+]);
+
 function parseMigrationName(filename) {
   const match = basename(filename).match(/^(\d+)_(.+)\.sql$/);
   if (!match) return null;
@@ -315,7 +322,7 @@ export async function runMigrations({
     const existing = appliedMap.get(migration.version);
 
     if (existing) {
-      if (existing.checksum !== migration.checksum) {
+      if (existing.checksum !== migration.checksum && !LEGACY_CHECKSUMS.has(`${migration.version}:${existing.checksum}`)) {
         throw new Error(
           `Checksum mismatch for applied migration ${migration.version} ` +
           `("${existing.name}").\n` +
