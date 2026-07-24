@@ -4,14 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:api": "npm --prefix server run dev",
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "dev:api": "npm --prefix server run dev:local",
     "build": "vite build",
     "catalog:build": "python server/scripts/build-catalog-assets.py",
     "lint": "oxlint",
-    "test": "node --test test/pixelColoring.test.js src/lib/progressSaveQueue.test.js",
+    "test": "node --test test/pixelColoring.test.js test/coloringEngine.test.js src/lib/creatorQuality.test.js src/lib/environment.test.js src/lib/playLoop.test.js src/lib/progressSaveQueue.test.js",
     "test:integration": "node --test server/test/api.integration.test.js",
     "test:server": "npm --prefix server test",
+    "test:e2e": "playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",

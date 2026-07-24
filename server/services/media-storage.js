@@ -21,8 +21,13 @@ function decodeImageDataUrl(dataUrl) {
   return { type, extension: acceptedTypes.get(type), bytes };
 }
 
+function isS3Configured() {
+  if (process.env.STORAGE_DRIVER === 'local') return false;
+  return !!(process.env.S3_ENDPOINT && process.env.S3_BUCKET && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY);
+}
+
 function s3Client() {
-  if (!process.env.S3_ENDPOINT || !process.env.S3_BUCKET || !process.env.S3_ACCESS_KEY_ID || !process.env.S3_SECRET_ACCESS_KEY) return null;
+  if (!isS3Configured()) return null;
   return new S3Client({
     endpoint: process.env.S3_ENDPOINT,
     region: process.env.S3_REGION || 'us-east-1',
@@ -31,19 +36,34 @@ function s3Client() {
   });
 }
 
+function safeLocalPath(relativeSegments) {
+  const relative = relativeSegments.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (!relative || relative.startsWith('..') || relative.includes('/../') || relative.includes('\\..\\')) {
+    throw new Error('Unsafe media path');
+  }
+  const target = resolve(storageRoot, relative);
+  const root = `${resolve(storageRoot)}${sep}`;
+  if (!target.startsWith(root)) throw new Error('Unsafe media path');
+  return target;
+}
+
+function ensureLocalDir(targetPath) {
+  return mkdir(dirname(targetPath), { recursive: true });
+}
+
 // Original files are intentionally never returned by the coloring API.
 export async function storePrivateOriginal(dataUrl, ownerId) {
   if (dataUrl == null) return null;
   const image = decodeImageDataUrl(dataUrl);
   if (!image) throw new Error('Unsupported or oversized source image');
   const key = `originals/${ownerId}/${randomUUID()}.${image.extension}`;
-  const client = s3Client();
-  if (client) {
+  if (isS3Configured()) {
+    const client = s3Client();
     await client.send(new PutObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key, Body: image.bytes, ContentType: image.type }));
     return `s3://${process.env.S3_BUCKET}/${key}`;
   }
-  const localPath = join(storageRoot, ownerId, key.split('/').at(-1));
-  await mkdir(dirname(localPath), { recursive: true });
+  const localPath = safeLocalPath(`${ownerId}/${key.split('/').at(-1)}`);
+  await ensureLocalDir(localPath);
   await writeFile(localPath, image.bytes, { flag: 'wx' });
   return `local://${key}`;
 }
@@ -59,8 +79,6 @@ export async function deletePrivateOriginal(mediaKey) {
   }
   if (!mediaKey.startsWith('local://originals/')) return;
   const relative = mediaKey.slice('local://originals/'.length);
-  const target = resolve(storageRoot, relative);
-  const root = `${resolve(storageRoot)}${sep}`;
-  if (!target.startsWith(root)) throw new Error('Unsafe media path');
+  const target = safeLocalPath(relative);
   await unlink(target).catch((error) => { if (error.code !== 'ENOENT') throw error; });
 }
