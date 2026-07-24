@@ -89,6 +89,7 @@ export default function ColoringCanvas({
   activeWorkCells = [],
   activeTargetColor = null,
   onManualExplore,
+  interactionDisabled = false,
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -172,6 +173,7 @@ export default function ColoringCanvas({
   }
 
   function handlePointerDown(event) {
+    if (interactionDisabled) return;
     if (event.button !== 0 && event.pointerType !== 'touch') return;
     event.currentTarget.setPointerCapture(event.pointerId);
     activePointers.current.set(event.pointerId, event);
@@ -224,6 +226,7 @@ export default function ColoringCanvas({
   }
 
   function handlePointerMove(event) {
+    if (interactionDisabled) return;
     if (!activePointers.current.has(event.pointerId)) return;
     activePointers.current.set(event.pointerId, event);
 
@@ -269,6 +272,7 @@ export default function ColoringCanvas({
   }
 
   function handlePointerUp(event) {
+    if (interactionDisabled) return;
     activePointers.current.delete(event.pointerId);
 
     if (drawingRef.current && !transformRef.current) {
@@ -296,6 +300,7 @@ export default function ColoringCanvas({
   }
 
   function handlePointerCancel(event) {
+    if (interactionDisabled) return;
     activePointers.current.delete(event.pointerId);
     cancelStroke();
     drawingRef.current = false;
@@ -310,6 +315,7 @@ export default function ColoringCanvas({
   }
 
   function handleWheel(event) {
+    if (interactionDisabled) return;
     event.preventDefault();
     cancelAnimation();
     pauseAuto();
@@ -333,7 +339,15 @@ export default function ColoringCanvas({
   };
 
   return (
-    <div className="coloring-canvas-viewport" ref={containerRef} style={{ width: viewWidth, height: viewHeight, overflow: 'hidden', position: 'relative', background: '#081218' }}>
+    <div
+      className="coloring-canvas-viewport"
+      ref={containerRef}
+      data-camera-x={camera.x}
+      data-camera-y={camera.y}
+      data-camera-zoom={camera.zoom}
+      data-interaction-disabled={interactionDisabled ? 'true' : 'false'}
+      style={{ width: viewWidth, height: viewHeight, overflow: 'hidden', position: 'relative', background: '#081218' }}
+    >
       <div className="coloring-canvas-layer" style={camStyle}>
         <canvas
           ref={canvasRef}

@@ -1,17 +1,12 @@
-import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const sourceDb = join(projectRoot, 'e2e', 'test.db.bin');
 const runtimeDir = await mkdtemp(join(tmpdir(), 'splint-e2e-'));
 const runtimeDb = join(runtimeDir, 'test.db');
 const mediaDir = join(runtimeDir, 'media');
-
-// Keep the versioned database fixture read-only. It predates the current SQLite
-// schema, so each run starts with a fresh database and lets current migrations seed it.
-await access(sourceDb);
 
 await mkdir(mediaDir, { recursive: true });
 

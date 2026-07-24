@@ -47,13 +47,16 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     }
   }, []);
 
-  const animateTo = useCallback((target, duration) => {
+  const animateTo = useCallback((target, duration, onComplete) => {
     cancelAnimation();
     const from = { ...cameraRawRef.current };
     animCancelRef.current = createCameraAnimation(
       from, target, duration,
       (frame) => { cameraRawRef.current = frame; setCameraRaw(frame); },
-      () => { animCancelRef.current = null; },
+      () => {
+        animCancelRef.current = null;
+        onComplete?.({ ...cameraRawRef.current });
+      },
     );
   }, [cancelAnimation]);
 
@@ -82,7 +85,7 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     pendingFocusRef.current = null;
     const mayRun = pending?.force || (autoStateRef.current === AUTO_STATE.ACTIVE);
     if (pending && mayRun) {
-      focusOnWindowRef.current(pending.window, pending.immediate, pending.force);
+      commitFocusRef.current(pending.prepared, pending.force, pending.onComplete);
     }
   }, []);
 
@@ -90,36 +93,45 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     safeAreaRef.current = { ...sa };
   }, []);
 
-  const focusOnWindowImpl = useCallback((window, immediate, force) => {
-    if (isInteractingRef.current) {
-      pendingFocusRef.current = { window, immediate, force };
-      return null;
-    }
+  const prepareFocusOnWindow = useCallback((window, immediate = false) => {
     if (!template) return null;
-    if (!force && (autoStateRef.current !== AUTO_STATE.ACTIVE)) return null;
-    cancelAnimation();
     const safeArea = safeAreaRef.current;
     const target = planCamera(window, viewWidth, viewHeight, template.width, template.height, safeArea);
     const dx = window.centerX - (lastFocusRef.current?.centerX || window.centerX);
     const dy = window.centerY - (lastFocusRef.current?.centerY || window.centerY);
     const dist = Math.sqrt(dx * dx + dy * dy);
     const duration = immediate ? 1 : getTransitionDuration(dist, reducedMotion);
+    return { window, camera: target, duration, immediate };
+  }, [template, viewWidth, viewHeight, reducedMotion]);
+
+  const commitFocusOnWindow = useCallback((prepared, force = false, onComplete) => {
+    if (!prepared) return false;
+    if (isInteractingRef.current) {
+      pendingFocusRef.current = { prepared, force, onComplete };
+      return true;
+    }
+    if (!force && autoStateRef.current !== AUTO_STATE.ACTIVE) return false;
+    cancelAnimation();
+    const { window, camera: target, duration, immediate } = prepared;
     lastFocusRef.current = window;
-    // Initial readiness is atomic: never expose the canvas for one frame with
-    // the default overview camera and then animate to the actionable target.
     if (immediate) {
       cameraRawRef.current = target;
       setCameraRaw(target);
+      onComplete?.({ ...target });
     } else {
-      animateTo(target, duration);
+      animateTo(target, duration, onComplete);
     }
-    return target;
-  }, [template, viewWidth, viewHeight, animateTo, cancelAnimation, reducedMotion]);
+    return true;
+  }, [animateTo, cancelAnimation]);
 
-  const focusOnWindowRef = useRef(focusOnWindowImpl);
-  focusOnWindowRef.current = focusOnWindowImpl;
+  const commitFocusRef = useRef(commitFocusOnWindow);
+  commitFocusRef.current = commitFocusOnWindow;
 
-  const focusOnWindow = focusOnWindowImpl;
+  const focusOnWindow = useCallback((window, immediate = false, force = false, onComplete) => {
+    const prepared = prepareFocusOnWindow(window, immediate);
+    if (!prepared) return null;
+    return commitFocusOnWindow(prepared, force, onComplete) ? prepared.camera : null;
+  }, [prepareFocusOnWindow, commitFocusOnWindow]);
 
   const focusOverview = useCallback(() => {
     if (isInteractingRef.current) return;
@@ -204,6 +216,8 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     enableAuto,
     forceDisableAuto,
     focusOnWindow,
+    prepareFocusOnWindow,
+    commitFocusOnWindow,
     focusOverview,
     cancelAnimation,
     beginInteraction,

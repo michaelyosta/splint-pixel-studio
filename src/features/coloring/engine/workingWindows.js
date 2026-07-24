@@ -7,8 +7,8 @@ export function createWorkingWindows(cluster, template, viewWidth, viewHeight, s
   const width = template.width;
   const usableW = safeArea ? viewWidth - (safeArea.left || 0) - (safeArea.right || 0) : viewWidth;
   const usableH = safeArea ? viewHeight - (safeArea.top || 0) - (safeArea.bottom || 0) : viewHeight;
-  const viewW = Math.max(usableW, 200);
-  const viewH = Math.max(usableH, 200);
+  const viewW = Math.max(usableW, 1);
+  const viewH = Math.max(usableH, 1);
 
   const bounds = getClusterBounds(cluster, width);
   const zoomX = (viewW / (bounds.width * BASE_CELL)) || 1;
@@ -30,8 +30,8 @@ export function createWorkingWindows(cluster, template, viewWidth, viewHeight, s
       cells: cluster,
       bounds,
       zoom,
-      centerX: (bounds.minX + bounds.maxX) / 2,
-      centerY: (bounds.minY + bounds.maxY) / 2,
+      centerX: (bounds.minX + bounds.maxX + 1) / 2,
+      centerY: (bounds.minY + bounds.maxY + 1) / 2,
       cellCount: cluster.length,
     }];
   }
@@ -62,8 +62,8 @@ export function createWorkingWindows(cluster, template, viewWidth, viewHeight, s
             height: winMaxY - winMinY + 1,
           },
           zoom,
-          centerX: (winMinX + winMaxX) / 2,
-          centerY: (winMinY + winMaxY) / 2,
+          centerX: (winMinX + winMaxX + 1) / 2,
+          centerY: (winMinY + winMaxY + 1) / 2,
           cellCount: winCells.length,
         });
       }
