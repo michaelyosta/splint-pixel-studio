@@ -8,22 +8,33 @@
    npm --prefix server install
    ```
 
-2. Create your local environment file:
+2. Create and configure your local environment file:
    ```
-   Copy-Item .env.example .env.local
+   copy .env.example .env.local
+   notepad .env.local
    ```
-
-3. Edit `.env.local` and enable dev auth:
+   Enable dev auth and demo data in `.env.local`:
    ```
    ALLOW_DEV_AUTH=true
    VITE_ALLOW_DEV_AUTH=true
    SEED_DEMO_DATA=true
    ```
 
-4. Launch:
+3. Launch with restart (stops any old instances first):
    ```
-   .\launch-splint.bat local
+   .\launch-splint.bat -Restart local
    ```
+
+4. Check status:
+   ```
+   .\launch-splint.bat status
+   ```
+
+The launcher will:
+- Start the API on http://127.0.0.1:3001
+- Start Vite on http://127.0.0.1:5173
+- Open the browser automatically
+- Use dev auth (X-User-Id: user_pixelhunter) to skip Telegram Mini Apps
 
 ## Available Modes
 
@@ -87,6 +98,72 @@ If `status` shows `401` for `/colorings`:
 2. Restart the server: `.\launch-splint.bat -Restart local`
 3. The API must be started via `npm run dev:api` or the launcher (both read
    `.env.local`)
+
+## Error: EADDRINUSE (address already in use :::3001)
+
+If the backend fails with `Error: listen EADDRINUSE: address already in use :::3001`:
+
+1. Port 3001 is occupied by another process (usually a previous SPLINT instance)
+2. The backend now displays a helpful message with resolution steps
+3. Run: `.\launch-splint.bat -Restart local` to stop old processes and restart
+4. Or check with: `.\launch-splint.bat status`
+
+## Vite Tries to Open 5174
+
+If Vite says `Port 5173 is in use, trying another one...`:
+
+1. Vite is configured with `strictPort: true` in `vite.config.js`
+2. If port 5173 is occupied, Vite will now fail with a clear error instead of silently switching
+3. The Vite proxy expects API on port 3001, so switching ports would break the proxy
+4. Run: `.\launch-splint.bat -Restart local` to free port 5173 and start correctly
+
+## Telegram Mini Apps Authorization Required
+
+If the browser shows `Telegram Mini Apps authorization required`:
+
+1. Dev auth is disabled in `.env.local`
+2. Set `ALLOW_DEV_AUTH=true` and `VITE_ALLOW_DEV_AUTH=true` in `.env.local`
+3. Restart: `.\launch-splint.bat -Restart local`
+4. This error only appears in production or when dev auth is not configured
+
+## How to Safely Find and Stop a Process by PID
+
+To find what is listening on a port:
+```powershell
+Get-NetTCPConnection -LocalPort 3001 -State Listen
+```
+
+This shows the OwningProcess (PID). To get details:
+```powershell
+Get-Process -Id <PID>
+Get-CimInstance Win32_Process -Filter "ProcessId=<PID>" | Select-Object ProcessId, Name, CommandLine
+```
+
+To stop a specific process:
+```powershell
+taskkill /PID <PID> /T /F
+```
+
+Only use `taskkill /IM node.exe /F` as a last resort - it kills ALL Node.js processes on the system.
+
+## Reading Log Files
+
+Logs are written to `.logs/`:
+- `api.log` — backend output (startup, errors, route handling)
+- `vite.log` — Vite dev server output (compilation, HMR, requests)
+- `cloudflared.log` — Cloudflare tunnel output (if running)
+
+To tail the logs in real-time:
+```powershell
+Get-Content .logs\api.log -Wait -Tail 20
+Get-Content .logs\vite.log -Wait -Tail 20
+```
+
+To view recent output:
+```powershell
+Get-Content .logs\api.log -Tail 20
+Get-Content .logs\vite.log -Tail 20
+```
 
 ## Diagnosing Occupied Port
 

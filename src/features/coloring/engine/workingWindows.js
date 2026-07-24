@@ -3,11 +3,16 @@ import { getClusterBounds } from './clusterGraph.js';
 const MIN_CELL_SIZE = 24;
 const BASE_CELL = 32;
 
-export function createWorkingWindows(cluster, template, viewWidth, viewHeight) {
+export function createWorkingWindows(cluster, template, viewWidth, viewHeight, safeArea = null) {
   const width = template.width;
+  const usableW = safeArea ? viewWidth - (safeArea.left || 0) - (safeArea.right || 0) : viewWidth;
+  const usableH = safeArea ? viewHeight - (safeArea.top || 0) - (safeArea.bottom || 0) : viewHeight;
+  const viewW = Math.max(usableW, 200);
+  const viewH = Math.max(usableH, 200);
+
   const bounds = getClusterBounds(cluster, width);
-  const zoomX = (viewWidth / (bounds.width * BASE_CELL)) || 1;
-  const zoomY = (viewHeight / (bounds.height * BASE_CELL)) || 1;
+  const zoomX = (viewW / (bounds.width * BASE_CELL)) || 1;
+  const zoomY = (viewH / (bounds.height * BASE_CELL)) || 1;
   const idealZoom = Math.min(zoomX, zoomY);
   const cellAtIdeal = BASE_CELL * idealZoom;
   let zoom;
@@ -18,8 +23,8 @@ export function createWorkingWindows(cluster, template, viewWidth, viewHeight) {
   } else {
     zoom = idealZoom;
   }
-  const cellsVisibleX = Math.floor(viewWidth / (BASE_CELL * zoom));
-  const cellsVisibleY = Math.floor(viewHeight / (BASE_CELL * zoom));
+  const cellsVisibleX = Math.floor(viewW / (BASE_CELL * zoom));
+  const cellsVisibleY = Math.floor(viewH / (BASE_CELL * zoom));
   if (bounds.width <= cellsVisibleX && bounds.height <= cellsVisibleY) {
     return [{
       cells: cluster,
@@ -93,4 +98,33 @@ export function selectNextWindow(windows, currentCenter, previousCenter, blocked
     }
   }
   return best ? best.window : null;
+}
+
+export function scoreTargetQuality(win, template, filled) {
+  if (!win || !template) return -1;
+  let score = 0;
+  let unfilled = 0;
+  let isolated = 0;
+  const width = template.width;
+  for (const idx of win.cells) {
+    if (filled[idx] !== -1) continue;
+    unfilled++;
+    const x = idx % width;
+    const y = Math.floor(idx / width);
+    let neighbors = 0;
+    for (let ny = Math.max(0, y - 1); ny <= Math.min(template.height - 1, y + 1); ny++) {
+      for (let nx = Math.max(0, x - 1); nx <= Math.min(width - 1, x + 1); nx++) {
+        if (nx === x && ny === y) continue;
+        const ni = ny * width + nx;
+        if (filled[ni] === -1) neighbors++;
+      }
+    }
+    if (neighbors === 0) isolated++;
+  }
+  score += unfilled * 10;
+  score += (unfilled - isolated) * 5;
+  if (unfilled > 0) {
+    score += (unfilled / win.cellCount) * 100;
+  }
+  return score;
 }

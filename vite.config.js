@@ -16,6 +16,8 @@ const allowedHosts = [
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 5173,
+    strictPort: true,
     allowedHosts,
     proxy: {
       '/api': {
