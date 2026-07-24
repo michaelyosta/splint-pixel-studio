@@ -4,8 +4,10 @@ import { v4 as uuid } from 'uuid';
 import { all, get, run } from '../db.js';
 import { authMiddleware, hasProfanity, hasUrl } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
+import { createReport, sendReportError } from '../services/reporting.js';
 
 const router = Router();
+export const commentActionsRouter = Router();
 
 async function enrichComment(c) {
   const author = await get('SELECT id,nickname,avatar_url FROM users WHERE id=?', [c.author_id]);
@@ -14,6 +16,8 @@ async function enrichComment(c) {
 
 // GET /posts/:id/comments
 router.get('/:id/comments', authMiddleware, asyncRoute(async (req, res) => {
+  const post = await get("SELECT id FROM posts WHERE id=? AND status='active'", [req.params.id]);
+  if (!post) return res.status(404).json({ error: 'Post not found' });
   const comments = await all("SELECT * FROM comments WHERE post_id=? AND status='active' ORDER BY created_at ASC", [req.params.id]);
   res.json(await Promise.all(comments.map(enrichComment)));
 }));
@@ -27,7 +31,7 @@ router.post('/:id/comments', authMiddleware, asyncRoute(async (req, res) => {
   const user = await get('SELECT * FROM users WHERE id=?', [userId]);
   if (!user || user.is_banned) return res.status(403).json({ error: 'Действие недоступно' });
 
-  const post = await get('SELECT * FROM posts WHERE id=?', [postId]);
+  const post = await get("SELECT * FROM posts WHERE id=? AND status='active'", [postId]);
   if (!post) return res.status(404).json({ error: 'Пост не найден' });
   if (!post.comments_enabled) return res.status(403).json({ error: 'Комментарии к этому посту отключены' });
 
@@ -56,8 +60,8 @@ router.post('/:id/comments', authMiddleware, asyncRoute(async (req, res) => {
 }));
 
 // DELETE /comments/:id
-router.delete('/:id', authMiddleware, asyncRoute(async (req, res) => {
-  const c    = await get('SELECT * FROM comments WHERE id=?', [req.params.id]);
+commentActionsRouter.delete('/:id', authMiddleware, asyncRoute(async (req, res) => {
+  const c    = await get("SELECT * FROM comments WHERE id=? AND status='active'", [req.params.id]);
   if (!c) return res.status(404).json({ error: 'Комментарий не найден' });
 
   const post = await get('SELECT author_id FROM posts WHERE id=?', [c.post_id]);
@@ -77,12 +81,17 @@ router.delete('/:id', authMiddleware, asyncRoute(async (req, res) => {
 }));
 
 // POST /comments/:id/report
-router.post('/:id/report', authMiddleware, asyncRoute(async (req, res) => {
-  const { reason = 'other' } = req.body;
-  const now = new Date().toISOString();
-  await run(`INSERT INTO reports (id,reporter_id,target_type,target_id,reason,status,created_at) VALUES (?,?,?,?,?,?,?)`,
-    [`rep_${uuid()}`, req.userId, 'comment', req.params.id, reason, 'pending', now]);
-  res.json({ success: true });
+commentActionsRouter.post('/:id/report', authMiddleware, asyncRoute(async (req, res) => {
+  try {
+    res.json(await createReport({
+      reporterId: req.userId,
+      targetType: 'comment',
+      targetId: req.params.id,
+      reason: req.body.reason,
+    }));
+  } catch (error) {
+    return sendReportError(res, error);
+  }
 }));
 
 export default router;

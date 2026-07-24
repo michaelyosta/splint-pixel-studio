@@ -1,26 +1,25 @@
 // server/routes/moderation.js
 import { Router } from 'express';
-import { v4 as uuid } from 'uuid';
-import { get, all, run } from '../db.js';
+import { get, all, run, withDbTransaction } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { requireRole } from '../middleware/authorization.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
+import { createReport, logModerationAction, sendReportError } from '../services/reporting.js';
 
 const router = Router();
 
 // POST /reports/create  (generic report)
 router.post('/reports/create', authMiddleware, asyncRoute(async (req, res) => {
-  const { targetType, targetId, reason = 'other' } = req.body;
-  const now = new Date().toISOString();
-  const id  = `rep_${uuid()}`;
-  await run(`INSERT INTO reports (id,reporter_id,target_type,target_id,reason,status,created_at) VALUES (?,?,?,?,?,?,?)`,
-    [id, req.userId, targetType, targetId, reason, 'pending', now]);
-
-  const cnt = await get('SELECT COUNT(*) as c FROM reports WHERE target_type=? AND target_id=?', [targetType, targetId]);
-  if (cnt.c >= 3 && targetType === 'post') {
-    await run("UPDATE posts SET status='hidden', updated_at=? WHERE id=? AND status='active'", [now, targetId]);
+  try {
+    res.json(await createReport({
+      reporterId: req.userId,
+      targetType: req.body.targetType,
+      targetId: req.body.targetId,
+      reason: req.body.reason,
+    }));
+  } catch (error) {
+    return sendReportError(res, error);
   }
-  res.json({ success: true });
 }));
 
 // GET /moderation/reports  (mod only)
@@ -44,37 +43,86 @@ router.get('/reports', authMiddleware, requireRole('moderator', 'admin'), asyncR
   res.json(enriched);
 }));
 
+router.get('/actions', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (_req, res) => {
+  const actions = await all('SELECT * FROM moderation_actions ORDER BY created_at DESC');
+  res.json(actions);
+}));
+
 // POST /moderation/hide  (mod only)
 router.post('/hide', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
-  const { targetType, targetId } = req.body;
-  const now = new Date().toISOString();
-  if (targetType === 'post')    await run("UPDATE posts    SET status='hidden',  updated_at=? WHERE id=?", [now, targetId]);
-  if (targetType === 'comment') await run("UPDATE comments SET status='hidden',  updated_at=? WHERE id=?", [now, targetId]);
-  await run("UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=?", [targetType, targetId]);
+  const { targetType, targetId, reason = 'manual_moderation' } = req.body;
+  const result = await withDbTransaction(async () => {
+    const table = targetType === 'post' ? 'posts' : targetType === 'comment' ? 'comments' : null;
+    if (!table) return { invalid: true };
+    const target = await get(`SELECT status FROM ${table} WHERE id=?`, [targetId]);
+    if (!target) return { notFound: true };
+    const now = new Date().toISOString();
+    await run(`UPDATE ${table} SET status='hidden', updated_at=? WHERE id=?`, [now, targetId]);
+    await run("UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=?", [targetType, targetId]);
+    await logModerationAction({
+      actorUserId: req.userId, action: 'hide', targetType, targetId, reason: String(reason).slice(0, 120),
+      previousState: target.status, newState: 'hidden',
+    });
+    return { success: true };
+  });
+  if (result.invalid) return res.status(400).json({ error: 'Invalid moderation target', code: 'INVALID_TARGET' });
+  if (result.notFound) return res.status(404).json({ error: 'Moderation target not found', code: 'TARGET_NOT_FOUND' });
   res.json({ success: true });
 }));
 
 // POST /moderation/approve  (mod only)
 router.post('/approve', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
-  const { targetType, targetId } = req.body;
-  const now = new Date().toISOString();
-  if (targetType === 'post')    await run("UPDATE posts    SET status='active', updated_at=? WHERE id=?", [now, targetId]);
-  if (targetType === 'comment') await run("UPDATE comments SET status='active', updated_at=? WHERE id=?", [now, targetId]);
-  await run("UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=?", [targetType, targetId]);
+  const { targetType, targetId, reason = 'manual_approval' } = req.body;
+  const result = await withDbTransaction(async () => {
+    const table = targetType === 'post' ? 'posts' : targetType === 'comment' ? 'comments' : null;
+    if (!table) return { invalid: true };
+    const target = await get(`SELECT status FROM ${table} WHERE id=?`, [targetId]);
+    if (!target) return { notFound: true };
+    const now = new Date().toISOString();
+    await run(`UPDATE ${table} SET status='active', updated_at=? WHERE id=?`, [now, targetId]);
+    await run("UPDATE reports SET status='resolved' WHERE target_type=? AND target_id=?", [targetType, targetId]);
+    await logModerationAction({
+      actorUserId: req.userId, action: 'approve', targetType, targetId, reason: String(reason).slice(0, 120),
+      previousState: target.status, newState: 'active',
+    });
+    return { success: true };
+  });
+  if (result.invalid) return res.status(400).json({ error: 'Invalid moderation target', code: 'INVALID_TARGET' });
+  if (result.notFound) return res.status(404).json({ error: 'Moderation target not found', code: 'TARGET_NOT_FOUND' });
   res.json({ success: true });
 }));
 
 // POST /moderation/ban  (mod only)
 router.post('/ban', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
-  const { userId } = req.body;
-  await run('UPDATE users SET is_banned=1, updated_at=? WHERE id=?', [new Date().toISOString(), userId]);
+  const { userId, reason = 'manual_ban' } = req.body;
+  const result = await withDbTransaction(async () => {
+    const user = await get('SELECT is_banned FROM users WHERE id=?', [userId]);
+    if (!user) return { notFound: true };
+    await run('UPDATE users SET is_banned=1, updated_at=? WHERE id=?', [new Date().toISOString(), userId]);
+    await logModerationAction({
+      actorUserId: req.userId, action: 'ban', targetType: 'user', targetId: userId, reason: String(reason).slice(0, 120),
+      previousState: user.is_banned ? 'banned' : 'active', newState: 'banned',
+    });
+    return { success: true };
+  });
+  if (result.notFound) return res.status(404).json({ error: 'User not found', code: 'TARGET_NOT_FOUND' });
   res.json({ success: true });
 }));
 
 // POST /moderation/unban  (mod only)
 router.post('/unban', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
-  const { userId } = req.body;
-  await run('UPDATE users SET is_banned=0, updated_at=? WHERE id=?', [new Date().toISOString(), userId]);
+  const { userId, reason = 'manual_unban' } = req.body;
+  const result = await withDbTransaction(async () => {
+    const user = await get('SELECT is_banned FROM users WHERE id=?', [userId]);
+    if (!user) return { notFound: true };
+    await run('UPDATE users SET is_banned=0, updated_at=? WHERE id=?', [new Date().toISOString(), userId]);
+    await logModerationAction({
+      actorUserId: req.userId, action: 'unban', targetType: 'user', targetId: userId, reason: String(reason).slice(0, 120),
+      previousState: user.is_banned ? 'banned' : 'active', newState: 'active',
+    });
+    return { success: true };
+  });
+  if (result.notFound) return res.status(404).json({ error: 'User not found', code: 'TARGET_NOT_FOUND' });
   res.json({ success: true });
 }));
 

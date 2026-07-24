@@ -75,7 +75,7 @@ router.post('/achievements/:id/unlock', authMiddleware, asyncRoute(async (req, r
 router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
   const cols = await all('SELECT * FROM collections ORDER BY title');
   const rows = await Promise.all(cols.map(async (col) => {
-    const completed = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.collection_id=t.id WHERE a.owner_id=? AND a.collection_id=? AND a.is_completed=1", [req.userId, col.id]);
+    const completed = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.collection_id=? AND a.is_completed=1", [req.userId, col.id]);
     const total = await all('SELECT COUNT(*) as c FROM coloring_templates WHERE collection_id=?', [col.id]);
     return { ...col, completed_count: completed[0]?.c || 0, total_count: total[0]?.c || 0 };
   }));
@@ -85,8 +85,18 @@ router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
 // GET /meta/collections/:id/templates — templates belonging to a collection
 router.get('/collections/:id/templates', authMiddleware, asyncRoute(async (req, res) => {
   const rows = await all("SELECT * FROM coloring_templates WHERE collection_id=? AND status='active' ORDER BY title", [req.params.id]);
-  res.json(rows.map(parseSafeTemplate).map(({ cells, ...t }) => ({ ...t, total_cells: cells.length })));
+  res.json(rows.map(publicTemplateSummary));
 }));
+
+function publicTemplateSummary(row) {
+  const template = { ...parseSafeTemplate(row) };
+  const totalCells = template.cells.length;
+  delete template.cells;
+  delete template.original_media_key;
+  delete template.palette_json;
+  delete template.cells_json;
+  return { ...template, total_cells: totalCells };
+}
 
 function parseSafeTemplate(row) {
   if (!row) return null;

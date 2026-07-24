@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { get, all, run } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
+import { requireRole } from '../middleware/authorization.js';
 import { purchaseCollection, StarsTransactionError } from '../services/stars-transactions.js';
 
 const router = Router();
@@ -15,16 +16,19 @@ async function buildProfile(user, viewerId) {
   return { ...user, followers_count: followersCount, following_count: followingCount, posts_count: postsCount, is_following: isFollowing };
 }
 
+const PUBLIC_USER_FIELDS = 'id,nickname,avatar_url,status,karma';
+const OWN_USER_FIELDS = `${PUBLIC_USER_FIELDS},stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,created_at,updated_at`;
+
 // GET /users/me
 router.get('/me', authMiddleware, asyncRoute(async (req, res) => {
-  const user = await get('SELECT * FROM users WHERE id=?', [req.userId]);
+  const user = await get(`SELECT ${OWN_USER_FIELDS} FROM users WHERE id=?`, [req.userId]);
   if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
   res.json(await buildProfile(user, req.userId));
 }));
 
 // GET /users/:id/profile
 router.get('/:id/profile', authMiddleware, asyncRoute(async (req, res) => {
-  const user = await get('SELECT * FROM users WHERE id=?', [req.params.id]);
+  const user = await get(`SELECT ${PUBLIC_USER_FIELDS} FROM users WHERE id=?`, [req.params.id]);
   if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
   res.json(await buildProfile(user, req.userId));
 }));
@@ -37,13 +41,18 @@ router.get('/:id/posts', authMiddleware, asyncRoute(async (req, res) => {
 
 // GET /users/:id/artworks
 router.get('/:id/artworks', authMiddleware, asyncRoute(async (req, res) => {
-  const artworks = await all('SELECT * FROM artworks WHERE owner_id=? ORDER BY created_at DESC', [req.params.id]);
+  const artworks = req.params.id === req.userId
+    ? await all('SELECT * FROM artworks WHERE owner_id=? ORDER BY created_at DESC', [req.params.id])
+    : await all(`SELECT DISTINCT a.* FROM artworks a
+        JOIN posts p ON p.artwork_id=a.id
+        WHERE a.owner_id=? AND p.status='active' AND p.visibility='public'
+        ORDER BY a.created_at DESC`, [req.params.id]);
   res.json(artworks);
 }));
 
 // GET /users — list all users (for switcher)
-router.get('/', authMiddleware, asyncRoute(async (req, res) => {
-  const users = await all('SELECT id,nickname,avatar_url,karma,stars_balance,is_banned FROM users');
+router.get('/', authMiddleware, requireRole('moderator', 'admin'), asyncRoute(async (req, res) => {
+  const users = await all('SELECT id,nickname,avatar_url,status,karma,is_banned,role,created_at,updated_at FROM users');
   res.json(users);
 }));
 
@@ -80,7 +89,7 @@ router.patch('/:id/settings', authMiddleware, asyncRoute(async (req, res) => {
   vals.push(now, req.params.id);
   await run(`UPDATE users SET ${fields.join(',')}, updated_at=? WHERE id=?`, vals);
 
-  const user = await get('SELECT * FROM users WHERE id=?', [req.params.id]);
+  const user = await get(`SELECT ${OWN_USER_FIELDS} FROM users WHERE id=?`, [req.params.id]);
   res.json(await buildProfile(user, req.userId));
 }));
 
