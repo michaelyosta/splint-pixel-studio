@@ -10,7 +10,7 @@ async function enrichPost(post, userId) {
   const author  = await get('SELECT id,nickname,avatar_url,karma,messages_disabled,followers_only,paid_open,price_in_stars FROM users WHERE id=?', [post.author_id]);
   let artwork = post.artwork_id ? await get('SELECT * FROM artworks WHERE id=?', [post.artwork_id]) : null;
   if (artwork && (!artwork.image_url || (artwork.image_url.startsWith('data:') && artwork.image_url.length < 100))) {
-    const template = artwork.collection_id ? await get('SELECT preview_url FROM coloring_templates WHERE id=?', [artwork.collection_id]) : null;
+    const template = artwork.template_id ? await get('SELECT preview_url FROM coloring_templates WHERE id=?', [artwork.template_id]) : null;
     const fallback = template?.preview_url && (!template.preview_url.startsWith('data:') || template.preview_url.length >= 100) ? template.preview_url : '/assets/catalog/neon-cat-pixel.png';
     artwork = { ...artwork, image_url: fallback };
   }
