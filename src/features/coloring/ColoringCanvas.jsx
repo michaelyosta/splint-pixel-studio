@@ -353,6 +353,7 @@ export default function ColoringCanvas({
           ref={canvasRef}
           className="coloring-canvas"
           data-active-work-cells={activeWorkCells.join(',')}
+          data-active-target-color={activeTargetColor ?? ''}
           data-template-width={template?.width}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

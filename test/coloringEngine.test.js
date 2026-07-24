@@ -6,7 +6,8 @@ import { createWorkingWindows, selectNextWindow } from '../src/features/coloring
 import { planCamera, clampCamera, getTransitionDuration, computeInitialCamera, isTargetVisible } from '../src/features/coloring/engine/cameraPlanner.js';
 import {
   buildTargetId, computeVisibleUnfilledCount, ensureActionableViewport,
-  isTargetConsideredDone, computeViewportCellBounds, normalizeSafeArea, resolveNextOutcome,
+  isTargetConsideredDone, computeViewportCellBounds, normalizeSafeArea, resolveColorTransition,
+  resolveNextOutcome,
 } from '../src/features/coloring/engine/routeTargeting.js';
 import { scoreTargetQuality } from '../src/features/coloring/engine/workingWindows.js';
 import { applyStroke, undoStroke, redoStroke, createStrokeOperation } from '../src/features/coloring/engine/paintReducer.js';
@@ -1690,7 +1691,70 @@ test('normalizeSafeArea: invalid safe area does not block cameraReady', () => {
   assert.equal(result.right, 0);
 });
 
+test('normalizeSafeArea never produces negative insets for a tiny viewport', () => {
+  const result = normalizeSafeArea({ top: 80, right: 160, bottom: 0, left: 0 }, 360, 57);
+  assert.ok(Object.values(result).every((value) => value >= 0));
+});
 
+test('resolveColorTransition selects a target for the requested unfinished color', () => {
+  const template = {
+    id: 'colors',
+    width: 4,
+    height: 1,
+    palette: ['#000', '#fff'],
+    cells: [0, 0, 1, 1],
+  };
+  const candidate = { cells: [2, 3], centerX: 3, centerY: 0.5, cellCount: 2 };
+  const outcome = resolveColorTransition({
+    template,
+    filled: [-1, -1, -1, -1],
+    currentColor: 0,
+    requestedColor: 1,
+    requestedCandidates: [candidate],
+  });
+  assert.equal(outcome.type, 'color_changed');
+  assert.equal(outcome.color, 1);
+  assert.equal(outcome.target, candidate);
+  assert.ok(outcome.target.cells.every((index) => template.cells[index] === outcome.color));
+});
 
+test('resolveColorTransition advances from a completed requested color', () => {
+  const template = {
+    id: 'colors',
+    width: 4,
+    height: 1,
+    palette: ['#000', '#fff'],
+    cells: [0, 0, 1, 1],
+  };
+  const fallback = { cells: [2, 3], centerX: 3, centerY: 0.5, cellCount: 2 };
+  const outcome = resolveColorTransition({
+    template,
+    filled: [0, 0, -1, -1],
+    currentColor: 1,
+    requestedColor: 0,
+    requestedCandidates: [],
+    fallbackColor: 1,
+    fallbackCandidates: [fallback],
+  });
+  assert.equal(outcome.type, 'color_changed');
+  assert.equal(outcome.color, 1);
+  assert.equal(outcome.requestedColorComplete, true);
+  assert.equal(outcome.target, fallback);
+});
 
-
+test('resolveColorTransition reports a completed color without masking the current target', () => {
+  const template = {
+    id: 'colors',
+    width: 2,
+    height: 1,
+    palette: ['#000', '#fff'],
+    cells: [0, 1],
+  };
+  const outcome = resolveColorTransition({
+    template,
+    filled: [0, -1],
+    currentColor: 1,
+    requestedColor: 0,
+  });
+  assert.deepEqual(outcome, { type: 'color_complete', color: 0 });
+});
