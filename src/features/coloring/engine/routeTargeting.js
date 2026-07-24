@@ -1,21 +1,38 @@
 const BASE_CELL = 32;
 
 export function buildTargetId(template, windowObj, routingColor) {
-  const color = routingColor != null ? routingColor : -1;
-  const sorted = [...windowObj.cells].sort((a, b) => a - b);
-  let h = color;
-  h = ((h << 5) - h) + sorted.length;
-  h = ((h << 5) - h) + windowObj.bounds.minX;
-  h = ((h << 5) - h) + windowObj.bounds.minY;
-  h = ((h << 5) - h) + windowObj.bounds.maxX;
-  h = ((h << 5) - h) + windowObj.bounds.maxY;
-  for (let i = 0; i < Math.min(sorted.length, 8); i++) {
-    h = ((h << 5) - h) + sorted[i];
-  }
-  if (sorted.length > 8) {
-    h = ((h << 5) - h) + sorted[sorted.length - 1];
-  }
-  return `tgt_${color}_${Math.abs(h).toString(36)}`;
+  const color = routingColor != null ? routingColor : (windowObj.color ?? -1);
+  const cells = windowObj.workCells || windowObj.cells || [];
+  const sorted = [...cells].sort((a, b) => a - b);
+  const templateId = template?.id ?? 'template';
+  const version = template?.version ?? template?.updatedAt ?? '1';
+  // A deterministic string is deliberate: every cell participates, avoiding
+  // collisions between visually similar windows.
+  return `target:${templateId}:${version}:${color}:${sorted.join(',')}`;
+}
+
+export function createActiveTarget(template, candidate, color, filled, viewport) {
+  if (!template || !candidate || color == null) return { ok: false, reason: 'invalid_candidate' };
+  const source = candidate.cells || candidate.workCells || [];
+  const workCells = [...new Set(source)]
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < template.cells.length)
+    .filter((index) => template.cells[index] === color && filled[index] === -1)
+    .sort((a, b) => a - b);
+  if (!workCells.length) return { ok: false, reason: 'empty_target' };
+  const target = Object.freeze({
+    id: buildTargetId(template, { workCells, color }, color),
+    templateId: template.id,
+    templateVersion: template.version ?? template.updatedAt ?? '1',
+    color,
+    workCells: Object.freeze(workCells),
+    status: 'active',
+    createdForViewport: Object.freeze({
+      width: viewport.width,
+      height: viewport.height,
+      safeArea: Object.freeze({ ...viewport.safeArea }),
+    }),
+  });
+  return { ok: true, target };
 }
 
 export function computeVisibleUnfilledCount(target, camera, template, filled, viewWidth, viewHeight, safeArea) {
@@ -27,7 +44,7 @@ export function computeVisibleUnfilledCount(target, camera, template, filled, vi
   const bottom = viewHeight - (safeArea?.bottom || 0);
 
   let count = 0;
-  for (const idx of target.cells) {
+  for (const idx of target.workCells || target.cells || []) {
     if (filled[idx] !== -1) continue;
     const cx = (idx % template.width) * BASE_CELL + BASE_CELL / 2;
     const cy = Math.floor(idx / template.width) * BASE_CELL + BASE_CELL / 2;
@@ -38,6 +55,24 @@ export function computeVisibleUnfilledCount(target, camera, template, filled, vi
     }
   }
   return count;
+}
+
+// This is deliberately pure so the session can prove that it is safe to reveal
+// the canvas before changing any UI state.
+export function ensureActionableViewport({ activeTarget, progress, camera, viewport, safeArea, template }) {
+  if (!activeTarget) return { actionable: false, reason: 'no_active_target' };
+  const cells = activeTarget.workCells || [];
+  if (!cells.length) return { actionable: false, reason: 'target_empty' };
+  const filled = progress?.filled || progress;
+  if (!filled || cells.every((index) => filled[index] !== -1)) return { actionable: false, reason: 'target_already_complete' };
+  if (!camera || !Number.isFinite(camera.x) || !Number.isFinite(camera.y) || !Number.isFinite(camera.zoom) || camera.zoom <= 0) return { actionable: false, reason: 'camera_not_ready' };
+  if (!viewport?.width || !viewport?.height) return { actionable: false, reason: 'invalid_viewport' };
+  const sa = normalizeSafeArea(safeArea, viewport.width, viewport.height);
+  if (viewport.width - sa.left - sa.right < 1 || viewport.height - sa.top - sa.bottom < 1) return { actionable: false, reason: 'invalid_safe_area' };
+  const visibleUnfilledCells = computeVisibleUnfilledCount(activeTarget, camera, template, filled, viewport.width, viewport.height, sa);
+  if (!visibleUnfilledCells) return { actionable: false, reason: 'no_visible_work_cells' };
+  const allTargetCellsVisible = visibleUnfilledCells === cells.filter((index) => filled[index] === -1).length;
+  return { actionable: true, visibleUnfilledCells, allTargetCellsVisible };
 }
 
 export function computeViewportCellBounds(camera, viewWidth, viewHeight, safeArea, templateWidth, templateHeight) {
@@ -57,11 +92,8 @@ export function computeViewportCellBounds(camera, viewWidth, viewHeight, safeAre
 
 export function isTargetConsideredDone(target, camera, template, filled, viewWidth, viewHeight, safeArea) {
   if (!target || !template) return false;
-  const activeVisible = computeVisibleUnfilledCount(target, camera, template, filled, viewWidth, viewHeight, safeArea);
-  if (activeVisible === 0) return true;
-  const totalUnfilled = target.cells.reduce((c, idx) => c + (filled[idx] === -1 ? 1 : 0), 0);
-  if (totalUnfilled === 0) return true;
-  return false;
+  const cells = target.workCells || target.cells || [];
+  return cells.length > 0 && cells.every((index) => filled[index] !== -1);
 }
 
 export function normalizeSafeArea(sa, viewWidth, viewHeight) {

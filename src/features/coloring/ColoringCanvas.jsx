@@ -4,7 +4,7 @@ import { centroid, distance, computePinchPan, isTapGesture } from './engine/gest
 
 const BASE_CELL = 32;
 
-function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokeCells, wrongCell, flashCells) {
+function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokeCells, wrongCell, flashCells, activeWorkCells, activeTargetColor) {
   const { width, height, cells, palette } = template;
   const canvasW = width * BASE_CELL;
   const canvasH = height * BASE_CELL;
@@ -19,6 +19,7 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
   ctx.font = `${Math.max(10, Math.floor(BASE_CELL * 0.4))}px Outfit, sans-serif`;
   const strokeSet = new Set(strokeCells || []);
   const flashSet = new Set(flashCells || []);
+  const activeSet = new Set(activeWorkCells || []);
   for (let i = 0; i < cells.length; i++) {
     const x = (i % width) * BASE_CELL;
     const y = Math.floor(i / width) * BASE_CELL;
@@ -28,6 +29,7 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
     const isHint = hintMode && paint === -1 && target === selectedColor;
     const inStroke = strokeSet.has(i);
     const inFlash = flashSet.has(i);
+    const isActiveTarget = activeSet.has(i);
     if (inStroke) {
       ctx.fillStyle = palette[target];
       ctx.globalAlpha = 0.55;
@@ -47,6 +49,11 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
     ctx.strokeStyle = '#0b131a';
     ctx.lineWidth = 1;
     ctx.strokeRect(x, y, BASE_CELL, BASE_CELL);
+    if (isActiveTarget && paint === -1) {
+      ctx.strokeStyle = activeTargetColor === target ? '#7fe7ff' : '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 2, y + 2, BASE_CELL - 4, BASE_CELL - 4);
+    }
     if (paint === -1 && showNumbers && interactionMode !== 'reveal') {
       ctx.fillStyle = isSelected ? '#ffffff' : isHint ? '#bfffe0' : '#8d9fa5';
       ctx.fillText(String(target + 1), x + BASE_CELL / 2, y + BASE_CELL / 2 + 1);
@@ -79,6 +86,9 @@ export default function ColoringCanvas({
   cancelAnimation,
   beginInteraction,
   endInteraction,
+  activeWorkCells = [],
+  activeTargetColor = null,
+  onManualExplore,
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -102,8 +112,8 @@ export default function ColoringCanvas({
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx || !template) return;
     drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode,
-      strokePreview, wrongCell, flashCells);
-  }, [template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokePreview, wrongCell, flashCells]);
+      strokePreview, wrongCell, flashCells, activeWorkCells, activeTargetColor);
+  }, [template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokePreview, wrongCell, flashCells, activeWorkCells, activeTargetColor]);
 
   useLayoutEffect(() => { redraw(); }, [redraw]);
 
@@ -203,6 +213,7 @@ export default function ColoringCanvas({
       drawingRef.current = false;
       tapStartRef.current = null;
       pauseAuto();
+      onManualExplore?.();
       const ptrs = [...activePointers.current.values()].slice(0, 2);
       transformRef.current = {
         startDistance: distance(ptrs[0], ptrs[1]),
@@ -302,6 +313,7 @@ export default function ColoringCanvas({
     event.preventDefault();
     cancelAnimation();
     pauseAuto();
+    onManualExplore?.();
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const mx = event.clientX - rect.left;
@@ -326,6 +338,8 @@ export default function ColoringCanvas({
         <canvas
           ref={canvasRef}
           className="coloring-canvas"
+          data-active-work-cells={activeWorkCells.join(',')}
+          data-template-width={template?.width}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}

@@ -29,6 +29,31 @@
   cursor: crosshair;
 }
 
+.coloring-preparing {
+  color: var(--app-text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.coloring-task-context {
+  position: absolute;
+  z-index: 11;
+  left: 10px;
+  bottom: 10px;
+  max-width: calc(100% - 20px);
+  padding: 8px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: rgba(8, 18, 24, 0.92);
+  color: var(--app-text-primary);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.coloring-task-context b, .coloring-task-context span { display: block; }
+.coloring-task-context span { margin-top: 2px; color: var(--app-text-secondary); }
+
 /* HUD overlay */
 .coloring-hud {
   position: absolute;

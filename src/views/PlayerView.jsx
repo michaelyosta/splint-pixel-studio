@@ -197,6 +197,7 @@ export default function PlayerView({
               <button onClick={() => { setHideNumbers((v) => !v); setMenuOpen(false); }} className={hideNumbers ? 'active' : ''}>Скрыть номера</button>
             </>}
             <hr />
+            <button onClick={() => { setOnboarding(0); setMenuOpen(false); }}>Показать обучение снова</button>
             <button onClick={() => { onUndo(); setMenuOpen(false); }} disabled={!history.length}>Отмена</button>
             <button onClick={() => { onRedo(); setMenuOpen(false); }} disabled={!future.length}>Повтор</button>
             <button onClick={() => { if (window.confirm('Сбросить весь прогресс?')) { onResetProgress(); setMenuOpen(false); } }}>Сбросить</button>
@@ -206,11 +207,15 @@ export default function PlayerView({
 
       {onboarding !== null && <div className="onboarding-overlay" role="dialog" aria-label="Обучение">
         <div className="onboarding-card">
-          <b>{['Выберите цвет в палитре и касайтесь нужных клеток', 'Каждая цифра показывает номер цвета на палитре', 'Проведите пальцем, чтобы закрасить несколько клеток'][onboarding]}</b>
+          <b>{[
+            'Начнём с этого участка. Закрась выделенные клетки.',
+            `Используй цвет №${selectedColor + 1}. Проведи по клеткам, чтобы закрасить сразу несколько.`,
+            'После завершения мы покажем следующий участок.',
+          ][onboarding]}</b>
           <div className="onboarding-dots">{['', '', ''].map((_, i) => <span key={i} className={i === onboarding ? 'active' : ''} />)}</div>
           <div className="onboarding-actions">
-            {onboarding < 2 ? <button className="primary-button" onClick={() => setOnboarding(onboarding + 1)}>Далее</button> : <button className="primary-button" onClick={onDismissOnboarding}>Продолжить</button>}
-            <button className="secondary-button" onClick={onDismissOnboarding}>Пропустить</button>
+            {onboarding < 2 ? <button className="primary-button" onClick={() => setOnboarding(onboarding + 1)}>Далее</button> : <button className="primary-button" onClick={onDismissOnboarding}>Понятно</button>}
+            <button className="secondary-button" onClick={onDismissOnboarding}>Пропустить обучение</button>
           </div>
         </div>
       </div>}

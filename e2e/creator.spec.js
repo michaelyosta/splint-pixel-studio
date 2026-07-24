@@ -9,6 +9,23 @@ function fixturePath(name) {
 
 const API_HEADERS = { 'Content-Type': 'application/json', 'X-User-Id': 'user_pixelhunter' };
 
+async function clickActiveWorkCell(page) {
+  const canvas = page.locator('canvas.coloring-canvas');
+  await expect(canvas).toBeVisible({ timeout: 10000 });
+  await expect(canvas).not.toHaveAttribute('data-active-work-cells', '');
+  const activeCells = (await canvas.getAttribute('data-active-work-cells')).split(',').map(Number);
+  const templateWidth = Number(await canvas.getAttribute('data-template-width'));
+  const box = await canvas.boundingBox();
+  const index = activeCells[0];
+  await canvas.click({
+    force: true,
+    position: {
+      x: ((index % templateWidth) + 0.5) * box.width / templateWidth,
+      y: (Math.floor(index / templateWidth) + 0.5) * box.width / templateWidth,
+    },
+  });
+}
+
 // Helper: upload a file on the Creator page and wait for auto-compute
 async function uploadAndCompute(page) {
   await page.goto('/');
@@ -155,16 +172,16 @@ test.describe('Creator 2.0 — full E2E', () => {
     await expect(page.locator('.completion-overlay')).not.toBeVisible();
   });
 
-  test('10. Catalog → open coloring → player renders reveal canvas', async ({ page }) => {
+  test('10. Catalog → open coloring → player renders guided canvas', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
     const firstCard = page.locator('.coloring-card').first();
     await expect(firstCard).toBeVisible({ timeout: 15000 });
     await firstCard.locator('.primary-button').click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('canvas.pixel-canvas')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.player-dock-mode button:has-text("Раскрытие")')).toHaveClass(/active/);
-    await expect(page.locator('.palette')).toHaveCount(0);
+    await expect(page.locator('canvas.coloring-canvas')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.player-topbar')).toBeVisible();
+    await expect(page.locator('.palette')).toBeVisible();
   });
 
   test('11. Delete a user-created coloring from gallery', async ({ page }) => {
@@ -240,16 +257,14 @@ test.describe('Creator 2.0 — full E2E', () => {
     expect(uniqueWidths.size).toBe(1);
   });
 
-  test('14. Player reveal mode keeps the canvas clear of persistent metrics', async ({ page }) => {
+  test('14. Player guided mode keeps the canvas clear of persistent metrics', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.coloring-card').first()).toBeVisible({ timeout: 15000 });
     await page.locator('.coloring-card').first().locator('.primary-button').click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('canvas.pixel-canvas')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('.player-dock')).toBeVisible();
+    await expect(page.locator('canvas.coloring-canvas')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.player-topbar')).toBeVisible();
-    await expect(page.locator('.player-dock-mode button:has-text("Раскрытие")')).toHaveClass(/active/);
-    await expect(page.locator('.palette')).toHaveCount(0);
+    await expect(page.locator('.palette')).toBeVisible();
     await expect(page.locator('.player-topbar-progress')).toHaveCount(0);
     await expect(page.locator('.progress-bar')).toHaveCount(0);
     await expect(page.locator('.zone-track')).toHaveCount(0);
@@ -291,14 +306,13 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.locator('.coloring-card').first().locator('.primary-button').click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
-    const modeBtn = page.locator('.player-dock-mode button:has-text("По номерам")');
-    await expect(modeBtn).toBeVisible();
-    await modeBtn.click();
-    await expect(modeBtn).toHaveClass(/active/);
     await expect(page.locator('.palette')).toBeVisible();
-    await page.locator('.player-dock-mode button:has-text("Раскрытие")').click();
-    await expect(modeBtn).not.toHaveClass(/active/);
+    await page.locator('.player-menu-btn').click();
+    await page.locator('.bottom-sheet-actions button:has-text("Режим раскрытия")').click();
     await expect(page.locator('.palette')).toHaveCount(0);
+    await page.locator('.player-menu-btn').click();
+    await page.locator('.bottom-sheet-actions button:has-text("По номерам")').click();
+    await expect(page.locator('.palette')).toBeVisible();
   });
 
   test('18. Reveal mode paints without selecting a palette color first', async ({ page }) => {
@@ -313,10 +327,12 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await page.locator('.coloring-card').first().locator('.primary-button').click();
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
+    await page.locator('.player-menu-btn').click();
+    await page.locator('.bottom-sheet-actions button:has-text("Режим раскрытия")').click();
     const savePromise = page.waitForResponse((response) =>
       response.request().method() === 'PUT' && response.url().includes(`/colorings/${openedTemplate.id}/progress`),
     );
-    await page.locator('canvas.pixel-canvas').click({ position: { x: 12, y: 12 } });
+    await clickActiveWorkCell(page);
     const saved = await (await savePromise).json();
     expect(saved.completed_cells).toBeGreaterThan(0);
   });
@@ -332,9 +348,22 @@ test.describe('Creator 2.0 — full E2E', () => {
     const progress = await (await page.request.get(`/api/colorings/${openedTemplate.id}/progress`, { headers: API_HEADERS })).json();
     const zones = await (await page.request.get(`/api/colorings/${openedTemplate.id}/zones`, { headers: API_HEADERS })).json();
     const zone = zones.zones.find((item) => item.indices.length > 1);
-    const finalIndex = zone.indices.at(-1);
-    const filled = Array(openedTemplate.cells.length).fill(-1);
-    zone.indices.slice(0, -1).forEach((index) => { filled[index] = openedTemplate.cells[index]; });
+    const zoneSet = new Set(zone.indices);
+    const outsideByColor = new Map();
+    openedTemplate.cells.forEach((color, index) => {
+      if (zoneSet.has(index)) return;
+      if (!outsideByColor.has(color)) outsideByColor.set(color, []);
+      outsideByColor.get(color).push(index);
+    });
+    const finalIndex = zone.indices.find((index) =>
+      [...outsideByColor.entries()].some(([color, indices]) =>
+        color !== openedTemplate.cells[index] && indices.length >= 6));
+    const fillerIndices = [...outsideByColor.entries()]
+      .find(([color, indices]) => color !== openedTemplate.cells[finalIndex] && indices.length >= 6)[1]
+      .slice(0, 6);
+    const filled = [...openedTemplate.cells];
+    filled[finalIndex] = -1;
+    fillerIndices.forEach((index) => { filled[index] = -1; });
     const prepared = await page.request.put(`/api/colorings/${openedTemplate.id}/progress`, {
       headers: API_HEADERS,
       data: { filled, revision: progress.revision },
@@ -344,13 +373,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await page.locator('.coloring-card').filter({ hasText: openedTemplate.title }).locator('.primary-button').click();
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
-    const canvas = page.locator('canvas.pixel-canvas');
-    const box = await canvas.boundingBox();
-    const position = {
-      x: ((finalIndex % openedTemplate.width) + 0.5) * box.width / openedTemplate.width,
-      y: (Math.floor(finalIndex / openedTemplate.width) + 0.5) * box.height / openedTemplate.height,
-    };
-    await canvas.click({ position });
+    await clickActiveWorkCell(page);
     await expect(page.locator('.milestone.zone')).toContainText(`Фрагмент «${zone.title}» раскрыт`);
     await expect(page.locator('.milestone.zone')).not.toContainText('XP');
   });
