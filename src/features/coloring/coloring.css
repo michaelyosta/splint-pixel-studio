@@ -68,8 +68,58 @@
   color: var(--app-cyan);
 }
 
+.hud-btn.paused {
+  border-color: var(--app-gold, #ffc72c);
+  color: var(--app-gold, #ffc72c);
+  animation: pulsePaused 1.5s ease-in-out infinite;
+}
+
+@keyframes pulsePaused {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .hud-btn:hover {
   background: rgba(30, 50, 65, 0.95);
+}
+
+.hud-btn--collapse {
+  padding: 4px 8px;
+  min-height: 28px;
+  font-size: 14px;
+  opacity: 0.5;
+}
+
+.hud-btn--collapse:hover {
+  opacity: 1;
+}
+
+.coloring-hud--collapsed {
+  gap: 4px;
+}
+
+.hud-btn--expand {
+  width: 36px;
+  min-height: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 50%;
+}
+
+.hud-icon-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--app-text-secondary);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .combo-badge {

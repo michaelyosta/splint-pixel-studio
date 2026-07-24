@@ -1,21 +1,27 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { clampCamera, planCamera, getTransitionDuration } from '../engine/cameraPlanner.js';
+import { AUTO_STATE } from '../engine/autoState.js';
 import { createCameraAnimation } from './cameraAnimation.js';
+
+export { AUTO_STATE };
 
 export function useSmartCamera(template, viewWidth, viewHeight) {
   const [camera, setCameraRaw] = useState({ x: 0, y: 0, zoom: 1 });
-  const [autoEnabled, setAutoEnabled] = useState(true);
-  const [isTemporarilyPaused, setTemporarilyPaused] = useState(false);
-  const autoEnabledRef = useRef(true);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [autoState, setAutoState] = useState(AUTO_STATE.ACTIVE);
+  const autoStateRef = useRef(AUTO_STATE.ACTIVE);
+  const sessionRef = useRef(Date.now());
   const pauseTimerRef = useRef(null);
   const animCancelRef = useRef(null);
-  const sessionRef = useRef(Date.now());
   const lastFocusRef = useRef(null);
+  const lastCenterRef = useRef(null);
+  const prevCenterRef = useRef(null);
   const [reducedMotion, setReducedMotion] = useState(false);
   const isInteractingRef = useRef(false);
   const pendingFocusRef = useRef(null);
+  const safeAreaRef = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
 
-  const isAutoActive = autoEnabled && !isTemporarilyPaused && !isInteractingRef.current;
+  const isAutoActive = autoState === AUTO_STATE.ACTIVE && !isInteractingRef.current;
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -32,6 +38,9 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
       sessionRef.current = 0;
     };
   }, []);
+
+  const cameraRawRef = useRef(camera);
+  cameraRawRef.current = camera;
 
   const cancelAnimation = useCallback(() => {
     if (animCancelRef.current) {
@@ -50,9 +59,6 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     );
   }, [cancelAnimation]);
 
-  const cameraRawRef = useRef(camera);
-  cameraRawRef.current = camera;
-
   const setCamera = useCallback((c) => {
     cancelAnimation();
     if (!template) return;
@@ -60,6 +66,12 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     cameraRawRef.current = clamped;
     setCameraRaw(clamped);
   }, [template, viewWidth, viewHeight, cancelAnimation]);
+
+  const setCameraInstant = useCallback((c) => {
+    cancelAnimation();
+    cameraRawRef.current = c;
+    setCameraRaw(c);
+  }, [cancelAnimation]);
 
   const beginInteraction = useCallback(() => {
     isInteractingRef.current = true;
@@ -70,21 +82,26 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     isInteractingRef.current = false;
     const pending = pendingFocusRef.current;
     pendingFocusRef.current = null;
-    const mayRun = pending?.force || (autoEnabledRef.current && !isTemporarilyPaused);
+    const mayRun = pending?.force || (autoStateRef.current === AUTO_STATE.ACTIVE);
     if (pending && mayRun) {
       focusOnWindowRef.current(pending.window, pending.immediate, pending.force);
     }
-  }, [isTemporarilyPaused]);
+  }, []);
 
-  const focusOnWindow = useCallback((window, immediate, force) => {
+  const setSafeArea = useCallback((sa) => {
+    safeAreaRef.current = { ...sa };
+  }, []);
+
+  const focusOnWindowImpl = useCallback((window, immediate, force) => {
     if (isInteractingRef.current) {
       pendingFocusRef.current = { window, immediate, force };
       return null;
     }
     if (!template) return null;
-    if (!force && (!autoEnabledRef.current || isTemporarilyPaused)) return null;
+    if (!force && (autoStateRef.current !== AUTO_STATE.ACTIVE)) return null;
     cancelAnimation();
-    const target = planCamera(window, viewWidth, viewHeight, template.width, template.height);
+    const safeArea = safeAreaRef.current;
+    const target = planCamera(window, viewWidth, viewHeight, template.width, template.height, safeArea);
     const dx = window.centerX - (lastFocusRef.current?.centerX || window.centerX);
     const dy = window.centerY - (lastFocusRef.current?.centerY || window.centerY);
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -92,21 +109,30 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     lastFocusRef.current = window;
     animateTo(target, duration);
     return target;
-  }, [template, viewWidth, viewHeight, animateTo, cancelAnimation, reducedMotion, isTemporarilyPaused]);
+  }, [template, viewWidth, viewHeight, animateTo, cancelAnimation, reducedMotion]);
 
-  const focusOnWindowRef = useRef(focusOnWindow);
-  focusOnWindowRef.current = focusOnWindow;
+  const focusOnWindowRef = useRef(focusOnWindowImpl);
+  focusOnWindowRef.current = focusOnWindowImpl;
+
+  const focusOnWindow = focusOnWindowImpl;
 
   const focusOverview = useCallback(() => {
     if (isInteractingRef.current) return;
     if (!template) return;
     cancelAnimation();
-    const zoomX = viewWidth / (template.width * 32);
-    const zoomY = viewHeight / (template.height * 32);
+    const safeArea = safeAreaRef.current;
+    const availW = viewWidth - safeArea.left - safeArea.right;
+    const availH = viewHeight - safeArea.top - safeArea.bottom;
+    const zoomX = availW / (template.width * 32);
+    const zoomY = availH / (template.height * 32);
     const zoom = Math.min(zoomX, zoomY, 1);
     const totalW = template.width * 32 * zoom;
     const totalH = template.height * 32 * zoom;
-    const target = { x: (viewWidth - totalW) / 2, y: (viewHeight - totalH) / 2, zoom };
+    const target = {
+      x: (viewWidth - totalW) / 2,
+      y: (viewHeight - totalH) / 2,
+      zoom,
+    };
     const duration = reducedMotion ? 1 : 350;
     animateTo(target, duration);
   }, [template, viewWidth, viewHeight, animateTo, cancelAnimation, reducedMotion]);
@@ -114,57 +140,91 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
   const resumeAuto = useCallback(() => {
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
     pauseTimerRef.current = null;
-    autoEnabledRef.current = true;
-    setAutoEnabled(true);
-    setTemporarilyPaused(false);
+    autoStateRef.current = AUTO_STATE.ACTIVE;
+    setAutoState(AUTO_STATE.ACTIVE);
   }, []);
 
   const pauseAuto = useCallback(() => {
-    if (!autoEnabledRef.current) return;
-    setTemporarilyPaused(true);
+    if (autoStateRef.current !== AUTO_STATE.ACTIVE) return;
+    autoStateRef.current = AUTO_STATE.PAUSED;
+    setAutoState(AUTO_STATE.PAUSED);
     if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
     pauseTimerRef.current = setTimeout(() => {
       pauseTimerRef.current = null;
-      if (autoEnabledRef.current) {
-        setTemporarilyPaused(false);
+      if (autoStateRef.current === AUTO_STATE.PAUSED) {
+        autoStateRef.current = AUTO_STATE.ACTIVE;
+        setAutoState(AUTO_STATE.ACTIVE);
       }
     }, 6000);
   }, []);
 
   const toggleAuto = useCallback(() => {
-    if (autoEnabledRef.current) {
-      autoEnabledRef.current = false;
-      setAutoEnabled(false);
-      setTemporarilyPaused(false);
+    const current = autoStateRef.current;
+    if (current === AUTO_STATE.ACTIVE) {
+      autoStateRef.current = AUTO_STATE.OFF;
+      setAutoState(AUTO_STATE.OFF);
       if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
       pauseTimerRef.current = null;
       cancelAnimation();
+    } else if (current === AUTO_STATE.PAUSED) {
+      resumeAuto();
     } else {
-      autoEnabledRef.current = true;
-      setAutoEnabled(true);
-      setTemporarilyPaused(false);
+      autoStateRef.current = AUTO_STATE.ACTIVE;
+      setAutoState(AUTO_STATE.ACTIVE);
     }
+  }, [cancelAnimation, resumeAuto]);
+
+  const enableAuto = useCallback(() => {
+    if (autoStateRef.current === AUTO_STATE.ACTIVE) return;
+    autoStateRef.current = AUTO_STATE.ACTIVE;
+    setAutoState(AUTO_STATE.ACTIVE);
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    pauseTimerRef.current = null;
+  }, []);
+
+  const forceDisableAuto = useCallback(() => {
+    autoStateRef.current = AUTO_STATE.OFF;
+    setAutoState(AUTO_STATE.OFF);
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    pauseTimerRef.current = null;
+    cancelAnimation();
   }, [cancelAnimation]);
 
-  const resumeAutoRef = useRef(resumeAuto);
-  resumeAutoRef.current = resumeAuto;
+  const markCameraReady = useCallback(() => {
+    setCameraReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!template && viewWidth === 0 && viewHeight === 0) {
+      setCameraReady(false);
+    }
+  }, [template, viewWidth, viewHeight]);
 
   return {
     camera,
+    cameraReady,
+    markCameraReady,
     setCamera,
+    setCameraInstant,
     isAutoActive,
-    autoEnabled,
-    isTemporarilyPaused,
+    autoState,
+    isInteracting: () => isInteractingRef.current,
     toggleAuto,
     pauseAuto,
     resumeAuto,
+    enableAuto,
+    forceDisableAuto,
     focusOnWindow,
     focusOverview,
     cancelAnimation,
     beginInteraction,
     endInteraction,
+    setSafeArea,
     sessionRef,
     reducedMotion,
     lastFocusRef,
+    lastCenterRef,
+    prevCenterRef,
+    safeAreaRef,
   };
 }

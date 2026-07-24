@@ -96,6 +96,22 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Splint API server running on http://localhost:${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\nERROR: Port ${PORT} is already in use.`);
+    console.error('Another process is already listening on this port.');
+    console.error('');
+    console.error('To resolve:');
+    console.error('  1. Run: launch-splint.bat -Restart local');
+    console.error('  2. Or run: launch-splint.bat status');
+    console.error(`  3. Find the process: Get-NetTCPConnection -LocalPort ${PORT} -State Listen`);
+    console.error('  4. Kill it by PID: taskkill /PID <pid> /T /F');
+    console.error('');
+    process.exit(1);
+  }
+  throw err;
 });

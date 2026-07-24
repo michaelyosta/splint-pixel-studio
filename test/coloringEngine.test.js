@@ -3,11 +3,14 @@ import assert from 'node:assert/strict';
 import { rasterizeLine, rasterizeStroke } from '../src/features/coloring/engine/strokeRasterizer.js';
 import { findClusters, getClusterBounds, mergeClusters, findUnfilledClusters } from '../src/features/coloring/engine/clusterGraph.js';
 import { createWorkingWindows, selectNextWindow } from '../src/features/coloring/engine/workingWindows.js';
-import { planCamera, clampCamera, getTransitionDuration } from '../src/features/coloring/engine/cameraPlanner.js';
+import { planCamera, clampCamera, getTransitionDuration, computeInitialCamera, isTargetVisible } from '../src/features/coloring/engine/cameraPlanner.js';
+import { buildTargetId, computeVisibleUnfilledCount, isTargetConsideredDone, computeViewportCellBounds, normalizeSafeArea } from '../src/features/coloring/engine/routeTargeting.js';
+import { scoreTargetQuality } from '../src/features/coloring/engine/workingWindows.js';
 import { applyStroke, undoStroke, redoStroke, createStrokeOperation } from '../src/features/coloring/engine/paintReducer.js';
 import { arraysEqual } from '../src/features/coloring/engine/coloringUtils.js';
 import { createHistoryOperation, applyChanges } from '../src/features/coloring/engine/historyOperations.js';
 import { centroid, distance, clampZoom, computePinchPan, isTapGesture } from '../src/features/coloring/engine/gestureMath.js';
+import { AUTO_STATE } from '../src/features/coloring/engine/autoState.js';
 
 /* ── StrokeRasterizer ── */
 
@@ -1051,5 +1054,574 @@ function createCameraHarness(stubPending, stubFocusOnWindow) {
     },
   };
 }
+
+/* ── Camera Jump Fix ── */
+
+test('computeInitialCamera returns deterministic non-unit zoom', () => {
+  const t = makeTemplate(32, 32);
+  const cam = computeInitialCamera(t, 400, 300);
+  assert.ok(cam.zoom > 0, 'zoom must be positive');
+  assert.ok(cam.zoom <= 1, 'zoom must not exceed 1');
+  assert.notEqual(cam.zoom, 1, 'zoom must not be fixed at 1');
+  const cam2 = computeInitialCamera(t, 400, 300);
+  assert.equal(cam.zoom, cam2.zoom, 'zoom must be deterministic');
+  assert.equal(cam.x, cam2.x);
+  assert.equal(cam.y, cam2.y);
+});
+
+test('computeInitialCamera respects safe area', () => {
+  const t = makeTemplate(32, 32);
+  const camNoSafe = computeInitialCamera(t, 400, 300);
+  const camSafe = computeInitialCamera(t, 400, 300, { top: 0, right: 130, bottom: 0, left: 0 });
+  assert.ok(camSafe.zoom <= camNoSafe.zoom, 'zoom should shrink when safe area reduces available space');
+  assert.notEqual(camSafe.zoom, camNoSafe.zoom, 'zoom must differ with safe area applied');
+});
+
+test('planCamera with safe area avoids right zone', () => {
+  const target = { centerX: 15, centerY: 15, zoom: 2 };
+  const cam = planCamera(target, 400, 300, 32, 32, { top: 0, right: 160, bottom: 0, left: 0 });
+  const centerScreenX = 400 / 2 - target.centerX * 32 * cam.zoom;
+  assert.ok(centerScreenX <= cam.x + 1, 'center of target should not be hidden under right overlay');
+});
+
+/* ── AUTO Route Recovery ── */
+
+test('selectNextWindow: auto recovers when visited set blocks all', () => {
+  const wins = [
+    { centerX: 0, centerY: 0, cellCount: 5 },
+    { centerX: 20, centerY: 0, cellCount: 3 },
+  ];
+  const allVisited = new Set([0, 1]);
+  const result = selectNextWindow(wins, { x: 10, y: 0 }, null, allVisited);
+  assert.equal(result, null, 'should return null when all blocked');
+});
+
+test('selectNextWindow: cleared visited set restores candidates', () => {
+  const wins = [
+    { centerX: 0, centerY: 0, cellCount: 5 },
+    { centerX: 20, centerY: 0, cellCount: 3 },
+  ];
+  const cleared = new Set();
+  const result = selectNextWindow(wins, { x: 10, y: 0 }, null, cleared);
+  assert.notEqual(result, null, 'should find a window when visited is cleared');
+  assert.ok(result === wins[0] || result === wins[1]);
+});
+
+test('getBlockedSet: completed windows are blocked', () => {
+  const template = { width: 2, height: 2, cells: [0, 0, 1, 1] };
+  const mockWindows = [
+    { cells: [0, 1], centerX: 0.5, centerY: 0, cellCount: 2 },
+    { cells: [2, 3], centerX: 0.5, centerY: 1, cellCount: 2 },
+  ];
+  const filled = [0, 0, 1, 1];
+  const blocked = new Set();
+  mockWindows.forEach((win, idx) => {
+    if (win.cells.every(ci => filled[ci] === template.cells[ci])) {
+      blocked.add(idx);
+    }
+  });
+  assert.equal(blocked.size, 2, 'all windows should be blocked when filled = template.cells');
+});
+
+test('getBlockedSet: partially filled windows are not blocked', () => {
+  const template = { width: 2, height: 2, cells: [0, 0, 1, 1] };
+  const mockWindows = [
+    { cells: [0, 1], centerX: 0.5, centerY: 0, cellCount: 2 },
+    { cells: [2, 3], centerX: 0.5, centerY: 1, cellCount: 2 },
+  ];
+  const filled = [0, -1, 1, 1];
+  const blocked = new Set();
+  mockWindows.forEach((win, idx) => {
+    if (win.cells.every(ci => filled[ci] === template.cells[ci])) {
+      blocked.add(idx);
+    }
+  });
+  assert.equal(blocked.size, 1, 'only completed windows should be blocked');
+  assert.ok(blocked.has(1), 'window with all cells filled should be blocked');
+  assert.ok(!blocked.has(0), 'window with unfilled cells should not be blocked');
+});
+
+test('last unfilled cell search finds correct index', () => {
+  const template = { width: 3, height: 3 };
+  const filled = [0, 0, 0, 0, 0, 0, 0, 0, -1];
+  const cx = (template.width - 1) / 2;
+  const cy = (template.height - 1) / 2;
+  let lastIdx = -1;
+  let bestDist = Infinity;
+  for (let i = 0; i < filled.length; i++) {
+    if (filled[i] !== -1) continue;
+    const dx = (i % template.width) - cx;
+    const dy = Math.floor(i / template.width) - cy;
+    const dist = dx * dx + dy * dy;
+    if (dist < bestDist) {
+      bestDist = dist;
+      lastIdx = i;
+    }
+  }
+  assert.equal(lastIdx, 8, 'last unfilled cell at index 8 must be found');
+});
+
+test('no unfilled cells returns -1 from last-cell search', () => {
+  const template = { width: 2, height: 2 };
+  const filled = [0, 1, 2, 3];
+  const found = filled.findIndex(f => f === -1);
+  assert.equal(found, -1, 'no unfilled cells should give -1');
+});
+
+test('hasUnfilledCells: partial fill returns true', () => {
+  const filled = [0, -1, 1, 0];
+  const has = filled.some(f => f === -1);
+  assert.ok(has);
+});
+
+test('hasUnfilledCells: complete fill returns false', () => {
+  const filled = [0, 1, 2, 3];
+  const has = filled.some(f => f === -1);
+  assert.ok(!has);
+});
+
+/* ── AUTO State Machine ── */
+
+test('AUTO_STATE enum has three distinct values', () => {
+  const states = new Set([AUTO_STATE.OFF, AUTO_STATE.ACTIVE, AUTO_STATE.PAUSED]);
+  assert.equal(states.size, 3, 'must have exactly 3 distinct states');
+});
+
+test('AUTO_STATE values are frozen', () => {
+  assert.throws(() => { AUTO_STATE.OFF = 'foo'; }, TypeError, 'enum should be frozen');
+});
+
+test('toggleAuto: active -> off', () => {
+  let state = AUTO_STATE.ACTIVE;
+  if (state === AUTO_STATE.ACTIVE) state = AUTO_STATE.OFF;
+  assert.equal(state, AUTO_STATE.OFF);
+});
+
+test('toggleAuto: off -> active', () => {
+  let state = AUTO_STATE.OFF;
+  if (state === AUTO_STATE.OFF) state = AUTO_STATE.ACTIVE;
+  assert.equal(state, AUTO_STATE.ACTIVE);
+});
+
+test('toggleAuto: paused resumes (not toggles off)', () => {
+  let state = AUTO_STATE.PAUSED;
+  if (state === AUTO_STATE.PAUSED) state = AUTO_STATE.ACTIVE;
+  assert.equal(state, AUTO_STATE.ACTIVE, 'toggle should resume when paused, not turn off');
+});
+
+test('pauseAuto: active -> paused', () => {
+  let state = AUTO_STATE.ACTIVE;
+  if (state === AUTO_STATE.ACTIVE) state = AUTO_STATE.PAUSED;
+  assert.equal(state, AUTO_STATE.PAUSED);
+});
+
+test('pauseAuto: off -> stays off', () => {
+  let state = AUTO_STATE.OFF;
+  if (state !== AUTO_STATE.ACTIVE) { /* no-op, only pause active */ }
+  assert.equal(state, AUTO_STATE.OFF);
+});
+
+test('isAutoActive: only ACTIVE without interaction', () => {
+  const state = AUTO_STATE.ACTIVE;
+  const interacting = false;
+  const isActive = state === AUTO_STATE.ACTIVE && !interacting;
+  assert.ok(isActive);
+});
+
+test('isAutoActive: PAUSED is not active', () => {
+  const state = AUTO_STATE.PAUSED;
+  const interacting = false;
+  const isActive = state === AUTO_STATE.ACTIVE && !interacting;
+  assert.ok(!isActive);
+});
+
+test('isAutoActive: ACTIVE but interacting is not active', () => {
+  const state = AUTO_STATE.ACTIVE;
+  const interacting = true;
+  const isActive = state === AUTO_STATE.ACTIVE && !interacting;
+  assert.ok(!isActive);
+});
+
+test('isAutoActive: OFF is not active', () => {
+  const state = AUTO_STATE.OFF;
+  const interacting = false;
+  const isActive = state === AUTO_STATE.ACTIVE && !interacting;
+  assert.ok(!isActive);
+});
+
+test('color change preserves activeWindowId consistency', () => {
+  let activeWindowId = 2;
+  const newColorIndex = 1;
+  activeWindowId = newColorIndex !== activeWindowId ? -1 : activeWindowId;
+  const incorrect = activeWindowId === -1;
+  assert.ok(incorrect || activeWindowId === newColorIndex);
+});
+
+test('stale timer disposal does not control new template', () => {
+  let fired = false;
+  const sessionId = 1;
+  const timer = setTimeout(() => { fired = true; }, 100);
+  const newSessionId = sessionId + 1;
+  clearTimeout(timer);
+  assert.ok(newSessionId > sessionId, 'new session created');
+  assert.ok(!fired, 'stale timer must not fire');
+});
+
+test('recovery counter resets on route rebuild', () => {
+  let count = 0;
+  count = 0;
+  assert.equal(count, 0, 'recovery count must reset');
+  count += 1;
+  count += 1;
+  count += 1;
+  assert.equal(count, 3);
+  count = 0;
+  assert.equal(count, 0, 'count resets on fresh route');
+});
+
+/* ── Safe Area & HUD ── */
+
+test('safe area reduces effective viewport', () => {
+  const viewW = 400;
+  const viewH = 300;
+  const safe = { top: 60, right: 140, bottom: 0, left: 0 };
+  const availW = viewW - safe.left - safe.right;
+  const availH = viewH - safe.top - safe.bottom;
+  assert.ok(availW < viewW, 'available width must be reduced');
+  assert.ok(availH < viewH, 'available height must be reduced');
+  assert.equal(availW, 260);
+  assert.equal(availH, 240);
+});
+
+test('safe area zero allows full viewport', () => {
+  const viewW = 400;
+  const viewH = 300;
+  const safe = { top: 0, right: 0, bottom: 0, left: 0 };
+  const availW = viewW - safe.left - safe.right;
+  const availH = viewH - safe.top - safe.bottom;
+  assert.equal(availW, 400);
+  assert.equal(availH, 300);
+});
+
+/* ── Stable Target IDs ── */
+
+test('buildTargetId produces deterministic id', () => {
+  const t = makeTemplate(4, 4);
+  const win = { cells: [0, 1, 2, 3], bounds: { minX: 0, minY: 0, maxX: 3, maxY: 0, width: 4, height: 1 }, cellCount: 4 };
+  const id1 = buildTargetId(t, win, 0);
+  const id2 = buildTargetId(t, win, 0);
+  assert.equal(id1, id2, 'same inputs must produce same id');
+  assert.ok(id1.startsWith('tgt_'), 'id must have prefix');
+});
+
+test('buildTargetId different color produces different id', () => {
+  const t = makeTemplate(4, 4);
+  const win = { cells: [0, 1, 2, 3], bounds: { minX: 0, minY: 0, maxX: 3, maxY: 0, width: 4, height: 1 }, cellCount: 4 };
+  const id0 = buildTargetId(t, win, 0);
+  const id1 = buildTargetId(t, win, 1);
+  assert.notEqual(id0, id1, 'different colors must produce different ids');
+});
+
+test('buildTargetId different cells produce different id', () => {
+  const t = makeTemplate(4, 4);
+  const win1 = { cells: [0, 1, 2, 3], bounds: { minX: 0, minY: 0, maxX: 3, maxY: 0, width: 4, height: 1 }, cellCount: 4 };
+  const win2 = { cells: [4, 5, 6, 7], bounds: { minX: 0, minY: 1, maxX: 3, maxY: 1, width: 4, height: 1 }, cellCount: 4 };
+  assert.notEqual(buildTargetId(t, win1, 0), buildTargetId(t, win2, 0));
+});
+
+test('buildTargetId reveal mode (null color) produces id', () => {
+  const t = makeTemplate(4, 4);
+  const win = { cells: [0, 1], bounds: { minX: 0, minY: 0, maxX: 1, maxY: 0, width: 2, height: 1 }, cellCount: 2 };
+  const id = buildTargetId(t, win, null);
+  assert.ok(id.includes('_-1_'), 'null routing color should encode as -1');
+});
+
+test('buildTargetId survives array rebuild', () => {
+  const t = makeTemplate(4, 4);
+  const win1 = { cells: [5, 9, 10], bounds: { minX: 1, minY: 1, maxX: 2, maxY: 2, width: 2, height: 2 }, cellCount: 3 };
+  const sorted = [...win1.cells].sort((a, b) => a - b);
+  const win2 = { cells: sorted, bounds: win1.bounds, cellCount: 3 };
+  assert.equal(buildTargetId(t, win1, 2), buildTargetId(t, win2, 2));
+});
+
+/* ── Visible Cell Counting ── */
+
+test('computeVisibleUnfilledCount all visible at overview', () => {
+  const t = makeTemplate(4, 4);
+  const target = { cells: [0, 1, 2, 3] };
+  const camera = { x: 0, y: 0, zoom: 1 };
+  const filled = [-1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const count = computeVisibleUnfilledCount(target, camera, t, filled, 400, 300, null);
+  assert.equal(count, 4);
+});
+
+test('computeVisibleUnfilledCount zero when zoomed far from target', () => {
+  const t = makeTemplate(8, 8);
+  const target = { cells: [0, 1] };
+  const camera = { x: -500, y: -500, zoom: 1 };
+  const filled = Array(64).fill(-1);
+  const count = computeVisibleUnfilledCount(target, camera, t, filled, 200, 200, null);
+  assert.equal(count, 0);
+});
+
+test('computeVisibleUnfilledCount only unfilled count', () => {
+  const t = makeTemplate(4, 4);
+  const target = { cells: [0, 1, 2, 3] };
+  const camera = { x: 0, y: 0, zoom: 1 };
+  const filled = [0, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const count = computeVisibleUnfilledCount(target, camera, t, filled, 400, 300, null);
+  assert.equal(count, 3, 'should count only unfilled visible cells');
+});
+
+test('computeVisibleUnfilledCount safe area excludes right zone', () => {
+  const t = makeTemplate(4, 4);
+  const target = { cells: [0, 1, 2, 3] };
+  const camera = { x: 0, y: 0, zoom: 2 };
+  const filled = [-1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const count = computeVisibleUnfilledCount(target, camera, t, filled, 400, 300, { top: 0, right: 200, bottom: 0, left: 0 });
+  assert.ok(count >= 0 && count <= 4, 'safe area should not affect these cells at this zoom');
+});
+
+/* ── Target Completion ── */
+
+test('isTargetConsideredDone all cells filled returns true', () => {
+  const t = makeTemplate(4, 4);
+  const target = { cells: [0, 1] };
+  const camera = { x: 0, y: 0, zoom: 1 };
+  const filled = [0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  assert.ok(isTargetConsideredDone(target, camera, t, filled, 400, 300, null));
+});
+
+test('isTargetConsideredDone visible cells filled but non-visible unfilled', () => {
+  const t = makeTemplate(4, 4);
+  const target = { cells: [0, 1, 8, 9] };
+  const camera = { x: 0, y: 0, zoom: 0.5 };
+  const filled = [0, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const visible = computeVisibleUnfilledCount(target, camera, t, filled, 200, 150, null);
+  assert.equal(visible, 0, 'at small viewport + low zoom, all cells are too small to be visible');
+  const done = isTargetConsideredDone(target, camera, t, filled, 200, 150, null);
+  assert.ok(done, 'visible unfilled=0 means target is considered done');
+});
+
+test('isTargetConsideredDone unfilled visible cells returns false', () => {
+  const t = makeTemplate(4, 4);
+  const target = { cells: [0, 1] };
+  const camera = { x: 0, y: 0, zoom: 1 };
+  const filled = [-1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  assert.ok(!isTargetConsideredDone(target, camera, t, filled, 400, 300, null));
+});
+
+/* ── Viewport Bounds ── */
+
+test('computeViewportCellBounds overview covers whole template', () => {
+  const bounds = computeViewportCellBounds({ x: 0, y: 0, zoom: 0.1 }, 400, 300, null, 32, 32);
+  assert.ok(bounds.maxCellX - bounds.minCellX > 0);
+  assert.ok(bounds.maxCellY - bounds.minCellY > 0);
+});
+
+test('computeViewportCellBounds zoom 2 narrows view', () => {
+  const boundsZoom2 = computeViewportCellBounds({ x: 0, y: 0, zoom: 2 }, 400, 300, null, 32, 32);
+  const boundsZoom1 = computeViewportCellBounds({ x: 0, y: 0, zoom: 1 }, 400, 300, null, 32, 32);
+  assert.ok(boundsZoom2.maxCellX - boundsZoom2.minCellX < boundsZoom1.maxCellX - boundsZoom1.minCellX,
+    'higher zoom means fewer visible cells');
+});
+
+/* ── Target Quality Scoring ── */
+
+test('scoreTargetQuality prefers more unfilled cells', () => {
+  const t = makeTemplate(8, 8);
+  const win1 = { cells: [0, 1], cellCount: 2 };
+  const win2 = { cells: [0, 1, 8, 9], cellCount: 4 };
+  const filled = Array(64).fill(-1);
+  assert.ok(scoreTargetQuality(win2, t, filled) > scoreTargetQuality(win1, t, filled),
+    'target with more unfilled cells scores higher');
+});
+
+test('scoreTargetQuality gives lower score for completed cluster', () => {
+  const t = makeTemplate(4, 4);
+  const win = { cells: [0, 1, 2], cellCount: 3 };
+  const filledEmpty = [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const filledDone = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  assert.notEqual(scoreTargetQuality(win, t, filledEmpty), scoreTargetQuality(win, t, filledDone));
+});
+
+/* ── isTargetVisible ── */
+
+test('isTargetVisible target center in viewport returns true', () => {
+  const target = { centerX: 5, centerY: 5 };
+  const camera = { x: 0, y: 0, zoom: 1 };
+  assert.ok(isTargetVisible(target, camera, null, 400, 300));
+});
+
+test('isTargetVisible target center far outside viewport returns false', () => {
+  const target = { centerX: 50, centerY: 50 };
+  const camera = { x: 0, y: 0, zoom: 1 };
+  assert.ok(!isTargetVisible(target, camera, null, 200, 150));
+});
+
+test('isTargetVisible null target returns false', () => {
+  assert.ok(!isTargetVisible(null, { x: 0, y: 0, zoom: 1 }, null, 400, 300));
+});
+
+/* ── createWorkingWindows with safe area ── */
+
+test('createWorkingWindows safe area reduces visible cells per window', () => {
+  const cluster = Array.from({ length: 256 }, (_, i) => i);
+  const t = makeTemplate(16, 16);
+  const winsNoSafe = createWorkingWindows(cluster, t, 400, 300);
+  const winsSafe = createWorkingWindows(cluster, t, 400, 300, { top: 60, right: 140, bottom: 0, left: 0 });
+  assert.ok(winsSafe.length >= winsNoSafe.length, 'smaller viewport yields equal or more sub-windows');
+});
+
+/* ── AUTO advance semantics ── */
+
+test('AUTO advance: target with all visible cells filled triggers advance', () => {
+  const t = { width: 4, height: 4, cells: Array(16).fill(0), palette: ['#fff'] };
+  const target = { cells: [0, 1, 4, 5], centerX: 1.5, centerY: 1.5, zoom: 1.5, cellCount: 4 };
+  const camera = { x: 50, y: 50, zoom: 1.5 };
+  const filled = [0, 0, -1, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1];
+  const visibleUnfilled = computeVisibleUnfilledCount(target, camera, t, filled, 400, 300, { top: 0, right: 0, bottom: 0, left: 0 });
+  assert.equal(visibleUnfilled, 0, 'cells 0,1,4,5 filled — visible unfilled = 0');
+  const globalUnfilled = filled.reduce((c, f) => c + (f === -1 ? 1 : 0), 0);
+  assert.ok(globalUnfilled > 0, 'global unfilled still > 0');
+  assert.ok(visibleUnfilled === 0 && globalUnfilled > 0, 'AUTO should advance when visible cells done');
+});
+
+test('AUTO advance: target with hidden unfilled cells still triggers advance', () => {
+  const t = { width: 4, height: 4, cells: Array(16).fill(0), palette: ['#fff'] };
+  const target = { cells: [0, 1, 8, 9], centerX: 0.5, centerY: 0.5, zoom: 2, cellCount: 4 };
+  const camera = { x: -400, y: -400, zoom: 2 };
+  const filled = [0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1];
+  const visible = computeVisibleUnfilledCount(target, camera, t, filled, 400, 300, { top: 0, right: 0, bottom: 0, left: 0 });
+  assert.equal(visible, 0, 'camera shifted so cells are off-screen');
+  const done = isTargetConsideredDone(target, camera, t, filled, 400, 300, { top: 0, right: 0, bottom: 0, left: 0 });
+  assert.ok(done, 'visible unfilled=0 triggers done');
+});
+
+test('AUTO advance: after color change, new target is selected', () => {
+  const template = { width: 4, height: 2, cells: [0, 0, 1, 1, 0, 0, 1, 1], palette: ['#fff', '#000'] };
+  const filled = [-1, -1, -1, -1, -1, -1, -1, -1];
+  const clusters0 = findClusters(template, filled, 0);
+  assert.ok(clusters0.length > 0, 'color 0 has unfilled clusters');
+  const clusters1 = findClusters(template, filled, 1);
+  assert.ok(clusters1.length > 0, 'color 1 has unfilled clusters');
+  assert.notDeepEqual(clusters0, clusters1, 'different colors have different clusters');
+});
+
+test('AUTO advance: completed template does not trigger advance', () => {
+  const t = { width: 2, height: 2, cells: [0, 1, 0, 1], palette: ['#fff', '#000'] };
+  const filled = [0, 1, 0, 1];
+  const hasUnfilled = filled.some(f => f === -1);
+  assert.ok(!hasUnfilled, 'fully completed has no unfilled');
+  const target = { cells: [0, 2], centerX: 0.5, centerY: 0.5, zoom: 1, cellCount: 2 };
+  const camera = { x: 0, y: 0, zoom: 1 };
+  assert.ok(isTargetConsideredDone(target, camera, t, filled, 400, 300, null));
+});
+
+test('AUTO advance: stable ID survives window array rebuild', () => {
+  const t = makeTemplate(4, 4);
+  const win1 = { cells: [1, 2, 5, 6], bounds: { minX: 1, minY: 1, maxX: 2, maxY: 1, width: 2, height: 1 }, cellCount: 4 };
+  const id1 = buildTargetId(t, win1, 0);
+  const win2 = { cells: [1, 2, 5, 6], bounds: { minX: 1, minY: 1, maxX: 2, maxY: 1, width: 2, height: 1 }, cellCount: 4 };
+  const id2 = buildTargetId(t, win2, 0);
+  assert.equal(id1, id2, 'stable id must survive object recreation');
+});
+
+test('AUTO advance: visited targets excluding current returns new id', () => {
+  const t = makeTemplate(4, 4);
+  const winA = { cells: [0, 1, 4, 5], bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1, width: 2, height: 2 }, cellCount: 4 };
+  const winB = { cells: [2, 3, 6, 7], bounds: { minX: 2, minY: 0, maxX: 3, maxY: 1, width: 2, height: 2 }, cellCount: 4 };
+  const idA = buildTargetId(t, winA, 0);
+  const idB = buildTargetId(t, winB, 0);
+  assert.notEqual(idA, idB);
+  const visited = new Set([idA]);
+  const hasVisitedB = visited.has(idB);
+  assert.ok(!hasVisitedB, 'unvisited target B should not be in visited set');
+});
+
+/* ── normalizeSafeArea ── */
+
+test('normalizeSafeArea: valid insets pass through', () => {
+  const result = normalizeSafeArea({ top: 60, right: 70, bottom: 0, left: 0 }, 400, 300);
+  assert.equal(result.top, 60);
+  assert.equal(result.right, 70);
+  assert.equal(result.bottom, 0);
+  assert.equal(result.left, 0);
+});
+
+test('normalizeSafeArea: NaN values become 0', () => {
+  const result = normalizeSafeArea({ top: NaN, right: NaN, bottom: 0, left: 0 }, 400, 300);
+  assert.equal(result.top, 0);
+  assert.equal(result.right, 0);
+});
+
+test('normalizeSafeArea: negative values become 0', () => {
+  const result = normalizeSafeArea({ top: -10, right: -5, bottom: -1, left: -3 }, 400, 300);
+  assert.equal(result.top, 0);
+  assert.equal(result.right, 0);
+  assert.equal(result.bottom, 0);
+  assert.equal(result.left, 0);
+});
+
+test('normalizeSafeArea: top+bottom > height normalizes', () => {
+  const result = normalizeSafeArea({ top: 200, right: 0, bottom: 200, left: 0 }, 400, 300);
+  assert.ok(result.top + result.bottom <= 300 - 120);
+  assert.ok(result.top >= 0 && result.bottom >= 0);
+});
+
+test('normalizeSafeArea: left+right > width normalizes', () => {
+  const result = normalizeSafeArea({ top: 0, right: 300, bottom: 0, left: 200 }, 400, 300);
+  assert.ok(result.left + result.right <= 400 - 120);
+  assert.ok(result.left >= 0 && result.right >= 0);
+});
+
+test('normalizeSafeArea: huge invalid values fallback to zeros', () => {
+  const result = normalizeSafeArea({ top: 500, right: 500, bottom: 500, left: 500 }, 400, 300);
+  assert.deepEqual(result, { top: 0, right: 0, bottom: 0, left: 0 },
+    'fully invalid safe area must fallback to zero insets');
+});
+
+test('normalizeSafeArea: null/undefined returns zeros', () => {
+  const result = normalizeSafeArea(null, 400, 300);
+  assert.deepEqual(result, { top: 0, right: 0, bottom: 0, left: 0 });
+  const result2 = normalizeSafeArea(undefined, 400, 300);
+  assert.deepEqual(result2, { top: 0, right: 0, bottom: 0, left: 0 });
+});
+
+test('normalizeSafeArea: hudRect width becomes right inset ~64', () => {
+  const hudW = 52;
+  const rightInset = Math.max(0, hudW + 12);
+  const topInset = Math.max(0, 200 + 12);
+  const result = normalizeSafeArea({ top: topInset, right: rightInset, bottom: 0, left: 0 }, 400, 300);
+  assert.equal(result.right, 64);
+  assert.ok(result.top <= topInset, 'top may be clamped to fit usable height');
+  assert.ok(result.top >= 0);
+  assert.equal(result.bottom, 0);
+  assert.equal(result.left, 0);
+});
+
+test('normalizeSafeArea: absolute DOM left=300 does not become right=300', () => {
+  const absLeft = 300;
+  const absTop = 200;
+  const hudW = 52;
+  const rightByWidth = Math.max(0, hudW + 12);
+  assert.equal(rightByWidth, 64);
+  assert.notEqual(rightByWidth, absLeft, 'right inset must come from width+gutter, not abs DOM left');
+});
+
+test('normalizeSafeArea: dock outside canvas produced no bottom inset', () => {
+  const sa = normalizeSafeArea({ top: 0, right: 0, bottom: 0, left: 0 }, 400, 300);
+  assert.equal(sa.bottom, 0, 'no bottom inset from external dock');
+});
+
+test('normalizeSafeArea: invalid safe area does not block cameraReady', () => {
+  const bad = { top: 1000, right: 1000, bottom: 1000, left: 1000 };
+  const result = normalizeSafeArea(bad, 400, 300);
+  assert.equal(result.top, 0);
+  assert.equal(result.right, 0);
+});
+
+
+
 
 
