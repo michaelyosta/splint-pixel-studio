@@ -1,18 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { resolve, dirname } from 'node:path';
-import { unlinkSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const testDbPath = resolve(__dirname, 'test.db.bin');
-
 function fixturePath(name) {
   return resolve(__dirname, 'fixtures', name);
 }
-
-test.beforeAll(() => {
-  if (existsSync(testDbPath)) unlinkSync(testDbPath);
-});
 
 const API_HEADERS = { 'Content-Type': 'application/json', 'X-User-Id': 'user_pixelhunter' };
 

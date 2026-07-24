@@ -21,6 +21,10 @@ assets/*.pid
 assets/*_pid.txt
 .run/
 .logs/
+.e2e-runtime/
+test-results/
+playwright-report/
+blob-report/
 
 # Editor directories and files
 .vscode/*

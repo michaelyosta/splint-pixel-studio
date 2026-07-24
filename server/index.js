@@ -106,10 +106,9 @@ server.on('error', (err) => {
     console.error('Another process is already listening on this port.');
     console.error('');
     console.error('To resolve:');
-    console.error('  1. Run: launch-splint.bat -Restart local');
-    console.error('  2. Or run: launch-splint.bat status');
-    console.error(`  3. Find the process: Get-NetTCPConnection -LocalPort ${PORT} -State Listen`);
-    console.error('  4. Kill it by PID: taskkill /PID <pid> /T /F');
+    console.error(`  1. Find the process: Get-NetTCPConnection -LocalPort ${PORT} -State Listen`);
+    console.error('  2. Kill it by PID: taskkill /PID <pid> /T /F');
+    console.error('  3. Then restart: npm run dev:api');
     console.error('');
     process.exit(1);
   }

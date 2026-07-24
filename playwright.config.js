@@ -1,9 +1,4 @@
 import { defineConfig, devices } from '@playwright/test';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const testDbPath = resolve(__dirname, 'e2e', 'test.db.bin');
 
 export default defineConfig({
   testDir: './e2e',
@@ -17,20 +12,16 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'npm run dev',
+      command: 'npm.cmd run dev',
       port: 5173,
       timeout: 30000,
       reuseExistingServer: false,
     },
     {
-      command: 'npm.cmd --prefix server run dev',
+      command: 'node scripts/run-e2e-api.mjs',
       url: 'http://localhost:3001/health',
       timeout: 30000,
       reuseExistingServer: false,
-      env: {
-        SQLITE_DB_PATH: testDbPath,
-        RATE_LIMIT_MAX: '1000',
-      },
     },
   ],
   projects: [
