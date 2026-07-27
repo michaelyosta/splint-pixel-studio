@@ -5,7 +5,9 @@ export default memo(function DevDiagnostics({
   windowsCount, workingWindows, filled, safeArea, camera,
   containerSize, onTrack,
 }) {
-  if (!import.meta.env.DEV) return null;
+  // The preview canvas is user-facing even in development, so diagnostics are
+  // opt-in instead of appearing in every local or tunneled session.
+  if (!import.meta.env.DEV || import.meta.env.VITE_SHOW_COLORING_DIAGNOSTICS !== 'true') return null;
 
   const remainingGlobal = filled ? filled.reduce((c, f) => c + (f === -1 ? 1 : 0), 0) : 0;
   const remainingColor = (routingColor != null && template)

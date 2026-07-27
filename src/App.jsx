@@ -3,7 +3,7 @@ import { Compass, Flag, Flame, Grid3X3, Heart, ImagePlus, LoaderCircle, Send, Sp
 import { api, metaApi, catalogApi, DEV_USER_ID } from './api/client';
 import PlayerView from './views/PlayerView';
 import { floodFillRegion } from './lib/floodFill';
-import { buildColoringFromImage, findRewardingColor, getProgress, renderCompletedImage } from './lib/pixelColoring';
+import { buildColoringFromImage, findRewardingColor, getProgress, isProgressComplete, renderCompletedImage } from './lib/pixelColoring';
 import { renderImageCropPreview, renderFitPreview, renderGridPreview, renderNumberedPreview } from './lib/imageCrop';
 import { assessQuality } from './lib/creatorQuality';
 import { createSaveQueue } from './lib/progressSaveQueue';
@@ -71,8 +71,10 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [profileArtworks, setProfileArtworks] = useState([]);
-  const [creatorGrid, setCreatorGrid] = useState({ width: 24, height: 24 });
-  const [creatorColors, setCreatorColors] = useState(8);
+  // 24×24 with eight colours is quick, but it flattens most user photos and
+  // illustrations before the converter has a chance to preserve their forms.
+  const [creatorGrid, setCreatorGrid] = useState({ width: 32, height: 32 });
+  const [creatorColors, setCreatorColors] = useState(10);
   const [creatorCrop, setCreatorCrop] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
   const [creatorCropMode, setCreatorCropMode] = useState('fit');
   const [creatorImageUrl, setCreatorImageUrl] = useState(null);
@@ -316,7 +318,7 @@ function App() {
       }
     });
     const nextZones = refreshZones(nextFilled);
-    celebrateCompletedZone(nextZones);
+    return celebrateCompletedZone(nextZones);
   }
 
   function handleFillAt(index) {
@@ -329,10 +331,11 @@ function App() {
     const nextFilled = [...filledRef.current];
     region.forEach((cell) => { nextFilled[cell] = targetColor; });
     const changes = region.map((idx) => ({ index: idx, from: -1, to: targetColor }));
-    applyFilled(nextFilled, createHistoryOperation({ type: 'fill', changes, color: targetColor }));
-    const nextZones = refreshZones(nextFilled);
-    if (!celebrateCompletedZone(nextZones)) window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('medium');
-    handleFirstPaint();
+    const completedZone = handleStrokeCommitted(
+      nextFilled,
+      createHistoryOperation({ type: 'fill', changes, color: targetColor }),
+    );
+    if (!completedZone) window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('medium');
   }
 
   function handleWrongCell() {
@@ -597,16 +600,17 @@ function App() {
   }
 
   const gameProgress = useMemo(() => (template && progress ? getProgress(template.cells, progress.filled) : null), [progress, template]);
-  const completedPreview = useMemo(() => (template && gameProgress?.percent === 100 ? renderCompletedImage(template, progress.filled) : null), [gameProgress?.percent, progress?.filled, template]);
+  const artworkComplete = isProgressComplete(gameProgress);
+  const completedPreview = useMemo(() => (template && artworkComplete ? renderCompletedImage(template, progress.filled) : null), [artworkComplete, progress?.filled, template]);
 
   useEffect(() => {
     if (!template || view !== 'play') return;
-    if (gameProgress?.percent === 100 && completedTemplateRef.current !== template.id) {
+    if (artworkComplete && completedTemplateRef.current !== template.id) {
       completedTemplateRef.current = template.id;
       setCompletionOpen(true);
     }
-    if (gameProgress?.percent !== 100) completedTemplateRef.current = null;
-  }, [gameProgress?.percent, template, view]);
+    if (!artworkComplete) completedTemplateRef.current = null;
+  }, [artworkComplete, template, view]);
 
   useEffect(() => {
     if (view === 'play' && template && onboarding === null && localStorage.getItem('splint_onboarding_version') !== '2') {
