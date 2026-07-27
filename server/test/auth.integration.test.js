@@ -249,6 +249,17 @@ test('Telegram initData authentication', async (t) => {
     assert.equal(response.status, 401);
   });
 
+  await t.test('Future auth_date beyond clock skew returns 401', async () => {
+    const telegramUser = { id: 999004, first_name: 'Future' };
+    const initData = buildValidTelegramInitData(telegramUser, testBotToken, {
+      auth_date: String(Math.floor(Date.now() / 1000) + 600),
+    });
+    const response = await fetch(`${base}/users/me`, {
+      headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
+    });
+    assert.equal(response.status, 401);
+  });
+
   await t.test('X-User-Id does not override Telegram user when valid initData present', async () => {
     const telegramUser = { id: 999004, first_name: 'TelegramUser', username: 'tg_user_4' };
     const initData = buildValidTelegramInitData(telegramUser, testBotToken);
