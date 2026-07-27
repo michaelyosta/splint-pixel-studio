@@ -294,8 +294,6 @@ function App() {
     window.setTimeout(() => setZoneReward(null), 2200);
     window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
     metaApi.track('zone_complete', { id: template.id, zone: completedZone.id });
-    metaApi.unlockAchievement('ach_first_zone').catch(() => {});
-    metaApi.touchStreak().catch(() => {});
     return true;
   }
 

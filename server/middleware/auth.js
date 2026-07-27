@@ -6,7 +6,9 @@ function validateTelegramInitData(initData, token) {
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');
   const authDate = Number(params.get('auth_date'));
-  if (!hash || !authDate || Date.now() / 1000 - authDate > 86_400) return null;
+  const now = Date.now() / 1000;
+  const maxClockSkewSeconds = 300;
+  if (!hash || !Number.isInteger(authDate) || now - authDate > 86_400 || authDate - now > maxClockSkewSeconds) return null;
   params.delete('hash');
   const dataCheckString = [...params.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([key, value]) => `${key}=${value}`).join('\n');
   const secret = createHmac('sha256', 'WebAppData').update(token).digest();

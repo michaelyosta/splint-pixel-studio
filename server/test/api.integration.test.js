@@ -57,6 +57,22 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(me.json.id, 'user_pixelhunter');
   assert.ok(Object.hasOwn(me.json, 'stars_balance'));
 
+  const unlockAttempt = await request('/meta/achievements/ach_first_zone/unlock', { method: 'POST' });
+  assert.equal(unlockAttempt.response.status, 403);
+  assert.equal(unlockAttempt.json.code, 'ACHIEVEMENT_UNLOCK_FORBIDDEN');
+  const achievements = await request('/meta/achievements');
+  assert.equal(achievements.json.find((achievement) => achievement.id === 'ach_first_zone').unlocked, false);
+  const initialStreak = await request('/meta/streak');
+  const streakAttempt = await request('/meta/streak/touch', { method: 'POST' });
+  assert.equal(streakAttempt.response.status, 403);
+  assert.equal(streakAttempt.json.code, 'STREAK_TOUCH_FORBIDDEN');
+  const unchangedStreak = await request('/meta/streak');
+  assert.deepEqual(unchangedStreak.json, initialStreak.json);
+  const invalidAnalytics = await request('/meta/analytics', { method: 'POST', body: { event: 'arbitrary_event', payload: {} } });
+  assert.equal(invalidAnalytics.response.status, 400);
+  const validAnalytics = await request('/meta/analytics', { method: 'POST', body: { event: 'open_level', payload: { id: 'catalog_fox' } } });
+  assert.equal(validAnalytics.response.status, 200);
+
   const publicProfile = await request('/users/user_lenaart/profile');
   assert.equal(publicProfile.response.status, 200);
   for (const sensitiveField of ['telegram_id', 'stars_balance', 'role', 'is_banned', 'messages_disabled', 'followers_only', 'paid_open', 'price_in_stars']) {

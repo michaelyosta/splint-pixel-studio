@@ -35,9 +35,7 @@ export const api = request;
 
 export const metaApi = {
   streak: () => request('/meta/streak'),
-  touchStreak: () => request('/meta/streak/touch', { method: 'POST' }),
   achievements: () => request('/meta/achievements'),
-  unlockAchievement: (id) => request(`/meta/achievements/${id}/unlock`, { method: 'POST' }),
   collections: () => request('/meta/collections'),
   collectionTemplates: (id) => request(`/meta/collections/${id}/templates`),
   track: (event, payload = {}) => request('/meta/analytics', { method: 'POST', body: { event, payload } }),
