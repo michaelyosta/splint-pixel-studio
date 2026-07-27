@@ -3,6 +3,7 @@ import { ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Star, Target, X 
 import ColoringSession from '../features/coloring/ColoringSession';
 import LegacyPixelCanvas from '../components/LegacyPixelCanvas';
 import { getContextGoal } from '../lib/playLoop';
+import { isProgressComplete } from '../lib/pixelColoring';
 
 const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE !== 'false';
 
@@ -82,7 +83,7 @@ export default function PlayerView({
     return <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div>;
   }
 
-  const isComplete = gameProgress.percent === 100;
+  const isComplete = isProgressComplete(gameProgress);
   const totalXp = gameProgress.completed * 10;
   const level = Math.floor(totalXp / 1000) + 1;
   const contextGoal = getContextGoal(zones, zoneIndices, template, progress.filled);

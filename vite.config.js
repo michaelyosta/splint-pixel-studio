@@ -9,6 +9,8 @@ const additionalHosts = (process.env.__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS || '
 const allowedHosts = [
   'localhost',
   '127.0.0.1',
+  // Cloudflare Quick Tunnels receive a new subdomain on every launch.
+  '.trycloudflare.com',
   ...additionalHosts,
 ]
 const devPort = Number(process.env.E2E_WEB_PORT || 5173)
