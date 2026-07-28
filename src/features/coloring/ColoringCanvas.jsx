@@ -354,6 +354,7 @@ export default function ColoringCanvas({
       data-camera-y={camera.y}
       data-camera-zoom={camera.zoom}
       data-interaction-disabled={interactionDisabled ? 'true' : 'false'}
+      onWheel={handleWheel}
       style={{ width: viewWidth, height: viewHeight, overflow: 'hidden', position: 'relative', background: '#081218' }}
     >
       <div className="coloring-canvas-layer" style={camStyle}>
@@ -367,7 +368,6 @@ export default function ColoringCanvas({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
-          onWheel={handleWheel}
           aria-label={`Раскраска ${template?.title}`}
           style={{
             display: 'block',
