@@ -258,3 +258,26 @@
 .coloring-dock-actions button:hover:not(:disabled) {
   background: rgba(30, 50, 65, 0.5);
 }
+
+@media (max-height: 500px) {
+  .coloring-task-summary {
+    min-height: 24px;
+    margin: 2px 6px 0;
+    padding: 4px 8px;
+  }
+
+  .coloring-dock {
+    padding: 3px 6px 5px;
+    gap: 3px;
+  }
+
+  .coloring-dock .color-swatch,
+  .coloring-dock-actions button {
+    min-height: 36px;
+  }
+
+  .hud-btn {
+    min-height: 32px;
+    padding: 4px 8px;
+  }
+}
