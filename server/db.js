@@ -240,7 +240,7 @@ export async function bootstrapSystemData() {
 
   const brokenArtworks = await all("SELECT * FROM artworks WHERE image_url LIKE 'data:image/%' AND LENGTH(image_url) < 100");
   for (const artwork of brokenArtworks) {
-    const template = artwork.collection_id ? await get('SELECT preview_url FROM coloring_templates WHERE id=?', [artwork.collection_id]) : null;
+    const template = artwork.template_id ? await get('SELECT preview_url FROM coloring_templates WHERE id=?', [artwork.template_id]) : null;
     if (template?.preview_url && (!template.preview_url.startsWith('data:') || template.preview_url.length >= 100)) {
       await run('UPDATE artworks SET image_url=?, updated_at=? WHERE id=?', [template.preview_url, now, artwork.id]);
     } else {
@@ -283,9 +283,11 @@ export async function seedDemoData() {
     const artworkId = `art_showcase_${item.id}`;
     const postId = `post_showcase_${item.id}`;
 
-    await run(`INSERT INTO artworks (id,owner_id,source_type,image_url,title,collection_id,collection_title,rarity,is_completed,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET image_url=excluded.image_url, title=excluded.title, updated_at=excluded.updated_at`,
-    [artworkId, item.owner, 'showcase', item.image, item.title, `color_${item.id === 'fox' ? 'lantern-fox' : item.id === 'whale' ? 'astro-whale' : 'tea-dragon'}`, item.title, 'featured', 1, now, now]);
+    const templateId = `color_${item.id === 'fox' ? 'lantern-fox' : item.id === 'whale' ? 'astro-whale' : 'tea-dragon'}`;
+    const template = await get('SELECT collection_id FROM coloring_templates WHERE id=?', [templateId]);
+    await run(`INSERT INTO artworks (id,owner_id,source_type,image_url,title,template_id,collection_id,collection_title,rarity,is_completed,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET image_url=excluded.image_url, title=excluded.title, template_id=excluded.template_id, collection_id=excluded.collection_id, updated_at=excluded.updated_at`,
+    [artworkId, item.owner, 'showcase', item.image, item.title, templateId, template?.collection_id || null, item.title, 'featured', 1, now, now]);
 
     await run(`INSERT INTO posts (id,author_id,artwork_id,achievement_id,post_type,title,caption,comments_enabled,visibility,status,like_count,comment_count,published_at,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
