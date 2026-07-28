@@ -216,12 +216,31 @@ function App() {
         saveQueueRef.current.dispose();
         setSaving(false);
       }
+      let lastAuthoritativeFilled = [...nextProgress.filled];
+      let lastAuthoritativeProgress = nextProgress;
       saveQueueRef.current = createSaveQueue({
         putProgress: async ({ filled, revision, resultDataUrl }) => {
-          return api(`/colorings/${nextTemplate.id}/progress`, {
-            method: 'PUT',
-            body: { filled, revision, resultDataUrl },
-          });
+          const changes = filled.flatMap((color, index) => (
+            color === lastAuthoritativeFilled[index] ? [] : [{ index, color }]
+          ));
+          if (!changes.length) return lastAuthoritativeProgress;
+          let saved = lastAuthoritativeProgress;
+          let nextRevision = revision;
+          for (let offset = 0; offset < changes.length; offset += 64) {
+            const batch = changes.slice(offset, offset + 64);
+            saved = await api(`/colorings/${nextTemplate.id}/progress/actions`, {
+              method: 'POST',
+              body: {
+                changes: batch,
+                revision: nextRevision,
+                resultDataUrl: offset + 64 >= changes.length ? resultDataUrl : null,
+              },
+            });
+            lastAuthoritativeFilled = [...saved.filled];
+            lastAuthoritativeProgress = saved;
+            nextRevision = saved.revision;
+          }
+          return saved;
         },
         getResultDataUrl: (filled) => {
           return filled.every((color, index) => color === nextTemplate.cells[index])
