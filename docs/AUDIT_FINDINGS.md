@@ -95,3 +95,10 @@
 - Тесты теперь используют уникальный development user на каждый test case; это устраняет зависимость прогресса, onboarding и созданных раскрасок от порядка сценариев. Zone-сценарий получает конкретный template/zones API и проверяет HTTP status.
 - `FUNC-002`, `TEST-002` и `FUNC-003` имеют локальное подтверждение Chromium, но не считаются `resolved`: изменения ещё не в `origin/main`, а обычный автозапуск Playwright остаётся неисправным.
 - `FUNC-001` остаётся `open`: без `E2E_REUSE_EXISTING=true` Playwright поднимает Vite и изолированный API, выполняет тест до этапа завершения, но Windows runner не возвращает итоговый результат до внешнего timeout. Поэтому `npm run test:e2e` и мобильная матрица не являются надёжным CI-сигналом.
+
+### Исправление lifecycle Playwright (28.07.2026, ветка `fix/playwright-windows-lifecycle`)
+
+- `playwright.config.js` больше не использует встроенный `webServer`; `scripts/e2e-global-setup.mjs` явно запускает Vite и изолированный API, ждёт доступности HTTP и завершает только созданные PID. На Windows для этого применяется `taskkill /T /F` в teardown.
+- Дефолтные E2E-порты перенесены с dev-портов 5173/3001 на 5190/3012, поэтому штатный `npm run test:e2e` не конфликтует с обычными `npm run dev` и `npm run dev:api`.
+- Подтверждение на Windows: `npm run test:e2e` — **107 passed, 4 skipped, 0 failed**, exit 0 за 4,5 минуты. Skips — desktop-only wheel/free-exploration сценарии на двух мобильных профилях.
+- До merge этой ветки `FUNC-001` и `OPS-004` сохраняют статус `in_progress` относительно `main`; после merge обычный E2E запуск может стать обязательным CI-gate.
