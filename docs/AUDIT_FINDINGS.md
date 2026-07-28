@@ -79,3 +79,12 @@
 | SEC-016 | Authorization / banned account | high | in_progress | Забаненный пользователь мог отправлять messages. | `server/middleware/auth.js: requireActiveUser`; middleware вызывается до `messages.js`. | `e57b1ba`, active-user gate. | `server/test/security-hardening.integration.test.js` покрывает message route matrix; `api.integration.test.js` ожидает `ACCOUNT_BANNED`. | Не проверено на deployed multi-instance backend. |
 
 Изменение счётчика после добавления SEC-014…SEC-016 и переоценки исправлений в draft: **open 23**, **partially_resolved 6**, **in_progress 12**, **resolved 3**, **requires_environment_validation 6** (всего 50). Это счётчик реестра с draft-статусами; для одного только `origin/main` записи `SEC-001`, `SEC-002`, `SEC-007`, `SEC-008`, `SEC-011`, `SEC-014`, `SEC-015` и `SEC-016` по-прежнему эксплуатируемы.
+
+### Локальная инфраструктурная перепроверка — 28.07.2026, commit `cca3b43`
+
+- `npm --prefix server run test:postgres` с локальным Docker PostgreSQL: **90 passed, 0 skipped, 0 failed**.
+- Новый `server/test/media-storage-s3.integration.test.js` с локальным MinIO: **1 passed** — upload, HeadObject (`image/png`), delete и подтверждённый 404.
+- `server/test/media-storage.test.js`: **9 passed**.
+- `npm --prefix server test` с глобальным `DATABASE_URL` дал **183 passed, 8 failed**: это несовместимость aggregate-команды с SQLite HTTP fixtures, которые наследуют PostgreSQL URL; отдельные SQLite и PostgreSQL команды проходят. Не трактовать этот запуск как регрессию PostgreSQL-кода.
+
+Следовательно, DATA-003, DATA-004 и TEST-001 остаются `requires_environment_validation` только для production-среды, а не для локальных Docker PostgreSQL/MinIO. В production всё ещё нужны backup/restore, IAM/ACL, domain/proxy и нагрузочные проверки.

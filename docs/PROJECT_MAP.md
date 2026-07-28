@@ -750,3 +750,9 @@ SQL injection/path traversal/чтение чужого private template по и�
 Новые проверенные security-находки также закрыты только в draft: `GET /users` больше недоступен обычному пользователю и не раскрывает Stars/banned state (SEC-014); чужие private/unpublished artworks не попадают в `GET /users/:id/artworks` (SEC-015); `requireActiveUser()` блокирует забаненного пользователя до message routes (SEC-016). Подтверждение лежит в `server/test/security-hardening.integration.test.js` и `server/test/api.integration.test.js`.
 
 Ключевой незакрытый риск прежний: `PUT /colorings/:id/progress` всё ещё принимает от клиента готовую карту `filled`; CAS устраняет гонку, но не подделку прохождения. Это требует отдельного продуктового решения о server-authoritative протоколе, а не локального патча UI. PostgreSQL и MinIO/S3 suites не выполнены: Docker Desktop daemon на рабочей машине не запущен, поэтому 53 PostgreSQL-теста остаются skipped. Актуальный реестр: [SECURITY_FOLLOWUPS.md](../SECURITY_FOLLOWUPS.md) и [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md).
+
+### Локальная PostgreSQL/MinIO-проверка (28.07.2026)
+
+Этот инфраструктурный пробел частично закрыт на draft commit `cca3b43`: Docker PostgreSQL и MinIO healthy, `npm --prefix server run test:postgres` прошёл **90/90 без skips**, а новый `server/test/media-storage-s3.integration.test.js` подтверждает реальный MinIO upload → HeadObject → delete → 404. Это не равнозначно production S3/PostgreSQL, но утверждение «локальная PG/S3-проверка не выполнялась» больше не актуально.
+
+Для запуска используйте раздельно SQLite `npm run test:server` и PostgreSQL `DATABASE_URL=postgresql://splint:splint_dev_password@localhost:5432/splint npm --prefix server run test:postgres`. Смешанный `npm --prefix server test` при глобальном `DATABASE_URL` сейчас даёт 8 ошибок в SQLite HTTP fixtures из-за наследования URL; это известный дефект тестового запуска, не успешный aggregate-suite.

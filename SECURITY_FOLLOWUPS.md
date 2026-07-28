@@ -85,3 +85,14 @@
 | SEC-016 — banned user может отправлять messages | отсутствовал | in_progress | `e57b1ba`, `server/middleware/auth.js`: `requireActiveUser()` возвращает `403 ACCOUNT_BANNED` до routes, включая `messages.js`. | `server/test/security-hardening.integration.test.js`: матрица routes для banned account; `server/test/api.integration.test.js`: banned action возвращает 403. | Не проверено на multi-instance PostgreSQL с кешированием/репликами. |
 
 Последний запуск на draft HEAD: `npm test` — 200 passed; `npm run test:server` — 152 passed, 53 skipped (нет `DATABASE_URL`); `npm --prefix server audit --omit=dev --json` — 0 vulnerabilities. Попытка поднять `docker compose up -d postgres` не дошла до тестов: Docker Desktop daemon не запущен (`dockerDesktopLinuxEngine` отсутствует).
+
+## Дополнение от 28.07.2026: локальная инфраструктурная проверка
+
+На commit `cca3b43` Docker PostgreSQL 16 и MinIO были подняты через `docker-compose.yml`; оба сервиса получили статус `healthy`, а bucket `splint-originals` был создан `minio-init`.
+
+| Контур | Результат | Что именно подтверждено | Что всё ещё не доказано |
+|---|---|---|---|
+| PostgreSQL | `npm --prefix server run test:postgres`: **90 passed, 0 skipped, 0 failed** | migrations 001–006, CAS progress, HTTP concurrency, report locking/audit, Stars idempotency/ledger/triggers и production config. | Реальные production topology, backup/restore, latency и replica behaviour. |
+| MinIO/S3 | `server/test/media-storage-s3.integration.test.js`: **1 passed**; local storage suite: **9 passed** | `storePrivateOriginal` загружает private original, HeadObject видит `image/png`, `deletePrivateOriginal` удаляет объект и HeadObject возвращает 404. | Реальный облачный S3, IAM/policy, retry/network failures, lifecycle/orphan cleanup. |
+
+Это снимает локальную часть `requires_environment_validation` для PostgreSQL/MinIO, но не переводит production-проверки в `resolved`. Полный `npm --prefix server test` с глобально заданным `DATABASE_URL` сейчас **не является валидной aggregate-командой**: 8 SQLite-oriented HTTP suites наследуют PostgreSQL URL и не стартуют. Использовать отдельно `test:server` (SQLite) и `test:postgres` (PostgreSQL).
