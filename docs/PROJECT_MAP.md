@@ -756,3 +756,9 @@ SQL injection/path traversal/чтение чужого private template по и�
 Этот инфраструктурный пробел частично закрыт на draft commit `cca3b43`: Docker PostgreSQL и MinIO healthy, `npm --prefix server run test:postgres` прошёл **90/90 без skips**, а новый `server/test/media-storage-s3.integration.test.js` подтверждает реальный MinIO upload → HeadObject → delete → 404. Это не равнозначно production S3/PostgreSQL, но утверждение «локальная PG/S3-проверка не выполнялась» больше не актуально.
 
 Для запуска используйте раздельно SQLite `npm run test:server` и PostgreSQL `DATABASE_URL=postgresql://splint:splint_dev_password@localhost:5432/splint npm --prefix server run test:postgres`. Смешанный `npm --prefix server test` при глобальном `DATABASE_URL` сейчас даёт 8 ошибок в SQLite HTTP fixtures из-за наследования URL; это известный дефект тестового запуска, не успешный aggregate-suite.
+
+### Уточнение E2E-статуса (28.07.2026)
+
+Локальные изменения изоляции E2E подтверждены на Chromium: creator — **19/19 passed**, smart-coloring stabilization — **18/18 passed**, когда Vite и изолированный SQLite API запущены отдельно и Playwright использует `E2E_REUSE_EXISTING=true`. Каждый сценарий получает отдельный development user, поэтому сохранённый прогресс больше не переносится между тестами. Это подтверждает assertions, включая guided/free-exploration, onboarding и zone celebration.
+
+Однако `npm run test:e2e` без этого режима пока нельзя считать зелёным: на Windows Playwright после запуска собственных `webServer` не возвращает итоговый результат до timeout. Мобильные профили в этой конфигурации не прогонялись. До отдельного исправления lifecycle runner E2E не должен быть обязательным CI-gate.

@@ -7,7 +7,7 @@ function fixturePath(name) {
   return resolve(__dirname, 'fixtures', name);
 }
 
-const API_HEADERS = { 'Content-Type': 'application/json', 'X-User-Id': 'user_pixelhunter' };
+const API_HEADERS = { 'Content-Type': 'application/json' };
 
 async function clickActiveWorkCell(page) {
   const canvas = page.locator('canvas.coloring-canvas');
@@ -53,6 +53,10 @@ async function saveColoring(page) {
 }
 
 test.describe('Creator 2.0 — full E2E', () => {
+
+  test.beforeEach(async ({ page }, testInfo) => {
+    await page.context().setExtraHTTPHeaders({ 'X-User-Id': `e2e_${testInfo.testId}` });
+  });
 
   test('1. App shell and navigation render', async ({ page }) => {
     await page.goto('/');
@@ -338,15 +342,18 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('19. Completing a zone celebrates the revealed fragment without XP copy', async ({ page }) => {
-    await page.goto('/');
-    const openButton = page.locator('.coloring-card').first().locator('.primary-button');
-    const templateResponsePromise = page.waitForResponse((response) =>
-      response.request().method() === 'GET' && /\/colorings\/[^/]+$/.test(new URL(response.url()).pathname),
-    );
-    await openButton.click();
-    const openedTemplate = await (await templateResponsePromise).json();
+    const catalogResponse = await page.request.get('/api/colorings', { headers: API_HEADERS });
+    expect(catalogResponse.ok()).toBe(true);
+    const [catalogTemplate] = await catalogResponse.json();
+    expect(catalogTemplate?.id).toBeTruthy();
+
+    const templateResponse = await page.request.get(`/api/colorings/${catalogTemplate.id}`, { headers: API_HEADERS });
+    expect(templateResponse.ok()).toBe(true);
+    const openedTemplate = await templateResponse.json();
     const progress = await (await page.request.get(`/api/colorings/${openedTemplate.id}/progress`, { headers: API_HEADERS })).json();
-    const zones = await (await page.request.get(`/api/colorings/${openedTemplate.id}/zones`, { headers: API_HEADERS })).json();
+    const zonesResponse = await page.request.get(`/api/colorings/${openedTemplate.id}/zones`, { headers: API_HEADERS });
+    expect(zonesResponse.ok()).toBe(true);
+    const zones = await zonesResponse.json();
     const zone = zones.zones.find((item) => item.indices.length > 1);
     const zoneSet = new Set(zone.indices);
     const outsideByColor = new Map();
