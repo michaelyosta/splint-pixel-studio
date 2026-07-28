@@ -3,15 +3,21 @@ import { rasterizeStroke } from './engine/strokeRasterizer.js';
 import { centroid, distance, computePinchPan, isTapGesture } from './engine/gestureMath.js';
 
 const BASE_CELL = 32;
+const MAX_RENDER_SCALE = 4;
 
-function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokeCells, wrongCell, flashCells, activeWorkCells, activeTargetColor) {
+function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokeCells, wrongCell, flashCells, activeWorkCells, activeTargetColor, renderScale) {
   const { width, height, cells, palette } = template;
   const canvasW = width * BASE_CELL;
   const canvasH = height * BASE_CELL;
-  if (ctx.canvas.width !== canvasW || ctx.canvas.height !== canvasH) {
-    ctx.canvas.width = canvasW;
-    ctx.canvas.height = canvasH;
+  const bitmapW = Math.ceil(canvasW * renderScale);
+  const bitmapH = Math.ceil(canvasH * renderScale);
+  if (ctx.canvas.width !== bitmapW || ctx.canvas.height !== bitmapH) {
+    ctx.canvas.width = bitmapW;
+    ctx.canvas.height = bitmapH;
   }
+  // Keep a logical 32px grid, but give the bitmap enough pixels for the
+  // current zoom level so digits are re-rasterized instead of stretched.
+  ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
   ctx.clearRect(0, 0, canvasW, canvasH);
   const showNumbers = interactionMode !== 'reveal' && !hideFilledNumbers && BASE_CELL >= 14;
   ctx.textAlign = 'center';
@@ -104,6 +110,8 @@ export default function ColoringCanvas({
   const activePointers = useRef(new Map());
   const transformRef = useRef(null);
   const tapStartRef = useRef(null);
+  const deviceScale = typeof window === 'undefined' ? 1 : (window.devicePixelRatio || 1);
+  const renderScale = Math.min(MAX_RENDER_SCALE, Math.max(1, Math.ceil(deviceScale * Math.max(1, camera.zoom))));
 
   useEffect(() => {
     return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); };
@@ -113,8 +121,8 @@ export default function ColoringCanvas({
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx || !template) return;
     drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode,
-      strokePreview, wrongCell, flashCells, activeWorkCells, activeTargetColor);
-  }, [template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokePreview, wrongCell, flashCells, activeWorkCells, activeTargetColor]);
+      strokePreview, wrongCell, flashCells, activeWorkCells, activeTargetColor, renderScale);
+  }, [template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokePreview, wrongCell, flashCells, activeWorkCells, activeTargetColor, renderScale]);
 
   useLayoutEffect(() => { redraw(); }, [redraw]);
 
@@ -346,6 +354,7 @@ export default function ColoringCanvas({
       data-camera-y={camera.y}
       data-camera-zoom={camera.zoom}
       data-interaction-disabled={interactionDisabled ? 'true' : 'false'}
+      onWheel={handleWheel}
       style={{ width: viewWidth, height: viewHeight, overflow: 'hidden', position: 'relative', background: '#081218' }}
     >
       <div className="coloring-canvas-layer" style={camStyle}>
@@ -359,9 +368,14 @@ export default function ColoringCanvas({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
-          onWheel={handleWheel}
           aria-label={`Раскраска ${template?.title}`}
-          style={{ display: 'block', imageRendering: 'pixelated', touchAction: 'none' }}
+          style={{
+            display: 'block',
+            width: template.width * BASE_CELL,
+            height: template.height * BASE_CELL,
+            imageRendering: 'pixelated',
+            touchAction: 'none',
+          }}
         />
       </div>
     </div>

@@ -1648,3 +1648,12 @@ input:checked + .slider:before {
 }
 .engine-badge.smart { background: rgba(0, 230, 118, 0.15); color: var(--app-success); border: 1px solid rgba(0, 230, 118, 0.25); }
 .engine-badge.legacy { background: rgba(255, 199, 44, 0.15); color: var(--app-gold); border: 1px solid rgba(255, 199, 44, 0.25); }
+
+@media (max-height: 500px) {
+  .app-container { padding-top: 0; }
+  .app-header { padding: 4px 10px; }
+  .player-topbar { min-height: 36px; padding: 2px 8px; }
+  .player-topbar .back-button,
+  .player-menu-btn { min-height: 32px; }
+  .player-hint { display: none; }
+}

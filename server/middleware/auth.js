@@ -6,7 +6,9 @@ function validateTelegramInitData(initData, token) {
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');
   const authDate = Number(params.get('auth_date'));
-  if (!hash || !authDate || Date.now() / 1000 - authDate > 86_400) return null;
+  const now = Date.now() / 1000;
+  const maxClockSkewSeconds = 300;
+  if (!hash || !Number.isInteger(authDate) || now - authDate > 86_400 || authDate - now > maxClockSkewSeconds) return null;
   params.delete('hash');
   const dataCheckString = [...params.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([key, value]) => `${key}=${value}`).join('\n');
   const secret = createHmac('sha256', 'WebAppData').update(token).digest();
@@ -26,6 +28,16 @@ async function ensureTelegramUser(telegramUser) {
   return userId;
 }
 
+async function requireActiveUser(req, res, next) {
+  const user = await get('SELECT id,is_banned FROM users WHERE id=?', [req.userId]);
+  if (!user) return res.status(401).json({ error: 'Authenticated user not found' });
+  if (user.is_banned) {
+    return res.status(403).json({ error: 'Account is banned', code: 'ACCOUNT_BANNED' });
+  }
+  req.user = user;
+  return next();
+}
+
 // Telegram initData is mandatory in production. X-User-Id is intentionally development-only.
 export const authMiddleware = asyncRoute(
   async function authMiddleware(req, res, next) {
@@ -39,7 +51,7 @@ export const authMiddleware = asyncRoute(
       if (!telegramUser?.id) return res.status(401).json({ error: 'Invalid Telegram authorization data' });
       req.userId = await ensureTelegramUser(telegramUser);
       req.authMode = 'telegram';
-      return next();
+      return requireActiveUser(req, res, next);
     }
 
     const devUserId = req.headers['x-user-id'];
@@ -54,7 +66,7 @@ export const authMiddleware = asyncRoute(
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [req.userId, null, req.userId, null, '', 0, 0, 0, 0, 0, 10, 0, 'user', now, now]);
       }
-      return next();
+      return requireActiveUser(req, res, next);
     }
     return res.status(401).json({ error: 'Telegram Mini Apps authorization required' });
   },

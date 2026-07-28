@@ -161,6 +161,30 @@ test('Production with ALLOW_DEV_AUTH=true fails to start', async (t) => {
     server.kill();
     await rm(directory, { recursive: true, force: true });
   });
+
+  await t.test('Production without durable infrastructure fails to start', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'splint-prod3-'));
+    const env = { ...process.env, PORT: String(port + 30), NODE_ENV: 'production', ALLOW_DEV_AUTH: 'false', TELEGRAM_BOT_TOKEN: testBotToken };
+    delete env.DATABASE_URL;
+    delete env.CORS_ORIGINS;
+    delete env.TRUST_PROXY;
+    delete env.STORAGE_DRIVER;
+    const server = spawn('node', ['index.js'], {
+      cwd: serverDir,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let errorOutput = '';
+    server.stderr.on('data', (chunk) => { errorOutput += chunk.toString(); });
+    const code = await new Promise((resolve) => server.once('exit', resolve));
+    assert.notEqual(code, 0);
+    assert.match(errorOutput, /DATABASE_URL/);
+    assert.match(errorOutput, /STORAGE_DRIVER=s3/);
+
+    server.kill();
+    await rm(directory, { recursive: true, force: true });
+  });
 });
 
 test('Telegram initData authentication', async (t) => {
@@ -219,6 +243,17 @@ test('Telegram initData authentication', async (t) => {
       auth_date: String(Math.floor(Date.now() / 1000) - 100_000),
     });
 
+    const response = await fetch(`${base}/users/me`, {
+      headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
+    });
+    assert.equal(response.status, 401);
+  });
+
+  await t.test('Future auth_date beyond clock skew returns 401', async () => {
+    const telegramUser = { id: 999004, first_name: 'Future' };
+    const initData = buildValidTelegramInitData(telegramUser, testBotToken, {
+      auth_date: String(Math.floor(Date.now() / 1000) + 600),
+    });
     const response = await fetch(`${base}/users/me`, {
       headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
     });

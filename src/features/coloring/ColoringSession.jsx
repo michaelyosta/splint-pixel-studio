@@ -811,7 +811,8 @@ export default function ColoringSession({
 
   if (!template || !progress) return null;
 
-  const showCanvas = cameraReady && ['ready', 'freeExploration', 'focusingTarget'].includes(routeDisplay.status) && containerSize.width > 0 && containerSize.height > 0;
+  const showCanvas = cameraReady && ['ready', 'freeExploration', 'focusingTarget', 'artworkComplete'].includes(routeDisplay.status) && containerSize.width > 0 && containerSize.height > 0;
+  const showTaskSummary = ['ready', 'freeExploration'].includes(routeDisplay.status) && routeDisplay.target;
 
   return (
     <div
@@ -892,6 +893,13 @@ export default function ColoringSession({
           isPainting={false}
           onResize={handleHudResize}
         />
+      </div>
+      <div className={`coloring-task-summary${showTaskSummary ? '' : ' coloring-task-summary--empty'}`} aria-live="polite">
+        {showTaskSummary && (
+          <>
+          {`\u0426\u0432\u0435\u0442 ${routeDisplay.target.color + 1} \u00b7 \u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c ${routeDisplay.targetRemaining} \u043a\u043b\u0435\u0442\u043e\u043a`}
+          </>
+        )}
       </div>
       {interactionMode !== 'reveal' && (
         <div className="coloring-dock">

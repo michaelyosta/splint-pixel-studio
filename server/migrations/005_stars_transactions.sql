@@ -97,6 +97,7 @@ SELECT
   NULL,
   MIN(a.created_at)
 FROM artworks a
+JOIN collections c ON c.id = a.collection_id
 WHERE a.collection_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM collection_ownerships co
