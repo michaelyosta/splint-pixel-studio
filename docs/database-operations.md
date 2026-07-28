@@ -278,7 +278,7 @@ Native `$1, $2` placeholders are NOT corrupted by the converter.
 
 ## Optimistic Locking for Progress
 
-The `PUT /colorings/:id/progress` endpoint uses atomic Compare-And-Set (CAS):
+The `POST /colorings/:id/progress/actions` endpoint uses atomic Compare-And-Set (CAS). It accepts a bounded list of `{ index, color }` changes; the server derives the full map and rejects a color that does not match the template. `PUT /colorings/:id/progress` is intentionally retired (405), so a client cannot replace the full map.
 
 ```
 clientRevision MUST equal serverRevision for updates

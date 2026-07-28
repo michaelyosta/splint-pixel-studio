@@ -9,6 +9,25 @@ function fixturePath(name) {
 
 const API_HEADERS = { 'Content-Type': 'application/json' };
 
+async function applyProgressChanges(page, id, changes, revision, resultDataUrl = null) {
+  let saved;
+  let nextRevision = revision;
+  for (let offset = 0; offset < changes.length; offset += 64) {
+    const response = await page.request.post(`/api/colorings/${id}/progress/actions`, {
+      headers: API_HEADERS,
+      data: {
+        changes: changes.slice(offset, offset + 64),
+        revision: nextRevision,
+        resultDataUrl: offset + 64 >= changes.length ? resultDataUrl : null,
+      },
+    });
+    expect(response.ok()).toBe(true);
+    saved = await response.json();
+    nextRevision = saved.revision;
+  }
+  return saved;
+}
+
 async function clickActiveWorkCell(page) {
   const canvas = page.locator('canvas.coloring-canvas');
   await expect(canvas).toBeVisible({ timeout: 10000 });
@@ -141,15 +160,9 @@ test.describe('Creator 2.0 — full E2E', () => {
     expect(tplResp.ok()).toBe(true);
     const tpl = await tplResp.json();
 
-    // PUT completed progress via API
-    const filled = tpl.cells.map((c) => c);
+    // Complete through bounded server-authoritative actions.
     const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-    const progResp = await page.request.put(`/api/colorings/${id}/progress`, {
-      headers: API_HEADERS,
-      data: { filled, revision: 0, resultDataUrl: png },
-    });
-    expect(progResp.ok()).toBe(true);
-    const progData = await progResp.json();
+    const progData = await applyProgressChanges(page, id, tpl.cells.map((color, index) => ({ index, color })), 0, png);
     expect(progData.percent).toBe(100);
     expect(progData.artwork_id).toBeTruthy();
 
@@ -322,19 +335,13 @@ test.describe('Creator 2.0 — full E2E', () => {
   test('18. Reveal mode paints without selecting a palette color first', async ({ page }) => {
     const catalog = await (await page.request.get('/api/colorings', { headers: API_HEADERS })).json();
     const openedTemplate = catalog[0];
-    const previous = await (await page.request.get(`/api/colorings/${openedTemplate.id}/progress`, { headers: API_HEADERS })).json();
-    const reset = await page.request.put(`/api/colorings/${openedTemplate.id}/progress`, {
-      headers: API_HEADERS,
-      data: { filled: Array(openedTemplate.total_cells).fill(-1), revision: previous.revision },
-    });
-    expect(reset.ok()).toBe(true);
     await page.goto('/');
     await page.locator('.coloring-card').first().locator('.primary-button').click();
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await page.locator('.player-menu-btn').click();
     await page.locator('.bottom-sheet-actions button:has-text("Режим раскрытия")').click();
     const savePromise = page.waitForResponse((response) =>
-      response.request().method() === 'PUT' && response.url().includes(`/colorings/${openedTemplate.id}/progress`),
+      response.request().method() === 'POST' && response.url().includes(`/colorings/${openedTemplate.id}/progress/actions`),
     );
     await clickActiveWorkCell(page);
     const saved = await (await savePromise).json();
@@ -368,14 +375,10 @@ test.describe('Creator 2.0 — full E2E', () => {
     const fillerIndices = [...outsideByColor.entries()]
       .find(([color, indices]) => color !== openedTemplate.cells[finalIndex] && indices.length >= 6)[1]
       .slice(0, 6);
-    const filled = [...openedTemplate.cells];
-    filled[finalIndex] = -1;
-    fillerIndices.forEach((index) => { filled[index] = -1; });
-    const prepared = await page.request.put(`/api/colorings/${openedTemplate.id}/progress`, {
-      headers: API_HEADERS,
-      data: { filled, revision: progress.revision },
-    });
-    expect(prepared.ok()).toBe(true);
+    const omitted = new Set([finalIndex, ...fillerIndices]);
+    await applyProgressChanges(page, openedTemplate.id,
+      openedTemplate.cells.flatMap((color, index) => omitted.has(index) ? [] : [{ index, color }]),
+      progress.revision);
 
     await page.goto('/');
     await page.locator('.coloring-card').filter({ hasText: openedTemplate.title }).locator('.primary-button').click();

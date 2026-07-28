@@ -24,6 +24,14 @@ async function getPool() {
   return new pgModule.Pool({ connectionString: databaseUrl });
 }
 
+function progressActionBody(revision, color = 0) {
+  return JSON.stringify({
+    changes: Array.from({ length: 64 }, (_, index) => ({ index, color })),
+    revision,
+    resultDataUrl: null,
+  });
+}
+
 // ── Low-level transaction tests (use withTransaction, not withDbTransaction) ───
 
 test('PostgreSQL withTransaction commit saves all operations', { skip: !databaseUrl }, async (t) => {
@@ -753,10 +761,10 @@ test('HTTP: initial save revision=0 returns 200 with revision=1', { skip: !datab
   await setupTestData(pool, userId, templateId);
   await pool.end();
 
-  const res = await fetch(`${url}/colorings/${templateId}/progress`, {
-    method: 'PUT',
+  const res = await fetch(`${url}/colorings/${templateId}/progress/actions`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+    body: progressActionBody(0),
   });
 
   assert.equal(res.status, 200, 'Initial save returns 200');
@@ -788,21 +796,20 @@ test('HTTP: second save revision=1 for JSONB returns 200 with revision=2', { ski
   await setupTestData(pool, userId, templateId);
   await pool.end();
 
-  const first = await fetch(`${url}/colorings/${templateId}/progress`, {
-    method: 'PUT',
+  const first = await fetch(`${url}/colorings/${templateId}/progress/actions`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+    body: progressActionBody(0),
   });
   assert.equal(first.status, 200);
 
   const firstBody = await first.json();
   assert.equal(firstBody.revision, 1);
 
-  const secondFilled = new Array(64).fill(1);
-  const second = await fetch(`${url}/colorings/${templateId}/progress`, {
-    method: 'PUT',
+  const second = await fetch(`${url}/colorings/${templateId}/progress/actions`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: secondFilled, revision: 1, resultDataUrl: null }),
+    body: progressActionBody(1),
   });
 
   assert.equal(second.status, 200, 'Second save returns 200 (no 500)');
@@ -811,7 +818,7 @@ test('HTTP: second save revision=1 for JSONB returns 200 with revision=2', { ski
   assert.equal(secondBody.revision, 2, 'Response revision is 2');
 
   const filledArray = Array.isArray(secondBody.filled) ? secondBody.filled : JSON.parse(secondBody.filled);
-  assert.equal(filledArray[0], 1, 'First cell matches second request');
+  assert.equal(filledArray[0], 0, 'First cell remains server-derived');
 });
 
 test('HTTP: old revision returns 409 with current progress', { skip: !databaseUrl }, async (t) => {
@@ -836,28 +843,28 @@ test('HTTP: old revision returns 409 with current progress', { skip: !databaseUr
   await setupTestData(pool, userId, templateId);
   await pool.end();
 
-  const first = await fetch(`${url}/colorings/${templateId}/progress`, {
-    method: 'PUT',
+  const first = await fetch(`${url}/colorings/${templateId}/progress/actions`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+    body: progressActionBody(0),
   });
   assert.equal(first.status, 200);
   const firstBody = await first.json();
   assert.equal(firstBody.revision, 1);
 
-  const second = await fetch(`${url}/colorings/${templateId}/progress`, {
-    method: 'PUT',
+  const second = await fetch(`${url}/colorings/${templateId}/progress/actions`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(64).fill(1), revision: 1, resultDataUrl: null }),
+    body: progressActionBody(1),
   });
   assert.equal(second.status, 200);
   const secondBody = await second.json();
   assert.equal(secondBody.revision, 2);
 
-  const third = await fetch(`${url}/colorings/${templateId}/progress`, {
-    method: 'PUT',
+  const third = await fetch(`${url}/colorings/${templateId}/progress/actions`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(64).fill(1), revision: 1, resultDataUrl: null }),
+    body: progressActionBody(1),
   });
 
   assert.equal(third.status, 409, 'Old revision returns 409');
@@ -896,18 +903,18 @@ test('HTTP: future revision returns 409', { skip: !databaseUrl }, async (t) => {
   await setupTestData(pool, userId, templateId);
   await pool.end();
 
-  const first = await fetch(`${url}/colorings/${templateId}/progress`, {
-    method: 'PUT',
+  const first = await fetch(`${url}/colorings/${templateId}/progress/actions`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+    body: progressActionBody(0),
   });
   assert.equal(first.status, 200);
   assert.equal((await first.json()).revision, 1);
 
-  const second = await fetch(`${url}/colorings/${templateId}/progress`, {
-    method: 'PUT',
+  const second = await fetch(`${url}/colorings/${templateId}/progress/actions`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(64).fill(1), revision: 5, resultDataUrl: null }),
+    body: progressActionBody(5),
   });
 
   assert.equal(second.status, 409, 'Future revision returns 409');
@@ -941,24 +948,24 @@ test('HTTP: two concurrent PUTs with same revision — one 200, one 409', { skip
   await setupTestData(pool, userId, templateId);
   await pool.end();
 
-  const init = await fetch(`${url}/colorings/${templateId}/progress`, {
-    method: 'PUT',
+  const init = await fetch(`${url}/colorings/${templateId}/progress/actions`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+    body: progressActionBody(0),
   });
   assert.equal(init.status, 200);
   assert.equal((await init.json()).revision, 1);
 
   const results = await Promise.allSettled([
-    fetch(`${url}/colorings/${templateId}/progress`, {
-      method: 'PUT',
+    fetch(`${url}/colorings/${templateId}/progress/actions`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: JSON.stringify({ filled: new Array(64).fill(1), revision: 1, resultDataUrl: null }),
+      body: progressActionBody(1),
     }),
-    fetch(`${url}/colorings/${templateId}/progress`, {
-      method: 'PUT',
+    fetch(`${url}/colorings/${templateId}/progress/actions`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: JSON.stringify({ filled: new Array(64).fill(0), revision: 1, resultDataUrl: null }),
+      body: progressActionBody(1),
     }),
   ]);
 
@@ -1001,15 +1008,15 @@ test('HTTP: two concurrent initial PUTs with revision=0 — one 200, one 409', {
   await pool.end();
 
   const results = await Promise.allSettled([
-    fetch(`${url}/colorings/${templateId}/progress`, {
-      method: 'PUT',
+    fetch(`${url}/colorings/${templateId}/progress/actions`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+      body: progressActionBody(0),
     }),
-    fetch(`${url}/colorings/${templateId}/progress`, {
-      method: 'PUT',
+    fetch(`${url}/colorings/${templateId}/progress/actions`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: JSON.stringify({ filled: new Array(64).fill(0), revision: 0, resultDataUrl: null }),
+      body: progressActionBody(0),
     }),
   ]);
 
