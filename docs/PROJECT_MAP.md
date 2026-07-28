@@ -737,11 +737,11 @@ SQL injection/path traversal/чтение чужого private template по и�
 
 | Группа | Файлы | Назначение | Связь с main/PR |
 |---|---|---|---|
-| Локальная UI/E2E-стабилизация | `src/App.css`, `src/index.css`, `src/features/coloring/ColoringCanvas.jsx`, `src/features/coloring/coloring.css`, `e2e/*.spec.js`, `playwright.config.js` | compact-height UI, wheel viewport, offline Telegram mock и более точные E2E assertions | Незакоммичено; не входит в draft PR #10. |
+| UI/E2E-стабилизация | `src/App.css`, `src/index.css`, `src/features/coloring/ColoringCanvas.jsx`, `src/features/coloring/coloring.css`, `e2e/*.spec.js`, `playwright.config.js` | compact-height UI, wheel viewport, offline Telegram mock и изоляция состояния E2E | В draft PR #10: `9fef0ad`, `da3b153`; Chromium assertions подтверждены, штатный Windows webServer lifecycle остаётся открытой проблемой. |
 | Security/public-alpha | `server/**`, migrations 006, server tests, `server/config.js` | production configuration, reporting, moderation, public DTOs/content integrity | Draft PR #10; до merge не является состоянием `main`. |
 | Документация | `SECURITY_FOLLOWUPS.md`, `docs/AUDIT_FINDINGS.md`, этот файл | аудит и синхронизация статусов | Не меняет runtime. |
 
-Следующее безопасное действие — отдельно подтвердить/закоммитить или откатить локальную UI/E2E-группу по результатам воспроизводимого E2E; затем review и merge-ready проверка PR #10. Нельзя объединять их в один commit или объявлять security issues закрытыми до merge в `main`.
+Следующее безопасное действие — review draft PR #10 и отдельное исправление Windows lifecycle Playwright до включения E2E как обязательного CI-gate. Нельзя объявлять security issues закрытыми до merge в `main`.
 
 ### Обновление рабочей ветки `feature/public-alpha-hardening` (28.07.2026)
 
