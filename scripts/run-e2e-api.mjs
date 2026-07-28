@@ -7,18 +7,28 @@ const projectRoot = resolve(import.meta.dirname, '..');
 const runtimeDir = await mkdtemp(join(tmpdir(), 'splint-e2e-'));
 const runtimeDb = join(runtimeDir, 'test.db');
 const mediaDir = join(runtimeDir, 'media');
+const {
+  DATABASE_URL: _DATABASE_URL,
+  S3_ENDPOINT: _S3_ENDPOINT,
+  S3_BUCKET: _S3_BUCKET,
+  S3_ACCESS_KEY_ID: _S3_ACCESS_KEY_ID,
+  S3_SECRET_ACCESS_KEY: _S3_SECRET_ACCESS_KEY,
+  ...baseEnv
+} = process.env;
 
 await mkdir(mediaDir, { recursive: true });
 
-const child = spawn(process.execPath, ['--env-file=../.env.local', 'index.js'], {
+const child = spawn(process.execPath, ['index.js'], {
   cwd: join(projectRoot, 'server'),
   env: {
-    ...process.env,
+    ...baseEnv,
     PORT: process.env.E2E_API_PORT || process.env.PORT || '3001',
     SQLITE_DB_PATH: runtimeDb,
     MEDIA_STORAGE_ROOT: mediaDir,
     STORAGE_DRIVER: 'local',
     RATE_LIMIT_MAX: '1000',
+    ALLOW_DEV_AUTH: 'true',
+    SEED_DEMO_DATA: 'true',
   },
   stdio: 'inherit',
 });

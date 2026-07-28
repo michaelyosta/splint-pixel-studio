@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const webPort = Number(process.env.E2E_WEB_PORT || 5173);
 const apiPort = Number(process.env.E2E_API_PORT || 3001);
+const reuseExistingServer = process.env.E2E_REUSE_EXISTING === 'true';
 
 export default defineConfig({
   testDir: './e2e',
@@ -15,16 +16,16 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `npm.cmd run dev -- --port ${webPort}`,
+      command: `node node_modules/vite/bin/vite.js --host 127.0.0.1 --port ${webPort} --strictPort`,
       port: webPort,
       timeout: 30000,
-      reuseExistingServer: false,
+      reuseExistingServer,
     },
     {
       command: 'node scripts/run-e2e-api.mjs',
       url: `http://localhost:${apiPort}/health`,
       timeout: 30000,
-      reuseExistingServer: false,
+      reuseExistingServer,
     },
   ],
   projects: [

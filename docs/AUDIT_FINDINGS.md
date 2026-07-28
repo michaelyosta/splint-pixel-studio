@@ -88,3 +88,10 @@
 - `npm --prefix server test` с глобальным `DATABASE_URL` дал **183 passed, 8 failed**: это несовместимость aggregate-команды с SQLite HTTP fixtures, которые наследуют PostgreSQL URL; отдельные SQLite и PostgreSQL команды проходят. Не трактовать этот запуск как регрессию PostgreSQL-кода.
 
 Следовательно, DATA-003, DATA-004 и TEST-001 остаются `requires_environment_validation` только для production-среды, а не для локальных Docker PostgreSQL/MinIO. В production всё ещё нужны backup/restore, IAM/ACL, domain/proxy и нагрузочные проверки.
+
+### Повторная проверка E2E (28.07.2026, локальная ветка)
+
+- Изолированный запуск с уже поднятыми временными сервисами и `E2E_REUSE_EXISTING=true` подтвердил Chromium assertions: `e2e/stabilization.spec.js` — **18/18 passed** за 44 с; `e2e/creator.spec.js` — **19/19 passed** за 33 с.
+- Тесты теперь используют уникальный development user на каждый test case; это устраняет зависимость прогресса, onboarding и созданных раскрасок от порядка сценариев. Zone-сценарий получает конкретный template/zones API и проверяет HTTP status.
+- `FUNC-002`, `TEST-002` и `FUNC-003` имеют локальное подтверждение Chromium, но не считаются `resolved`: изменения ещё не в `origin/main`, а обычный автозапуск Playwright остаётся неисправным.
+- `FUNC-001` остаётся `open`: без `E2E_REUSE_EXISTING=true` Playwright поднимает Vite и изолированный API, выполняет тест до этапа завершения, но Windows runner не возвращает итоговый результат до внешнего timeout. Поэтому `npm run test:e2e` и мобильная матрица не являются надёжным CI-сигналом.

@@ -100,6 +100,23 @@ async function expectActiveTargetFullyVisible(page) {
 
 test.describe('Stabilization — Smart Coloring Engine', () => {
 
+  test.beforeEach(async ({ page }, testInfo) => {
+    await page.route('https://telegram.org/js/telegram-web-app.js', async (route) => {
+      await route.fulfill({
+        contentType: 'application/javascript',
+        body: 'window.Telegram = window.Telegram || { WebApp: { ready() {} } };',
+      });
+    });
+    await page.route('**/api/**', async (route) => {
+      await route.continue({
+        headers: {
+          ...route.request().headers(),
+          'x-user-id': `e2e_${testInfo.testId}`,
+        },
+      });
+    });
+  });
+
   async function dismissOnboarding(page) {
     const skipBtn = page.locator('.onboarding-card .secondary-button');
     await skipBtn.waitFor({ state: 'visible', timeout: 1000 }).catch(() => {});
@@ -111,6 +128,9 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     page.on('pageerror', (err) => errors.push(err.message));
     page.on('console', (msg) => {
       if (msg.type() === 'error') errors.push(msg.text());
+    });
+    page.on('response', (response) => {
+      if (response.status() >= 400) errors.push(`HTTP ${response.status()} ${response.url()}`);
     });
 
     await page.goto('/');
@@ -128,6 +148,9 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     page.on('pageerror', (err) => errors.push(err.message));
     page.on('console', (msg) => {
       if (msg.type() === 'error') errors.push(msg.text());
+    });
+    page.on('response', (response) => {
+      if (response.status() >= 400) errors.push(`HTTP ${response.status()} ${response.url()}`);
     });
 
     await page.goto('/');
@@ -178,7 +201,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     await page.locator('.coloring-card').first().locator('.primary-button').click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
 
-    await expect(page.locator('.coloring-task-context')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.coloring-task-summary')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('canvas.coloring-canvas')).not.toHaveAttribute('data-active-work-cells', '');
   });
 
@@ -235,7 +258,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     await page.reload();
     await expect(page.locator('.coloring-card').first()).toBeVisible({ timeout: 15000 });
     await page.locator('.coloring-card').first().locator('.primary-button').click();
-    await expect(page.locator('.coloring-task-context')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.coloring-task-summary')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.onboarding-overlay')).toHaveCount(0);
 
     await page.locator('.player-menu-btn').click();
@@ -252,13 +275,14 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
     const canvas = page.locator('canvas.coloring-canvas');
     await expect(canvas).not.toHaveAttribute('data-active-work-cells', '');
+    await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'ready');
     const targetBefore = await canvas.getAttribute('data-active-work-cells');
     const viewport = page.locator('.coloring-canvas-viewport');
     const cameraBefore = await readCamera(page);
     await viewport.hover();
     await page.mouse.wheel(0, -120);
 
-    await expect(page.locator('.coloring-task-context')).toContainText('Свободный просмотр');
+    await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'freeExploration');
     const cameraAfterWheel = await readCamera(page);
     expect(cameraAfterWheel.zoom).not.toBeCloseTo(cameraBefore.zoom, 4);
     await page.waitForTimeout(1000);
@@ -269,7 +293,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     const returnButton = page.locator('.coloring-hud button:has-text("Вернуться к участку")');
     await expect(returnButton).toBeVisible();
     await returnButton.click();
-    await expect(page.locator('.coloring-task-context')).toContainText('Закрась выделенный участок');
+    await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'ready');
     await expect(canvas).toHaveAttribute('data-active-work-cells', targetBefore);
   });
 
@@ -282,7 +306,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     await page.locator('.coloring-hud button:has-text("Обзор")').click();
 
     await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'freeExploration');
-    await expect(page.locator('.coloring-task-context')).toContainText('Свободный просмотр');
+    await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'freeExploration');
     await expect(page.locator('.coloring-hud button:has-text("Вернуться к участку")')).toBeVisible();
   });
 
