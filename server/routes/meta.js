@@ -7,7 +7,10 @@ import { asyncRoute } from '../middleware/asyncRoute.js';
 
 const router = Router();
 const ANALYTICS_EVENTS = new Set([
-  'open_level', 'first_pixel', 'zone_complete', 'publish', 'share_native',
+  'open_level', 'first_pixel', 'zone_complete',
+  'camera_activate_target', 'camera_next_cluster', 'coloring_manual_color_change',
+  'coloring_stroke_commit', 'coloring_color_complete',
+  'publish', 'share_native',
   'download_result', 'create_coloring', 'like', 'comment',
 ]);
 
