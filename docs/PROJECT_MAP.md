@@ -749,7 +749,7 @@ SQL injection/path traversal/чтение чужого private template по и�
 
 Новые проверенные security-находки также закрыты только в draft: `GET /users` больше недоступен обычному пользователю и не раскрывает Stars/banned state (SEC-014); чужие private/unpublished artworks не попадают в `GET /users/:id/artworks` (SEC-015); `requireActiveUser()` блокирует забаненного пользователя до message routes (SEC-016). Подтверждение лежит в `server/test/security-hardening.integration.test.js` и `server/test/api.integration.test.js`.
 
-Ключевой незакрытый риск прежний: `PUT /colorings/:id/progress` всё ещё принимает от клиента готовую карту `filled`; CAS устраняет гонку, но не подделку прохождения. Это требует отдельного продуктового решения о server-authoritative протоколе, а не локального патча UI. PostgreSQL и MinIO/S3 suites не выполнены: Docker Desktop daemon на рабочей машине не запущен, поэтому 53 PostgreSQL-теста остаются skipped. Актуальный реестр: [SECURITY_FOLLOWUPS.md](../SECURITY_FOLLOWUPS.md) и [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md).
+Исторический риск подмены полной карты частично закрыт: `PUT /colorings/:id/progress` возвращает 405, а `POST /colorings/:id/progress/actions` принимает ограниченные действия и сверяет каждый цвет с серверной картой перед вычислением completion/achievement/artwork. Это не равнозначно защите от автоматизации: шаблон всё ещё доступен браузеру, поэтому модифицированный клиент может последовательно посылать допустимые действия. PostgreSQL и MinIO/S3 suites локально выполнены; production Telegram/S3/proxy по-прежнему требуют отдельной проверки. Актуальный реестр: [SECURITY_FOLLOWUPS.md](../SECURITY_FOLLOWUPS.md) и [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md).
 
 ### Локальная PostgreSQL/MinIO-проверка (28.07.2026)
 

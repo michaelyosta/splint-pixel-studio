@@ -94,10 +94,31 @@ test('coloring progress can become a social post', async (t) => {
   const progress = await request(`/colorings/${catalog.json[0].id}/progress`);
   assert.equal(progress.json.percent, 0);
 
-  const completed = await request(`/colorings/${catalog.json[0].id}/progress`, {
+  const forgedMap = await request(`/colorings/${catalog.json[0].id}/progress`, {
     method: 'PUT',
-    body: { filled: template.json.cells, revision: progress.json.revision, resultDataUrl: validPng },
+    body: { filled: template.json.cells, revision: progress.json.revision },
   });
+  assert.equal(forgedMap.response.status, 405, 'whole client map must not be accepted');
+
+  const forgedColor = await request(`/colorings/${catalog.json[0].id}/progress/actions`, {
+    method: 'POST',
+    body: { changes: [{ index: 0, color: (template.json.cells[0] + 1) % template.json.palette.length }], revision: progress.json.revision },
+  });
+  assert.equal(forgedColor.response.status, 400, 'server must derive the valid color for every cell');
+
+  let completed;
+  let revision = progress.json.revision;
+  for (let offset = 0; offset < template.json.cells.length; offset += 64) {
+    completed = await request(`/colorings/${catalog.json[0].id}/progress/actions`, {
+      method: 'POST',
+      body: {
+        changes: template.json.cells.slice(offset, offset + 64).map((color, index) => ({ index: index + offset, color })),
+        revision,
+        resultDataUrl: offset + 64 >= template.json.cells.length ? validPng : null,
+      },
+    });
+    revision = completed.json.revision;
+  }
   assert.equal(completed.response.status, 200);
   assert.equal(completed.json.percent, 100);
   assert.ok(completed.json.artwork_id);

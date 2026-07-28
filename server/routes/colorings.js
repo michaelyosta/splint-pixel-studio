@@ -69,9 +69,16 @@ function emptyProgress(template) {
   return Array(template.width * template.height).fill(-1);
 }
 
-function validateMap(template, filled) {
-  if (!Array.isArray(filled) || filled.length !== template.cells.length) return 'Некорректный размер карты раскраски';
-  if (filled.some((color) => !Number.isInteger(color) || color < -1 || color >= template.palette.length)) return 'Некорректный цвет в карте раскраски';
+function validateChanges(template, changes) {
+  if (!Array.isArray(changes) || !changes.length || changes.length > 64) return 'Некорректный набор изменений раскраски';
+  const seen = new Set();
+  for (const change of changes) {
+    if (!change || !Number.isInteger(change.index) || !Number.isInteger(change.color)
+      || change.index < 0 || change.index >= template.cells.length
+      || change.color < -1 || change.color >= template.palette.length
+      || seen.has(change.index)) return 'Некорректный набор изменений раскраски';
+    seen.add(change.index);
+  }
   return null;
 }
 
@@ -225,13 +232,18 @@ router.get('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   res.json({ ...progressPayload(template, progress), artwork_id: artwork?.id || null });
 }));
 
-// PUT /colorings/:id/progress
-router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
+// PUT was intentionally retired: a client must never replace the whole progress map.
+router.put('/:id/progress', authMiddleware, (_req, res) => {
+  res.status(405).json({ error: 'Используйте действия раскраски, а не полную карту прогресса' });
+});
+
+// POST /colorings/:id/progress/actions — server derives the new map and completion state.
+router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res) => {
   const template = parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=? AND status=\'active\'', [req.params.id]));
   if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
 
-  const filled = req.body.filled;
-  const validationError = validateMap(template, filled);
+  const changes = req.body.changes;
+  const validationError = validateChanges(template, changes);
   if (validationError) return res.status(400).json({ error: validationError });
   if (!validateResultDataUrl(req.body.resultDataUrl)) return res.status(400).json({ error: 'Некорректное изображение результата' });
 
@@ -241,8 +253,6 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   }
 
   const now = new Date().toISOString();
-  const completed = isComplete(template, filled);
-
   const casResult = await withDbTransaction(async (tx) => {
       const existing = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
 
@@ -257,6 +267,16 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
         }
       }
 
+      const currentFilled = existing ? (parseJsonArray(existing.filled_json) || emptyProgress(template)) : emptyProgress(template);
+      if (currentFilled.length !== template.cells.length) return { conflict: true, progress: existing ? progressPayload(template, existing) : null };
+      const filled = [...currentFilled];
+      for (const change of changes) {
+        if (change.color !== -1 && change.color !== template.cells[change.index]) {
+          return { badAction: true };
+        }
+        filled[change.index] = change.color;
+      }
+      const completed = isComplete(template, filled);
       const nextRevision = clientRevision + 1;
       const completedAt = completed ? (existing?.completed_at || now) : null;
 
@@ -284,10 +304,11 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
         }
       }
 
-      const wasEmpty = !existing || parseJsonArray(existing.filled_json)?.every((color) => color === -1);
-      return { conflict: false, revision: nextRevision, completed, wasEmpty };
+      const wasEmpty = !existing || currentFilled.every((color) => color === -1);
+      return { conflict: false, revision: nextRevision, completed, justCompleted: completed && !existing?.completed_at, wasEmpty, painted: changes.some((change) => change.color !== -1) };
     });
 
+  if (casResult.badAction) return res.status(400).json({ error: 'Сервер отклонил цвет, не соответствующий клетке' });
   if (casResult.conflict) {
     if (casResult.badRequest) {
       return res.status(400).json({ error: 'Прогресс не найден, начните с revision 0' });
@@ -300,9 +321,9 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
     return res.status(409).json({ error: 'Прогресс уже обновлён на другом устройстве', progress });
   }
 
-  await touchStreak(req.userId);
-  if (casResult.wasEmpty && filled.some((color) => color !== -1)) await unlockAchievement(req.userId, 'ach_first_pixel');
-  if (casResult.completed) {
+  if (casResult.painted) await touchStreak(req.userId);
+  if (casResult.wasEmpty && casResult.painted) await unlockAchievement(req.userId, 'ach_first_pixel');
+  if (casResult.justCompleted) {
     await unlockAchievement(req.userId, 'ach_first_zone');
     const finished = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.source_type='catalog'", [req.userId]);
     if ((finished[0]?.c || 0) >= 5) await unlockAchievement(req.userId, 'ach_complete_5');
@@ -321,7 +342,7 @@ router.put('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   }
 
   let artworkId = null;
-  if (casResult.completed) {
+  if (casResult.justCompleted) {
     const artwork = await get("SELECT id FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
     artworkId = artwork?.id || `art_${uuid()}`;
     if (!artwork) {
