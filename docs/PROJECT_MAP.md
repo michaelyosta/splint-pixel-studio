@@ -762,3 +762,9 @@ SQL injection/path traversal/чтение чужого private template по и�
 Локальные изменения изоляции E2E подтверждены на Chromium: creator — **19/19 passed**, smart-coloring stabilization — **18/18 passed**, когда Vite и изолированный SQLite API запущены отдельно и Playwright использует `E2E_REUSE_EXISTING=true`. Каждый сценарий получает отдельный development user, поэтому сохранённый прогресс больше не переносится между тестами. Это подтверждает assertions, включая guided/free-exploration, onboarding и zone celebration.
 
 Однако `npm run test:e2e` без этого режима пока нельзя считать зелёным: на Windows Playwright после запуска собственных `webServer` не возвращает итоговый результат до timeout. Мобильные профили в этой конфигурации не прогонялись. До отдельного исправления lifecycle runner E2E не должен быть обязательным CI-gate.
+
+### Исправление E2E lifecycle (28.07.2026, ожидает merge)
+
+Ветка `fix/playwright-windows-lifecycle` заменяет Playwright `webServer` на явный `globalSetup/globalTeardown` (`scripts/e2e-global-setup.mjs`) и использует отдельные порты 5190/3012. На Windows подтверждён полный штатный запуск `npm run test:e2e`: **107 passed, 4 skipped, 0 failed**, exit 0 за 4,5 минуты; покрыты Chromium, Mobile iPhone и Mobile Pixel. Четыре skip ожидаемы: desktop-only wheel/free-exploration на мобильных профилях.
+
+Этот результат относится к незамерженной ветке, поэтому предыдущее ограничение остаётся актуальным для `main` до merge. После merge E2E можно рассматривать как надёжный CI-сигнал для покрытых браузерных сценариев, но не как проверку реального Telegram WebView или production инфраструктуры.

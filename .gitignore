@@ -23,6 +23,8 @@ assets/*_pid.txt
 .run/
 .logs/
 .e2e-runtime/
+.e2e-*.pid
+.e2e-*.err
 test-results/
 playwright-report/
 blob-report/
