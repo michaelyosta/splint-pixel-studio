@@ -96,3 +96,22 @@
 | MinIO/S3 | `server/test/media-storage-s3.integration.test.js`: **1 passed**; local storage suite: **9 passed** | `storePrivateOriginal` загружает private original, HeadObject видит `image/png`, `deletePrivateOriginal` удаляет объект и HeadObject возвращает 404. | Реальный облачный S3, IAM/policy, retry/network failures, lifecycle/orphan cleanup. |
 
 Это снимает локальную часть `requires_environment_validation` для PostgreSQL/MinIO, но не переводит production-проверки в `resolved`. Полный `npm --prefix server test` с глобально заданным `DATABASE_URL` сейчас **не является валидной aggregate-командой**: 8 SQLite-oriented HTTP suites наследуют PostgreSQL URL и не стартуют. Использовать отдельно `test:server` (SQLite) и `test:postgres` (PostgreSQL).
+
+## Исторический список из `main` (сохранён при merge 28.07.2026)
+
+Этот краткий список был добавлен в `main` коммитом `bd46c84`. Он сохранён для истории; актуальные статусы и доказательства находятся выше в реестре.
+
+| Исходный пункт | Актуальная запись / состояние |
+|---|---|
+| Stars transactions | `SF-001`, resolved в `main` (PR #7). |
+| Seed/reset database | `SF-002`, resolved в `main` (PR #3); безопасный production bootstrap остаётся отдельным продуктовым риском. |
+| Report abuse | `SEC-013`, in_progress в draft PR #10. |
+| Achievements validation | `SEC-002`, in_progress в draft PR #10; SEC-003 сохраняет обход через поддельный completion. |
+| N+1 queries | `ARCH-003` в `docs/AUDIT_FINDINGS.md`, open. |
+| Media-storage traversal | `SEC-005`, partially_resolved: local traversal защищён, остаются image validation и production storage вопросы. |
+| SQLite/Postgres sync | `SF-007`, partially_resolved; локальный PostgreSQL suite прошёл, production parity требует отдельной проверки. |
+| Smart Coloring Engine injection review | Не выделен как самостоятельная подтверждённая security finding: image pipeline требует отдельной модели угроз и проверки. |
+| UI animations dependencies | Не выделен как самостоятельная подтверждённая security finding; root production audit на текущей ветке чист, но это не заменяет регулярный audit. |
+| Large `App.jsx` refactor | `ARCH-002` в `docs/AUDIT_FINDINGS.md`, open; это технический долг, а не самостоятельная уязвимость. |
+| AWS SDK audit | `SEC-001`, in_progress в draft PR #10: на ветке audit 0 vulnerabilities, в `main` до merge остаётся уязвимое дерево. |
+| Database runtime integrity | `SF-012`, partially_resolved; CAS защищает от гонок, но не устраняет `SEC-003` client-authoritative progress. |
