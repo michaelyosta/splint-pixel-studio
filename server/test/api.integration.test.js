@@ -72,6 +72,8 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(invalidAnalytics.response.status, 400);
   const validAnalytics = await request('/meta/analytics', { method: 'POST', body: { event: 'open_level', payload: { id: 'catalog_fox' } } });
   assert.equal(validAnalytics.response.status, 200);
+  const smartEngineAnalytics = await request('/meta/analytics', { method: 'POST', body: { event: 'camera_activate_target', payload: { templateId: 'catalog_fox' } } });
+  assert.equal(smartEngineAnalytics.response.status, 200);
 
   const publicProfile = await request('/users/user_lenaart/profile');
   assert.equal(publicProfile.response.status, 200);
