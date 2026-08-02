@@ -19,11 +19,16 @@ function validateTelegramInitData(initData, token) {
 
 async function ensureTelegramUser(telegramUser) {
   const userId = `tg_${telegramUser.id}`;
+  const now = new Date().toISOString();
+  const nickname = String(telegramUser.username || telegramUser.first_name || `User ${telegramUser.id}`).slice(0, 80);
+  const avatarUrl = typeof telegramUser.photo_url === 'string' ? telegramUser.photo_url.slice(0, 2_000) : null;
   if (!await get('SELECT id FROM users WHERE id=?', [userId])) {
-    const now = new Date().toISOString();
-    const nickname = String(telegramUser.username || telegramUser.first_name || `User ${telegramUser.id}`).slice(0, 80);
     await run(`INSERT INTO users (id,telegram_id,nickname,avatar_url,status,karma,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,is_banned,role,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [userId, telegramUser.id, nickname, telegramUser.photo_url || null, '', 0, 0, 0, 0, 0, 10, 0, 'user', now, now]);
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [userId, telegramUser.id, nickname, avatarUrl, '', 0, 0, 0, 0, 0, 10, 0, 'user', now, now]);
+  } else {
+    // Telegram is the identity source; refresh only Telegram-owned profile
+    // fields and never overwrite moderation, payment, or user preferences.
+    await run('UPDATE users SET nickname=?, avatar_url=?, updated_at=? WHERE id=?', [nickname, avatarUrl, now, userId]);
   }
   return userId;
 }

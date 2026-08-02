@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
 import { requireRole } from '../middleware/authorization.js';
 import { purchaseCollection, StarsTransactionError } from '../services/stars-transactions.js';
+import { getPaymentsMode } from '../config.js';
 
 const router = Router();
 
@@ -119,6 +120,10 @@ router.post('/collections/:id/add', authMiddleware, asyncRoute(async (req, res) 
     return res.status(400).json({ error: 'collection id обязателен' });
   }
 
+  if (getPaymentsMode() === 'disabled') {
+    return res.status(503).json({ error: 'Платежи отключены до отдельного product-owner решения', code: 'PAYMENTS_DISABLED' });
+  }
+
   try {
     const result = await purchaseCollection({
       collectionId: colId,
@@ -137,15 +142,6 @@ router.post('/collections/:id/add', authMiddleware, asyncRoute(async (req, res) 
     }
     throw error;
   }
-}));
-
-// POST /artworks/:id/complete — simulate finishing drawing
-router.post('/artworks/:id/complete', authMiddleware, asyncRoute(async (req, res) => {
-  const art = await get('SELECT * FROM artworks WHERE id=?', [req.params.id]);
-  if (!art) return res.status(404).json({ error: 'Работа не найдена' });
-  if (art.owner_id !== req.userId) return res.status(403).json({ error: 'Чужая работа' });
-  await run('UPDATE artworks SET is_completed=1, updated_at=? WHERE id=?', [new Date().toISOString(), art.id]);
-  res.json({ success: true });
 }));
 
 export default router;

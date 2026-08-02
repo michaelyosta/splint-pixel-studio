@@ -241,7 +241,7 @@ test('public-alpha security boundaries', async (t) => {
     }
 
     const feed = await request('/feed/recommended');
-    assert.equal(feed.json.some(({ id }) => id === 'post_showcase_fox' || id === 'post_showcase_dragon'), false);
+    assert.equal(feed.json.items.some(({ id }) => id === 'post_showcase_fox' || id === 'post_showcase_dragon'), false);
 
     const posts = await request('/users/user_lenaart/posts');
     assert.equal(posts.json.some(({ id }) => id === 'post_showcase_fox' || id === 'post_showcase_dragon'), false);
@@ -338,7 +338,6 @@ test('public-alpha security boundaries', async (t) => {
       ['PATCH', '/users/matrix_banned/settings', { status: 'x' }],
       ['GET', '/users/collections/all', undefined],
       ['POST', '/users/collections/any/add', undefined],
-      ['POST', '/users/artworks/any/complete', undefined],
       ['GET', '/meta/streak', undefined],
       ['POST', '/meta/streak/touch', undefined],
       ['GET', '/meta/achievements', undefined],
@@ -367,6 +366,8 @@ test('public-alpha security boundaries', async (t) => {
       assert.equal(result.response.status, 403, `${method} ${path}`);
       assert.equal(result.json.code, 'ACCOUNT_BANNED', `${method} ${path}`);
     }
+
+    assert.equal((await request('/users/artworks/any/complete', { userId: 'matrix_banned', method: 'POST' })).response.status, 404);
 
     assert.equal((await request('/users', { userId: 'matrix_banned' })).response.status, 403);
     assert.equal((await request('/moderation/actions', { userId: 'matrix_banned' })).response.status, 403);

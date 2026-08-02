@@ -27,8 +27,29 @@ test('development permits SQLite and local storage', () => {
 test('complete production configuration is accepted', () => {
   const result = validateProductionConfiguration(validProduction);
   assert.equal(result.isProduction, true);
+  assert.equal(result.paymentsMode, 'disabled');
   assert.deepStrictEqual(result.allowedOrigins, ['https://app.example.com', 'https://admin.example.com']);
   assert.deepStrictEqual(result.trustProxy, ['10.0.0.0/8', '192.168.10.4']);
+});
+
+test('production Telegram Stars mode requires support and webhook controls', () => {
+  const env = { ...validProduction, PAYMENTS_MODE: 'telegram_stars' };
+  assert.throws(() => validateProductionConfiguration(env), /TELEGRAM_PAYMENTS_WEBHOOK_SECRET/);
+
+  const result = validateProductionConfiguration({
+    ...env,
+    TELEGRAM_PAYMENTS_WEBHOOK_SECRET: 'webhook-secret',
+    TELEGRAM_PAYMENT_SUPPORT: '@splint_support',
+    TELEGRAM_PAYMENT_REFUND_CONTACT: 'refunds@splint.example',
+  });
+  assert.equal(result.paymentsMode, 'telegram_stars');
+});
+
+test('invalid payment mode is rejected', () => {
+  assert.throws(
+    () => validateProductionConfiguration({ ...validProduction, PAYMENTS_MODE: 'real_money' }),
+    /PAYMENTS_MODE must be one of/,
+  );
 });
 
 for (const [name, mutate, expected] of [
