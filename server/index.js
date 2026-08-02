@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
-import { getDb, initDb, bootstrapSystemData, seedDemoData } from './db.js';
+import { get, getDb, initDb, closeDb, bootstrapSystemData, seedDemoData } from './db.js';
 
 import feedRouter        from './routes/feed.js';
 import postsRouter       from './routes/posts.js';
@@ -15,7 +15,12 @@ import messagesRouter    from './routes/messages.js';
 import moderationRouter  from './routes/moderation.js';
 import coloringsRouter   from './routes/colorings.js';
 import metaRouter        from './routes/meta.js';
+import mediaRouter       from './routes/media.js';
 import { validateProductionConfiguration } from './config.js';
+import { checkMediaStorage } from './services/media-storage.js';
+import { cleanupExpiredPaymentRequests } from './services/message-cleanup.js';
+import { metricsSnapshot, requestObservability, safeErrorClass } from './observability.js';
+import { asyncRoute } from './middleware/asyncRoute.js';
 
 const PORT = process.env.PORT || 3001;
 const productionConfig = validateProductionConfiguration();
@@ -33,6 +38,7 @@ if (process.env.SEED_DEMO_DATA === 'true') {
 }
 
 const app = express();
+let accepting = true;
 if (trustProxy) app.set('trust proxy', trustProxy);
 
 // ── Security & Parsing ────────────────────────────────────────────────────────
@@ -53,6 +59,11 @@ app.use(rateLimit({
   message: { error: 'Слишком много запросов, попробуйте через минуту' }
 }));
 app.use(express.json({ limit: '15mb' }));
+app.use(requestObservability);
+app.use((req, res, next) => {
+  if (!accepting && !['/health', '/ready', '/live'].includes(req.path)) return res.status(503).json({ error: 'Server is shutting down' });
+  return next();
+});
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/feed',        feedRouter);
@@ -66,16 +77,31 @@ app.use('/messages',    messagesRouter);
 app.use('/moderation',  moderationRouter);
 app.use('/colorings',   coloringsRouter);
 app.use('/meta',        metaRouter);
+app.use('/media',       mediaRouter);
 
-// ── Health check ──────────────────────────────────────────────────────────────
+// ── Health and readiness ─────────────────────────────────────────────────────
+app.get('/live', (_req, res) => res.json({ status: 'alive' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
+let readinessCache = { at: 0, result: null };
+app.get('/ready', asyncRoute(async (_req, res) => {
+  if (Date.now() - readinessCache.at > 30_000 || !readinessCache.result) {
+    const checks = {};
+    try { await get('SELECT 1'); checks.database = 'ok'; } catch { checks.database = 'error'; }
+    try { await checkMediaStorage(); checks.object_storage = 'ok'; } catch { checks.object_storage = 'error'; }
+    checks.configuration = isProduction ? 'ok' : 'development';
+    readinessCache = { at: Date.now(), result: { ready: Object.values(checks).every((value) => value === 'ok' || value === 'development'), checks } };
+  }
+  return res.status(readinessCache.result.ready ? 200 : 503).json(readinessCache.result);
+}));
+app.get('/metrics', (_req, res) => res.json(metricsSnapshot()));
 
 // ── Error handler ──────────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error({
     method: req.method,
     path: req.originalUrl,
-    error: err,
+    error_class: safeErrorClass(err),
   });
 
   if (res.headersSent) {
@@ -96,6 +122,30 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, () => {
   console.log(`Splint API server running on http://localhost:${PORT}`);
 });
+
+const cleanupTimer = setInterval(() => cleanupExpiredPaymentRequests().catch(() => {}), 15 * 60 * 1000);
+cleanupTimer.unref?.();
+
+async function gracefulShutdown(signal) {
+  if (!accepting) return;
+  accepting = false;
+  readinessCache = { at: Date.now(), result: { ready: false, checks: { shutdown: 'in_progress' } } };
+  clearInterval(cleanupTimer);
+  const timeout = setTimeout(() => process.exit(1), Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10_000);
+  try {
+    await new Promise((resolve) => server.close(resolve));
+    await closeDb();
+    clearTimeout(timeout);
+    console.log(JSON.stringify({ type: 'shutdown', signal, forced: false }));
+    process.exit(0);
+  } catch (error) {
+    console.error(JSON.stringify({ type: 'shutdown', signal, forced: true, error_class: safeErrorClass(error) }));
+    process.exit(1);
+  }
+}
+
+process.once('SIGTERM', () => { gracefulShutdown('SIGTERM'); });
+process.once('SIGINT', () => { gracefulShutdown('SIGINT'); });
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
