@@ -24,11 +24,12 @@ async function getPool() {
   return new pgModule.Pool({ connectionString: databaseUrl });
 }
 
-function progressActionBody(revision, color = 0) {
+function progressActionBody(revision, color = 0, clientBatchId = null) {
   return JSON.stringify({
     changes: Array.from({ length: 64 }, (_, index) => ({ index, color })),
     revision,
     resultDataUrl: null,
+    ...(clientBatchId ? { clientBatchId } : {}),
   });
 }
 
@@ -271,7 +272,7 @@ test('PostgreSQL runMigrations is idempotent', { skip: !databaseUrl }, async (t)
     migrationsDir: join(serverDir, 'migrations'),
   });
   assert.equal(result2.applied, 0, 'Second run should apply zero migrations');
-  assert.equal(result2.skipped, 9, 'Second run should skip all 9 migrations');
+  assert.equal(result2.skipped, 14, 'Second run should skip all 14 migrations');
 });
 
 test('PostgreSQL schema_migrations contains correct versions and checksums', { skip: !databaseUrl }, async (t) => {
@@ -864,7 +865,7 @@ test('HTTP: old revision returns 409 with current progress', { skip: !databaseUr
   const third = await fetch(`${url}/colorings/${templateId}/progress/actions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-    body: progressActionBody(1),
+    body: progressActionBody(1, 0, 'old-revision-conflict-001'),
   });
 
   assert.equal(third.status, 409, 'Old revision returns 409');
@@ -960,12 +961,12 @@ test('HTTP: two concurrent PUTs with same revision — one 200, one 409', { skip
     fetch(`${url}/colorings/${templateId}/progress/actions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: progressActionBody(1),
+      body: progressActionBody(1, 0, 'concurrent-revision-001'),
     }),
     fetch(`${url}/colorings/${templateId}/progress/actions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-User-Id': userId },
-      body: progressActionBody(1),
+      body: progressActionBody(1, 0, 'concurrent-revision-002'),
     }),
   ]);
 
