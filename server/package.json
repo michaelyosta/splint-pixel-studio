@@ -25,6 +25,9 @@
     "restore:postgres": "node scripts/restore-postgres.mjs",
     "inventory:media": "node scripts/inventory-media.mjs",
     "media:sweep": "node scripts/sweep-media.mjs",
+    "backup:objects": "node scripts/backup-objects.mjs",
+    "verify:object-backup": "node scripts/verify-object-backup.mjs",
+    "restore:objects": "node scripts/restore-objects.mjs",
     "storage:init": "node scripts/init-s3-bucket.mjs",
     "test:postgres": "node --test test/database.test.js test/postgres-database.test.js test/postgres-demo-seed.test.js test/postgres-content-integrity-migration.test.js test/postgres-production-security.test.js test/postgres-security-hardening.test.js test/postgres-stars-transactions.test.js test/postgres-http-stars-transactions.test.js"
   },
