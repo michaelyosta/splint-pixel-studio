@@ -34,13 +34,18 @@ async function clickActiveWorkCell(page) {
   await expect(canvas).not.toHaveAttribute('data-active-work-cells', '');
   const activeCells = (await canvas.getAttribute('data-active-work-cells')).split(',').map(Number);
   const templateWidth = Number(await canvas.getAttribute('data-template-width'));
-  const box = await canvas.boundingBox();
+  const viewport = page.locator('.coloring-canvas-viewport');
+  const camera = {
+    x: Number(await viewport.getAttribute('data-camera-x')),
+    y: Number(await viewport.getAttribute('data-camera-y')),
+    zoom: Number(await viewport.getAttribute('data-camera-zoom')),
+  };
   const index = activeCells[0];
   await canvas.click({
     force: true,
     position: {
-      x: ((index % templateWidth) + 0.5) * box.width / templateWidth,
-      y: (Math.floor(index / templateWidth) + 0.5) * box.width / templateWidth,
+      x: camera.x + ((index % templateWidth) + 0.5) * 32 * camera.zoom,
+      y: camera.y + (Math.floor(index / templateWidth) + 0.5) * 32 * camera.zoom,
     },
   });
 }
@@ -116,8 +121,11 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await page.getByText('Создать').first().click();
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
-    await page.getByText('32×32').click();
-    await expect(page.locator('.creator-grid-options .selected')).toContainText('32×32');
+    await page.getByRole('button', { name: 'Сетка 32×32' }).click();
+    await expect(page.locator('.creator-grid-options .selected')).toContainText('32');
+    await page.getByRole('button', { name: 'Сетка 160×160' }).click();
+    await expect(page.locator('.creator-grid-options .selected')).toContainText('160');
+    await expect(page.locator('.creator-grid-hint')).toContainText('Максимум текущего renderer');
     const colorSlider = page.locator('.creator-colors-section input[type="range"]');
     await colorSlider.fill('12');
     await expect(page.locator('.creator-colors-badge')).toHaveText('12');
@@ -131,6 +139,25 @@ test.describe('Creator 2.0 — full E2E', () => {
     await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.creator-preview-item')).toHaveCount(3);
     await expect(page.locator('.creator-quality')).toBeVisible({ timeout: 15000 });
+  });
+
+  test('6b. Maximum 160×160 grid computes, saves, and opens', async ({ page }) => {
+    await page.goto('/');
+    await page.getByText('Создать').first().click();
+    await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
+    await page.getByRole('button', { name: 'Сетка 160×160' }).click();
+    await page.getByText('Обновить превью').click();
+    await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 20000 });
+    const id = await saveColoring(page);
+    const response = await page.request.get(`/api/colorings/${id}`, { headers: API_HEADERS });
+    const template = await response.json();
+    expect(template.width).toBe(160);
+    expect(template.height).toBe(160);
+    const coloringCanvas = page.locator('canvas.coloring-canvas');
+    await expect(coloringCanvas).toHaveAttribute('data-template-width', '160');
+    expect(await coloringCanvas.evaluate((element) => element.width)).toBeLessThan(2_000);
+    await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
+    await clickActiveWorkCell(page);
   });
 
   test('7. Reset crop restores defaults', async ({ page }) => {

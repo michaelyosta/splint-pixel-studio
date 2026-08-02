@@ -211,7 +211,9 @@ export async function bootstrapSystemData() {
     [achievement.id, achievement.title, achievement.description, achievement.category, achievement.icon, achievement.rarity, now]);
   }
 
-  await run("UPDATE coloring_templates SET status='archived' WHERE source_type='catalog'");
+  // Keep catalog entries that are no longer in the fixture out of the public catalog.
+  // `hidden` is part of the persisted status contract; `archived` is not.
+  await run("UPDATE coloring_templates SET status='hidden' WHERE source_type='catalog'");
 
   const sql = `INSERT INTO coloring_templates
     (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,mood,theme,est_minutes,collection_id,daily_featured,added_at,created_at,updated_at)

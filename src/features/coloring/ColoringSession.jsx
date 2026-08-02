@@ -60,6 +60,7 @@ export default function ColoringSession({
   const containerRef = useRef(null);
   const filledRef = useRef(progress?.filled || []);
   const [localFilled, setLocalFilled] = useState(progress?.filled || []);
+  const [peekColor, setPeekColor] = useState(null);
   const windowsRef = useRef([]);
   const visitedTargetsRef = useRef(new Set());
   const routeStateRef = useRef(createRouteState());
@@ -814,6 +815,25 @@ export default function ColoringSession({
   const showCanvas = cameraReady && ['ready', 'freeExploration', 'focusingTarget', 'artworkComplete'].includes(routeDisplay.status) && containerSize.width > 0 && containerSize.height > 0;
   const showTaskSummary = ['ready', 'freeExploration'].includes(routeDisplay.status) && routeDisplay.target;
 
+  // Ambilight: мягкое свечение доминирующего цвета картины за канвасом.
+  let ambilight;
+  {
+    const counts = new Map();
+    for (const target of template.cells) counts.set(target, (counts.get(target) || 0) + 1);
+    let topColor = null;
+    let topCount = -1;
+    for (const [color, count] of counts) {
+      if (count > topCount) { topCount = count; topColor = color; }
+    }
+    const hex = template.palette[topColor];
+    if (typeof hex === 'string' && hex.startsWith('#') && hex.length >= 7) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      ambilight = `rgba(${r}, ${g}, ${b}, 0.17)`;
+    }
+  }
+
   return (
     <div
       className="coloring-session"
@@ -826,7 +846,7 @@ export default function ColoringSession({
       data-safe-bottom={safeAreaState.bottom}
       data-safe-left={safeAreaState.left}
     >
-      <div className="coloring-canvas-container" ref={containerRef}>
+      <div className="coloring-canvas-container" ref={containerRef} style={ambilight ? { '--ambilight': ambilight } : undefined}>
         {['ready', 'freeExploration'].includes(routeDisplay.status) && routeDisplay.target && (
           <div className="coloring-task-context" aria-live="polite">
             <b>Цвет {routeDisplay.target.color + 1} · Осталось {routeDisplay.targetRemaining} клеток</b>
@@ -864,6 +884,7 @@ export default function ColoringSession({
             activeTargetColor={routeDisplay.target?.color ?? null}
             onManualExplore={enterFreeExploration}
             interactionDisabled={routeDisplay.status === 'focusingTarget'}
+            peekColor={peekColor}
           />
         )}
         {!showCanvas && (
@@ -897,7 +918,8 @@ export default function ColoringSession({
       <div className={`coloring-task-summary${showTaskSummary ? '' : ' coloring-task-summary--empty'}`} aria-live="polite">
         {showTaskSummary && (
           <>
-          {`\u0426\u0432\u0435\u0442 ${routeDisplay.target.color + 1} \u00b7 \u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c ${routeDisplay.targetRemaining} \u043a\u043b\u0435\u0442\u043e\u043a`}
+          <span className="task-color-dot" style={{ background: template.palette[routeDisplay.target.color] }} aria-hidden="true" />
+          {`Цвет ${routeDisplay.target.color + 1} · Осталось ${routeDisplay.targetRemaining} клеток`}
           </>
         )}
       </div>
@@ -909,6 +931,7 @@ export default function ColoringSession({
             selectedColor={selectedColor}
             onSelectColor={handleColorSelect}
             disabled={routeDisplay.status === 'focusingTarget'}
+            onPeekColor={setPeekColor}
           />
           <div className="coloring-dock-actions">
             <button onClick={onUndo} disabled={!canUndo}>Отмена</button>

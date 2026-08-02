@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Compass, Flag, Flame, Grid3X3, Heart, ImagePlus, LoaderCircle, Send, Sparkles, Star, Trash2, UserRound, BookOpen, Lock } from 'lucide-react';
+import { Compass, Flag, Flame, Globe2, Grid3X3, Heart, ImagePlus, LoaderCircle, Send, Sparkles, Star, Trash2, UserRound, BookOpen, Lock } from 'lucide-react';
 import { api, metaApi, catalogApi, DEV_USER_ID } from './api/client';
 import PlayerView from './views/PlayerView';
 import { floodFillRegion } from './lib/floodFill';
@@ -8,7 +8,48 @@ import { renderImageCropPreview, renderFitPreview, renderGridPreview, renderNumb
 import { assessQuality } from './lib/creatorQuality';
 import { createSaveQueue } from './lib/progressSaveQueue';
 import { createHistoryOperation } from './features/coloring/engine/historyOperations.js';
+import { hapticImpact, hapticSelection, shareViaTelegram, buildColoringDeepLink, getRequestedColoringId } from './lib/telegram';
 import './App.css';
+
+const CATALOG_PAGE_SIZE = 12;
+const CREATOR_GRID_OPTIONS = [16, 24, 32, 40, 48, 64, 80, 96, 112, 128, 144, 160].map((size) => ({
+  label: `${size}×${size}`,
+  w: size,
+  h: size,
+}));
+
+function gridDetailMeta(size) {
+  if (size <= 24) return { title: 'Эскиз', load: 'Легко', hint: 'Крупные пиксели и короткая сессия.' };
+  if (size <= 48) return { title: 'Баланс', load: 'Комфортно', hint: 'Хорошая детализация для большинства изображений.' };
+  if (size <= 80) return { title: 'Детально', load: 'Дольше', hint: 'Сохраняет мелкие формы и текстуры.' };
+  if (size <= 96) return { title: 'Очень детально', load: 'Требовательно', hint: 'Для мощных устройств и долгих сессий.' };
+  return { title: 'Студийная', load: 'Экспериментально', hint: 'Максимум текущего renderer: лучше использовать на современных устройствах.' };
+}
+
+/** Short-lived prefetch cache: hovering/touching a card warms the player fetch. */
+const coloringPrefetchCache = new Map();
+function prefetchColoring(id) {
+  if (!coloringPrefetchCache.has(id)) {
+    coloringPrefetchCache.set(id, Promise.all([
+      api(`/colorings/${id}`), api(`/colorings/${id}/progress`), catalogApi.zones(id),
+    ]).catch((error) => { coloringPrefetchCache.delete(id); throw error; }));
+  }
+  return coloringPrefetchCache.get(id);
+}
+
+function formatTimeAgo(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return 'только что';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} мин назад`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ч назад`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days} дн назад`;
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+}
 
 const DIFFICULTIES = {
   easy: { label: 'Легко', width: 24, height: 24, colors: 8 },
@@ -41,7 +82,7 @@ function ArtworkPreview({ src, alt }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [src]);
   if (!src || failed) return <div className="post-image post-image-fallback"><ImagePlus size={28} /><span>Превью восстанавливается</span></div>;
-  return <img className="post-image" src={src} alt={alt} onError={() => setFailed(true)} />;
+  return <img className="post-image" loading="lazy" src={src} alt={alt} onError={() => setFailed(true)} />;
 }
 
 function App() {
@@ -103,7 +144,13 @@ function App() {
   const [likingPostId, setLikingPostId] = useState(null);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [followingAuthorId, setFollowingAuthorId] = useState(null);
+  const [publishingTemplateId, setPublishingTemplateId] = useState(null);
+  const [ratingTemplateId, setRatingTemplateId] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(CATALOG_PAGE_SIZE);
   const sessionStartRef = useRef(0);
+  const screenContentRef = useRef(null);
+  const catalogScrollRef = useRef(0);
+  const deepLinkHandledRef = useRef(false);
 
   const saveQueueRef = useRef(null);
 
@@ -184,7 +231,15 @@ function App() {
     }
   }, [showNotice]);
 
-  useEffect(() => { loadCatalog(); loadToday(); loadStreak(); loadAchievements(); loadCollections(); loadProfile(); }, [loadCatalog, loadToday, loadStreak, loadAchievements, loadCollections, loadProfile]);
+  useEffect(() => { loadCatalog(); loadToday(); loadStreak(); loadAchievements(); loadCollections(); loadProfile(); loadMine(); }, [loadCatalog, loadToday, loadStreak, loadAchievements, loadCollections, loadProfile, loadMine]);
+  // Deep link (?coloring=<id> или Telegram start_param) — открыть раскраску сразу.
+  useEffect(() => {
+    if (deepLinkHandledRef.current || loading) return;
+    const requestedId = getRequestedColoringId();
+    if (!requestedId) return;
+    deepLinkHandledRef.current = true;
+    openColoring(requestedId);
+  }, [loading]);
   const creatorTimerRef = useRef(null);
   const computeRef = useRef(null);
   computeRef.current = computeCreatorPreview;
@@ -194,25 +249,51 @@ function App() {
     creatorTimerRef.current = window.setTimeout(() => computeRef.current(), 400);
     return () => window.clearTimeout(creatorTimerRef.current);
   }, [creatorGrid, creatorColors, creatorCrop, creatorCropMode, creatorImageUrl]);
-  useEffect(() => () => {
-    if (saveQueueRef.current) saveQueueRef.current.dispose();
-    window.clearTimeout(noticeTimerRef.current);
+  useEffect(() => {
+    const flushOnHide = () => { saveQueueRef.current?.flush(); };
+    window.addEventListener('pagehide', flushOnHide);
+    return () => {
+      window.removeEventListener('pagehide', flushOnHide);
+      if (saveQueueRef.current) {
+        saveQueueRef.current.flush();
+        saveQueueRef.current.dispose();
+      }
+      window.clearTimeout(noticeTimerRef.current);
+    };
   }, []);
   useEffect(() => { if (view === 'gallery') loadMine(); }, [view, loadMine]);
+  // Каталог показывает свежие проценты и баннер «Продолжить» после возврата из плеера.
+  useEffect(() => { if (view === 'catalog') loadMine(); }, [view, loadMine]);
   useEffect(() => { if (view === 'feed') loadFeed(); }, [view, loadFeed]);
   useEffect(() => { if (view === 'profile') loadProfile(); }, [view, loadProfile]);
   useEffect(() => { if (view === 'collections') loadCollections(); }, [view, loadCollections]);
+  // Новый набор карточек — начинаем с первой страницы.
+  useEffect(() => { setVisibleCount(CATALOG_PAGE_SIZE); }, [templates]);
+  // Возвращаем пользователя на то место каталога, откуда он ушёл в плеер.
+  useEffect(() => {
+    if (view !== 'catalog') return;
+    const el = screenContentRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => { el.scrollTop = catalogScrollRef.current; });
+  }, [view]);
 
   async function openColoring(id) {
+    catalogScrollRef.current = screenContentRef.current?.scrollTop ?? 0;
     setLoading(true);
     try {
-      const [nextTemplate, nextProgress, nextZones] = await Promise.all([api(`/colorings/${id}`), api(`/colorings/${id}/progress`), catalogApi.zones(id)]);
+      const prefetched = coloringPrefetchCache.get(id);
+      coloringPrefetchCache.delete(id);
+      const [nextTemplate, nextProgress, nextZones] = prefetched
+        ? await prefetched
+        : await Promise.all([api(`/colorings/${id}`), api(`/colorings/${id}/progress`), catalogApi.zones(id)]);
       setTemplate(nextTemplate);
       setProgress(nextProgress);
       filledRef.current = nextProgress.filled;
       setZones(nextZones.zones || []);
       zoneIndicesRef.current = Object.fromEntries((nextZones.zones || []).map((zone) => [zone.id, zone.indices || []]));
       if (saveQueueRef.current) {
+        // Дожимаем неотправленные штрихи предыдущей раскраски до dispose.
+        saveQueueRef.current.flush();
         saveQueueRef.current.dispose();
         setSaving(false);
       }
@@ -426,11 +507,15 @@ function App() {
   }
 
   async function shareResult() {
-    if (!completedPreview || typeof navigator.share !== 'function') return downloadResult();
+    if (!completedPreview) return;
     setSharing(true);
     try {
-      await navigator.share({ title: template.title, text: `Я завершил(а) раскраску «${template.title}» в SPLINT Pixel Studio!`, url: window.location.href });
-      metaApi.track('share_native', { id: template.id });
+      const url = buildColoringDeepLink(template.id);
+      const text = `Я завершил(а) раскраску «${template.title}» в SPLINT Pixel Studio!`;
+      const channel = await shareViaTelegram({ url, text });
+      if (channel === 'telegram') metaApi.track('share_telegram', { id: template.id });
+      else if (channel === 'native') metaApi.track('share_native', { id: template.id });
+      else downloadResult();
     } catch (error) {
       if (error.name !== 'AbortError') showNotice('Не удалось открыть меню отправки', 'error');
     } finally {
@@ -531,8 +616,44 @@ function App() {
     }
   }
 
+  async function setColoringVisibility(item) {
+    if (publishingTemplateId) return;
+    const visibility = item.visibility === 'public' ? 'private' : 'public';
+    if (visibility === 'public' && !window.confirm('Опубликовать раскраску в общем каталоге? Убедитесь, что у вас есть право делиться исходным изображением.')) return;
+    setPublishingTemplateId(item.id);
+    try {
+      const updated = await api(`/colorings/${item.id}/visibility`, { method: 'PATCH', body: { visibility } });
+      setMine((current) => current.map((entry) => entry.id === item.id ? { ...entry, ...updated } : entry));
+      await loadCatalog();
+      showNotice(visibility === 'public' ? 'Раскраска опубликована в каталоге' : 'Раскраска снята с публикации', 'success');
+    } catch (error) {
+      showNotice(error.message, 'error');
+    } finally {
+      setPublishingTemplateId(null);
+    }
+  }
+
+  async function rateColoring(item, rating) {
+    if (ratingTemplateId) return;
+    hapticSelection();
+    setRatingTemplateId(item.id);
+    try {
+      const clearRating = item.viewer_rating === rating;
+      const updated = await api(`/colorings/${item.id}/rating`, {
+        method: clearRating ? 'DELETE' : 'PUT',
+        body: clearRating ? undefined : { rating },
+      });
+      setTemplates((current) => current.map((entry) => entry.id === item.id ? { ...entry, ...updated } : entry));
+    } catch (error) {
+      showNotice(error.message, 'error');
+    } finally {
+      setRatingTemplateId(null);
+    }
+  }
+
   async function toggleLike(post) {
     if (likingPostId) return;
+    hapticImpact('light');
     setLikingPostId(post.id);
     try {
       await api(`/posts/${post.id}/like`, { method: post.is_liked ? 'DELETE' : 'POST' });
@@ -580,6 +701,7 @@ function App() {
 
   async function toggleFollow(post) {
     if (followingAuthorId) return;
+    hapticImpact('light');
     setFollowingAuthorId(post.author_id);
     try {
       const result = await api(`/users/${post.author_id}/follow`, { method: 'POST' });
@@ -616,6 +738,12 @@ function App() {
     }
   }
 
+  // Выход из плеера в каталог дожимает очередь сохранения.
+  const handlePlayerSetView = useCallback((nextView) => {
+    if (nextView === 'catalog') saveQueueRef.current?.flush();
+    setView(nextView);
+  }, []);
+
   const gameProgress = useMemo(() => (template && progress ? getProgress(template.cells, progress.filled) : null), [progress, template]);
   const artworkComplete = isProgressComplete(gameProgress);
   const completedPreview = useMemo(() => (template && artworkComplete ? renderCompletedImage(template, progress.filled) : null), [artworkComplete, progress?.filled, template]);
@@ -643,8 +771,23 @@ function App() {
   const renderCatalog = () => {
     const progressMap = {};
     mine.forEach((item) => { if (item.progress?.percent > 0) progressMap[item.id] = item.progress.percent; });
+    const continueItem = mine
+      .filter((item) => item.progress?.percent > 0 && item.progress.percent < 100)
+      .sort((first, second) => second.progress.percent - first.progress.percent)[0];
+    const visibleTemplates = templates.slice(0, visibleCount);
     return <section className="page catalog-page">
       <div className="page-heading"><div><p className="eyebrow">PIXEL BY NUMBERS</p><h1>Раскраски</h1></div></div>
+      {continueItem && <div className="continue-banner">
+        <p className="eyebrow">Продолжить</p>
+        <button className="continue-card" onClick={() => openColoring(continueItem.id)}>
+          <span className="continue-preview" style={continueItem.preview_url ? { backgroundImage: `url(${continueItem.preview_url})` } : undefined} />
+          <span className="continue-info">
+            <b>{continueItem.title}</b>
+            <span className="continue-track"><span className="continue-fill" style={{ width: `${continueItem.progress.percent}%` }} /></span>
+          </span>
+          <span className="continue-pct">{continueItem.progress.percent}%</span>
+        </button>
+      </div>}
       {today?.for_you && <div className="editorial-banner">
         <p className="eyebrow">СЕГОДНЯ ДЛЯ ВАС</p>
         <button className="editorial-card" onClick={() => openColoring(today.for_you.id)}>
@@ -665,32 +808,40 @@ function App() {
         </button>)}</div>
       </div>}
       <div className="filter-bar">
-        <select value={filters.mood} onChange={(e) => setFilters((f) => ({ ...f, mood: e.target.value }))}>
+        <select value={filters.mood} onChange={(e) => { hapticSelection(); setFilters((f) => ({ ...f, mood: e.target.value })) }}>
           {MOODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
-        <select value={filters.theme} onChange={(e) => setFilters((f) => ({ ...f, theme: e.target.value }))}>
+        <select value={filters.theme} onChange={(e) => { hapticSelection(); setFilters((f) => ({ ...f, theme: e.target.value })) }}>
           {THEMES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
-        <select value={filters.max_minutes} onChange={(e) => setFilters((f) => ({ ...f, max_minutes: e.target.value }))}>
+        <select value={filters.max_minutes} onChange={(e) => { hapticSelection(); setFilters((f) => ({ ...f, max_minutes: e.target.value })) }}>
           <option value="">Любая длит.</option>
           <option value="3">≤ 3 мин</option>
           <option value="5">≤ 5 мин</option>
         </select>
       </div>
-      {loading ? <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div> : catalogError && !templates.length ? <div className="error-retry"><p>Не удалось загрузить каталог</p><button className="secondary-button" onClick={loadCatalog}>Повторить</button></div> : <div className="coloring-grid">{templates.map((item) => <article className="coloring-card" key={item.id}>
+      {loading && !templates.length ? <div className="skeleton-grid" aria-label="Загружаем каталог">{[0, 1, 2, 3].map((i) => <div className="skeleton-card" key={i}><div className="skeleton-block skeleton-preview" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /><div className="skeleton-block skeleton-line" /></div>)}</div> : catalogError && !templates.length ? <div className="error-retry"><p>Не удалось загрузить каталог</p><button className="secondary-button" onClick={loadCatalog}>Повторить</button></div> : <>
+        <div className="coloring-grid">{visibleTemplates.map((item) => <article className="coloring-card" key={item.id} onMouseEnter={() => prefetchColoring(item.id)} onTouchStart={() => prefetchColoring(item.id)}>
         <div className="card-preview" style={item.preview_url ? { backgroundImage: `linear-gradient(180deg, transparent, #14222e), url(${item.preview_url})` } : undefined}>{progressMap[item.id] > 0 ? <span className="progress-badge">{progressMap[item.id]}%</span> : <span>{item.est_minutes} мин</span>}</div>
-        <div className="card-body"><h2 style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{item.title}</h2><p style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', minHeight: '2.6em' }}>{item.description}</p><small style={{ minHeight: '1.4em', display: 'block' }}>{item.width}×{item.height} · {item.palette.length} цветов · {formatDifficulty(item.difficulty)}</small><button className="primary-button" onClick={() => openColoring(item.id)}>Начать</button></div>
-      </article>)}</div>}
+        <div className="card-body"><h2 style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{item.title}</h2><p style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', minHeight: '2.6em' }}>{item.description}</p><small style={{ minHeight: '1.4em', display: 'block' }}>{item.width}×{item.height} · {item.palette.length} цветов · {formatDifficulty(item.difficulty)}</small>
+          <div className="template-rating" aria-label={`Рейтинг ${item.rating_average ? item.rating_average.toFixed(1) : 'без оценок'}`}>
+            <div className="rating-stars">{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" disabled={ratingTemplateId === item.id || item.owner_id === currentUser?.id} className={value <= (item.viewer_rating || 0) ? 'selected' : ''} onClick={() => rateColoring(item, value)} aria-label={`Оценить на ${value}`}><Star size={15} fill={value <= (item.viewer_rating || 0) ? 'currentColor' : 'none'} /></button>)}</div>
+            <span>{item.rating_count ? `${item.rating_average.toFixed(1)} · ${item.rating_count}` : 'Нет оценок'}</span>
+          </div>
+          <button className="primary-button" onClick={() => { hapticImpact('light'); openColoring(item.id); }}>Начать</button></div>
+      </article>)}</div>
+        {templates.length > visibleCount && <div className="show-more-wrap"><button className="secondary-button" onClick={() => setVisibleCount((count) => count + CATALOG_PAGE_SIZE)}>Показать ещё ({templates.length - visibleCount})</button></div>}
+      </>}
     </section>;
   };
 
   const renderGallery = () => {
-    return <section className="page"><div className="page-heading"><div><p className="eyebrow">МОИ РАБОТЫ</p><h1>Галерея</h1></div></div><div className="gallery-list">{mine.map((item) => <div className="gallery-row" key={item.id}><button className="gallery-open" onClick={() => openColoring(item.id)}><span className="mini-palette" style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : { background: item.palette[0] }}><Grid3X3 size={18} /></span><span><b>{item.title}</b><small>{item.progress.percent}% · {item.width}×{item.height}</small></span><span className="gallery-progress">{item.progress.percent}%</span></button>{item.source_type === 'user' && <button className="delete-button" onClick={() => deleteColoring(item)} aria-label={`Удалить ${item.title}`}><Trash2 size={17} /></button>}</div>)}{!mine.length ? mineError ? <div className="error-retry"><p>Не удалось загрузить галерею</p><button className="secondary-button" onClick={loadMine}>Повторить</button></div> : <p className="empty-state">Здесь появятся начатые и созданные вами раскраски.</p> : null}</div></section>;
+    return <section className="page"><div className="page-heading"><div><p className="eyebrow">МОИ РАБОТЫ</p><h1>Галерея</h1></div></div><div className="gallery-list">{mine.map((item) => <div className="gallery-row" key={item.id}><button className="gallery-open" onClick={() => openColoring(item.id)}><span className="mini-palette" style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : { background: item.palette[0] }}><Grid3X3 size={18} /></span><span><b>{item.title}</b><small>{item.progress.percent}% · {item.width}×{item.height}{item.source_type === 'user' ? ` · ${item.visibility === 'public' ? 'в каталоге' : 'личная'}` : ''}</small></span><span className="gallery-progress">{item.progress.percent}%</span></button>{item.source_type === 'user' && <div className="gallery-actions"><button className={`visibility-button ${item.visibility === 'public' ? 'published' : ''}`} disabled={publishingTemplateId === item.id} onClick={() => setColoringVisibility(item)} aria-label={item.visibility === 'public' ? `Снять с публикации ${item.title}` : `Опубликовать ${item.title}`}>{publishingTemplateId === item.id ? <LoaderCircle className="spin" size={16} /> : item.visibility === 'public' ? <Globe2 size={17} /> : <Lock size={17} />}</button><button className="delete-button" onClick={() => deleteColoring(item)} aria-label={`Удалить ${item.title}`}><Trash2 size={17} /></button></div>}</div>)}{!mine.length ? mineError ? <div className="error-retry"><p>Не удалось загрузить галерею</p><button className="secondary-button" onClick={loadMine}>Повторить</button></div> : <p className="empty-state">Здесь появятся начатые и созданные вами раскраски.<button className="secondary-button" onClick={() => setView('catalog')}>Выбрать раскраску</button></p> : null}</div></section>;
   };
 
   const renderFeed = () => {
     const viewerId = currentUser?.id || DEV_USER_ID;
-    return <section className="page"><div className="page-heading"><div><p className="eyebrow">СООБЩЕСТВО</p><h1>Лента работ</h1></div></div><div className="feed-list">{feed.map((post) => <article className="feed-post" key={post.id}><div className="post-author"><button className="author-button" onClick={() => openProfile(post.author_id)}><img src={post.author?.avatar_url || '/favicon.svg'} alt="" /><span><b>{post.author?.nickname || 'Автор'}</b><small>{post.title}</small></span></button>{post.author_id !== viewerId && <button className="follow-button" style={{ minWidth: 120 }} disabled={followingAuthorId === post.author_id} aria-busy={followingAuthorId === post.author_id} onClick={() => toggleFollow(post)}>{followingAuthorId === post.author_id ? <LoaderCircle className="spin" size={14} /> : post.is_following ? 'Вы подписаны' : 'Подписаться'}</button>}</div><ArtworkPreview src={post.artwork?.image_url} alt={post.title} /><p>{post.caption}</p><div className="post-actions"><button className={`${post.is_liked ? 'liked' : ''} ${likingPostId === post.id ? 'loading' : ''}`} disabled={likingPostId === post.id} onClick={() => toggleLike(post)} aria-label={post.is_liked ? 'Убрать лайк' : 'Поставить лайк'}><Heart size={18} fill={post.is_liked ? 'currentColor' : 'none'} /> {post.like_count}</button>{post.comments_enabled && <button onClick={() => toggleComments(post.id)} aria-label="Комментарии"><Send size={17} /> {post.comment_count}</button>}<button className="report-button" onClick={() => reportPost(post.id)} aria-label="Пожаловаться"><Flag size={16} /></button></div>{openCommentsPostId === post.id && <div className="comments-panel">{(commentsByPost[post.id] || []).map((comment) => <div className="comment-row" key={comment.id}><b>{comment.author?.nickname || 'Автор'}</b><span>{comment.text}</span></div>)}{!(commentsByPost[post.id] || []).length && <p className="comments-empty">Пока нет комментариев.</p>}<form onSubmit={(event) => submitComment(event, post.id)}><input value={commentDraft} maxLength="300" placeholder="Напишите комментарий" onChange={(event) => setCommentDraft(event.target.value)} /><button type="submit" disabled={submittingComment}>{submittingComment ? <LoaderCircle className="spin" size={14} /> : '→'}</button></form></div>}</article>)}{!feed.length ? feedError ? <div className="error-retry"><p>Не удалось загрузить ленту</p><button className="secondary-button" onClick={loadFeed}>Повторить</button></div> : <p className="empty-state">Лента загружается…</p> : null}</div></section>;
+    return <section className="page"><div className="page-heading"><div><p className="eyebrow">СООБЩЕСТВО</p><h1>Лента работ</h1></div></div><div className="feed-list">{feed.map((post) => <article className="feed-post" key={post.id}><div className="post-author"><button className="author-button" onClick={() => openProfile(post.author_id)}><img loading="lazy" src={post.author?.avatar_url || '/favicon.svg'} alt="" /><span><b>{post.author?.nickname || 'Автор'}</b><small>{post.title}</small></span></button>{post.author_id !== viewerId && <button className="follow-button" style={{ minWidth: 120 }} disabled={followingAuthorId === post.author_id} aria-busy={followingAuthorId === post.author_id} onClick={() => toggleFollow(post)}>{followingAuthorId === post.author_id ? <LoaderCircle className="spin" size={14} /> : post.is_following ? 'Вы подписаны' : 'Подписаться'}</button>}</div><ArtworkPreview src={post.artwork?.image_url} alt={post.title} /><p>{post.caption}</p><div className="post-actions"><button className={`${post.is_liked ? 'liked' : ''} ${likingPostId === post.id ? 'loading' : ''}`} disabled={likingPostId === post.id} onClick={() => toggleLike(post)} aria-label={post.is_liked ? 'Убрать лайк' : 'Поставить лайк'}><Heart size={18} fill={post.is_liked ? 'currentColor' : 'none'} /> {post.like_count}</button>{post.comments_enabled && <button onClick={() => toggleComments(post.id)} aria-label="Комментарии"><Send size={17} /> {post.comment_count}</button>}<button className="report-button" onClick={() => reportPost(post.id)} aria-label="Пожаловаться"><Flag size={16} /></button></div>{openCommentsPostId === post.id && <div className="comments-panel">{(commentsByPost[post.id] || []).map((comment) => <div className="comment-row" key={comment.id}><img loading="lazy" src={comment.author?.avatar_url || '/favicon.svg'} alt="" /><div className="comment-body"><div className="comment-meta"><b>{comment.author?.nickname || 'Автор'}</b>{comment.created_at && <span className="comment-time">{formatTimeAgo(comment.created_at)}</span>}</div><span>{comment.text}</span></div></div>)}{!(commentsByPost[post.id] || []).length && <p className="comments-empty">Пока нет комментариев.</p>}<form onSubmit={(event) => submitComment(event, post.id)}><input value={commentDraft} maxLength="300" placeholder="Напишите комментарий" onChange={(event) => setCommentDraft(event.target.value)} /><button type="submit" disabled={submittingComment}>{submittingComment ? <LoaderCircle className="spin" size={14} /> : '→'}</button></form></div>}</article>)}{!feed.length ? feedError ? <div className="error-retry"><p>Не удалось загрузить ленту</p><button className="secondary-button" onClick={loadFeed}>Повторить</button></div> : <p className="empty-state">Лента загружается…<button className="secondary-button" onClick={() => setView('catalog')}>Перейти в каталог</button></p> : null}</div></section>;
   };
 
   const renderCollections = () => {
@@ -710,20 +861,18 @@ function App() {
   };
 
   const renderProfile = () => {
-    if (!profile) return <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div>;
+    if (!profile) return <section className="page profile-page"><div className="skeleton-block skeleton-profile" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></section>;
     const isOwnProfile = profile.id === currentUser?.id;
-    return <section className="page profile-page"><div className="page-heading"><div><p className="eyebrow">ПРОФИЛЬ</p><h1>{profile.nickname}</h1></div>{!isOwnProfile && <button className="follow-button" onClick={toggleProfileFollow}>{profile.is_following ? 'Вы подписаны' : 'Подписаться'}</button>}</div><div className="profile-card"><img src={profile.avatar_url || '/favicon.svg'} alt="" /><div><b>{profile.nickname}</b><p>{profile.status || 'Любит раскрашивать пиксели по номерам.'}</p></div><div className="profile-stats"><span><b>{profile.posts_count}</b>публикаций</span><span><b>{profile.followers_count}</b>подписчиков</span><span><b>{profile.following_count}</b>подписок</span></div></div><h2 className="section-title">Готовые работы</h2><div className="profile-artworks">{profileArtworks.map((artwork) => <img key={artwork.id} src={artwork.image_url} alt={artwork.title} title={artwork.title} />)}{!profileArtworks.length && <p className="empty-state">Готовых работ пока нет.</p>}</div>
+    return <section className="page profile-page"><div className="page-heading"><div><p className="eyebrow">ПРОФИЛЬ</p><h1>{profile.nickname}</h1></div>{!isOwnProfile && <button className="follow-button" onClick={toggleProfileFollow}>{profile.is_following ? 'Вы подписаны' : 'Подписаться'}</button>}</div><div className="profile-card"><img loading="lazy" src={profile.avatar_url || '/favicon.svg'} alt="" /><div><b>{profile.nickname}</b><p>{profile.status || 'Любит раскрашивать пиксели по номерам.'}</p></div><div className="profile-stats"><span><b>{profile.posts_count}</b>публикаций</span><span><b>{profile.followers_count}</b>подписчиков</span><span><b>{profile.following_count}</b>подписок</span></div></div><h2 className="section-title">Готовые работы</h2><div className="profile-artworks">{profileArtworks.map((artwork) => <img loading="lazy" key={artwork.id} src={artwork.image_url} alt={artwork.title} title={artwork.title} />)}{!profileArtworks.length && <p className="empty-state">Готовых работ пока нет.{isOwnProfile && <button className="secondary-button" onClick={() => setView('catalog')}>Начать раскрашивать</button>}</p>}</div>
       <h2 className="section-title">Серия и достижения</h2>
       <div className="profile-stats"><span><b>{streak?.current_streak || 0}</b>дней подряд</span><span><b>{streak?.longest_streak || 0}</b>рекорд</span><span><b>{achievements.filter((a) => a.unlocked).length}</b>наград</span></div>
     </section>;
   };
 
   const renderCreator = () => {
-    const gridOptions = [
-      { label: '16×16', w: 16, h: 16 },
-      { label: '24×24', w: 24, h: 24 },
-      { label: '32×32', w: 32, h: 32 },
-    ];
+    const gridOptionIndex = CREATOR_GRID_OPTIONS.findIndex((option) => option.w === creatorGrid.width);
+    const gridMeta = gridDetailMeta(creatorGrid.width);
+    const gridStep = Math.max(4, Math.round(576 / creatorGrid.width));
     return <section className="page creator-page"><div className="page-heading"><div><p className="eyebrow">СВОЯ РАСКРАСКА</p><h1>Из изображения</h1></div></div><div className="creator-card">
       <label className="file-field"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const selected = event.target.files?.[0] || null; setFile(selected); setTitle('Моя пиксельная раскраска'); if (selected) prepareFromImage(selected); }} />{file ? file.name : 'Выбрать PNG, JPG или WebP'}</label>
       {file && <><label>Название<input value={title} maxLength="80" onChange={(event) => setTitle(event.target.value)} /></label>
@@ -734,8 +883,18 @@ function App() {
             <div className="creator-slider-row"><label>Смещение по Y</label><input type="range" min="-200" max="200" step="1" value={creatorCrop.offsetY} onChange={(event) => setCreatorCrop((prev) => ({ ...prev, offsetY: +event.target.value }))} /><b>{creatorCrop.offsetY}</b></div>
             <button className="secondary-button" onClick={() => setCreatorCrop({ scale: 1, offsetX: 0, offsetY: 0 })}>Сбросить кадрирование</button></>}
         </div>
-        <div className="creator-grid-section"><h3>Размер сетки</h3>
-          <div className="creator-grid-options">{gridOptions.map((g) => <button key={g.label} className={creatorGrid.width === g.w ? 'selected' : ''} onClick={() => setCreatorGrid({ width: g.w, height: g.h })}>{g.label}</button>)}</div>
+        <div className="creator-grid-section"><h3>Детализация сетки</h3>
+          <div className={`grid-detail-picker grid-detail-picker-${gridMeta.load === 'Экспериментально' ? 'experimental' : 'standard'}`}>
+            <div className="grid-density-preview" style={creatorImageUrl ? { backgroundImage: `url(${creatorImageUrl})` } : undefined}>
+              <span className="grid-density-overlay" style={{ '--grid-step': `${gridStep}px` }} />
+              <span className="grid-density-size">{creatorGrid.width}<small>× {creatorGrid.height}</small></span>
+              <span className="grid-density-cells">{(creatorGrid.width * creatorGrid.height).toLocaleString('ru-RU')} клеток</span>
+            </div>
+            <div className="grid-detail-copy"><span><b>{gridMeta.title}</b><em>{gridMeta.load}</em></span><p className="creator-grid-hint">{gridMeta.hint}</p></div>
+            <input className="grid-detail-range" type="range" min="0" max={CREATOR_GRID_OPTIONS.length - 1} step="1" value={gridOptionIndex} aria-label="Размер сетки" onChange={(event) => { const option = CREATOR_GRID_OPTIONS[Number(event.target.value)]; setCreatorGrid({ width: option.w, height: option.h }); }} />
+            <div className="creator-grid-options">{CREATOR_GRID_OPTIONS.map((g) => <button key={g.label} title={g.label} aria-label={`Сетка ${g.label}`} className={creatorGrid.width === g.w ? 'selected' : ''} onClick={() => setCreatorGrid({ width: g.w, height: g.h })}><span>{g.w}</span></button>)}</div>
+            <div className="grid-detail-scale" aria-hidden="true"><span>Крупнее</span><span>Точнее</span></div>
+          </div>
         </div>
         <div className="creator-colors-section"><h3>Количество цветов</h3>
           <div className="creator-slider-row"><input type="range" min="4" max="16" step="1" value={creatorColors} onChange={(event) => setCreatorColors(+event.target.value)} /><span className="creator-colors-badge">{creatorColors}</span></div>
@@ -792,7 +951,7 @@ function App() {
         sharing={sharing}
         saving={saving}
         publishing={publishing}
-        setView={setView}
+        setView={handlePlayerSetView}
         setPlayMode={setPlayMode}
         setFillMode={setFillMode}
         setCalmMode={setCalmMode}
@@ -833,7 +992,7 @@ function App() {
     content = renderCatalog();
   }
 
-  return <main className="telegram-frame"><div className="app-container"><header className="app-header"><button className="brand-button" onClick={() => setView('catalog')}><span className="header-logo">SPLINT</span><small>pixel studio</small></button><button className="icon-header-button" onClick={() => { loadAchievements(); setView('achievements'); }} title="Достижения"><Star size={18} /></button><button className="icon-header-button" onClick={() => { loadStreak(); setView('profile'); }} title="Профиль"><UserRound size={18} /></button><span className="local-badge">LOCAL</span></header><div className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && <nav className="app-tab-bar"><button className={view === 'catalog' ? 'active' : ''} onClick={() => setView('catalog')}><Compass size={19} />Каталог</button><button className={view === 'collections' ? 'active' : ''} onClick={() => setView('collections')}><BookOpen size={19} />Альбомы</button><button className={view === 'gallery' ? 'active' : ''} onClick={() => setView('gallery')}><Grid3X3 size={19} />Мои</button><button className={view === 'create' ? 'active' : ''} onClick={() => setView('create')}><ImagePlus size={19} />Создать</button><button className={view === 'feed' ? 'active' : ''} onClick={() => setView('feed')}><Send size={19} />Лента</button></nav>}</div>{notice && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
+  return <main className="telegram-frame"><div className="app-container"><header className="app-header"><button className="brand-button" onClick={() => setView('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><button className="icon-header-button" onClick={() => { loadAchievements(); setView('achievements'); }} title="Достижения"><Star size={18} /></button><button className="icon-header-button" onClick={() => { loadStreak(); setView('profile'); }} title="Профиль"><UserRound size={18} /></button><span className="local-badge">LOCAL</span></header><div ref={screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && <nav className="app-tab-bar"><button className={view === 'catalog' ? 'active' : ''} onClick={() => { hapticSelection(); setView('catalog'); }}><Compass size={19} />Каталог</button><button className={view === 'collections' ? 'active' : ''} onClick={() => { hapticSelection(); setView('collections'); }}><BookOpen size={19} />Альбомы</button><button className={view === 'gallery' ? 'active' : ''} onClick={() => { hapticSelection(); setView('gallery'); }}><Grid3X3 size={19} />Мои</button><button className={view === 'create' ? 'active' : ''} onClick={() => { hapticSelection(); setView('create'); }}><ImagePlus size={19} />Создать</button><button className={view === 'feed' ? 'active' : ''} onClick={() => { hapticSelection(); setView('feed'); }}><Send size={19} />Лента</button></nav>}</div>{notice && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
 }
 
 export default App;

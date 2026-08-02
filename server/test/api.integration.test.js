@@ -89,6 +89,64 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(custom.json.visibility, 'private');
   assert.equal(custom.json.source_stored, true);
 
+  const maxGrid = await request('/colorings/create', {
+    method: 'POST',
+    body: {
+      title: 'Maximum grid',
+      width: 160,
+      height: 160,
+      palette: ['#102030', '#00b5d8'],
+      cells: Array.from({ length: 160 * 160 }, (_, index) => index % 2),
+    },
+  });
+  assert.equal(maxGrid.response.status, 201);
+  assert.equal(maxGrid.json.width, 160);
+  assert.equal(maxGrid.json.height, 160);
+
+  const tooLargeGrid = await request('/colorings/create', {
+    method: 'POST',
+    body: { title: 'Too large', width: 161, height: 161, palette: ['#102030', '#00b5d8'], cells: Array(161 * 161).fill(0) },
+  });
+  assert.equal(tooLargeGrid.response.status, 400);
+
+  const published = await request(`/colorings/${custom.json.id}/visibility`, {
+    method: 'PATCH',
+    body: { visibility: 'public' },
+  });
+  assert.equal(published.response.status, 200);
+  assert.equal(published.json.visibility, 'public');
+
+  const ownerRating = await request(`/colorings/${custom.json.id}/rating`, {
+    method: 'PUT',
+    body: { rating: 5 },
+  });
+  assert.equal(ownerRating.response.status, 403);
+
+  const otherRating = await request(`/colorings/${custom.json.id}/rating`, {
+    userId: 'user_lenaart',
+    method: 'PUT',
+    body: { rating: 5 },
+  });
+  assert.equal(otherRating.response.status, 200);
+  assert.equal(otherRating.json.rating_average, 5);
+  assert.equal(otherRating.json.rating_count, 1);
+  assert.equal(otherRating.json.viewer_rating, 5);
+
+  const ratedCatalog = await request('/colorings', { userId: 'user_lenaart' });
+  const ratedCustom = ratedCatalog.json.find((item) => item.id === custom.json.id);
+  assert.equal(ratedCustom.rating_average, 5);
+  assert.equal(ratedCustom.rating_count, 1);
+  assert.equal(ratedCustom.viewer_rating, 5);
+
+  const unpublished = await request(`/colorings/${custom.json.id}/visibility`, {
+    method: 'PATCH',
+    body: { visibility: 'private' },
+  });
+  assert.equal(unpublished.response.status, 200);
+  assert.equal(unpublished.json.visibility, 'private');
+  const privateFromOtherUser = await request(`/colorings/${custom.json.id}`, { userId: 'user_lenaart' });
+  assert.equal(privateFromOtherUser.response.status, 404);
+
   const template = await request(`/colorings/${catalog.json[0].id}`);
   assert.equal(template.response.status, 200);
   const progress = await request(`/colorings/${catalog.json[0].id}/progress`);

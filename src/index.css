@@ -1,19 +1,88 @@
+/* Self-hosted pixel display font (no external dependency in Telegram WebView) */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/press-start-2p-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/press-start-2p-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
 :root {
-  --app-bg: #0B131A;
-  --app-card: #14222E;
-  --app-card-hover: #1E3141;
-  --app-border: #1E3547;
-  --app-text-primary: #FFFFFF;
-  --app-text-secondary: #8D9FA5;
-  --app-cyan: #00B5D8;
-  --app-cyan-glow: rgba(0, 181, 216, 0.3);
+  /* ── Core palette: deep ink + neon pixel accents ─────────────── */
+  --app-bg: #070D16;
+  --app-bg-elevated: #0B1522;
+  --app-card: #101D2D;
+  --app-card-hover: #16283C;
+  --app-border: #1E3349;
+  --app-border-strong: #2C4A66;
+  --app-text-primary: #F0F6FC;
+  --app-text-secondary: #93A8B9;
+  --app-text-faint: #74889A;
+
+  --app-cyan: #2BD9FE;
+  --app-cyan-deep: #0AA8C7;
+  --app-cyan-glow: rgba(43, 217, 254, 0.35);
   --app-gold: #FFC72C;
-  --app-gold-glow: rgba(255, 199, 44, 0.3);
-  --app-danger: #FF4D4D;
-  --app-success: #00E676;
-  --app-dark-gray: #0F1A24;
-  
+  --app-gold-glow: rgba(255, 199, 44, 0.32);
+  --app-pink: #FF5C8A;
+  --app-violet: #9D6BFF;
+  --app-danger: #FF5C5C;
+  --app-success: #2EE59D;
+  --app-dark-gray: #0C1622;
+
+  /* ── Typography ──────────────────────────────────────────────── */
   --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-pixel: 'Press Start 2P', 'Courier New', monospace;
+
+  /* ── Shape & depth ───────────────────────────────────────────── */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --shadow-card: 0 6px 18px rgba(2, 8, 14, 0.45);
+  --shadow-pop: 0 14px 34px rgba(2, 8, 14, 0.55);
+
+  /* Pixel corner notch (8-bit clipped corners) */
+  --pixel-corners: polygon(
+    0 6px, 3px 6px, 3px 3px, 6px 3px, 6px 0,
+    calc(100% - 6px) 0, calc(100% - 6px) 3px, calc(100% - 3px) 3px, calc(100% - 3px) 6px, 100% 6px,
+    100% calc(100% - 6px), calc(100% - 3px) calc(100% - 6px), calc(100% - 3px) calc(100% - 3px), calc(100% - 6px) calc(100% - 3px), calc(100% - 6px) 100%,
+    6px 100%, 6px calc(100% - 3px), 3px calc(100% - 3px), 3px calc(100% - 6px), 0 calc(100% - 6px)
+  );
+}
+
+/* ── Light theme, activated from Telegram colorScheme ─────────── */
+html[data-tg-theme='light'] {
+  --app-bg: #F2F5F9;
+  --app-bg-elevated: #FFFFFF;
+  --app-card: #FFFFFF;
+  --app-card-hover: #EDF2F7;
+  --app-border: #D8E1EA;
+  --app-border-strong: #B9C8D6;
+  --app-text-primary: #0D1B29;
+  --app-text-secondary: #4E6373;
+  --app-text-faint: #71869A;
+  --app-cyan: #0099BB;
+  --app-cyan-deep: #007A95;
+  --app-cyan-glow: rgba(0, 153, 187, 0.22);
+  --app-gold: #D9A400;
+  --app-gold-glow: rgba(217, 164, 0, 0.22);
+  --app-pink: #E0447A;
+  --app-violet: #7C4DE8;
+  --app-danger: #D63C3C;
+  --app-success: #0DA96B;
+  --app-dark-gray: #E9EFF5;
+  --shadow-card: 0 6px 16px rgba(23, 43, 66, 0.10);
+  --shadow-pop: 0 14px 34px rgba(23, 43, 66, 0.18);
 }
 
 * {
@@ -23,7 +92,10 @@
 }
 
 body {
-  background-color: #050A0E;
+  background-color: #04080E;
+  background-image:
+    radial-gradient(ellipse 70% 45% at 50% -5%, rgba(43, 217, 254, 0.10), transparent 70%),
+    radial-gradient(ellipse 55% 40% at 85% 105%, rgba(157, 107, 255, 0.10), transparent 70%);
   color: var(--app-text-primary);
   font-family: var(--font-family);
   min-height: 100vh;
@@ -37,12 +109,13 @@ body {
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--app-bg);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--app-border);
+  background: var(--app-border-strong);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {

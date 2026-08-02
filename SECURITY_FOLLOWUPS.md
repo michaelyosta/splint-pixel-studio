@@ -1,6 +1,72 @@
 # Повторная проверка security follow-ups
 
-Проверка: 28 июля 2026, основная ветка `origin/main` — `750b9f25cd7429b6ddeb63c7721f802951486b76`. Рабочая ветка `feature/public-alpha-hardening` — **draft PR #10**, поэтому её изменения не считаются исправлением основной ветки.
+## Актуальный снимок на 01.08.2026
+
+Повторная проверка выполнена на `main`, commit `782110afe05bb98936afd64a96c74171f658b306`. PR #10 (`feature/public-alpha-hardening`) уже смержен в основную ветку через commit `bf70ef3`; его исправления больше не являются `in_progress`. Исторические разделы ниже сохранены для аудиторского следа и описывают состояние до merge.
+
+| Статус | Количество security findings |
+|---|---:|
+| resolved | 10 |
+| partially_resolved | 4 |
+| open | 1 |
+| requires_environment_validation | 1 |
+| in_progress | 0 |
+
+| Severity | Open | Partially resolved | In progress | Resolved | Requires environment validation |
+|---|---:|---:|---:|---:|---:|
+| critical | 0 | 0 | 0 | 1 | 0 |
+| high | 0 | 1 | 0 | 5 | 1 |
+| medium | 1 | 2 | 0 | 3 | 0 |
+| low | 0 | 1 | 0 | 1 | 0 |
+
+| Finding | Текущий статус | Фактическое основание в текущем коде | Уровень подтверждения / остаточный риск |
+|---|---|---|---|
+| SEC-001 — AWS SDK / `fast-xml-parser` | resolved | `npm.cmd audit --omit=dev` и `npm.cmd --prefix server audit --omit=dev` возвращают 0 уязвимостей; обновление dependency tree находится в main после PR #10. Локальный MinIO upload/delete test проходит. | code + dependency audit + local S3-compatible runtime; cloud IAM/XML edge cases не проверены |
+| SEC-002 — произвольная разблокировка достижений | resolved | `server/routes/meta.js` возвращает `403 ACHIEVEMENT_UNLOCK_FORBIDDEN`; прямой вызов проверен в `server/test/api.integration.test.js`. | integration_tested; условия всех достижений в production не проверены |
+| SEC-003 — подмена прогресса раскраски | partially_resolved | `PUT /colorings/:id/progress` отключён; actions сверяются с `template.cells`, но карта шаблона доступна клиенту. | integration/E2E; остаётся автоматизация допустимых действий |
+| SEC-004 — доверие к `resultDataUrl` | open | `server/routes/colorings.js` принимает клиентский результат после формальной проверки data URL и сохраняет его как artwork; подробный разбор потока и вариантов server-authoritative render — [RESULT_IMAGE_INTEGRITY.md](docs/RESULT_IMAGE_INTEGRITY.md). | code_only; возможна публикация подменённого изображения |
+| SEC-005 — изображения, traversal и storage | partially_resolved | `safeLocalPath()` и local media tests закрывают локальный traversal; локальный MinIO integration test подтверждает upload/HeadObject/delete/404. | integration_tested locally; cloud ACL/retry/lifecycle и malformed-image handling требуют проверки |
+| SEC-006 — rate limiting | partially_resolved | глобальный IP limiter есть в `server/index.js`, но per-user/per-route и persistent store отсутствуют. | code_only; multi-instance abuse не закрыт |
+| SEC-007 — будущий Telegram `auth_date` | resolved | `validateTelegramInitData()` ограничивает clock skew 300 секунд; negative-case есть в `server/test/auth.integration.test.js`. | integration_tested; real Telegram WebView не проверен |
+| SEC-008 — раздувание analytics payload | resolved | `server/routes/meta.js` принимает только известные события и ограничивает payload 4096 байт; покрыто API/security tests. | integration_tested; quota на пользователя не добавлена |
+| SEC-009 — CORS/CSP production configuration | resolved | `server/config.js` требует HTTPS allowlist, production validation и Helmet; production configuration tests присутствуют. | code/unit tested; actual reverse proxy/domain не проверены |
+| SEC-010 — устаревший Telegram profile | partially_resolved | identity формируется сервером из Telegram ID, но существующий профиль не обновляется при каждом входе. | code_only; это stale-data риск, не identity bypass |
+| SEC-011 — произвольный `streak/touch` | resolved | endpoint всегда отвечает `403 STREAK_TOUCH_FORBIDDEN`; проверен API integration test. | integration_tested |
+| SEC-012 — production Telegram/deployment | requires_environment_validation | локальные Docker PostgreSQL (90/90) и MinIO (1/1) прошли, но production требует bot token, HTTPS domain, proxy, cloud S3 и backup/restore. | environment_verified locally only; нужен staging/production smoke-test |
+| SEC-013 — abuse reports | resolved | `server/services/reporting.js` выполняет дедупликацию, уникальный счётчик, дневной лимит и audit; security-hardening tests проходят. | SQLite integration tested; PostgreSQL runtime пропущен |
+| SEC-014 — утечка Stars/ban state через `GET /users` | resolved | маршрут ограничен `requireRole('moderator','admin')`; public DTO не содержит финансовые поля. | code/integration tested; deployed PG не проверен |
+| SEC-015 — IDOR чужих artworks | resolved | owner получает свои работы, посторонний — только связанные с активным публичным post. | security integration tested; deployed PG не проверен |
+| SEC-016 — banned user messages | resolved | `requireActiveUser()` вызывается до чувствительных routes и возвращает `ACCOUNT_BANNED`. | security integration tested; multi-instance production не проверен |
+
+### Что означает этот снимок
+
+`resolved` означает исправление в текущем `main` и подтверждение доступными локальными проверками. Локальные Docker PostgreSQL/MinIO теперь проверены отдельно, но это не означает проверку Telegram, cloud S3, production proxy или backup/restore. Изменения в текущем рабочем дереве, не вошедшие в `782110a`, не меняют статусы main до отдельного commit.
+
+### Активные проблемы в текущем main
+
+| Severity | Finding | Статус | Что реально осталось |
+|---|---|---|---|
+| high | SEC-003 — automation progress actions | partially_resolved | клиент видит карту шаблона и может автоматизировать допустимые действия; прямой full-map PUT отключён |
+| medium | SEC-004 — client-supplied `resultDataUrl` | open | сервер принимает формально валидный PNG от клиента и сохраняет его как artwork |
+| medium | SEC-005 — storage/image validation | partially_resolved | локальный traversal/MinIO закрыт тестами; cloud ACL, retry, lifecycle и decode/pixel limits не подтверждены |
+| medium | SEC-006 — rate limits | partially_resolved | есть общий IP limiter, но нет per-user/per-route persistent policy |
+| low | SEC-010 — stale Telegram profile | partially_resolved | identity HMAC-derived, но nickname/photo не обновляются при каждом входе |
+
+### Проблемы в работе
+
+Текущая проверка не обнаружила security-fix, существующий только в открытом или draft PR: `in_progress = 0`. Все исправления PR #10, которые вошли в `main` через `bf70ef3`, описаны как `resolved` только там, где это подтверждено текущим кодом и тестами.
+
+### Требуют реальной инфраструктуры
+
+SEC-012 остаётся `requires_environment_validation`: локальный production-like API с PostgreSQL/MinIO, strict CORS/CSP/HSTS и отказом без Telegram `initData` проверен 01.08.2026, но Telegram Mini App с настоящим `initData`, production HTTPS domain/reverse proxy, cloud S3/IAM, secrets, backup/restore и multi-instance behaviour не запускались. Локальные Docker PG/MinIO — отдельное положительное подтверждение, но не production sign-off.
+
+### Журнал текущей проверки
+
+| Дата | Finding | Старый статус | Новый статус | Основание |
+|---|---|---|---|---|
+| 2026-08-01 | SEC-001..016 | snapshot 28.07 / draft history | без изменения: 10 resolved, 4 partially_resolved, 1 open, 1 requires_environment_validation | main `782110a`; code review; grid benchmark; result integrity review; SQLite suite; PG 90/90; MinIO 1/1; E2E 110/4; audits 0 |
+
+## Историческая проверка на 28.07.2026 (до merge PR #10)
 
 ## Сводка
 
