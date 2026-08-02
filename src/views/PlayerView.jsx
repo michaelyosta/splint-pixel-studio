@@ -1,11 +1,102 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Star, Target, X } from 'lucide-react';
 import ColoringSession from '../features/coloring/ColoringSession';
 import LegacyPixelCanvas from '../components/LegacyPixelCanvas';
 import { getContextGoal } from '../lib/playLoop';
 import { isProgressComplete } from '../lib/pixelColoring';
+import { renderNumberedPreview } from '../lib/imageCrop';
+import { bindTelegramBackButton } from '../lib/telegram';
 
 const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE !== 'false';
+
+const FOCUSABLE_SELECTOR = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+/** Keeps Tab navigation inside a modal container while it is open. */
+function useFocusTrap(ref, active) {
+  useEffect(() => {
+    if (!active) return undefined;
+    const container = ref.current;
+    if (!container) return undefined;
+    const handleKey = (event) => {
+      if (event.key !== 'Tab') return;
+      const focusables = [...container.querySelectorAll(FOCUSABLE_SELECTOR)]
+        .filter((el) => !el.disabled && el.getClientRects().length > 0);
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', handleKey, true);
+    return () => document.removeEventListener('keydown', handleKey, true);
+  }, [ref, active]);
+}
+
+/** Turns a container into a swipe-down-to-close surface (mobile sheets). */
+function useSwipeDown(onClose) {
+  const dragRef = useRef(null);
+  const onTouchStart = useCallback((event) => {
+    const el = event.currentTarget;
+    if (el.scrollTop > 0) return;
+    dragRef.current = { y: event.touches[0].clientY, el, dy: 0 };
+  }, []);
+  const onTouchMove = useCallback((event) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dy = event.touches[0].clientY - drag.y;
+    if (dy <= 0) return;
+    drag.dy = dy;
+    drag.el.classList.add('dragging');
+    drag.el.style.transform = `translateY(${dy}px)`;
+  }, []);
+  const onTouchEnd = useCallback(() => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    if (!drag) return;
+    drag.el.classList.remove('dragging');
+    drag.el.style.transform = '';
+    if (drag.dy > 90) onClose();
+  }, [onClose]);
+  return { onTouchStart, onTouchMove, onTouchEnd };
+}
+
+/** «До/после» слайдер: пронумерованная сетка против готовой картины. */
+function CompareSlider({ before, after, title }) {
+  const trackRef = useRef(null);
+  const setSplit = useCallback((clientX) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const pct = Math.min(96, Math.max(4, ((clientX - rect.left) / rect.width) * 100));
+    track.style.setProperty('--split', `${pct}%`);
+  }, []);
+  const handlePointer = useCallback((event) => {
+    if (event.type === 'pointerdown') event.currentTarget.setPointerCapture(event.pointerId);
+    if (event.buttons !== 1 && event.type !== 'pointerdown') return;
+    setSplit(event.clientX);
+  }, [setSplit]);
+  return (
+    <div
+      className="compare-slider"
+      ref={trackRef}
+      role="img"
+      aria-label={`Сравнение сетки и готовой работы ${title}`}
+      onPointerDown={handlePointer}
+      onPointerMove={handlePointer}
+    >
+      <img className="compare-after" src={after} alt="" />
+      <img className="compare-before" src={before} alt="" />
+      <span className="compare-handle" aria-hidden="true" />
+      <span className="compare-tag before">Сетка</span>
+      <span className="compare-tag after">Готово</span>
+    </div>
+  );
+}
 
 export default function PlayerView({
   template,
@@ -58,6 +149,20 @@ export default function PlayerView({
   const [hudHidden, setHudHidden] = useState(false);
   const startPaintTimerRef = useRef(null);
   const completionDialogRef = useRef(null);
+  const bottomSheetRef = useRef(null);
+  const onboardingCardRef = useRef(null);
+
+  // Нативная кнопка «назад» Telegram ведёт в каталог, пока открыт плеер.
+  useEffect(() => bindTelegramBackButton(() => setView('catalog')), [setView]);
+
+  useFocusTrap(bottomSheetRef, menuOpen);
+  useFocusTrap(onboardingCardRef, onboarding !== null);
+  useFocusTrap(completionDialogRef, completionOpen);
+
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const closeCompletion = useCallback(() => setCompletionOpen(false), [setCompletionOpen]);
+  const menuSwipe = useSwipeDown(closeMenu);
+  const completionSwipe = useSwipeDown(closeCompletion);
 
   useEffect(() => {
     return () => {
@@ -78,6 +183,17 @@ export default function PlayerView({
     startPaintTimerRef.current = window.setTimeout(() => setHudHidden(true), 2500);
   };
   const showHud = () => { setHudHidden(false); declutter(); };
+
+  // «До» для слайдера сравнения: пронумерованная сетка этой же раскраски.
+  const complete = gameProgress ? isProgressComplete(gameProgress) : false;
+  const beforePreview = useMemo(() => {
+    if (!complete || !template) return null;
+    try {
+      return renderNumberedPreview(template.width, template.height, template.palette, template.cells);
+    } catch {
+      return null;
+    }
+  }, [complete, template]);
 
   if (!template || !progress || !gameProgress) {
     return <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div>;
@@ -100,6 +216,16 @@ export default function PlayerView({
       <div className="player-topbar">
         <button className="back-button" onClick={() => setView('catalog')}><ChevronLeft size={18} /></button>
         <span className="player-topbar-title">{template.title}</span>
+        <span className={`save-status${saving ? ' saving' : ''}`} role="status" aria-live="polite">
+          <span className="save-dot" aria-hidden="true" />{saving ? 'Сохраняем…' : 'Сохранено'}
+        </span>
+        <span className="player-progress" title={`Прогресс: ${gameProgress.percent}%`} aria-hidden="true">
+          <svg viewBox="0 0 38 38">
+            <circle className="player-progress-track" cx="19" cy="19" r="15" />
+            <circle className="player-progress-fill" cx="19" cy="19" r="15" style={{ strokeDasharray: `${(gameProgress.percent / 100) * 94.25} 94.25` }} />
+          </svg>
+          <b>{gameProgress.percent}</b>
+        </span>
         <button className="player-menu-btn" onClick={() => setMenuOpen(true)} aria-label="Меню игры"><span>•••</span></button>
       </div>
 
@@ -177,7 +303,16 @@ export default function PlayerView({
       )}
 
       {menuOpen && <div className="bottom-sheet-overlay" role="presentation" onClick={() => setMenuOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
-        <section className="bottom-sheet" role="dialog" aria-modal="true" aria-label="Меню игры" onClick={(e) => e.stopPropagation()}>
+        <section
+          className="bottom-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Меню игры"
+          ref={bottomSheetRef}
+          onClick={(e) => e.stopPropagation()}
+          {...menuSwipe}
+        >
+          <span className="bottom-sheet-handle" aria-hidden="true" />
           <button className="bottom-sheet-close" onClick={() => setMenuOpen(false)} aria-label="Закрыть меню"><X size={20} /></button>
           <h3>Меню игры</h3>
           <div className="bottom-sheet-zone">
@@ -207,7 +342,7 @@ export default function PlayerView({
       </div>}
 
       {onboarding !== null && <div className="onboarding-overlay" role="dialog" aria-label="Обучение">
-        <div className="onboarding-card">
+        <div className="onboarding-card" ref={onboardingCardRef}>
           <b>{[
             'Начнём с этого участка. Закрась выделенные клетки.',
             `Используй цвет №${selectedColor + 1}. Проведи по клеткам, чтобы закрасить сразу несколько.`,
@@ -222,10 +357,20 @@ export default function PlayerView({
       </div>}
 
       {isComplete && completionOpen && <div className="completion-overlay" role="presentation">
-        <section className="completion-dialog" ref={completionDialogRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="completion-title">
+        <section
+          className="completion-dialog"
+          ref={completionDialogRef}
+          tabIndex="-1"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="completion-title"
+          {...completionSwipe}
+        >
           <button className="completion-close" onClick={() => setCompletionOpen(false)} aria-label="Закрыть карточку результата"><X size={20} /></button>
           <div className="confetti" aria-hidden="true">✦ ◆ ✦</div>
-          <img src={completedPreview} alt={`Готовая работа ${template.title}`} />
+          {beforePreview
+            ? <CompareSlider before={beforePreview} after={completedPreview} title={template.title} />
+            : <img src={completedPreview} alt={`Готовая работа ${template.title}`} />}
           <p className="eyebrow">Картина раскрыта · {formatDifficulty(template.difficulty)}</p>
           <h2 id="completion-title">Картина раскрыта!</h2>
           <p className="completion-work-title">{template.title}</p>
