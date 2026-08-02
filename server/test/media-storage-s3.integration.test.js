@@ -45,6 +45,8 @@ test('S3: canonical media write/read/delete is idempotent by key', { skip: !hasS
   const second = await storeMediaObject({ key, body, contentType: 'image/png' });
   assert.equal(first, second);
   assert.deepEqual(await readMediaObject(first), body);
+  assert.deepEqual(await readMediaObject(key), body, 'plain canonical key must resolve through configured S3');
   await deleteMediaObject(first);
+  await deleteMediaObject(key);
   assert.equal(await readMediaObject(first).catch(() => null), null);
 });

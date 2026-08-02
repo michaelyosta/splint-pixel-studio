@@ -86,6 +86,18 @@ function s3Client() {
   });
 }
 
+function s3ObjectLocation(mediaKey) {
+  if (typeof mediaKey !== 'string' || !mediaKey) return null;
+  if (mediaKey.startsWith('s3://')) {
+    const [bucket, ...parts] = mediaKey.slice(5).split('/');
+    return { bucket, key: parts.join('/') };
+  }
+  if (isS3Configured() && !mediaKey.includes('://')) {
+    return { bucket: process.env.S3_BUCKET, key: mediaKey.replace(/^\/+/, '') };
+  }
+  return null;
+}
+
 function safeLocalPath(relativeSegments) {
   if (!relativeSegments || /[\\/]$/.test(relativeSegments)) throw new Error('Unsafe media path');
   const relative = relativeSegments.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
@@ -135,7 +147,11 @@ export async function deletePrivateOriginal(mediaKey) {
 }
 
 export function publicMediaUrl(storageKey) {
-  return `/media/${String(storageKey).split('/').map(encodeURIComponent).join('/')}`;
+  const normalized = String(storageKey || '')
+    .replace(/^s3:\/\/[^/]+\//, '')
+    .replace(/^local:\/\//, '')
+    .replace(/^\/+/, '');
+  return `/media/${normalized.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 export async function storeMediaObject({ key, body, contentType = 'application/octet-stream' }) {
@@ -155,9 +171,9 @@ export async function storeMediaObject({ key, body, contentType = 'application/o
 }
 
 export async function readMediaObject(mediaKey) {
-  if (mediaKey?.startsWith('s3://')) {
-    const [bucket, ...parts] = mediaKey.slice(5).split('/');
-    const response = await s3Client().send(new GetObjectCommand({ Bucket: bucket, Key: parts.join('/') }));
+  const s3Location = s3ObjectLocation(mediaKey);
+  if (s3Location) {
+    const response = await s3Client().send(new GetObjectCommand({ Bucket: s3Location.bucket, Key: s3Location.key }));
     return Buffer.from(await response.Body.transformToByteArray());
   }
   if (!mediaKey?.startsWith('local://')) return null;
@@ -166,11 +182,11 @@ export async function readMediaObject(mediaKey) {
 
 export async function deleteMediaObject(mediaKey) {
   if (!mediaKey) return;
-  if (mediaKey.startsWith('s3://')) {
-    const [bucket, ...parts] = mediaKey.slice(5).split('/');
+  const s3Location = s3ObjectLocation(mediaKey);
+  if (s3Location) {
     const client = s3Client();
     if (!client) return;
-    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: parts.join('/') }));
+    await client.send(new DeleteObjectCommand({ Bucket: s3Location.bucket, Key: s3Location.key }));
     return;
   }
   if (mediaKey.startsWith('local://')) {
