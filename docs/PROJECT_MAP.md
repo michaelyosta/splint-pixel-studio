@@ -821,3 +821,7 @@ Production Telegram/S3/proxy/backup runtime, deployment всего прилож�
 - Root/server production audits дают `0 vulnerabilities`; обновлять dependency tree по старому advisory больше не требуется.
 - Штатный `npm.cmd run test:e2e` завершён с `110 passed / 4 expected skipped`, exit 0; Docker PostgreSQL — `90/90`, MinIO — `1/1`.
 - Открытыми остаются client-supplied `resultDataUrl`, residual automation risk progress actions, глобальный limiter, non-transactional delete, stale Telegram profile и production-only проверки. Локальная рабочая копия дополнительно содержит намеренные, но ещё не закоммиченные UI/API/migration changes из классификации выше.
+
+## Current RC verification (2026-08-02)
+
+The review branch is a local public-alpha candidate without real payments. Root tests: 201 passed. Server tests: 163 passed, 56 skipped, 0 failed (54 PostgreSQL and 2 S3/MinIO skips). E2E: 110 passed, 4 expected skips. Lint is within the 100-warning budget at 89 warnings; build, syntax, and dependency audits pass. PostgreSQL, object storage, Telegram WebView, and backup/restore are not runtime-verified. Do not use the historical local Docker claims above as current evidence.

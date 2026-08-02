@@ -158,3 +158,19 @@
 - Дефолтные E2E-порты перенесены с dev-портов 5173/3001 на 5190/3012, поэтому штатный `npm run test:e2e` не конфликтует с обычными `npm run dev` и `npm run dev:api`.
 - Подтверждение на Windows: `npm run test:e2e` — **107 passed, 4 skipped, 0 failed**, exit 0 за 4,5 минуты. Skips — desktop-only wheel/free-exploration сценарии на двух мобильных профилях.
 - До merge этой ветки `FUNC-001` и `OPS-004` сохраняют статус `in_progress` относительно `main`; после merge обычный E2E запуск может стать обязательным CI-gate.
+
+## Current independent RC verification (2026-08-02)
+
+This addendum supersedes stale historical snapshots above. Verdict: `local_rc_partially_verified`.
+
+| Area | Current evidence | Remaining risk |
+|---|---|---|
+| Canonical completion/media | Server-side template+progress rendering, forged-client-result regression, deterministic artwork/thumbnail retry, and publish readiness are locally tested | no durable render outbox; production object storage pending |
+| Durable progress | Journal scoping, bounded replay, flush/dispose ordering, and shutdown rejection are unit-tested | real Telegram/mobile lifecycle pending |
+| Migrations 010-014 | SQLite clean/legacy/checksum/rerun coverage passes | PostgreSQL runtime and lock/data rehearsal pending |
+| Social and abuse | SQLite/code tests cover conditional counters, CAS/idempotency, cursors, batching, and atomic abuse updates | PostgreSQL concurrency and multi-instance store pending |
+| External gates | Not run in this environment | PostgreSQL, S3/MinIO, Telegram WebView, backup/restore, production credentials |
+
+Exact local results: root 201 passed; server 163 passed, 56 skipped, 0 failed; PostgreSQL command 40 passed, 54 skipped; E2E 110 passed, 4 skipped; syntax 39 files; lint 89 warnings/100; audits 0 vulnerabilities. See [remediation/FINAL_REPORT.md](remediation/FINAL_REPORT.md) for commands and detailed claim statuses.
+
+The historical findings and counts above are retained for audit traceability only and are not current release evidence.

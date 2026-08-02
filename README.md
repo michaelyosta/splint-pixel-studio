@@ -95,3 +95,9 @@ VITE_DEV_USER_ID=user_pixelhunter
 When `TELEGRAM_BOT_TOKEN` is configured, the server validates `X-Telegram-Init-Data` from Telegram Web Apps and creates a local user profile on first sign-in. `X-User-Id` is accepted only outside production or when `ALLOW_DEV_AUTH=true` is explicitly set.
 
 В production-режиме авторизацию через заголовок `X-User-Id` нужно заменить проверкой Telegram Mini Apps `initData`.
+
+## Public-alpha release-candidate posture (2026-08-02)
+
+This repository is a local public-alpha release candidate without real payments. Production defaults to `PAYMENTS_MODE=disabled`; internal credits are not Telegram Stars. Completion is server-authoritative, canonical feed media is thumbnail-based, and new canonical artwork rows do not store base64 images.
+
+Local verification passed: root tests 201/201, server tests 163 passed with 56 environment-conditional skips, E2E 110 passed with 4 expected skips, lint 89 warnings within the 100-warning budget, syntax/build checks passed, and dependency audits report 0 vulnerabilities. PostgreSQL, S3/MinIO, Telegram WebView, and backup/restore remain required external validation gates. See [docs/remediation/FINAL_REPORT.md](docs/remediation/FINAL_REPORT.md).

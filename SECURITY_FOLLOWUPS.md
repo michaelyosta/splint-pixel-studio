@@ -181,3 +181,5 @@ SEC-012 остаётся `requires_environment_validation`: локальный p
 | Large `App.jsx` refactor | `ARCH-002` в `docs/AUDIT_FINDINGS.md`, open; это технический долг, а не самостоятельная уязвимость. |
 | AWS SDK audit | `SEC-001`, in_progress в draft PR #10: на ветке audit 0 vulnerabilities, в `main` до merge остаётся уязвимое дерево. |
 | Database runtime integrity | `SF-012`, partially_resolved; CAS защищает от гонок, но не устраняет `SEC-003` client-authoritative progress. |
+
+> Current RC note (2026-08-02): this file contains a historical snapshot above. The current verdict is `local_rc_partially_verified`; use `docs/remediation/FINAL_REPORT.md` for authoritative evidence. Server completion no longer treats `resultDataUrl` as authoritative, media/feed safeguards and atomic abuse counters have local regression coverage, and PostgreSQL/S3/Telegram/restore remain pending.
