@@ -81,6 +81,13 @@ describe('media-storage local driver safety', () => {
     );
   });
 
+  it('rejects a malformed image with a valid data URL prefix', async () => {
+    await assert.rejects(
+      mod.storePrivateOriginal('data:image/png;base64,not-a-real-png', 'user_test'),
+      { message: 'Unsupported or oversized source image' },
+    );
+  });
+
   it('returns null for null input', async () => {
     const result = await mod.storePrivateOriginal(null, 'user_test');
     assert.equal(result, null);
