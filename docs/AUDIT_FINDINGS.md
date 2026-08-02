@@ -171,6 +171,6 @@ This addendum supersedes stale historical snapshots above. The current external 
 | Social and abuse | PostgreSQL CAS, payment/message concurrency, report concurrency, rollback and abuse SQL tests passed | Multi-instance scale and shared production store calibration pending |
 | External gates | Disposable PostgreSQL/MinIO, media sweep, database and object backup/restore, `/live`, readiness, and POSIX graceful shutdown passed | Telegram WebView, production credentials/IAM/retention, target-runtime deployment behavior |
 
-Exact results: root 201 passed; clean server aggregate 222 total with 166 passed and 56 skipped; external PostgreSQL 91 passed, 0 skipped; MinIO/S3 2 passed; E2E 110 passed, 4 skipped; syntax 44 files; lint 89 warnings/100; audits 0 vulnerabilities. See [remediation/FINAL_REPORT.md](remediation/FINAL_REPORT.md) and [remediation/EXTERNAL_VALIDATION.md](remediation/EXTERNAL_VALIDATION.md).
+Exact results: root 201 passed; clean server aggregate 223 total with 167 passed and 56 skipped; external PostgreSQL 91 passed, 0 skipped; MinIO/S3 2 passed; E2E 110 passed, 4 skipped; syntax 44 files; lint 89 warnings/100; audits 0 vulnerabilities. See [remediation/FINAL_REPORT.md](remediation/FINAL_REPORT.md) and [remediation/EXTERNAL_VALIDATION.md](remediation/EXTERNAL_VALIDATION.md).
 
 The historical findings and counts above are retained for audit traceability only and are not current release evidence.

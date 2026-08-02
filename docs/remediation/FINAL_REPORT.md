@@ -14,7 +14,7 @@ This is a local public-alpha release candidate without real payments. It is not 
 | Check | Result | Evidence classification |
 |---|---:|---|
 | Root tests (`npm test`) | 201 passed, 0 skipped, 0 failed | verified locally |
-| Server aggregate (`npm --prefix server test`) | 222 total: 166 passed, 56 skipped, 0 failed | SQLite/local gate; skips are environment-conditional PostgreSQL/S3 cases |
+| Server aggregate (`npm --prefix server test`) | 223 total: 167 passed, 56 skipped, 0 failed | SQLite/local gate; skips are environment-conditional PostgreSQL/S3 cases |
 | PostgreSQL external suite (`npm --prefix server run test:postgres`) | 91 passed, 0 skipped, 0 failed | verified against disposable PostgreSQL 16.14 |
 | S3/MinIO integration | 2 passed, 0 skipped, 0 failed | verified against disposable MinIO |
 | Browser E2E (`npm run test:e2e`) | 114 total: 110 passed, 4 skipped, 0 failed | local Chromium; four expected desktop-only/mobile-profile skips |
