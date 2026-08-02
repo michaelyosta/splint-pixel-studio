@@ -1,5 +1,16 @@
 import { isIP } from 'node:net';
 
+export const PAYMENT_MODES = Object.freeze(['disabled', 'internal_credits', 'telegram_stars']);
+
+export function getPaymentsMode(env = process.env) {
+  const defaultMode = env.NODE_ENV === 'production' ? 'disabled' : 'internal_credits';
+  const mode = String(env.PAYMENTS_MODE || defaultMode).trim().toLowerCase();
+  if (!PAYMENT_MODES.includes(mode)) {
+    throw new Error(`PAYMENTS_MODE must be one of: ${PAYMENT_MODES.join('|')}`);
+  }
+  return mode;
+}
+
 function parseOrigins(raw) {
   const origins = String(raw || '').split(',').map((value) => value.trim()).filter(Boolean);
   if (!origins.length) throw new Error('CORS_ORIGINS is required in production');
@@ -36,9 +47,23 @@ export function validateProductionConfiguration(env = process.env) {
     return { isProduction: false, allowedOrigins: [], trustProxy: false };
   }
 
+  const paymentsMode = getPaymentsMode(env);
+
   if (env.ALLOW_DEV_AUTH === 'true') throw new Error('ALLOW_DEV_AUTH cannot be enabled in production');
   if (!env.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required in production');
   if (env.SEED_DEMO_DATA === 'true') throw new Error('SEED_DEMO_DATA cannot be enabled in production');
+
+  if (paymentsMode === 'telegram_stars') {
+    const paymentRequired = [
+      'TELEGRAM_PAYMENTS_WEBHOOK_SECRET',
+      'TELEGRAM_PAYMENT_SUPPORT',
+      'TELEGRAM_PAYMENT_REFUND_CONTACT',
+    ];
+    const missingPayments = paymentRequired.filter((name) => !String(env[name] || '').trim());
+    if (missingPayments.length) {
+      throw new Error(`PAYMENTS_MODE=telegram_stars requires: ${missingPayments.join(', ')}`);
+    }
+  }
 
   const required = ['DATABASE_URL', 'S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];
   const missing = required.filter((name) => !String(env[name] || '').trim());
@@ -56,5 +81,6 @@ export function validateProductionConfiguration(env = process.env) {
     isProduction: true,
     allowedOrigins,
     trustProxy: trustProxyValues.map(parseProxyAddress),
+    paymentsMode,
   };
 }

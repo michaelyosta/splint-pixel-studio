@@ -19,8 +19,13 @@
     "seed:demo": "node seed-demo.js",
     "reset:demo": "node reset-demo.js",
     "check": "node scripts/check.js",
-    "test": "node --test test/*.test.js",
-    "test:sqlite": "node --test test/*.test.js",
+    "test": "node --test \"test/*.test.js\"",
+    "test:sqlite": "node --test \"test/*.test.js\"",
+    "backup:postgres": "node scripts/backup-postgres.mjs",
+    "restore:postgres": "node scripts/restore-postgres.mjs",
+    "inventory:media": "node scripts/inventory-media.mjs",
+    "media:sweep": "node scripts/sweep-media.mjs",
+    "storage:init": "node scripts/init-s3-bucket.mjs",
     "test:postgres": "node --test test/database.test.js test/postgres-database.test.js test/postgres-demo-seed.test.js test/postgres-content-integrity-migration.test.js test/postgres-production-security.test.js test/postgres-security-hardening.test.js test/postgres-stars-transactions.test.js test/postgres-http-stars-transactions.test.js"
   },
   "dependencies": {
