@@ -121,5 +121,17 @@ export function createSaveQueue({ putProgress, getResultDataUrl, onProgress, onN
     }, DEBOUNCE_MS);
   }
 
-  return { queueSave, reset, dispose };
+  /**
+   * Forces any debounced state to be written immediately. Used when the
+   * player leaves the screen so the latest strokes are not lost.
+   */
+  function flush() {
+    if (state.disposed) return Promise.resolve();
+    if (state.saveTimer) clearTimeout(state.saveTimer);
+    state.saveTimer = null;
+    if (!state.pendingFilled) return Promise.resolve();
+    return drain();
+  }
+
+  return { queueSave, reset, dispose, flush };
 }

@@ -1,6 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 
-export default function ColoringPalette({ template, filled, selectedColor, onSelectColor, disabled }) {
+const LONG_PRESS_MS = 450;
+
+export default function ColoringPalette({ template, filled, selectedColor, onSelectColor, disabled, onPeekColor }) {
+  const pressTimerRef = useRef(null);
+  const peekingRef = useRef(false);
+  const suppressClickRef = useRef(false);
+
   const colorInfo = useMemo(() => {
     if (!template) return [];
     return template.palette.map((color, index) => {
@@ -10,6 +16,29 @@ export default function ColoringPalette({ template, filled, selectedColor, onSel
     });
   }, [template, filled]);
 
+  function cancelPress() {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    if (peekingRef.current) {
+      peekingRef.current = false;
+      suppressClickRef.current = true;
+      onPeekColor?.(null);
+    }
+  }
+
+  function handlePressStart(index) {
+    if (disabled || !onPeekColor) return;
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    pressTimerRef.current = setTimeout(() => {
+      pressTimerRef.current = null;
+      peekingRef.current = true;
+      onPeekColor(index);
+      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
+    }, LONG_PRESS_MS);
+  }
+
   return (
     <div className="palette" aria-label="Палитра цветов">
       {colorInfo.map((info) => (
@@ -18,9 +47,18 @@ export default function ColoringPalette({ template, filled, selectedColor, onSel
           className={`color-swatch ${selectedColor === info.index ? 'selected' : ''} ${info.completed ? 'completed' : ''}`}
           onClick={() => {
             if (disabled) return;
+            if (suppressClickRef.current) {
+              suppressClickRef.current = false;
+              return;
+            }
             onSelectColor(info.index);
             window.Telegram?.WebApp?.HapticFeedback?.selectionChanged?.();
           }}
+          onPointerDown={() => handlePressStart(info.index)}
+          onPointerUp={cancelPress}
+          onPointerLeave={cancelPress}
+          onPointerCancel={cancelPress}
+          onContextMenu={(event) => event.preventDefault()}
           disabled={disabled}
           title={`Цвет ${info.index + 1}`}
         >
