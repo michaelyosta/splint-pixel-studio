@@ -1099,3 +1099,6 @@ npm --prefix server run test:postgres
 20. В рабочем дереве нет случайных изменений, временных файлов, секретов и закомментированных обходных решений.
 
 Если внешний runtime недоступен, не останавливай техническую работу. Заверши весь код, автоматизацию и runbooks, после чего выдай точный список ручных проверок с командами и ожидаемыми результатами. Не объявляй Gate C достигнутым без настоящего Telegram payment evidence.
+## Final operational-validation addendum (2026-08-02)
+
+The disposable operational pass is `operational_rc_verified_except_telegram`. It verified PostgreSQL migrations/replay and 91/91 PostgreSQL tests, MinIO/S3 media 2/2, a 63,633-byte database restore, a manifest/checksum object archive of 4 objects/221 bytes with repeated idempotent restore, `/live` and `/ready`, and a POSIX Node 22 SIGTERM graceful-shutdown harness. Telegram WebView/mobile lifecycle, real `initData` over HTTPS, production credentials/IAM/retention, target-runtime behavior, and real Telegram Stars remain environment-dependent. See `docs/remediation/FINAL_REPORT.md`, `docs/remediation/EXTERNAL_VALIDATION.md`, and `docs/remediation/TELEGRAM_WEBVIEW_VALIDATION.md`.

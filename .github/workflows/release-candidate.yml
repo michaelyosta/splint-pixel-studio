@@ -57,6 +57,34 @@ jobs:
       - run: npm --prefix server run test:postgres
       - run: npm --prefix server run migrate:postgres
       - run: npm --prefix server test
+      - name: POSIX liveness and graceful shutdown
+        run: node server/scripts/graceful-shutdown-posix.mjs
+      - name: S3 object backup and restore roundtrip
+        shell: bash
+        env:
+          OBJECT_BACKUP_DIR: ${{ runner.temp }}/splint-object-backup
+          RESTORE_S3_ENDPOINT: http://127.0.0.1:9000
+          RESTORE_S3_BUCKET: splint-object-recovery
+          RESTORE_S3_ACCESS_KEY_ID: splint_minio
+          RESTORE_S3_SECRET_ACCESS_KEY: splint_minio_password
+        run: |
+          node --input-type=module <<'NODE'
+          import { PutObjectCommand } from '@aws-sdk/client-s3';
+          import { clientFromEnv } from './server/scripts/object-backup-common.mjs';
+          const client = clientFromEnv();
+          await client.send(new PutObjectCommand({
+            Bucket: process.env.S3_BUCKET,
+            Key: 'ci/object-backup-fixture.txt',
+            Body: Buffer.from('disposable object-backup fixture\n'),
+            ContentType: 'text/plain',
+          }));
+          NODE
+          npm --prefix server run backup:objects -- --dry-run
+          npm --prefix server run backup:objects -- --apply
+          npm --prefix server run verify:object-backup
+          npm --prefix server run restore:objects -- --dry-run
+          CONFIRM_OBJECT_RESTORE=YES npm --prefix server run restore:objects -- --apply
+          CONFIRM_OBJECT_RESTORE=YES npm --prefix server run restore:objects -- --apply
       - run: npm run lint
       - run: npm run build
       - run: npm audit --omit=dev

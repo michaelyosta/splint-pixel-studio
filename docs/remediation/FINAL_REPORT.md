@@ -1,71 +1,97 @@
 # Public-alpha release-candidate final verification
 
 Date of verification: 2026-08-02
-Base commit: `140f122` (`docs: map project and deployment readiness`)
+Base commit: `140f1226f62dbbd220de2b255268564e9df8910d`
+Pre-pass HEAD: `7e65ea401ae3e853a9d9baf338dc40f443ad61aa`
 Branch: `release/public-alpha-rc1`
-External validation code commit: `dc609f2`
-Final documentation commit: see the final `git log` handoff after this report update
-Release verdict: `infrastructure_rc_partially_verified`
+Final commit: the final documentation commit containing this report; authoritative SHA is recorded by the final `git rev-parse HEAD` handoff.
+Release verdict: `operational_rc_verified_except_telegram`
 
-This is a local public-alpha release candidate without real payments. It is not production-ready. Disposable PostgreSQL, MinIO/S3, migration replay, concurrency, media sweep, backup/restore and readiness checks passed in this external pass. Telegram WebView, real Telegram Stars, production credentials, object-storage backup/restore, POSIX graceful signals and `/live` remain unresolved.
+This is a local public-alpha release candidate without real payments. It is not production-ready. PostgreSQL, disposable object storage, database/object restore, liveness, and POSIX shutdown now have evidence. Telegram WebView/mobile lifecycle, real Telegram Stars, production credentials/IAM/retention, and target deployment behavior remain required external gates.
 
 ## Exact verification results
 
 | Check | Result | Evidence classification |
 |---|---:|---|
 | Root tests (`npm test`) | 201 passed, 0 skipped, 0 failed | verified locally |
-| Server aggregate (`npm --prefix server test`) | 219 total: 163 passed, 56 skipped, 0 failed | SQLite/local code gate; 54 PostgreSQL and 2 S3 cases are conditional in this command |
-| PostgreSQL external suite (`npm --prefix server run test:postgres`) | 91 total: 91 passed, 0 skipped, 0 failed | verified against disposable PostgreSQL 16.14 |
+| Server aggregate (`npm --prefix server test`) | 222 total: 166 passed, 56 skipped, 0 failed | SQLite/local gate; skips are environment-conditional PostgreSQL/S3 cases |
+| PostgreSQL external suite (`npm --prefix server run test:postgres`) | 91 passed, 0 skipped, 0 failed | verified against disposable PostgreSQL 16.14 |
 | S3/MinIO integration | 2 passed, 0 skipped, 0 failed | verified against disposable MinIO |
-| Browser E2E (`npm run test:e2e`) | 114 total: 110 passed, 4 skipped, 0 failed | verified locally; skips are expected desktop-only wheel scenarios |
-| Server syntax check | 39 files passed | verified by `npm --prefix server run check` |
-| Lint | exit 0; 89 warnings, 0 errors, budget 100 | verified; warning backlog remains |
+| Browser E2E (`npm run test:e2e`) | 114 total: 110 passed, 4 skipped, 0 failed | local Chromium; four expected desktop-only/mobile-profile skips |
+| Server syntax check | 44 files passed | verified by `npm --prefix server run check` |
+| Lint | exit 0; 89 warnings, 0 errors, budget 100 | verified; pre-existing warning backlog remains |
 | Production build | passed | verified by Vite build |
-| Dependency audits | root and server: 0 vulnerabilities | verified by `npm audit --omit=dev` and server equivalent |
-| Clean installs | root and server `npm ci` passed | verified locally |
-| Backup/restore | passed in disposable PostgreSQL | 71,900-byte dump; SHA-256 `77dbd92713b8af0e6ede850df3139e16ed32acf7b983a200e9fdddc934ce2052`; restored `schema_migrations=14:014`, users=31 |
+| Dependency audits | root and server: 0 vulnerabilities | verified by both `npm audit --omit=dev` commands |
+| Clean installs | root and server `npm ci` passed | lockfiles consistent |
+| POSIX liveness/shutdown | passed in Node 22 Linux container; Windows host run explicitly skips | `/live` 200, `/ready` 200, SIGTERM exit 0, shutdown `forced:false` |
+| Object backup/restore | 4 objects, 221 bytes; archive and repeated restore verified | manifest SHA-256 `1bc10f54c24a08d37408909ef433a6a16d92e9b749850b3ceb873ae6ccf51416` |
+| Database backup/restore | passed; 63,633-byte custom-format dump | SHA-256 `cc094d82f72c8b5e81a1df08551e10f90000844dbf390d545b8cb2b7bd6f964b` |
 
-The earlier 4-failure result came from running the SQLite child-process aggregate with PG/S3 variables inherited. Those tests explicitly create temporary SQLite fixtures but do not clear inherited external driver variables. The canonical clean aggregate and the separate external suites above are the authoritative results.
+The server aggregate had one initial startup-timeout under concurrent Windows process load; the isolated API integration test and the immediate repeat of the full aggregate passed. No test was skipped or loosened to hide that observation.
 
 ## Claim-level verdicts
 
 ### Verified by code and tests
 
-- Production defaults fail closed with `PAYMENTS_MODE=disabled`; real Telegram Stars are not connected and internal credits are not described as Stars.
+- Production defaults fail closed with `PAYMENTS_MODE=disabled`; real Telegram Stars are not connected and internal credits are not represented as Stars.
 - Canonical completion derives the final image from server template/progress state; client `resultDataUrl` is not authoritative or persisted as the canonical result.
-- Repeated completion is idempotent for the artwork and deterministic canonical media keys. Publication requires `render_status=ready`.
+- Repeated completion is idempotent for the artwork and deterministic canonical media keys. Publication requires `render_status=ready`; production simulate-completion is absent.
 - Achievement grants are transactional/idempotent; the verified thresholds are style at 3 and completion at 5.
-- The production simulate-completion endpoint is absent.
-- IndexedDB journal scope, compaction, replay, `flushAndDispose()` and shutdown snapshot rejection are covered by local tests; Telegram/mobile lifecycle remains manual.
-- Canonical media is bounded and server-derived; feed payload smoke returned no base64 or private storage URLs, bounded the requested page to 30, and rejected malformed cursors.
-- PostgreSQL CAS, payment/message idempotency, rollback, report concurrency, moderation audit, shared abuse-counter SQL behavior and migrations passed against disposable PostgreSQL.
-- MinIO private-original lifecycle, canonical media write/read/delete idempotency, and explicit media sweep behavior passed against disposable MinIO.
+- IndexedDB journal scope, compaction/limits, replay, `flushAndDispose()`, shutdown rejection, and client batch idempotency are locally covered. Actual Telegram/mobile suspension remains manual.
+- Feed DTOs are bounded and cursor-paginated; payload smoke returned no base64 or private storage URL. Canonical thumbnails are used for feed media.
+- PostgreSQL CAS, message/payment/report concurrency, rollback, moderation audit, shared abuse SQL behavior, and migrations 001–014 passed against disposable PostgreSQL.
+- S3 media write/read/delete idempotency, malformed-image decode limits, media inventory/sweep, object manifest checksum, archive verification, additive restore, and repeated restore passed against disposable MinIO.
+- `/live` is dependency-independent and remains available during shutdown drain. POSIX SIGTERM was observed as a graceful exit with structured shutdown log and no stderr stack.
 
-### Partially verified or unresolved
+### Partially verified or environment-dependent
 
-- Recovery is deterministic retry-on-replay; there is no durable render outbox/worker and no claim of crash-safe outbox semantics.
-- The feed route uses one bounded joined query by code review, but `feedQueryCount` is not populated and production query/latency budgets were not measured.
-- Backup/restore was verified for the PostgreSQL database. S3 object backup/restore was not part of the drill.
-- `/health`, `/ready` and `/metrics` were runtime-checked. `/ready` returned 503 when disposable MinIO was stopped. `/live` is not implemented and returned 404.
-- Graceful shutdown code is present, but Windows child signal delivery terminated the probe before the handler log could be observed; validate SIGTERM/SIGINT in the target container/runtime.
-- Real Telegram initData over HTTPS, Telegram WebView suspension/pagehide, production proxy, IAM, monitoring and credentials remain external gates.
+- Completion recovery is deterministic retry-on-replay; there is no durable render outbox or claim of crash-safe worker semantics.
+- Feed query count and production latency budgets are code-reviewed but not measured against production-scale data; the `feedQueryCount` metric is not populated.
+- Database and object restore were coordinated against disposable targets. Production retention, encryption, IAM, offsite replication, CDN, and host `pg_dump` availability remain environment gates.
+- Telegram `initData` over real HTTPS, iOS/Android WebView pagehide/background behavior, proxy routing, and device-specific save/reload require the manual package in [TELEGRAM_WEBVIEW_VALIDATION.md](TELEGRAM_WEBVIEW_VALIDATION.md).
 
-## Migrations 010-014
+## Migrations 010–014
 
-The external run exercised the complete PostgreSQL chain `001`–`014`, including `010`–`014`. A clean run applied 14 migrations; the repeat run applied 0 and skipped 14. `schema_migrations` contained all versions through `014`; checksum, index, foreign-key/unique and render-status constraint checks passed through the PostgreSQL suite. The legacy/data-copy cases passed in the suite. Production-sized lock duration and a prior production schema copy remain staging work.
+The disposable PostgreSQL run exercised the complete chain `001`–`014`, including `010`, `011`, `012`, `013`, and `014`. A clean run applied 14 migrations; a repeat applied 0 and skipped 14. Schema checksums, representative foreign keys/unique constraints/indexes, legacy/data-copy paths, and schema-dependent tests passed. Production-sized lock duration and a prior production schema copy remain staging work.
 
-## External validation record
+## Release gates and CI
 
-Detailed evidence, disposable reproduction commands and remaining gates are in [EXTERNAL_VALIDATION.md](EXTERNAL_VALIDATION.md). The external run used a separate Compose project and did not touch the existing local database, uploads, or user files.
+The release workflow installs root/server dependencies, runs root/server/PG tests, migration replay, lint, build, E2E, media inventory/sweep, POSIX shutdown, disposable object backup/restore, backup-script syntax checks, audits, and tracked-artifact hygiene. No production secret is required by these disposable gates. The workflow is triggered only by manual dispatch or an explicitly created `v*` tag; no tag was created in this pass.
+
+## Manual validation commands
+
+Use only disposable values and keep them in the process environment:
+
+```bash
+npm ci
+npm --prefix server ci
+npm test
+npm --prefix server run check
+npm --prefix server test
+npm run lint
+npm run build
+npm run test:e2e
+npm --prefix server run migrate:postgres
+npm --prefix server run test:postgres
+node --test server/test/media-storage-s3.integration.test.js
+node server/scripts/graceful-shutdown-posix.mjs
+npm --prefix server run backup:objects -- --dry-run
+npm --prefix server run backup:objects -- --apply
+npm --prefix server run verify:object-backup
+npm --prefix server run restore:objects -- --dry-run
+CONFIRM_OBJECT_RESTORE=YES npm --prefix server run restore:objects -- --apply
+CONFIRM_OBJECT_RESTORE=YES npm --prefix server run restore:objects -- --apply
+```
+
+For disposable infrastructure, use `docker compose up -d postgres minio minio-init`, run the migration and storage commands from [EXTERNAL_VALIDATION.md](EXTERNAL_VALIDATION.md), then destroy only the verified disposable Compose project. For Telegram/WebView use [TELEGRAM_WEBVIEW_VALIDATION.md](TELEGRAM_WEBVIEW_VALIDATION.md); do not record `initData`, tokens, cookies, auth headers, or personal messages.
 
 ## Rollback and workspace safety
 
-- Roll back application code only to a reviewed release-candidate commit; do not use destructive reset, clean, checkout or restore commands on this working copy.
-- Treat migrations as forward-only. Restore a backup into a disposable target and verify integrity before any traffic cutover.
+- Roll back application code only to a reviewed RC commit. Do not use destructive reset/clean/checkout/restore commands on this working copy.
+- Treat migrations as forward-only. Restore database and objects into separate disposable recovery targets, verify schema/counts/checksums, then obtain owner approval before any traffic switch.
+- Object restore is additive and intentionally does not delete destination-only objects. Review reconciliation before using it for an incident.
 - Never commit `.env` files, credentials, private keys, database files, uploads, MinIO data, traces, screenshots, videos, coverage, logs, build output, backup archives, patch snapshots, or local test artifacts.
-- Intentionally outside the commits for owner review: `server/index.js`, `src/lib/imageCrop.js`, `src/lib/pixelColoring.js`, and the ignored local database `server/splint-preview-20260729.db.bin`.
-- The pre-review patch/status snapshots are outside the repository and are not release artifacts.
 
-## Explicitly unresolved before public rollout
+Intentionally outside commits for owner review/protection: `src/lib/imageCrop.js`, `src/lib/pixelColoring.js`, `server/splint-preview-20260729.db.bin`, `server/uploads/`, and the external pre-review patch/status snapshots. The local database and uploads were inventory-read only and preserved.
 
-Allowed posture: `Local public-alpha release candidate without real payments. PostgreSQL, object storage, Telegram WebView and restore validation remain required.` The external disposable PG/MinIO and PostgreSQL restore gates now have evidence, but this does not authorize a production rollout or a fully verified public release. No tag, push, pull request, release, deployment, BotFather change, Telegram Stars change, or production-secret change was performed.
+No tag, push, pull request, release, deployment, BotFather change, Telegram Stars change, or production-secret change was performed.

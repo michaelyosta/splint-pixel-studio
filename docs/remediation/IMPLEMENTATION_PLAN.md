@@ -2,7 +2,7 @@
 
 ## Independent final-review addendum (2026-08-02)
 
-The plan below is historical implementation guidance. The external validation pass concluded `infrastructure_rc_partially_verified`: disposable PostgreSQL 16.14, MinIO/S3, migrations, concurrency, media sweep, PostgreSQL backup/restore and readiness checks passed. Telegram WebView, real Telegram Stars, production credentials, object-storage backup/restore, `/live`, and target-runtime graceful signals remain gates. Exact counts and caveats are in [FINAL_REPORT.md](FINAL_REPORT.md) and [EXTERNAL_VALIDATION.md](EXTERNAL_VALIDATION.md).
+The plan below is historical implementation guidance. The final operational pass concluded `operational_rc_verified_except_telegram`: disposable PostgreSQL 16.14, MinIO/S3 media and object backup/restore, migrations, concurrency, media sweep, PostgreSQL backup/restore, `/live`, and POSIX graceful shutdown passed. Telegram WebView, real Telegram Stars, production credentials, production IAM/retention, and target deployment behavior remain gates. Exact counts and caveats are in [FINAL_REPORT.md](FINAL_REPORT.md) and [EXTERNAL_VALIDATION.md](EXTERNAL_VALIDATION.md).
 
 The completion path has deterministic retry-on-replay for canonical artwork and media keys, but it does not include a durable render outbox. The external S3 suite and PostgreSQL suite passed only against disposable services; production IAM, scale, Telegram WebView, and restore of object storage remain unverified.
 
@@ -64,12 +64,12 @@ The completion path has deterministic retry-on-replay for canonical artwork and 
 
 ## Phase 6 — operations and release gates
 
-Статус: `partially_resolved`; disposable PostgreSQL/MinIO and database restore passed, while platform-specific and production drills remain pending.
+Статус: `partially_resolved`; disposable PostgreSQL/MinIO, coordinated database/object recovery, liveness, and POSIX shutdown passed, while platform-specific and production drills remain pending.
 
 - `/health`, `/ready`, structured request logs, JSON metrics and graceful shutdown exist.
-- Backup/restore and media inventory scripts exist for PostgreSQL/S3 workflows.
-- Release-candidate CI runs install, tests, check, lint, build and media inventory.
-- Docker/PostgreSQL/MinIO disposable rehearsal and PostgreSQL restore drill passed; repeat against a prior production-sized schema, object-storage backup and target runtime before public rollout.
+- Backup/restore and media inventory scripts exist for PostgreSQL/S3 workflows; object restore is manifest/checksum verified and additive.
+- Release-candidate CI runs install, unit/server/PG tests, migration replay, POSIX shutdown, object backup/restore, lint, build, E2E and artifact checks.
+- Docker/PostgreSQL/MinIO disposable rehearsal, coordinated database/object recovery smoke, and POSIX shutdown passed; repeat against a prior production-sized schema and target runtime before public rollout.
 
 ## Phase 7 — architecture and documentation
 

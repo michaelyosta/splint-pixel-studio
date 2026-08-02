@@ -165,12 +165,12 @@ This addendum supersedes stale historical snapshots above. The current external 
 
 | Area | Current evidence | Remaining risk |
 |---|---|---|
-| Canonical completion/media | Server-side template+progress rendering, forged-client-result regression, deterministic artwork/thumbnail retry, and publish readiness are locally tested | no durable render outbox; production object storage pending |
+| Canonical completion/media | Server-side template+progress rendering, forged-client-result regression, deterministic artwork/thumbnail retry, publish readiness, plain canonical S3 key resolution, and disposable object recovery smoke are verified | no durable render outbox; production IAM/CDN/retention pending |
 | Durable progress | Journal scoping, bounded replay, flush/dispose ordering, and shutdown rejection are unit-tested | real Telegram/mobile lifecycle pending |
 | Migrations 010-014 | PostgreSQL clean/repeat/legacy/checksum paths passed; 14 applied then 14 skipped | Production-sized lock/data rehearsal pending |
 | Social and abuse | PostgreSQL CAS, payment/message concurrency, report concurrency, rollback and abuse SQL tests passed | Multi-instance scale and shared production store calibration pending |
-| External gates | Disposable PostgreSQL/MinIO, media sweep, database backup/restore and readiness passed | Telegram WebView, production credentials, object-storage restore, `/live`, target-runtime graceful signals |
+| External gates | Disposable PostgreSQL/MinIO, media sweep, database and object backup/restore, `/live`, readiness, and POSIX graceful shutdown passed | Telegram WebView, production credentials/IAM/retention, target-runtime deployment behavior |
 
-Exact results: root 201 passed; clean server aggregate 219 total with 163 passed and 56 skipped; external PostgreSQL 91 passed, 0 skipped; MinIO/S3 2 passed; E2E 110 passed, 4 skipped; syntax 39 files; lint 89 warnings/100; audits 0 vulnerabilities. See [remediation/FINAL_REPORT.md](remediation/FINAL_REPORT.md) and [remediation/EXTERNAL_VALIDATION.md](remediation/EXTERNAL_VALIDATION.md).
+Exact results: root 201 passed; clean server aggregate 222 total with 166 passed and 56 skipped; external PostgreSQL 91 passed, 0 skipped; MinIO/S3 2 passed; E2E 110 passed, 4 skipped; syntax 44 files; lint 89 warnings/100; audits 0 vulnerabilities. See [remediation/FINAL_REPORT.md](remediation/FINAL_REPORT.md) and [remediation/EXTERNAL_VALIDATION.md](remediation/EXTERNAL_VALIDATION.md).
 
 The historical findings and counts above are retained for audit traceability only and are not current release evidence.

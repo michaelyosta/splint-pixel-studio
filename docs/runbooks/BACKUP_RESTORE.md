@@ -29,7 +29,34 @@ The second migration run must apply zero migrations. The inventory is read-only;
 npm --prefix server run backup:postgres
 ```
 
-The command requires `DATABASE_URL`, writes a timestamped custom `pg_dump` and a SHA-256 sidecar. Copy both outside the application host. For media, run an S3/MinIO inventory and sync to a separately protected location; do not use an unreviewed `--delete` restore.
+The command requires `DATABASE_URL`, writes a timestamped custom `pg_dump` and a SHA-256 sidecar. Copy both outside the application host. For media, use the manifest-based S3/MinIO archive below; it is additive and does not delete destination objects.
+
+## Object-storage backup and restore
+
+Use a disposable or separately protected archive directory outside the repository. The default mode is dry-run; `--apply` is explicit. The manifest and its `.sha256` sidecar cover every archived object, and restore verifies each uploaded object by byte count and SHA-256.
+
+```bash
+export STORAGE_DRIVER=s3
+export S3_ENDPOINT=http://127.0.0.1:9000
+export S3_BUCKET=splint-originals
+export S3_ACCESS_KEY_ID=<disposable-access-key>
+export S3_SECRET_ACCESS_KEY=<disposable-secret-key>
+export OBJECT_BACKUP_DIR=/path/outside/repository/object-backup
+
+npm --prefix server run backup:objects -- --dry-run
+npm --prefix server run backup:objects -- --apply
+npm --prefix server run verify:object-backup
+
+export RESTORE_S3_ENDPOINT=http://127.0.0.1:9000
+export RESTORE_S3_BUCKET=splint-recovery
+export RESTORE_S3_ACCESS_KEY_ID=<disposable-access-key>
+export RESTORE_S3_SECRET_ACCESS_KEY=<disposable-secret-key>
+npm --prefix server run restore:objects -- --dry-run
+CONFIRM_OBJECT_RESTORE=YES npm --prefix server run restore:objects -- --apply
+CONFIRM_OBJECT_RESTORE=YES npm --prefix server run restore:objects -- --apply
+```
+
+The second apply is the idempotency rehearsal. It does not remove destination-only objects; compare the manifest and inventory before traffic cutover. Production retention, encryption, IAM, offsite replication, and CDN behavior remain environment gates.
 
 ## Restore rehearsal
 
@@ -41,7 +68,7 @@ CONFIRM_RESTORE=YES DATABASE_URL="$RECOVERY_DATABASE_URL" \
 
 Restore only into a disposable recovery database unless an incident owner has approved a production recovery window. Verify `schema_migrations`, users, progress, artworks, posts, ledger tables and media inventory before switching traffic.
 
-Verify the `.sha256` sidecar before restore, restore only into a disposable recovery database, run authenticated smoke checks and `/ready`, and compare representative object checksums. `docker compose down -v` destroys the disposable database and MinIO volume; use it only after the rehearsal is complete and the data is explicitly disposable.
+Verify the `.sha256` sidecar before restore, restore only into a disposable recovery database and object bucket, run authenticated smoke checks and `/ready`, and compare representative object checksums. `docker compose down -v` destroys the disposable database and MinIO volume; use it only after the rehearsal is complete and the data is explicitly disposable.
 
 ## Incident recovery
 
