@@ -2,9 +2,9 @@
 
 ## Independent final-review addendum (2026-08-02)
 
-The plan below is historical implementation guidance. The independent local verification concluded `local_rc_partially_verified`: root tests, SQLite/server logic, build, lint budget, syntax, and E2E completed locally; PostgreSQL runtime, S3/MinIO runtime, Telegram WebView, and backup/restore remain environment gates. The exact counts and claim-level caveats are in [FINAL_REPORT.md](FINAL_REPORT.md).
+The plan below is historical implementation guidance. The external validation pass concluded `infrastructure_rc_partially_verified`: disposable PostgreSQL 16.14, MinIO/S3, migrations, concurrency, media sweep, PostgreSQL backup/restore and readiness checks passed. Telegram WebView, real Telegram Stars, production credentials, object-storage backup/restore, `/live`, and target-runtime graceful signals remain gates. Exact counts and caveats are in [FINAL_REPORT.md](FINAL_REPORT.md) and [EXTERNAL_VALIDATION.md](EXTERNAL_VALIDATION.md).
 
-The completion path has deterministic retry-on-replay for canonical artwork and media keys, but it does not include a durable render outbox. The local S3 suite is conditional and was skipped without S3 configuration. CI now provisions PostgreSQL/MinIO in the release workflow, but a CI definition is not evidence that this local environment passed those services.
+The completion path has deterministic retry-on-replay for canonical artwork and media keys, but it does not include a durable render outbox. The external S3 suite and PostgreSQL suite passed only against disposable services; production IAM, scale, Telegram WebView, and restore of object storage remain unverified.
 
 Цель: довести локальный репозиторий до состояния, пригодного для public-alpha release candidate, при этом не притворяться, что внешние Telegram/PostgreSQL/S3/observability проверки уже выполнены.
 
@@ -64,12 +64,12 @@ The completion path has deterministic retry-on-replay for canonical artwork and 
 
 ## Phase 6 — operations and release gates
 
-Статус: `partially_resolved`; external services and platform-specific drills are pending.
+Статус: `partially_resolved`; disposable PostgreSQL/MinIO and database restore passed, while platform-specific and production drills remain pending.
 
 - `/health`, `/ready`, structured request logs, JSON metrics and graceful shutdown exist.
 - Backup/restore and media inventory scripts exist for PostgreSQL/S3 workflows.
 - Release-candidate CI runs install, tests, check, lint, build and media inventory.
-- Docker/PostgreSQL/MinIO staging rehearsal and restore drill must be executed before public rollout.
+- Docker/PostgreSQL/MinIO disposable rehearsal and PostgreSQL restore drill passed; repeat against a prior production-sized schema, object-storage backup and target runtime before public rollout.
 
 ## Phase 7 — architecture and documentation
 
@@ -81,7 +81,7 @@ The completion path has deterministic retry-on-replay for canonical artwork and 
 ## Exit criteria
 
 1. Root and server tests, lint, build and migration checks pass.
-2. PostgreSQL test suite passes against a real disposable PostgreSQL instance.
-3. S3/MinIO object write/read/delete and media inventory are verified.
+2. PostgreSQL test suite passes against a real disposable PostgreSQL instance. (Passed in the external validation record.)
+3. S3/MinIO object write/read/delete and media sweep are verified against disposable storage. (Passed; production IAM/CDN remains.)
 4. Staging smoke checks cover Telegram auth, save/reload, completion, publish, feed, comments, likes, reports and moderation.
-5. Backup restore is rehearsed and the release owner signs the payment mode as `disabled`.
+5. PostgreSQL backup restore is rehearsed and object-storage recovery is verified; the release owner signs the payment mode as `disabled`.
