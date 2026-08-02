@@ -83,11 +83,12 @@ test('coloring progress can become a social post', async (t) => {
 
   const custom = await request('/colorings/create', {
     method: 'POST',
-    body: { title: 'Private import', width: 8, height: 8, palette: ['#102030', '#00b5d8'], cells: Array.from({ length: 64 }, (_, index) => index % 2), previewDataUrl: validPng, originalDataUrl: validPng },
+    body: { title: 'Private import', width: 8, height: 8, palette: ['#102030', '#00b5d8'], cells: Array(64).fill(0), previewDataUrl: validPng, originalDataUrl: validPng },
   });
   assert.equal(custom.response.status, 201);
   assert.equal(custom.json.visibility, 'private');
   assert.equal(custom.json.source_stored, true);
+  assert.equal(custom.json.preview_url, null, 'new user previews must not be persisted as base64 in the database');
 
   const maxGrid = await request('/colorings/create', {
     method: 'POST',
@@ -109,12 +110,24 @@ test('coloring progress can become a social post', async (t) => {
   });
   assert.equal(tooLargeGrid.response.status, 400);
 
+  const tooComplex = await request('/colorings/create', {
+    method: 'POST',
+    body: { title: 'Checkerboard import', width: 8, height: 8, palette: ['#102030', '#00b5d8'], cells: Array.from({ length: 64 }, (_, index) => index % 2) },
+  });
+  assert.equal(tooComplex.response.status, 201);
+
+  const rejectedPublication = await request(`/colorings/${tooComplex.json.id}/visibility`, {
+    method: 'PATCH',
+    body: { visibility: 'public' },
+  });
+  assert.equal(rejectedPublication.response.status, 422);
+  assert.equal(rejectedPublication.json.code, 'TEMPLATE_TOO_COMPLEX');
+
   const published = await request(`/colorings/${custom.json.id}/visibility`, {
     method: 'PATCH',
     body: { visibility: 'public' },
   });
   assert.equal(published.response.status, 200);
-  assert.equal(published.json.visibility, 'public');
 
   const ownerRating = await request(`/colorings/${custom.json.id}/rating`, {
     method: 'PUT',
@@ -181,12 +194,28 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(completed.json.percent, 100);
   assert.ok(completed.json.artwork_id);
 
+  const finalChanges = template.json.cells.slice(-64).map((color, index) => ({ index: template.json.cells.length - 64 + index, color }));
+  const replay = await request(`/colorings/${catalog.json[0].id}/progress/actions`, {
+    method: 'POST',
+    body: { changes: finalChanges, revision: revision - 1, resultDataUrl: validPng },
+  });
+  assert.equal(replay.response.status, 200);
+  assert.equal(replay.json.idempotent, true);
+  assert.equal(replay.json.artwork_id, completed.json.artwork_id, 'replayed completion must not create a second artwork');
+
   const post = await request('/posts/create', {
     method: 'POST',
     body: { artworkId: completed.json.artwork_id, title: 'Test completion', caption: 'Painted in an integration test', commentsEnabled: true },
   });
   assert.equal(post.response.status, 201);
-  assert.equal(post.json.artwork.image_url, validPng);
+  assert.match(post.json.artwork.image_url, /^\/media\/artworks\//);
+  assert.doesNotMatch(post.json.artwork.image_url, /^data:image\//);
+
+  const duplicatePost = await request('/posts/create', {
+    method: 'POST',
+    body: { artworkId: completed.json.artwork_id, title: 'Duplicate publication attempt' },
+  });
+  assert.equal(duplicatePost.response.status, 409);
 
   const comment = await request(`/posts/${post.json.id}/comments`, {
     userId: 'user_lenaart',
@@ -199,8 +228,10 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(liked.json.is_liked, true);
 
   const feed = await request('/feed/recommended', { userId: 'user_lenaart' });
-  const feedPost = feed.json.find((item) => item.id === post.json.id);
+  const feedPost = feed.json.items.find((item) => item.id === post.json.id);
   assert.ok(feedPost);
+  assert.match(feedPost.artwork.image_url, /^\/media\/thumbnails\//);
+  assert.doesNotMatch(JSON.stringify(feedPost), /data:image\//);
   assert.equal(feedPost.comment_count, 1);
   assert.equal(feedPost.is_liked, true);
 

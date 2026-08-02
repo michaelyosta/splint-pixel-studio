@@ -140,6 +140,17 @@ export async function withDbTransaction(callback) {
   return withTransaction({ mode, pool, sqlite, persistFn: persist }, callback);
 }
 
+export async function closeDb() {
+  if (mode === 'sqlite') {
+    persist();
+    sqlite?.close();
+  }
+  if (mode === 'postgres') await pool?.end();
+  mode = null;
+  sqlite = null;
+  pool = null;
+}
+
 const ZONE_PRESETS = {
   'color_neon-cat': ['Фон ночного города', 'Уши и мордочка', 'Неоновые глаза', 'Передние лапы', 'Хвост с подсветкой', 'Звёздная пыль'],
   'color_astro-whale': ['Звёздное небо', 'Голова кита', 'Тело и плавники', 'Хвост-комета', 'Созвездия вокруг', 'Глубокий космос'],

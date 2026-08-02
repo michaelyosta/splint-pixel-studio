@@ -296,8 +296,8 @@ test('PostgreSQL schema_migrations contains correct versions and checksums', { s
   const versions = result.rows.map((r) => r.version);
   const checksums = result.rows.map((r) => r.checksum);
 
-  assert.deepStrictEqual(versions, ['001', '002', '003', '004', '005', '006', '007', '008', '009'], 'Must contain exactly 001-009');
-  assert.equal(checksums.length, 9, 'All 9 migrations have checksums');
+  assert.deepStrictEqual(versions, ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014'], 'Must contain exactly 001-014');
+  assert.equal(checksums.length, 14, 'All migrations have checksums');
   for (const cs of checksums) {
     assert.ok(cs && cs.length > 0, `Checksum must be non-empty, got: ${cs}`);
   }

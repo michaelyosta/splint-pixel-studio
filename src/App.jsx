@@ -6,7 +6,9 @@ import { floodFillRegion } from './lib/floodFill';
 import { buildColoringFromImage, findRewardingColor, getProgress, isProgressComplete, renderCompletedImage } from './lib/pixelColoring';
 import { renderImageCropPreview, renderFitPreview, renderGridPreview, renderNumberedPreview } from './lib/imageCrop';
 import { assessQuality } from './lib/creatorQuality';
+import { createCreatorWorkerClient } from './lib/creatorWorkerClient';
 import { createSaveQueue } from './lib/progressSaveQueue';
+import { createProgressJournal } from './lib/progressJournal';
 import { createHistoryOperation } from './features/coloring/engine/historyOperations.js';
 import { hapticImpact, hapticSelection, shareViaTelegram, buildColoringDeepLink, getRequestedColoringId } from './lib/telegram';
 import './App.css';
@@ -26,15 +28,32 @@ function gridDetailMeta(size) {
   return { title: 'Студийная', load: 'Экспериментально', hint: 'Максимум текущего renderer: лучше использовать на современных устройствах.' };
 }
 
-/** Short-lived prefetch cache: hovering/touching a card warms the player fetch. */
+/** Bounded, short-lived prefetch cache: hover/touch warms the player fetch. */
 const coloringPrefetchCache = new Map();
+const PREFETCH_TTL_MS = 30_000;
+const PREFETCH_MAX_ENTRIES = 3;
 function prefetchColoring(id) {
-  if (!coloringPrefetchCache.has(id)) {
-    coloringPrefetchCache.set(id, Promise.all([
-      api(`/colorings/${id}`), api(`/colorings/${id}/progress`), catalogApi.zones(id),
-    ]).catch((error) => { coloringPrefetchCache.delete(id); throw error; }));
+  const current = coloringPrefetchCache.get(id);
+  if (current && current.expiresAt > Date.now()) return current.promise;
+  if (current) coloringPrefetchCache.delete(id);
+  while (coloringPrefetchCache.size >= PREFETCH_MAX_ENTRIES) {
+    const oldest = coloringPrefetchCache.keys().next().value;
+    coloringPrefetchCache.delete(oldest);
   }
-  return coloringPrefetchCache.get(id);
+  const promise = Promise.all([
+      api(`/colorings/${id}`), api(`/colorings/${id}/progress`), catalogApi.zones(id),
+  ]).catch((error) => { coloringPrefetchCache.delete(id); throw error; });
+  coloringPrefetchCache.set(id, { promise, expiresAt: Date.now() + PREFETCH_TTL_MS });
+  return promise;
+}
+function takePrefetchedColoring(id) {
+  const entry = coloringPrefetchCache.get(id);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    coloringPrefetchCache.delete(id);
+    return null;
+  }
+  coloringPrefetchCache.delete(id);
+  return entry.promise;
 }
 
 function formatTimeAgo(value) {
@@ -125,6 +144,7 @@ function App() {
   const [creatorComputing, setCreatorComputing] = useState(false);
   const [createdColoring, setCreatedColoring] = useState(null);
   const creatorComputeRef = useRef(0);
+  const creatorFileRef = useRef(null);
   const [combo, setCombo] = useState(0);
   const [zoneReward, setZoneReward] = useState(null);
   const [filters, setFilters] = useState({ mood: '', theme: '', max_minutes: '' });
@@ -211,7 +231,8 @@ function App() {
 
   const loadFeed = useCallback(async () => {
     try {
-      setFeed(await api('/feed/recommended'));
+      const page = await api('/feed/recommended?limit=20');
+      setFeed(Array.isArray(page) ? page : (page.items || []));
       setFeedError(false);
     } catch (error) {
       showNotice(error.message, 'error');
@@ -242,6 +263,8 @@ function App() {
   }, [loading]);
   const creatorTimerRef = useRef(null);
   const computeRef = useRef(null);
+  const creatorWorkerRef = useRef(null);
+  if (!creatorWorkerRef.current) creatorWorkerRef.current = createCreatorWorkerClient();
   computeRef.current = computeCreatorPreview;
   useEffect(() => {
     if (!creatorImageUrl) return;
@@ -250,13 +273,13 @@ function App() {
     return () => window.clearTimeout(creatorTimerRef.current);
   }, [creatorGrid, creatorColors, creatorCrop, creatorCropMode, creatorImageUrl]);
   useEffect(() => {
-    const flushOnHide = () => { saveQueueRef.current?.flush(); };
+    const flushOnHide = () => { saveQueueRef.current?.flushAndDispose(); };
     window.addEventListener('pagehide', flushOnHide);
     return () => {
       window.removeEventListener('pagehide', flushOnHide);
       if (saveQueueRef.current) {
-        saveQueueRef.current.flush();
-        saveQueueRef.current.dispose();
+        saveQueueRef.current.flushAndDispose();
+        saveQueueRef.current = null;
       }
       window.clearTimeout(noticeTimerRef.current);
     };
@@ -281,8 +304,7 @@ function App() {
     catalogScrollRef.current = screenContentRef.current?.scrollTop ?? 0;
     setLoading(true);
     try {
-      const prefetched = coloringPrefetchCache.get(id);
-      coloringPrefetchCache.delete(id);
+      const prefetched = takePrefetchedColoring(id);
       const [nextTemplate, nextProgress, nextZones] = prefetched
         ? await prefetched
         : await Promise.all([api(`/colorings/${id}`), api(`/colorings/${id}/progress`), catalogApi.zones(id)]);
@@ -293,14 +315,14 @@ function App() {
       zoneIndicesRef.current = Object.fromEntries((nextZones.zones || []).map((zone) => [zone.id, zone.indices || []]));
       if (saveQueueRef.current) {
         // Дожимаем неотправленные штрихи предыдущей раскраски до dispose.
-        saveQueueRef.current.flush();
-        saveQueueRef.current.dispose();
+        await saveQueueRef.current.flushAndDispose();
+        saveQueueRef.current = null;
         setSaving(false);
       }
       let lastAuthoritativeFilled = [...nextProgress.filled];
       let lastAuthoritativeProgress = nextProgress;
       saveQueueRef.current = createSaveQueue({
-        putProgress: async ({ filled, revision, resultDataUrl }) => {
+        putProgress: async ({ filled, revision, clientBatchId }) => {
           const changes = filled.flatMap((color, index) => (
             color === lastAuthoritativeFilled[index] ? [] : [{ index, color }]
           ));
@@ -314,7 +336,7 @@ function App() {
               body: {
                 changes: batch,
                 revision: nextRevision,
-                resultDataUrl: offset + 64 >= changes.length ? resultDataUrl : null,
+                clientBatchId: `${clientBatchId}:${Math.floor(offset / 64)}`,
               },
             });
             lastAuthoritativeFilled = [...saved.filled];
@@ -331,8 +353,12 @@ function App() {
         onProgress: (saved) => setProgress(saved),
         onNotice: showNotice,
         onSaving: setSaving,
+        journal: createProgressJournal({ scope: `${DEV_USER_ID}:${nextTemplate.id}` }),
+        templateId: nextTemplate.id,
+        userScope: DEV_USER_ID,
       });
       saveQueueRef.current.reset(nextProgress.revision);
+      saveQueueRef.current.recover({ templateId: nextTemplate.id, serverRevision: nextProgress.revision }).catch(() => {});
       setSelectedColor(findRewardingColor(nextTemplate, nextProgress.filled) ?? 0);
       setPlayMode('classic');
       setFillMode(false);
@@ -535,18 +561,34 @@ function App() {
   }
 
   async function computeCreatorPreview() {
-    if (!file) return;
+    const sourceFile = creatorFileRef.current || file;
+    if (!sourceFile) return;
     setCreatorComputing(true);
     const id = ++creatorComputeRef.current;
     let imgUrl;
     try {
-      imgUrl = URL.createObjectURL(file);
+      imgUrl = URL.createObjectURL(sourceFile);
       const img = new window.Image();
       img.src = imgUrl;
       await img.decode();
       const preset = { width: creatorGrid.width, height: creatorGrid.height, colors: creatorColors };
       const crop = creatorCropMode === 'crop' ? creatorCrop : null;
-      const data = await buildColoringFromImage(file, { ...preset, crop });
+      let data;
+      if (creatorWorkerRef.current) {
+        try {
+          data = await creatorWorkerRef.current.run(sourceFile, { ...preset, crop });
+        } catch (workerError) {
+          if (workerError?.name === 'AbortError') throw workerError;
+          // Older WebViews may expose Worker but not the full canvas/File API
+          // used by the pipeline. Retire the failed worker and keep the
+          // user-facing flow available on the main thread.
+          creatorWorkerRef.current.dispose();
+          creatorWorkerRef.current = null;
+          data = await buildColoringFromImage(sourceFile, { ...preset, crop });
+        }
+      } else {
+        data = await buildColoringFromImage(sourceFile, { ...preset, crop });
+      }
       if (id !== creatorComputeRef.current) return;
       const { width, height, palette, cells } = data;
       const originalPreview = crop ? renderImageCropPreview(img, { ...creatorCrop, size: 512 }) : renderFitPreview(img, 512);
@@ -571,6 +613,7 @@ function App() {
   async function prepareFromImage(f) {
     const img = f || file;
     if (!img) return;
+    creatorFileRef.current = img;
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(img.type) || img.size > 10 * 1024 * 1024) {
       return showNotice('Поддерживаются PNG, JPG и WebP размером до 10 МБ', 'error');
     }
@@ -591,6 +634,7 @@ function App() {
       const successPreview = created.preview_url || creatorPreviews.pixel || creatorPreviews.numbered || null;
       setCreatorResult(null);
       setFile(null);
+      creatorFileRef.current = null;
       setCreatorImageUrl(null);
       setCreatorPreviews({ original: null, pixel: null, numbered: null });
       setCreatorQuality(null);
@@ -874,7 +918,7 @@ function App() {
     const gridMeta = gridDetailMeta(creatorGrid.width);
     const gridStep = Math.max(4, Math.round(576 / creatorGrid.width));
     return <section className="page creator-page"><div className="page-heading"><div><p className="eyebrow">СВОЯ РАСКРАСКА</p><h1>Из изображения</h1></div></div><div className="creator-card">
-      <label className="file-field"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const selected = event.target.files?.[0] || null; setFile(selected); setTitle('Моя пиксельная раскраска'); if (selected) prepareFromImage(selected); }} />{file ? file.name : 'Выбрать PNG, JPG или WebP'}</label>
+      <label className="file-field"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const selected = event.target.files?.[0] || null; creatorFileRef.current = selected; setFile(selected); setTitle('Моя пиксельная раскраска'); if (selected) prepareFromImage(selected); }} />{file ? file.name : 'Выбрать PNG, JPG или WebP'}</label>
       {file && <><label>Название<input value={title} maxLength="80" onChange={(event) => setTitle(event.target.value)} /></label>
         <div className="creator-crop-section"><h3>Кадрирование</h3>
           <div className="creator-crop-toggle"><button className={creatorCropMode === 'fit' ? 'selected' : ''} onClick={() => { setCreatorCropMode('fit'); setCreatorCrop({ scale: 1, offsetX: 0, offsetY: 0 }); }}>Вписать целиком</button><button className={creatorCropMode === 'crop' ? 'selected' : ''} onClick={() => setCreatorCropMode('crop')}>Кадрировать</button></div>

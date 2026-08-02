@@ -305,7 +305,7 @@ test('Migration runner is idempotent', async (t) => {
   const result2 = await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
 
   assert.equal(result2.applied, 0, 'Second run should apply zero migrations');
-  assert.equal(result2.skipped, 9, 'Second run should skip all 9 migrations');
+  assert.equal(result2.skipped, 14, 'Second run should skip all migrations');
 });
 
 test('Changed checksum causes error', async (t) => {
@@ -326,14 +326,14 @@ test('Changed checksum causes error', async (t) => {
   );
 });
 
-test('Legacy database (no schema_migrations) upgrades and applies 004-009', async (t) => {
+test('Legacy database (no schema_migrations) upgrades and applies post-baseline migrations', async (t) => {
   const SQL = await initSqlJs();
   const db = new SQL.Database();
   db.run('PRAGMA foreign_keys = ON;');
 
   db.run(`CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, telegram_id INTEGER, nickname TEXT, avatar_url TEXT, status TEXT DEFAULT '', karma INTEGER DEFAULT 0, stars_balance INTEGER DEFAULT 0, messages_disabled INTEGER DEFAULT 0, followers_only INTEGER DEFAULT 0, paid_open INTEGER DEFAULT 0, price_in_stars INTEGER DEFAULT 10, is_banned INTEGER DEFAULT 0, role TEXT NOT NULL DEFAULT 'user', created_at TEXT, updated_at TEXT);`);
   db.run(`CREATE TABLE IF NOT EXISTS coloring_templates (id TEXT PRIMARY KEY, owner_id TEXT, title TEXT NOT NULL, mood TEXT NOT NULL DEFAULT 'calm', theme TEXT NOT NULL DEFAULT 'featured', source_type TEXT DEFAULT 'catalog', collection_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);`);
-  db.run(`CREATE TABLE IF NOT EXISTS posts (id TEXT PRIMARY KEY, author_id TEXT, title TEXT, published_at TEXT, created_at TEXT, updated_at TEXT);`);
+  db.run(`CREATE TABLE IF NOT EXISTS posts (id TEXT PRIMARY KEY, author_id TEXT, artwork_id TEXT, title TEXT, status TEXT DEFAULT 'active', published_at TEXT, created_at TEXT, updated_at TEXT);`);
   db.run(`CREATE TABLE IF NOT EXISTS daily_streaks (user_id TEXT PRIMARY KEY, current_streak INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT);`);
   db.run(`CREATE TABLE IF NOT EXISTS achievements (id TEXT PRIMARY KEY, title TEXT, created_at TEXT);`);
   db.run(`CREATE TABLE IF NOT EXISTS collections (id TEXT PRIMARY KEY, title TEXT NOT NULL, price_in_stars INTEGER DEFAULT 0);`);
@@ -350,14 +350,14 @@ test('Legacy database (no schema_migrations) upgrades and applies 004-009', asyn
 
   const result = await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
 
-  assert.equal(result.applied, 6, 'Legacy DB: should apply migrations 004 through 009');
+  assert.equal(result.applied, 11, 'Legacy DB: should apply migrations 004 through 014');
   assert.equal(result.skipped, 3, 'Legacy DB: should skip baseline 001-003');
 
   const stmt = db.prepare('SELECT version FROM schema_migrations ORDER BY version');
   const versions = [];
   while (stmt.step()) versions.push(stmt.getAsObject().version);
   stmt.free();
-  assert.deepStrictEqual(versions, ['001', '002', '003', '004', '005', '006', '007', '008', '009'], 'All 9 versions recorded');
+  assert.deepStrictEqual(versions, ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014'], 'All versions recorded');
 
   const artwork = db.exec("SELECT template_id,collection_id FROM artworks WHERE id='legacy_artwork'")[0].values[0];
   assert.deepStrictEqual(artwork, ['legacy_template', 'legacy_collection']);

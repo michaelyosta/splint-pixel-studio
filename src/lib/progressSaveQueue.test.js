@@ -2,6 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSaveQueue } from './progressSaveQueue.js';
 
+function withoutBatch(call) {
+  const { clientBatchId: _clientBatchId, ...rest } = call;
+  return rest;
+}
+
 function nop() {}
 
 async function tick(ms = 10) {
@@ -32,7 +37,7 @@ test('Basic save calls putProgress with correct data', async () => {
   await tick(500);
 
   assert.equal(calls.length, 1, 'One API call made');
-  assert.deepEqual(calls[0], { filled: [0, 1, 2], revision: 0, resultDataUrl: 'data:test' });
+  assert.deepEqual(withoutBatch(calls[0]), { filled: [0, 1, 2], revision: 0, resultDataUrl: 'data:test' });
   assert.ok(capturedProgress, 'onProgress called');
   assert.deepEqual(savingStates, [true, false], 'saving went true then false');
   queue.dispose();
@@ -99,7 +104,7 @@ test('Last pending snapshot is not lost', async () => {
   await tick(600);
 
   assert.equal(calls.length, 2, 'Two saves total (first + coalesced latest)');
-  assert.deepEqual(calls[1], { filled: [4], revision: 1, resultDataUrl: 'data:latest' }, 'Latest snapshot sent with updated revision');
+  assert.deepEqual(withoutBatch(calls[1]), { filled: [4], revision: 1, resultDataUrl: 'data:latest' }, 'Latest snapshot sent with updated revision');
   queue.dispose();
 });
 
@@ -131,7 +136,7 @@ test('Multiple pending snapshots coalesce into latest', async () => {
   await tick(600);
 
   assert.equal(calls.length, 2, 'Exactly 2 calls (first + coalesced latest)');
-  assert.deepEqual(calls[1], { filled: [4], revision: 1, resultDataUrl: null }, 'Latest sent with updated revision');
+  assert.deepEqual(withoutBatch(calls[1]), { filled: [4], revision: 1, resultDataUrl: null }, 'Latest sent with updated revision');
   queue.dispose();
 });
 
@@ -348,7 +353,7 @@ test('Error of one snapshot does not block newer pending snapshot', async () => 
   await tick(600);
 
   assert.ok(calls.length >= 2, 'Second save was processed after first error');
-  assert.deepEqual(calls[calls.length - 1], { filled: [2], revision: 0, resultDataUrl: null });
+  assert.deepEqual(withoutBatch(calls[calls.length - 1]), { filled: [2], revision: 0, resultDataUrl: null });
   queue.dispose();
 });
 
@@ -390,7 +395,7 @@ test('Rapid changes before debounce only send latest', async () => {
   await tick(500);
 
   assert.equal(calls.length, 1, 'One call after rapid changes');
-  assert.deepEqual(calls[0], { filled: [4], revision: 0, resultDataUrl: null });
+  assert.deepEqual(withoutBatch(calls[0]), { filled: [4], revision: 0, resultDataUrl: null });
   queue.dispose();
 });
 
@@ -703,4 +708,43 @@ test('Stale success updates serverRevision even when UI is newer', async () => {
   assert.equal(calls.length, 2, 'Pending sent');
   assert.equal(calls[1].revision, 10, 'Pending used revision=10 from stale success');
   queue.dispose();
+});
+
+test('flushAndDispose waits for the durable journal write and records its scope', async () => {
+  let releaseJournal;
+  const journalWritten = new Promise((resolve) => { releaseJournal = resolve; });
+  let journalRecord;
+  let apiCalls = 0;
+  const journal = {
+    put: async (record) => {
+      journalRecord = record;
+      await journalWritten;
+    },
+    remove: async () => {},
+    list: async () => [],
+  };
+  const queue = createSaveQueue({
+    putProgress: async () => { apiCalls += 1; return { revision: 1 }; },
+    getResultDataUrl: () => null,
+    onProgress: nop,
+    onNotice: nop,
+    onSaving: nop,
+    journal,
+    templateId: 'template-1',
+    userScope: 'user-1',
+  });
+
+  queue.reset(0);
+  queue.queueSave([1]);
+  const flush = queue.flushAndDispose();
+  await tick(20);
+  assert.equal(apiCalls, 0, 'API must wait for the journal acknowledgement');
+  assert.equal(journalRecord.templateId, 'template-1');
+  assert.equal(journalRecord.userScope, 'user-1');
+  releaseJournal();
+  await flush;
+  assert.equal(apiCalls, 1);
+  queue.queueSave([2]);
+  await tick(20);
+  assert.equal(apiCalls, 1, 'new snapshots are blocked after shutdown');
 });

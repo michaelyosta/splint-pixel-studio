@@ -1,10 +1,13 @@
 import { Router } from 'express';
+import { createHash } from 'node:crypto';
 import { v4 as uuid } from 'uuid';
 import { all, get, run, withDbTransaction } from '../db.js';
 import { isUniqueConstraintError } from '../database/sql.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
-import { deletePrivateOriginal, storePrivateOriginal } from '../services/media-storage.js';
+import { decodeImageDataUrl, deletePrivateOriginal, publicMediaUrl, storeMediaObject, storePrivateOriginal } from '../services/media-storage.js';
+import { renderCanonicalPng, renderCanonicalThumbnail } from '../services/canonical-renderer.js';
+import { validatePublicTemplateComplexity } from '../services/template-complexity.js';
 
 const router = Router();
 
@@ -117,15 +120,26 @@ function validateChanges(template, changes) {
   return null;
 }
 
-function validateResultDataUrl(dataUrl) {
-  if (dataUrl === null || dataUrl === undefined) return true;
-  if (typeof dataUrl !== 'string' || dataUrl.length > 500_000 || !/^data:image\/png;base64,/i.test(dataUrl)) return false;
-  const bytes = Buffer.from(dataUrl.split(',')[1], 'base64');
-  return bytes.length > 32 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-}
-
 function isComplete(template, filled) {
   return filled.every((color, index) => color === template.cells[index]);
+}
+
+function changesHash(changes) {
+  return createHash('sha256').update(JSON.stringify(changes)).digest('hex');
+}
+
+function normalizeClientBatchId(value, revision, hash) {
+  const candidate = typeof value === 'string' ? value.trim() : '';
+  if (candidate && /^[\x21-\x7e]{8,128}$/.test(candidate)) return candidate;
+  return `legacy-${revision}-${hash.slice(0, 32)}`;
+}
+
+function canonicalStorageKey(userId, artworkId) {
+  return `artworks/${String(userId).replace(/[^a-zA-Z0-9_-]/g, '_')}/${artworkId}.png`;
+}
+
+function canonicalThumbnailStorageKey(userId, artworkId) {
+  return `thumbnails/${String(userId).replace(/[^a-zA-Z0-9_-]/g, '_')}/${artworkId}.png`;
 }
 
 function progressPayload(template, row) {
@@ -193,6 +207,18 @@ router.patch('/:id/visibility', authMiddleware, asyncRoute(async (req, res) => {
   const visibility = req.body.visibility;
   if (!['public', 'private'].includes(visibility)) {
     return res.status(400).json({ error: 'Некорректная видимость раскраски' });
+  }
+  if (visibility === 'public') {
+    const parsedTemplate = parseTemplate(template);
+    const complexity = validatePublicTemplateComplexity({
+      width: parsedTemplate.width,
+      height: parsedTemplate.height,
+      palette: parsedTemplate.palette,
+      cells: parsedTemplate.cells,
+    });
+    if (!complexity.allowed) {
+      return res.status(422).json({ error: 'Раскраска слишком сложная для публичного каталога', code: 'TEMPLATE_TOO_COMPLEX', complexity });
+    }
   }
   const now = new Date().toISOString();
   await run('UPDATE coloring_templates SET visibility=?, updated_at=? WHERE id=?', [visibility, now, template.id]);
@@ -279,7 +305,7 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
   if (!Array.isArray(cells) || cells.length !== safeWidth * safeHeight || cells.some((color) => !Number.isInteger(color) || color < 0 || color >= palette.length)) {
     return res.status(400).json({ error: 'Карта клеток не соответствует раскраске' });
   }
-  if (previewDataUrl !== null && (typeof previewDataUrl !== 'string' || previewDataUrl.length > 300_000 || !/^data:image\/png;base64,/i.test(previewDataUrl))) {
+  if (previewDataUrl !== null && (typeof previewDataUrl !== 'string' || previewDataUrl.length > 300_000 || !/^data:image\/png;base64,/i.test(previewDataUrl) || !decodeImageDataUrl(previewDataUrl))) {
     return res.status(400).json({ error: 'Некорректная миниатюра раскраски' });
   }
   const now = new Date().toISOString();
@@ -287,7 +313,7 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
   const originalMediaKey = await storePrivateOriginal(originalDataUrl, req.userId);
   await run(`INSERT INTO coloring_templates (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,created_at,updated_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, req.userId, safeTitle, String(description).slice(0, 280), 'custom', 'custom', safeWidth, safeHeight, JSON.stringify(palette), JSON.stringify(cells), previewDataUrl, originalMediaKey, 'user', 'private', 'active', now, now]);
+    [id, req.userId, safeTitle, String(description).slice(0, 280), 'custom', 'custom', safeWidth, safeHeight, JSON.stringify(palette), JSON.stringify(cells), null, originalMediaKey, 'user', 'private', 'active', now, now]);
   res.status(201).json({ ...parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=?', [id])), source_stored: Boolean(originalMediaKey) });
 }));
 
@@ -337,15 +363,37 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
   const changes = req.body.changes;
   const validationError = validateChanges(template, changes);
   if (validationError) return res.status(400).json({ error: validationError });
-  if (!validateResultDataUrl(req.body.resultDataUrl)) return res.status(400).json({ error: 'Некорректное изображение результата' });
 
   const clientRevision = Number(req.body.revision);
   if (!Number.isInteger(clientRevision) || clientRevision < 0) {
     return res.status(400).json({ error: 'Некорректная revision' });
   }
 
+  const batchHash = changesHash(changes);
+  const clientBatchId = normalizeClientBatchId(req.body.clientBatchId || req.headers['idempotency-key'], clientRevision, batchHash);
+
   const now = new Date().toISOString();
   const casResult = await withDbTransaction(async (tx) => {
+      const existingBatch = await tx.get(
+        'SELECT * FROM coloring_progress_batches WHERE user_id=? AND template_id=? AND client_batch_id=?',
+        [req.userId, template.id, clientBatchId],
+      );
+      if (existingBatch) {
+        if (existingBatch.changes_hash !== batchHash || Number(existingBatch.revision_before) !== clientRevision) {
+          return { badBatch: true };
+        }
+        const existingProgress = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
+        const existingArtwork = await tx.get("SELECT id,storage_key,render_status FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
+        return {
+          conflict: false,
+          replay: true,
+          revision: Number(existingBatch.revision_after),
+          artworkId: existingArtwork?.id || null,
+          renderStatus: existingArtwork?.render_status || null,
+          progress: existingProgress ? progressPayload(template, existingProgress) : null,
+        };
+      }
+
       const existing = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
 
       if (existing) {
@@ -371,6 +419,9 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
       const completed = isComplete(template, filled);
       const nextRevision = clientRevision + 1;
       const completedAt = completed ? (existing?.completed_at || now) : null;
+      let artworkId = null;
+      let renderArtifact = null;
+      let renderStatus = null;
 
       if (existing) {
         const updateResult = await tx.run(
@@ -397,9 +448,59 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
       }
 
       const wasEmpty = !existing || currentFilled.every((color) => color === -1);
-      return { conflict: false, revision: nextRevision, completed, justCompleted: completed && !existing?.completed_at, wasEmpty, painted: changes.some((change) => change.color !== -1) };
+      const justCompleted = completed && !existing?.completed_at;
+      if (justCompleted) {
+        renderArtifact = renderCanonicalPng({
+          width: template.width,
+          height: template.height,
+          palette: template.palette,
+          cells: template.cells,
+          filled,
+        });
+        const existingArtwork = await tx.get("SELECT * FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
+        artworkId = existingArtwork?.id || `art_${uuid()}`;
+        const storageKey = existingArtwork?.storage_key || canonicalStorageKey(req.userId, artworkId);
+        const thumbnailKey = existingArtwork?.thumbnail_key || canonicalThumbnailStorageKey(req.userId, artworkId);
+        renderStatus = existingArtwork?.render_status === 'ready' && existingArtwork?.content_hash === renderArtifact.contentHash ? 'ready' : 'pending';
+        if (existingArtwork) {
+          await tx.run(`UPDATE artworks SET image_url=?, storage_key=?, thumbnail_key=?, content_hash=?, mime_type=?, width=?, height=?, byte_size=?, render_status=?, is_completed=1, title=?, updated_at=? WHERE id=?`,
+            [publicMediaUrl(storageKey), storageKey, thumbnailKey, renderArtifact.contentHash, renderArtifact.mimeType, renderArtifact.width, renderArtifact.height, renderArtifact.byteSize, renderStatus, template.title, now, artworkId]);
+        } else {
+          await tx.run(`INSERT INTO artworks (id,owner_id,source_type,image_url,title,template_id,collection_id,collection_title,rarity,is_completed,storage_key,thumbnail_key,content_hash,mime_type,width,height,byte_size,render_status,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [artworkId, req.userId, 'coloring', publicMediaUrl(storageKey), template.title, template.id, template.collection_id || null, template.title, template.difficulty, 1, storageKey, thumbnailKey, renderArtifact.contentHash, renderArtifact.mimeType, renderArtifact.width, renderArtifact.height, renderArtifact.byteSize, 'pending', now, now]);
+          renderStatus = 'pending';
+        }
+      }
+
+      if (changes.some((change) => change.color !== -1)) await touchStreak(req.userId);
+      if (wasEmpty && changes.some((change) => change.color !== -1)) await unlockAchievement(req.userId, 'ach_first_pixel');
+      if (justCompleted) {
+        await unlockAchievement(req.userId, 'ach_first_zone');
+        const finished = await all("SELECT COUNT(*) as c FROM artworks WHERE owner_id=? AND is_completed=1", [req.userId]);
+        if (Number(finished[0]?.c || 0) >= 5) await unlockAchievement(req.userId, 'ach_complete_5');
+        if (template.theme === 'night-city' || template.theme === 'space') {
+          const nightCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('night-city','space')", [req.userId]);
+          if (Number(nightCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_night');
+        }
+        if (template.theme === 'forest' || template.theme === 'cozy') {
+          const forestCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('forest','cozy')", [req.userId]);
+          if (Number(forestCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_forest');
+        }
+        if (template.theme === 'space' || template.theme === 'sea') {
+          const spaceCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('space','sea')", [req.userId]);
+          if (Number(spaceCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_space');
+        }
+      }
+
+      await tx.run(`INSERT INTO coloring_progress_batches (user_id,template_id,client_batch_id,changes_hash,revision_before,revision_after,response_json,created_at)
+        VALUES (?,?,?,?,?,?,?,?)`,
+      [req.userId, template.id, clientBatchId, batchHash, clientRevision, nextRevision, JSON.stringify({ revision: nextRevision, artwork_id: artworkId, render_status: renderStatus }), now]);
+
+      return { conflict: false, revision: nextRevision, completed, justCompleted, wasEmpty, painted: changes.some((change) => change.color !== -1), artworkId, renderStatus, renderArtifact, renderThumbnailArtifact: justCompleted ? renderCanonicalThumbnail({ width: template.width, height: template.height, palette: template.palette, cells: template.cells, filled }) : null };
     });
 
+  if (casResult.badBatch) return res.status(409).json({ error: 'client_batch_id уже использован для другого набора изменений' });
   if (casResult.badAction) return res.status(400).json({ error: 'Сервер отклонил цвет, не соответствующий клетке' });
   if (casResult.conflict) {
     if (casResult.badRequest) {
@@ -413,40 +514,40 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
     return res.status(409).json({ error: 'Прогресс уже обновлён на другом устройстве', progress });
   }
 
-  if (casResult.painted) await touchStreak(req.userId);
-  if (casResult.wasEmpty && casResult.painted) await unlockAchievement(req.userId, 'ach_first_pixel');
-  if (casResult.justCompleted) {
-    await unlockAchievement(req.userId, 'ach_first_zone');
-    const finished = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.source_type='catalog'", [req.userId]);
-    if ((finished[0]?.c || 0) >= 5) await unlockAchievement(req.userId, 'ach_complete_5');
-    if (template.theme === 'night-city' || template.theme === 'space') {
-      const nightCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('night-city','space')", [req.userId]);
-      if ((nightCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_night');
-    }
-    if (template.theme === 'forest' || template.theme === 'cozy') {
-      const forestCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('forest','cozy')", [req.userId]);
-      if ((forestCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_forest');
-    }
-    if (template.theme === 'space' || template.theme === 'sea') {
-      const spaceCount = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.is_completed=1 AND t.theme IN ('space','sea')", [req.userId]);
-      if ((spaceCount[0]?.c || 0) >= 3) await unlockAchievement(req.userId, 'ach_style_space');
-    }
-  }
-
-  let artworkId = null;
-  if (casResult.justCompleted) {
-    const artwork = await get("SELECT id FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
-    artworkId = artwork?.id || `art_${uuid()}`;
-    if (!artwork) {
-      await run(`INSERT INTO artworks (id,owner_id,source_type,image_url,title,template_id,collection_id,collection_title,rarity,is_completed,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, [artworkId, req.userId, 'coloring', req.body.resultDataUrl || template.preview_url, template.title, template.id, template.collection_id || null, template.title, template.difficulty, 1, now, now]);
-    } else if (req.body.resultDataUrl) {
-      await run('UPDATE artworks SET image_url=?, title=?, updated_at=? WHERE id=?', [req.body.resultDataUrl, template.title, now, artworkId]);
-    }
-  }
-
   const saved = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
-  res.json({ ...progressPayload(template, saved), artwork_id: artworkId });
+  let artworkId = casResult.artworkId || null;
+  if (!artworkId) {
+    const existingArtwork = await get("SELECT id FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
+    artworkId = existingArtwork?.id || null;
+  }
+  const artwork = artworkId ? await get('SELECT id,storage_key,thumbnail_key,render_status FROM artworks WHERE id=?', [artworkId]) : null;
+  if (artwork && artwork.render_status !== 'ready' && saved && isComplete(template, parseJsonArray(saved.filled_json) || [])) {
+    const renderArtifact = casResult.renderArtifact || renderCanonicalPng({
+      width: template.width,
+      height: template.height,
+      palette: template.palette,
+      cells: template.cells,
+      filled: parseJsonArray(saved.filled_json),
+    });
+    const thumbnailArtifact = casResult.renderThumbnailArtifact || renderCanonicalThumbnail({
+      width: template.width,
+      height: template.height,
+      palette: template.palette,
+      cells: template.cells,
+      filled: parseJsonArray(saved.filled_json),
+    });
+    try {
+      await storeMediaObject({ key: artwork.storage_key, body: renderArtifact.buffer, contentType: renderArtifact.mimeType });
+      await storeMediaObject({ key: artwork.thumbnail_key || canonicalThumbnailStorageKey(req.userId, artworkId), body: thumbnailArtifact.buffer, contentType: thumbnailArtifact.mimeType });
+      await run("UPDATE artworks SET render_status='ready', updated_at=? WHERE id=?", [new Date().toISOString(), artworkId]);
+      casResult.renderStatus = 'ready';
+    } catch {
+      await run("UPDATE artworks SET render_status='failed', updated_at=? WHERE id=?", [new Date().toISOString(), artworkId]);
+      return res.status(503).json({ error: 'Результат сохранён, но медиа ещё не готово к публикации', code: 'MEDIA_RETRY_REQUIRED', artwork_id: artworkId });
+    }
+  }
+
+  res.json({ ...progressPayload(template, saved), artwork_id: artworkId, render_status: casResult.renderStatus || null, idempotent: Boolean(casResult.replay) });
 }));
 
 export default router;
