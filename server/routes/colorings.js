@@ -53,6 +53,9 @@ function parseTemplate(row) {
     est_minutes: Number(row.est_minutes || 3),
     zone_count: Number(row.zone_count || 1),
     daily_featured: Number(row.daily_featured || 0),
+    rating_average: Number(row.rating_average || 0),
+    rating_count: Number(row.rating_count || 0),
+    viewer_rating: row.viewer_rating == null ? null : Number(row.viewer_rating),
     palette: parseJsonArray(row.palette_json),
     cells: parseJsonArray(row.cells_json),
     palette_json: undefined,
@@ -63,6 +66,38 @@ function parseTemplate(row) {
 
 function canRead(template, userId) {
   return template.visibility === 'public' || template.owner_id === userId;
+}
+
+async function attachRatings(rows, userId) {
+  if (!rows.length) return rows;
+  const placeholders = rows.map(() => '?').join(',');
+  const ids = rows.map((row) => row.id);
+  const [summaries, viewerRatings] = await Promise.all([
+    all(`SELECT template_id, AVG(rating) AS rating_average, COUNT(*) AS rating_count
+      FROM template_ratings WHERE template_id IN (${placeholders}) GROUP BY template_id`, ids),
+    all(`SELECT template_id, rating AS viewer_rating
+      FROM template_ratings WHERE user_id=? AND template_id IN (${placeholders})`, [userId, ...ids]),
+  ]);
+  const summaryById = new Map(summaries.map((item) => [item.template_id, item]));
+  const viewerById = new Map(viewerRatings.map((item) => [item.template_id, item.viewer_rating]));
+  return rows.map((row) => ({
+    ...row,
+    rating_average: Number(summaryById.get(row.id)?.rating_average || 0),
+    rating_count: Number(summaryById.get(row.id)?.rating_count || 0),
+    viewer_rating: viewerById.has(row.id) ? Number(viewerById.get(row.id)) : null,
+  }));
+}
+
+async function ratingPayload(templateId, userId) {
+  const [summary, viewer] = await Promise.all([
+    get('SELECT AVG(rating) AS rating_average, COUNT(*) AS rating_count FROM template_ratings WHERE template_id=?', [templateId]),
+    get('SELECT rating AS viewer_rating FROM template_ratings WHERE template_id=? AND user_id=?', [templateId, userId]),
+  ]);
+  return {
+    rating_average: Number(summary?.rating_average || 0),
+    rating_count: Number(summary?.rating_count || 0),
+    viewer_rating: viewer ? Number(viewer.viewer_rating) : null,
+  };
 }
 
 function emptyProgress(template) {
@@ -119,7 +154,10 @@ router.get('/', authMiddleware, asyncRoute(async (req, res) => {
   if (max_minutes) { clauses.push('est_minutes<=?'); params.push(Number(max_minutes)); }
   if (featured === '1') { clauses.push('daily_featured=1'); }
   const where = clauses.join(' AND ');
-  const rows = await all(`SELECT * FROM coloring_templates WHERE ${where} ORDER BY daily_featured DESC, added_at DESC, title`, params);
+  const rows = await attachRatings(
+    await all(`SELECT * FROM coloring_templates WHERE ${where} ORDER BY daily_featured DESC, added_at DESC, title`, params),
+    req.userId,
+  );
   res.json(rows.map(parseTemplate).map(({ cells, ...template }) => ({ ...template, total_cells: cells.length })));
 }));
 
@@ -128,12 +166,64 @@ router.get('/today', authMiddleware, asyncRoute(async (req, res) => {
   const featured = await get("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND daily_featured=1 ORDER BY added_at DESC LIMIT 1");
   const quick = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND est_minutes<=3 ORDER BY added_at DESC LIMIT 6");
   const allTemplates = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' ORDER BY added_at DESC");
-  const summarize = (row) => row ? { ...parseTemplate(row), cells: undefined, total_cells: parseTemplate(row).cells.length } : null;
+  const ratedRows = await attachRatings(
+    [...new Map([featured, ...quick, ...allTemplates].filter(Boolean).map((row) => [row.id, row])).values()],
+    req.userId,
+  );
+  const ratedById = new Map(ratedRows.map((row) => [row.id, row]));
+  const summarize = (row) => {
+    if (!row) return null;
+    const parsed = parseTemplate(ratedById.get(row.id) || row);
+    return { ...parsed, cells: undefined, total_cells: parsed.cells.length };
+  };
   res.json({
     for_you: summarize(featured),
-    quick: quick.map((row) => { const t = parseTemplate(row); return { ...t, cells: undefined, total_cells: t.cells.length }; }),
-    newest: allTemplates.slice(0, 8).map((row) => { const t = parseTemplate(row); return { ...t, cells: undefined, total_cells: t.cells.length }; }),
+    quick: quick.map(summarize),
+    newest: allTemplates.slice(0, 8).map(summarize),
   });
+}));
+
+// PATCH /colorings/:id/visibility — publish or withdraw an owned import.
+router.patch('/:id/visibility', authMiddleware, asyncRoute(async (req, res) => {
+  const template = await get("SELECT * FROM coloring_templates WHERE id=? AND status='active'", [req.params.id]);
+  if (!template) return res.status(404).json({ error: 'Раскраска не найдена' });
+  if (template.owner_id !== req.userId || template.source_type !== 'user') {
+    return res.status(403).json({ error: 'Публиковать можно только свои загруженные раскраски' });
+  }
+  const visibility = req.body.visibility;
+  if (!['public', 'private'].includes(visibility)) {
+    return res.status(400).json({ error: 'Некорректная видимость раскраски' });
+  }
+  const now = new Date().toISOString();
+  await run('UPDATE coloring_templates SET visibility=?, updated_at=? WHERE id=?', [visibility, now, template.id]);
+  const rated = await attachRatings([await get('SELECT * FROM coloring_templates WHERE id=?', [template.id])], req.userId);
+  res.json(parseTemplate(rated[0]));
+}));
+
+// PUT /colorings/:id/rating — one current 1–5 score per user and public template.
+router.put('/:id/rating', authMiddleware, asyncRoute(async (req, res) => {
+  const rating = Number(req.body.rating);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: 'Оценка должна быть от 1 до 5' });
+  }
+  const template = await get("SELECT id, owner_id FROM coloring_templates WHERE id=? AND status='active' AND visibility='public'", [req.params.id]);
+  if (!template) return res.status(404).json({ error: 'Публичная раскраска не найдена' });
+  if (template.owner_id === req.userId) {
+    return res.status(403).json({ error: 'Свою раскраску нельзя оценивать' });
+  }
+  const now = new Date().toISOString();
+  await run(`INSERT INTO template_ratings (template_id,user_id,rating,created_at,updated_at)
+    VALUES (?,?,?,?,?)
+    ON CONFLICT (template_id,user_id) DO UPDATE SET rating=excluded.rating, updated_at=excluded.updated_at`,
+  [template.id, req.userId, rating, now, now]);
+  res.json(await ratingPayload(template.id, req.userId));
+}));
+
+router.delete('/:id/rating', authMiddleware, asyncRoute(async (req, res) => {
+  const template = await get("SELECT id FROM coloring_templates WHERE id=? AND status='active' AND visibility='public'", [req.params.id]);
+  if (!template) return res.status(404).json({ error: 'Публичная раскраска не найдена' });
+  await run('DELETE FROM template_ratings WHERE template_id=? AND user_id=?', [template.id, req.userId]);
+  res.json(await ratingPayload(template.id, req.userId));
 }));
 
 // GET /colorings/:id/zones — fragmented session chunks with per-zone progress
@@ -180,8 +270,8 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
   const safeTitle = String(title || '').trim().slice(0, 80);
   const safeWidth = Number(width);
   const safeHeight = Number(height);
-  if (!safeTitle || !Number.isInteger(safeWidth) || !Number.isInteger(safeHeight) || safeWidth < 8 || safeHeight < 8 || safeWidth > 64 || safeHeight > 64) {
-    return res.status(400).json({ error: 'Выберите название и размер от 8×8 до 64×64' });
+  if (!safeTitle || !Number.isInteger(safeWidth) || !Number.isInteger(safeHeight) || safeWidth < 8 || safeHeight < 8 || safeWidth > 160 || safeHeight > 160) {
+    return res.status(400).json({ error: 'Выберите название и размер от 8×8 до 160×160' });
   }
   if (!Array.isArray(palette) || palette.length < 2 || palette.length > 32 || palette.some((color) => !/^#[0-9a-f]{6}$/i.test(color))) {
     return res.status(400).json({ error: 'Палитра должна содержать от 2 до 32 HEX-цветов' });
@@ -203,12 +293,13 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
 
 // GET /colorings/mine - private and catalog templates with the caller's progress
 router.get('/mine', authMiddleware, asyncRoute(async (req, res) => {
-  const templates = (await all(`
+  const templateRows = await attachRatings(await all(`
     SELECT t.* FROM coloring_templates t
     LEFT JOIN coloring_progress p ON p.template_id=t.id AND p.user_id=?
     WHERE t.status='active' AND (t.owner_id=? OR p.user_id IS NOT NULL)
     ORDER BY t.updated_at DESC
-  `, [req.userId, req.userId])).map(parseTemplate);
+  `, [req.userId, req.userId]), req.userId);
+  const templates = templateRows.map(parseTemplate);
   const rows = await Promise.all(templates.map(async (template) => {
     const progress = await get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
     return { ...template, progress: progressPayload(template, progress) };
@@ -218,7 +309,8 @@ router.get('/mine', authMiddleware, asyncRoute(async (req, res) => {
 
 // GET /colorings/:id
 router.get('/:id', authMiddleware, asyncRoute(async (req, res) => {
-  const template = parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=? AND status=\'active\'', [req.params.id]));
+  const row = await get('SELECT * FROM coloring_templates WHERE id=? AND status=\'active\'', [req.params.id]);
+  const template = parseTemplate((await attachRatings(row ? [row] : [], req.userId))[0]);
   if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
   res.json(template);
 }));
