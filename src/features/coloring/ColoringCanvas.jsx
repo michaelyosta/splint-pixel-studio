@@ -3,58 +3,84 @@ import { rasterizeStroke } from './engine/strokeRasterizer.js';
 import { centroid, distance, computePinchPan, isTapGesture } from './engine/gestureMath.js';
 
 const BASE_CELL = 32;
-const MAX_RENDER_SCALE = 4;
+const MAX_VIEWPORT_RENDER_SCALE = 2;
 
-function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokeCells, wrongCell, flashCells, activeWorkCells, activeTargetColor, renderScale) {
-  const { width, height, cells, palette } = template;
-  const canvasW = width * BASE_CELL;
-  const canvasH = height * BASE_CELL;
-  const bitmapW = Math.ceil(canvasW * renderScale);
-  const bitmapH = Math.ceil(canvasH * renderScale);
+function visibleCellBounds(template, camera, viewWidth, viewHeight) {
+  const zoom = Math.max(0.001, camera.zoom || 1);
+  return {
+    startX: Math.max(0, Math.floor((-camera.x / zoom) / BASE_CELL) - 1),
+    endX: Math.min(template.width - 1, Math.ceil(((viewWidth - camera.x) / zoom) / BASE_CELL) + 1),
+    startY: Math.max(0, Math.floor((-camera.y / zoom) / BASE_CELL) - 1),
+    endY: Math.min(template.height - 1, Math.ceil(((viewHeight - camera.y) / zoom) / BASE_CELL) + 1),
+  };
+}
+
+function applyCameraTransform(ctx, camera, renderScale) {
+  const zoom = camera.zoom || 1;
+  ctx.setTransform(renderScale * zoom, 0, 0, renderScale * zoom, renderScale * camera.x, renderScale * camera.y);
+}
+
+function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColorIndex) {
+  const { width, cells, palette } = template;
+  const bitmapW = Math.ceil(viewWidth * renderScale);
+  const bitmapH = Math.ceil(viewHeight * renderScale);
   if (ctx.canvas.width !== bitmapW || ctx.canvas.height !== bitmapH) {
     ctx.canvas.width = bitmapW;
     ctx.canvas.height = bitmapH;
   }
-  // Keep a logical 32px grid, but give the bitmap enough pixels for the
-  // current zoom level so digits are re-rasterized instead of stretched.
-  ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
-  ctx.clearRect(0, 0, canvasW, canvasH);
-  const showNumbers = interactionMode !== 'reveal' && !hideFilledNumbers && BASE_CELL >= 14;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, bitmapW, bitmapH);
+  applyCameraTransform(ctx, camera, renderScale);
+  const renderedCellSize = BASE_CELL * camera.zoom * renderScale;
+  // At overview scale, thousands of tiny labels are pure work: no one can
+  // read them, while they still block the main thread.
+  const showNumbers = interactionMode !== 'reveal' && !hideFilledNumbers && renderedCellSize >= 12;
+  const showGridLines = renderedCellSize >= 3;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = `${Math.max(10, Math.floor(BASE_CELL * 0.4))}px Outfit, sans-serif`;
-  const strokeSet = new Set(strokeCells || []);
-  const flashSet = new Set(flashCells || []);
+  const flashSet = new Set(flash?.cells || []);
+  const flashAlpha = flash?.alpha || 0;
   const activeSet = new Set(activeWorkCells || []);
-  for (let i = 0; i < cells.length; i++) {
-    const x = (i % width) * BASE_CELL;
-    const y = Math.floor(i / width) * BASE_CELL;
+  const { startX, endX, startY, endY } = visibleCellBounds(template, camera, viewWidth, viewHeight);
+  for (let gridY = startY; gridY <= endY; gridY++) {
+    for (let gridX = startX; gridX <= endX; gridX++) {
+    const i = gridY * width + gridX;
+    const x = gridX * BASE_CELL;
+    const y = gridY * BASE_CELL;
     const paint = filled[i];
     const target = cells[i];
     const isSelected = paint === -1 && selectedColor === target;
     const isHint = hintMode && paint === -1 && target === selectedColor;
-    const inStroke = strokeSet.has(i);
     const inFlash = flashSet.has(i);
     const isActiveTarget = activeSet.has(i);
-    if (inStroke) {
-      ctx.fillStyle = palette[target];
-      ctx.globalAlpha = 0.55;
-      ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
-      ctx.globalAlpha = 1;
-    } else if (paint === -1) {
+    if (paint === -1) {
       ctx.fillStyle = interactionMode === 'reveal' ? '#17232d' : isSelected ? '#24465a' : isHint ? '#2f6f5a' : '#172735';
       ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
     } else {
       ctx.fillStyle = palette[paint];
       ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
     }
-    if (inFlash) {
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    if (inFlash && flashAlpha > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${flashAlpha})`;
       ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
     }
-    ctx.strokeStyle = '#0b131a';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, BASE_CELL, BASE_CELL);
+    // Long-press peek: гасим всё, кроме незакрашенных клеток выбранного цвета.
+    if (peekColorIndex != null) {
+      if (paint === -1 && target === peekColorIndex) {
+        ctx.strokeStyle = '#7fe7ff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
+      } else {
+        ctx.fillStyle = 'rgba(4, 10, 16, 0.55)';
+        ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
+      }
+    }
+    if (showGridLines) {
+      ctx.strokeStyle = '#0b131a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, BASE_CELL, BASE_CELL);
+    }
     if (isActiveTarget && paint === -1) {
       ctx.strokeStyle = activeTargetColor === target ? '#7fe7ff' : '#ffffff';
       ctx.lineWidth = 3;
@@ -69,7 +95,25 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
       ctx.lineWidth = 3;
       ctx.strokeRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
     }
+    }
   }
+}
+
+function drawStrokePreviewCells(ctx, template, indices, camera, renderScale) {
+  if (!ctx || !indices.length) return;
+  applyCameraTransform(ctx, camera, renderScale);
+  ctx.save();
+  ctx.globalAlpha = 0.72;
+  for (const index of indices) {
+    const x = (index % template.width) * BASE_CELL;
+    const y = Math.floor(index / template.width) * BASE_CELL;
+    ctx.fillStyle = template.palette[template.cells[index]];
+    ctx.fillRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
+    ctx.strokeStyle = '#7fe7ff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
+  }
+  ctx.restore();
 }
 
 export default function ColoringCanvas({
@@ -96,33 +140,38 @@ export default function ColoringCanvas({
   activeTargetColor = null,
   onManualExplore,
   interactionDisabled = false,
+  peekColor = null,
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const strokeRef = useRef(null);
   const lastCellRef = useRef(null);
   const [wrongCell, setWrongCell] = useState(null);
-  const [strokePreview, setStrokePreview] = useState([]);
-  const [flashCells, setFlashCells] = useState([]);
+  const [flash, setFlash] = useState({ cells: [], alpha: 0 });
   const drawingRef = useRef(false);
   const flashTimerRef = useRef(null);
+  const flashFadeTimerRef = useRef(null);
   const hasPaintedRef = useRef(false);
   const activePointers = useRef(new Map());
   const transformRef = useRef(null);
   const tapStartRef = useRef(null);
   const deviceScale = typeof window === 'undefined' ? 1 : (window.devicePixelRatio || 1);
-  const renderScale = Math.min(MAX_RENDER_SCALE, Math.max(1, Math.ceil(deviceScale * Math.max(1, camera.zoom))));
+  const isLargeGrid = template.width * template.height >= 4096;
+  const renderScale = Math.min(MAX_VIEWPORT_RENDER_SCALE, Math.max(1, deviceScale));
 
   useEffect(() => {
-    return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); };
+    return () => {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+      if (flashFadeTimerRef.current) clearTimeout(flashFadeTimerRef.current);
+    };
   }, []);
 
   const redraw = useCallback(() => {
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx || !template) return;
     drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode,
-      strokePreview, wrongCell, flashCells, activeWorkCells, activeTargetColor, renderScale);
-  }, [template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, strokePreview, wrongCell, flashCells, activeWorkCells, activeTargetColor, renderScale]);
+      wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColor);
+  }, [template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColor]);
 
   useLayoutEffect(() => { redraw(); }, [redraw]);
 
@@ -145,10 +194,11 @@ export default function ColoringCanvas({
   }
 
   function cancelStroke() {
+    const hadPreview = Boolean(strokeRef.current?.indices.length);
     strokeRef.current = null;
-    setStrokePreview([]);
     drawingRef.current = false;
     lastCellRef.current = null;
+    if (hadPreview) redraw();
   }
 
   function commitStroke() {
@@ -171,12 +221,19 @@ export default function ColoringCanvas({
       completedAt: Date.now(),
     });
     strokeRef.current = null;
-    setStrokePreview([]);
-    setFlashCells(committedIndices);
+    // On large grids the committed fill itself is the feedback. Avoid three
+    // additional full-canvas redraws for a decorative flash.
+    if (isLargeGrid) return;
+    setFlash({ cells: committedIndices, alpha: 0.3 });
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    if (flashFadeTimerRef.current) clearTimeout(flashFadeTimerRef.current);
+    flashFadeTimerRef.current = setTimeout(() => {
+      flashFadeTimerRef.current = null;
+      setFlash({ cells: committedIndices, alpha: 0.12 });
+    }, 130);
     flashTimerRef.current = setTimeout(() => {
       flashTimerRef.current = null;
-      setFlashCells([]);
+      setFlash({ cells: [], alpha: 0 });
     }, 300);
   }
 
@@ -217,7 +274,7 @@ export default function ColoringCanvas({
         lastCell: index,
       };
       lastCellRef.current = index;
-      setStrokePreview([index]);
+      drawStrokePreviewCells(canvasRef.current?.getContext('2d'), template, [index], camera, renderScale);
     } else if (activePointers.current.size === 2 && !transformRef.current) {
       cancelStroke();
       drawingRef.current = false;
@@ -265,18 +322,16 @@ export default function ColoringCanvas({
     const cells = rasterizeStroke(lastCellRef.current, index, template.width, template.height);
     if (!cells.length) return;
     lastCellRef.current = index;
-    let added = false;
+    const addedCells = [];
     for (const ci of cells) {
       if (stroke.indexSet.has(ci)) continue;
       if (filled[ci] !== -1) continue;
       if (interactionMode !== 'reveal' && template.cells[ci] !== stroke.color) continue;
       stroke.indexSet.add(ci);
       stroke.indices.push(ci);
-      added = true;
+      addedCells.push(ci);
     }
-    if (added) {
-      setStrokePreview([...stroke.indices]);
-    }
+    drawStrokePreviewCells(canvasRef.current?.getContext('2d'), template, addedCells, camera, renderScale);
   }
 
   function handlePointerUp(event) {
@@ -317,6 +372,8 @@ export default function ColoringCanvas({
     lastCellRef.current = null;
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
     flashTimerRef.current = null;
+    if (flashFadeTimerRef.current) clearTimeout(flashFadeTimerRef.current);
+    flashFadeTimerRef.current = null;
     if (activePointers.current.size === 0) {
       endInteraction();
     }
@@ -341,11 +398,6 @@ export default function ColoringCanvas({
     });
   }
 
-  const camStyle = {
-    transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,
-    transformOrigin: '0 0',
-  };
-
   return (
     <div
       className="coloring-canvas-viewport"
@@ -357,8 +409,7 @@ export default function ColoringCanvas({
       onWheel={handleWheel}
       style={{ width: viewWidth, height: viewHeight, overflow: 'hidden', position: 'relative', background: '#081218' }}
     >
-      <div className="coloring-canvas-layer" style={camStyle}>
-        <canvas
+      <canvas
           ref={canvasRef}
           className="coloring-canvas"
           data-active-work-cells={activeWorkCells.join(',')}
@@ -371,13 +422,12 @@ export default function ColoringCanvas({
           aria-label={`Раскраска ${template?.title}`}
           style={{
             display: 'block',
-            width: template.width * BASE_CELL,
-            height: template.height * BASE_CELL,
+            width: viewWidth,
+            height: viewHeight,
             imageRendering: 'pixelated',
             touchAction: 'none',
           }}
-        />
-      </div>
+      />
     </div>
   );
 }

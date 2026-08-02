@@ -1,6 +1,62 @@
 # Реестр findings: повторная проверка
 
-Проверено 28.07.2026 на default branch `origin/main`, commit `750b9f25cd7429b6ddeb63c7721f802951486b76`. Локальная `feature/public-alpha-hardening` соответствует draft PR [#10](https://github.com/michaelyosta/splint-pixel-studio/pull/10): её изменения отмечены `in_progress`, а не закрытыми.
+## Текущий снимок
+
+Проверено 01.08.2026 на `main`, commit `782110afe05bb98936afd64a96c74171f658b306`. PR [#10](https://github.com/michaelyosta/splint-pixel-studio/pull/10) уже смержен через `bf70ef3`; старые строки о draft PR сохранены ниже как история и не описывают текущий main.
+
+| Статус | Количество |
+|---|---:|
+| resolved | 10 |
+| partially_resolved | 4 |
+| open | 1 |
+| requires_environment_validation | 1 |
+| in_progress | 0 |
+
+| ID | Текущий статус | Проверяемое доказательство | Остаточный риск |
+|---|---|---|---|
+| SEC-001 | resolved | Root и server `npm.cmd audit --omit=dev`: 0 vulnerabilities; local MinIO media integration passes. | cloud S3/IAM/XML edge cases не проверены |
+| SEC-002 | resolved | `server/routes/meta.js` запрещает прямой unlock; API test ожидает 403. | Нужны реальные game-event smoke tests |
+| SEC-003 | partially_resolved | `PUT` возвращает 405; actions проверяют цвета по серверному шаблону. | Клиент видит template map и может автоматизировать действия |
+| SEC-004 | open | `server/routes/colorings.js` принимает `resultDataUrl` от клиента; подробный разбор — [RESULT_IMAGE_INTEGRITY.md](RESULT_IMAGE_INTEGRITY.md). | Подмена изображения результата |
+| SEC-005 | partially_resolved | `safeLocalPath` и local media tests закрывают traversal; локальный MinIO upload/delete test 1/1. | cloud ACL/retry/lifecycle и malformed-image handling |
+| SEC-006 | partially_resolved | Global IP rate limit есть, per-user/per-route limiter нет. | Abuse в multi-instance |
+| SEC-007 | resolved | Future `auth_date` отклоняется; `server/test/auth.integration.test.js`. | Real Telegram WebView |
+| SEC-008 | resolved | Известные analytics events и 4096-byte payload limit в `server/routes/meta.js`. | Нет отдельной user quota |
+| SEC-009 | resolved | Production CORS/proxy validation в `server/config.js`, tests присутствуют. | Actual domain/proxy |
+| SEC-010 | partially_resolved | Telegram identity HMAC/server-derived; profile refresh отсутствует. | Stale profile data |
+| SEC-011 | resolved | `/meta/streak/touch` возвращает 403. | — |
+| SEC-012 | requires_environment_validation | Production configuration requires Telegram/PG/S3/proxy secrets; локальные Docker PG (90/90) и MinIO (1/1) не равны production deployment. | Production auth/storage/proxy/backup |
+| SEC-013 | resolved | Reporting service dedupe/limit/row-lock/audit + SQLite security tests; PostgreSQL concurrency/audit test also passed in Docker. | production topology/replication not checked |
+| SEC-014 | resolved | `/users` закрыт role guard, sensitive fields исключены из public DTO. | Deployed PG не проверен |
+| SEC-015 | resolved | Non-owner artworks query отдаёт только active public posts. | Deployed PG не проверен |
+| SEC-016 | resolved | `requireActiveUser()` блокирует banned accounts до message routes. | Multi-instance production |
+
+Проверка текущей рабочей копии не добавила нового security finding в ratings/visibility/grid-160: `server/routes/colorings.js` проверяет owner/source_type, публичность и диапазон rating; API integration покрывает owner/non-owner, publish/private и границу 160/161. Все последующие исторические формулировки сохранены, но при конфликте с текущим снимком приоритет имеет этот раздел.
+
+### Текущая проверка команд (31.07.2026)
+
+| Проверка | Результат | Граница доказательства |
+|---|---|---|
+| `npm.cmd test` | 200 passed, 0 skipped | локальная рабочая копия |
+| `npm.cmd --prefix server test` | 152 passed, 54 skipped, 0 failed | SQLite suite; skipped — PG-тесты без `DATABASE_URL` в этой aggregate-команде |
+| `npm.cmd --prefix server run test:postgres` | 90 passed, 0 skipped, 0 failed | реальный локальный Docker PostgreSQL, не production |
+| `node --test server/test/media-storage-s3.integration.test.js` | 1 passed | локальный Docker MinIO, не cloud IAM |
+| `npm.cmd run test:e2e` | 110 passed, 4 expected skipped, exit 0 | mobile skips — desktop-only wheel tests |
+| root/server `npm.cmd audit --omit=dev` | 0 vulnerabilities | dependency tree, не dynamic runtime |
+| `npm.cmd run lint`, `npm.cmd run build`, `npm.cmd run test:integration` | exit 0, build success, 1/1 integration | lint warnings остаются |
+| production-like API + Vite preview | API `/health` 200, без Telegram initData 401, strict CORS/CSP/HSTS; preview HTML/JS 200 | локальные PostgreSQL/MinIO, без реального Telegram, DNS/TLS и reverse proxy |
+
+### Новые staging/bootstrap findings
+
+| ID | Категория | Серьёзность | Статус | Проблема | Доказательство | Исправление | Подтверждение | Остаточный риск |
+|---|---|---:|---|---|---|---|---|---|
+| OPS-006 | PostgreSQL/bootstrap | high | open | Повторный demo bootstrap при уже существующих catalog templates неидемпотентен: сервер пытается пометить их как `archived`, но schema constraint запрещает это значение. При повторном `SEED_DEMO_DATA=true` API завершается до старта HTTP-сервера. | `server/db.js:214`, `bootstrapSystemData()` → `UPDATE coloring_templates SET status='archived'`; `server/migrations/001_initial.sql:46`, `status CHECK (status IN ('active', 'hidden', 'deleted'))`; воспроизведено 01.08.2026, PostgreSQL error `23514 coloring_templates_status_check`. Первый запуск на пустом состоянии прошёл, повторный — нет. | Не исправлялось; требуется согласовать enum/seed и добавить повторный PostgreSQL bootstrap test. | code + real local PostgreSQL reproduction; текущий `test:postgres` не проверяет повторный startup с `SEED_DEMO_DATA=true`. | Повторный staging restart/seed может завершить API до HTTP-startup, пока не согласованы status и idempotent seed. |
+
+### Текущая рабочая копия: намеренные изменения
+
+Относительно `main` изменены 24 tracked paths и добавлены 9 untracked files: redesign/fonts, Smart Coloring и E2E, ratings/visibility, migrations 007–009 и локальная SQLite DB. Это не security fix в текущем аудите; перед commit требуется отдельный review. `server/index.js` имеет status M без содержательного diff (blob hash совпадает с `HEAD`).
+
+## Исторический реестр на 28.07.2026
 
 Сводка исходной проверки: **open 28**, **partially_resolved 6**, **in_progress 4**, **resolved 3**, **requires_environment_validation 6**, **not_reproducible 0**, **regressed 0**, **obsolete 0**, **duplicate 0** (всего 47). Статусы относятся к возможности эксплуатации или подтверждения, а не к качеству описания PR. Ниже добавлена сверка draft PR #10; она не меняет риска `origin/main`, но переводит найденные там исправления в `in_progress`.
 

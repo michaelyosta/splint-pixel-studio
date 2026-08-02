@@ -1,12 +1,58 @@
 # Карта проекта Splint Pixel Studio
 
+## Актуальное состояние на 01.08.2026
+
+Последний commit `main`: `782110afe05bb98936afd64a96c74171f658b306`. Основной локальный запуск подтверждён через Desktop launcher: SQLite-база `server/splint-preview-20260729.db.bin` применила миграции `001–009`, API отвечает на `3001/health`, фронтенд — на `5173`.
+
+Проверки текущей рабочей копии (01.08.2026):
+
+- unit: `200/200`;
+- server SQLite: `152 passed / 54 skipped` из 206 тестов;
+- API integration: `1/1`;
+- build: успешно;
+- lint: exit 0, только предупреждения о старых неиспользуемых переменных и одном hook dependency;
+- dependency audit root и server production: `0 vulnerabilities`;
+- E2E единая команда `npm.cmd run test:e2e`: `110 passed / 4 expected skipped`, exit 0, 114 тестов; пропуски — desktop-only wheel-проверки на iPhone/Pixel;
+- PostgreSQL в Docker: `npm.cmd --prefix server run test:postgres` — `90 passed / 0 skipped / 0 failed`;
+- MinIO/S3: `server/test/media-storage-s3.integration.test.js` — `1 passed`, upload + HeadObject + delete + 404;
+- dependency audit root и server production: `0 vulnerabilities`.
+
+Живой сценарий каталог → «Неоновый кот» → плеер подтверждён после запуска через API; SQLite и локальные PostgreSQL/MinIO suites проверены. При отдельной production-like проверке первый PostgreSQL bootstrap прошёл, но повторный запуск с уже существующими catalog rows остановился на конфликте `status='archived'` с constraint из migration 001 (OPS-006). Telegram WebView, production domain/proxy, реальные секреты, облачный S3 и backup/restore не проверялись.
+
+01.08.2026 дополнительно проверен production-like локальный запуск API: `NODE_ENV=production`, PostgreSQL и MinIO, `GET /health` → `200`, запрос без Telegram `initData` → `401`, strict CORS/CSP/HSTS включены. Frontend production build и Vite preview отдают HTML/JS с `200`. Это не заменяет настоящий Telegram WebView, внешний HTTPS-домен, reverse proxy и production secrets.
+
+### Дополнительная проверка по трём ближайшим направлениям (01.08.2026)
+
+- **Размер сетки.** `160×160` — единственный максимальный размер, одновременно разрешённый текущим API и подтверждённый E2E. Изолированный прогон реального `neon-cat.png` дошёл до обработки и engine windows для `1200×1200`, но полный поток `API → React-сессия → Canvas → save/reopen` для больших сеток не подтверждён; `768×768` synthetic-flow не дождался Canvas за 15 секунд. Узкое место — повторный проход `cluster` при построении working windows. Подробные замеры и безопасный план: [GRID_BENCHMARK.md](GRID_BENCHMARK.md).
+- **Целостность итогового изображения.** Сервер авторитетно проверяет допустимые progress actions и вычисляет завершение, но принимает клиентский `resultDataUrl` как PNG без декодирования пикселей и сравнения с `template.cells`. Это отдельный остаточный риск, а не доказательство подделки результата; разбор потока и варианты server-authoritative render: [RESULT_IMAGE_INTEGRITY.md](RESULT_IMAGE_INTEGRITY.md).
+- **Staging/deploy Telegram Mini App.** Подготовлена пошаговая инструкция для новичка: окружение, PostgreSQL, S3/MinIO, HTTPS/reverse proxy, BotFather, smoke-test и backup/restore. Локальные проверки не заменяют реальный Telegram WebView, cloud S3, production proxy и restore drill: [TELEGRAM_DEPLOY_BEGINNER.md](TELEGRAM_DEPLOY_BEGINNER.md).
+
+### Незакоммиченная рабочая копия
+
+После `782110a` в рабочем дереве находятся изменения, которые нельзя автоматически считать частью main: визуальный редизайн, улучшения Smart Coloring, deep links/haptics/share, публикация и рейтинги пользовательских раскрасок, расширение creator до `160×160`, миграции `007–009`, тестовые изменения и локальные шрифты. До отдельного review/commit эти изменения являются кандидатом на релиз, а не стабильным состоянием репозитория.
+
+### Классификация каждого изменения рабочей копии
+
+| Файлы | Классификация | Доказательство/назначение |
+|---|---|---|
+| `SECURITY_FOLLOWUPS.md`, `docs/AUDIT_FINDINGS.md`, `docs/PROJECT_MAP.md` | намеренная документация | обновлены в рамках текущего аудита; исходный код не затронут |
+| `index.html`, `src/App.css`, `src/index.css`, `public/fonts/press-start-2p-cyrillic.woff2`, `public/fonts/press-start-2p-latin.woff2` | намеренный визуальный редизайн | дизайн-система, локальные шрифты и HTML-метаданные |
+| `src/App.jsx`, `src/views/PlayerView.jsx`, `src/features/coloring/ColoringCanvas.jsx`, `src/features/coloring/ColoringPalette.jsx`, `src/features/coloring/ColoringSession.jsx`, `src/features/coloring/coloring.css`, `src/features/coloring/engine/clusterGraph.js`, `src/lib/imageCrop.js`, `src/lib/pixelColoring.js`, `src/lib/progressSaveQueue.js`, `src/lib/telegram.js` | намеренные клиентские изменения | Smart Coloring, viewport/performance, deep links, haptics/share, rating/visibility UI и сохранение |
+| `server/routes/colorings.js` | намеренное API-изменение | ratings, visibility, лимит creator `160×160`, существующий authoritative progress protocol сохранён |
+| `server/migrations/007_template_ratings.sql`, `008_max_grid_128.sql`, `009_max_grid_160.sql` и одноимённые файлы в `server/migrations/sqlite/` | намеренные миграции | ratings table и последовательное повышение ограничения сетки; PostgreSQL/SQLite варианты применяются runner'ом |
+| `server/test/api.integration.test.js`, `server/test/database.test.js`, `server/test/postgres-database.test.js`, `e2e/creator.spec.js`, `e2e/stabilization.spec.js` | намеренные тестовые изменения | покрывают новые endpoint'ы, миграции, сетки 160 и camera-aware E2E |
+| `server/index.js` | без семантического изменения | `git diff` пуст, blob hash совпадает с `HEAD`; статус — только рабочая копия/перевод строк |
+| `server/splint-preview-20260729.db.bin` | сгенерированный локальный артефакт | runtime SQLite база, не исходник и не кандидат на commit; не удалялась |
+
+Исторические разделы ниже сохранены, но их числовые статусы E2E, security и описание draft PR относятся к состоянию до merge PR #10/#11/#12/#13. Для текущего security-реестра использовать [SECURITY_FOLLOWUPS.md](../SECURITY_FOLLOWUPS.md) и [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md).
+
 > **Повторная security-верификация — 28.07.2026.** Этот документ первоначально описывал локальную ветку `feature/public-alpha-hardening` (`d8ed95b`). Default branch репозитория — `origin/main` на `750b9f25cd7429b6ddeb63c7721f802951486b76`; `feature/public-alpha-hardening` является draft PR [#10](https://github.com/michaelyosta/splint-pixel-studio/pull/10). Поэтому security-изменения этой ветки не являются состоянием production/main. Актуальный реестр — [SECURITY_FOLLOWUPS.md](../SECURITY_FOLLOWUPS.md) и [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md).
 
 > Аудит состояния ветки `feature/public-alpha-hardening`, commit `d8ed95b` от 28 июля 2026 года. Документ основан на исходном коде, Git history, импорт-графе, маршрутах, вызовах API и фактических запусках проверок. README использовался только как гипотеза и перепроверялся.
 
 ## 1. Что это за проект
 
-Splint Pixel Studio — мобильное React-приложение в формате Telegram Mini App для раскрашивания пиксельных изображений по номерам. Пользователь выбирает готовый шаблон или преобразует своё изображение в сетку 8–64 пикселя, закрашивает клетки, сохраняет прогресс на сервере, завершает работу и при желании публикует её в общей ленте.
+Splint Pixel Studio — мобильное React-приложение в формате Telegram Mini App для раскрашивания пиксельных изображений по номерам. В baseline `main` пользователь выбирает готовый шаблон или преобразует своё изображение в сетку 8–64 пикселя; текущая незакоммиченная рабочая копия расширяет creator до 160×160. В обоих случаях пользователь закрашивает клетки, сохраняет прогресс на сервере, завершает работу и при желании публикует её в общей ленте.
 
 Предполагаемый пользователь — человек, которому нужна короткая расслабляющая игровая сессия на телефоне. Интерфейс рассчитан на узкий экран и Telegram WebView, но имеется локальный браузерный режим разработки.
 
@@ -40,33 +86,31 @@ Splint Pixel Studio — мобильное React-приложение в фор�
 
 **Стадия: функциональный MVP.**
 
-Почему не «ранний MVP»: основной цикл каталог → игра → сохранение → завершение → публикация реализован сквозным кодом; есть создание раскраски из изображения, социальная лента, авторизация Telegram, миграции, SQLite/PostgreSQL-адаптер, unit/integration/E2E тесты. `npm test` прошёл 200/200, серверный suite — 151 pass, 53 skip, 0 fail; production build собирается.
+Почему не «ранний MVP»: основной цикл каталог → игра → сохранение → завершение → публикация реализован сквозным кодом; есть создание раскраски из изображения, социальная лента, авторизация Telegram, миграции, SQLite/PostgreSQL-адаптер, unit/integration/E2E тесты. `npm test` прошёл 200/200, серверный SQLite suite — 152 pass, 54 skip, 0 fail; PostgreSQL suite в Docker — 90/90; production build собирается.
 
 Почему не beta:
 
-- E2E runner на Windows не завершает процесс после тестовых assertions и поэтому не выдаёт достоверный итоговый exit code. После P0-стабилизации Chromium-набор smart coloring запустил все 18 проверок без напечатанной assertion-ошибки; однако полный green-прогон на трёх профилях ещё не подтверждён;
-- production-путь с реальными PostgreSQL, S3/MinIO и Telegram не был подтверждён; 53 серверных PostgreSQL-теста пропущены;
+- production-путь с реальными Telegram, доменом/reverse proxy, cloud S3 и backup/restore не подтверждён; локальные Docker PostgreSQL и MinIO подтверждены отдельно;
 - Docker Compose поднимает только PostgreSQL и MinIO, но не клиент и API;
 - часть крупного backend-функционала не имеет UI;
-- achievement unlock доступен прямым клиентским вызовом без проверки условия;
-- server dependency audit содержит critical advisory;
+- server-authoritative actions защищают состояние, но клиент всё ещё видит карту шаблона и может автоматизировать допустимые действия; `resultDataUrl` остаётся клиентским источником изображения;
 - отсутствуют deployment manifests, CI-деплой, мониторинг и backup automation.
 
 ## 3. Что уже реализовано
 
 | Функция | Статус | Где реализована | Как проверить | Ограничения |
 |---|---|---|---|---|
-| Каталог из 6 шаблонов | работает | `server/catalog-templates.json`, `server/db.js:196`, `server/routes/colorings.js:106`, `src/App.jsx:125` | локальный E2E и `GET /colorings` | требует `SEED_DEMO_DATA=true`; каталог не создаётся при обычном пустом старте |
+| Каталог из 6 шаблонов | частично работает | `server/catalog-templates.json`, `server/db.js:196-226`, `server/routes/colorings.js:106`, `src/App.jsx:125` | SQLite seed/E2E и `GET /colorings`; production-like PG bootstrap воспроизведён | `SEED_DEMO_DATA=true` на свежем PostgreSQL падает на `status='archived'` vs `server/migrations/001_initial.sql:46` (OPS-006); каталог не создаётся при обычном пустом старте |
 | Фильтры mood/theme/time | работает | `src/App.jsx:626`, `src/api/client.js:47`, `server/routes/colorings.js:106` | выбрать фильтр, проверить query | query `max_minutes` не проверяется на число |
 | «Сегодня» и quick picks | частично работает | `server/routes/colorings.js:120`, `src/App.jsx:139` | `GET /colorings/today` | данные загружаются, но роль блока в UI ограничена каталогом |
 | Открытие раскраски | работает | `src/App.jsx:205`, `server/routes/colorings.js:133,213,220` | E2E creator #10 | при сбое любого из 3 параллельных запросов весь вход отменяется |
-| Classic-раскрашивание по номеру | работает | `src/views/PlayerView.jsx`, `src/features/coloring/ColoringSession.jsx`, `ColoringCanvas.jsx` | unit + E2E creator #17 | E2E guided-сценариев частично падает |
-| Reveal-режим | частично работает | те же файлы, `src/features/coloring/engine/` | unit + E2E creator #18 | часть stabilization E2E падает |
-| Smart camera и guided targets | частично работает | `ColoringSession.jsx`, `camera/useSmartCamera.js`, `engine/routeTargeting.js`, `ColoringCanvas.jsx` | unit; Chromium `e2e/stabilization.spec.js` выполняет 18 assertions | итоговый код E2E и мобильные профили не подтверждены из-за runner teardown |
+| Classic-раскрашивание по номеру | работает локально | `src/views/PlayerView.jsx`, `src/features/coloring/ColoringSession.jsx`, `ColoringCanvas.jsx` | полный E2E creator/stabilization: 110 passed, 4 expected skipped | Telegram/device matrix не проверена |
+| Reveal-режим | работает локально | те же файлы, `src/features/coloring/engine/` | E2E creator и stabilization на Chromium/iPhone/Pixel | production WebView не проверен |
+| Smart camera и guided targets | работает локально | `ColoringSession.jsx`, `camera/useSmartCamera.js`, `engine/routeTargeting.js`, `ColoringCanvas.jsx` | полный `npm run test:e2e`: 110 passed, 4 expected skipped | реальные устройства и нагрузка не проверены |
 | Legacy Canvas fallback | реализовано, но не подключено по умолчанию | `src/components/LegacyPixelCanvas.jsx`, `src/views/PlayerView.jsx:8` | `VITE_NEW_COLORING_ENGINE=false` | не является штатным production-путём |
 | Undo/redo | работает | `src/App.jsx`, `engine/historyOperations.js`, `ColoringSession.jsx` | unit, E2E creator #15/#17 | история только в памяти текущей сессии |
 | Fill области | работает | `src/lib/floodFill.js`, `src/App.jsx`, меню PlayerView | E2E проверяет наличие; unit логики косвенный | специального сквозного теста сохранения fill нет |
-| Автосохранение с ревизиями | работает на SQLite | `src/lib/progressSaveQueue.js`, `server/routes/colorings.js:229` | 22 queue-теста, integration | PostgreSQL HTTP-тесты пропущены без БД |
+| Автосохранение с ревизиями | работает локально | `src/lib/progressSaveQueue.js`, `server/routes/colorings.js:318-390` | queue + SQLite suite + PostgreSQL suite 90/90 | production topology не проверена |
 | Восстановление прогресса | работает на SQLite | `src/App.jsx:209`, `server/routes/colorings.js:220` | повторно открыть шаблон | не проверено на реальном Telegram/production |
 | Завершение и artwork | работает на SQLite | `server/routes/colorings.js:303-336`, `src/App.jsx` | server integration «coloring progress can become a social post» | изображение результата доверено клиентскому PNG |
 | Публикация в ленту | работает | `src/App.jsx:388`, `server/routes/posts.js:25` | E2E completion + server integration | доступна только после полного прогресса |
@@ -74,9 +118,9 @@ Splint Pixel Studio — мобильное React-приложение в фор�
 | Жалоба на пост | работает | `src/App.jsx:578`, `posts.js:109`, `reporting.js` | security integration | UI всегда отправляет причину `other` |
 | Профиль и завершённые работы | работает | `src/App.jsx:175,695`, `profiles.js` | открыть профиль | редактирования профиля в текущем UI нет |
 | Коллекции | частично работает | `src/App.jsx:679`, `meta.js:75`, `profiles.js:107` | открыть «Альбомы» | просмотр есть; покупка/добавление коллекции не подключены к UI |
-| Достижения | частично работает | `src/App.jsx:147,687`, `meta.js:56,64`, `colorings.js:303` | завершить действие/открыть экран | прямой unlock endpoint позволяет обход условий |
+| Достижения | частично работает | `src/App.jsx:147,687`, `server/routes/meta.js`, `server/routes/colorings.js` | direct unlock API integration ожидает 403; completion path покрыт server tests | условия выдачи ограничены серверным completion, но client-visible map допускает автоматизацию действий |
 | Серии дней (streak) | частично работает | `meta.js:21,36`, `colorings.js:303`, `src/App.jsx:143` | сохранить прогресс | часовой пояс — UTC сервера; UI отображает ограниченно |
-| Аналитические события | частично работает | `meta.js:115`, вызовы `metaApi.track` в `App.jsx`/PlayerView | запросить summary | payload доверен клиенту; summary не имеет UI |
+| Аналитические события | частично работает | `server/routes/meta.js`, вызовы `metaApi.track` в `App.jsx`/PlayerView | API/security tests: allowlist + 4096-byte limit | per-user quota и UI summary отсутствуют |
 | Создание раскраски из изображения | работает локально | `src/App.jsx:438-500`, `pixelColoring.js`, `imageCrop.js`, `colorings.js:171` | E2E creator #2–#8 | обработка целиком на клиенте; исходник в dev может храниться локально |
 | Удаление своей раскраски | работает | `src/App.jsx:505`, `colorings.js:148` | E2E creator #11 | каскад вручную, операция не обёрнута целиком в транзакцию |
 | Скачать результат | работает в браузере | `src/App.jsx:423`, PlayerView | завершить и нажать download | не проверено в Telegram WebView |
@@ -87,8 +131,9 @@ Splint Pixel Studio — мобильное React-приложение в фор�
 | Moderation API | реализовано, но не подключено | `server/routes/moderation.js`, `reporting.js` | security integration | административного UI нет |
 | Личные сообщения за Stars | реализовано, но не подключено | `server/routes/messages.js`, `stars-transactions.js` | SQLite HTTP tests | нет UI и реальных Telegram Payments |
 | Покупка коллекции за Stars | реализовано, но не подключено | `profiles.js:113`, `stars-transactions.js` | SQLite HTTP tests | нет UI, webhook, refund/withdrawal |
-| PostgreSQL runtime | невозможно подтвердить без запуска | `server/db.js`, `database/*`, migrations | задать `DATABASE_URL`, `npm run test:postgres` | все DB-зависимые PostgreSQL tests в аудите были skipped |
-| S3/MinIO исходники | невозможно подтвердить без запуска | `media-storage.js`, `docker-compose.yml` | поднять MinIO и создать user coloring | local driver тестирован; S3 integration-теста нет |
+| PostgreSQL runtime | работает локально, production не подтверждён | `server/db.js`, `server/database/*`, migrations | Docker PostgreSQL + `npm --prefix server run test:postgres` | 90/90 локальных тестов; production topology/backup не проверены |
+| S3/MinIO исходники | работает на локальном MinIO | `server/services/media-storage.js`, `docker-compose.yml` | `server/test/media-storage-s3.integration.test.js` | 1/1 upload/delete; cloud IAM, retry и lifecycle не проверены |
+| Рейтинги и visibility пользовательских раскрасок | работает локально | `server/routes/colorings.js:186-227`, `src/App.jsx:621-649`, migrations 007 | API integration + текущий UI | нет отдельного E2E рейтинга; глобальный rate limit общий |
 
 ## 4. Пользовательские сценарии
 
@@ -108,16 +153,16 @@ Splint Pixel Studio — мобильное React-приложение в фор�
 - Сервер: `auth.js:5-26` проверяет HMAC-SHA256, `auth_date <= 24h`, читает user JSON и создаёт `tg_<id>`.
 - Сохранение: строка `users`, включая `telegram_id`, nickname и avatar.
 - Точки отказа: нет token; подпись/дата неверны; Telegram user не содержит id; пользователь забанен.
-- Тесты: valid/invalid/expired/precedence покрыты integration; реальный Telegram запуск не проверен.
+- Тесты: valid/invalid/expired/future/precedence покрыты integration; реальный Telegram запуск не проверен.
 
 ### 4.3 Открытие и прохождение раскраски
 
 - Вход: карточка `.coloring-card`, `openColoring()` в `App.jsx:205`.
 - Запросы: `GET /colorings/:id`, `/progress`, `/zones`.
 - Компоненты: `PlayerView` → `ColoringSession` → `ColoringCanvas`; engine modules строят кластеры, окна, route target и camera plan.
-- Сохранение: `PUT /colorings/:id/progress` через debounce queue; `filled_json`, `revision`, timestamps.
+- Сохранение: `POST /colorings/:id/progress/actions` через debounce queue; `filled_json`, `revision`, timestamps. Старый `PUT` намеренно отвечает 405.
 - Отказы: любой из трёх GET; конфликт 409; ошибка queue; guided state machine; некорректные зоны. Notice показывает ошибку сохранения, но пользователь может продолжить и потерять последние изменения.
-- Тесты: логика хорошо покрыта unit; E2E частично красный.
+- Тесты: unit и полный E2E проходят; 4 мобильных wheel-теста ожидаемо skipped.
 
 ### 4.4 Завершение
 
@@ -125,7 +170,7 @@ Splint Pixel Studio — мобильное React-приложение в фор�
 - Создаются/обновляются `coloring_progress` и `artworks`; streak и achievements обновляются сервером.
 - Клиент открывает completion overlay и предлагает download/share/publish.
 - Отказы: `resultDataUrl` может быть null — artwork возьмёт preview; публикация невозможна, если `artwork_id` ещё не пришёл после save.
-- Тест: SQLite integration покрывает переход до социального поста; E2E completion проходит, но zone-completion тест падает.
+- Тест: SQLite и PostgreSQL integration покрывают переход до социального поста; полный E2E completion проходит на трёх профилях.
 
 ### 4.5 Возврат к незавершённой работе
 
@@ -141,8 +186,8 @@ Splint Pixel Studio — мобильное React-приложение в фор�
 - FileReader читает PNG/JPG/WebP; Canvas применяет crop/fit, grid size и palette reduction.
 - `buildColoringFromImage()` выдаёт palette/cells, preview и originalDataUrl.
 - `POST /colorings/create` сохраняет private template и оригинал через local/S3 driver.
-- Риски: браузерная память, 15 MB JSON body, отсутствие декодирования/антивируса на сервере, S3 не проверен.
-- E2E creator #2–#8 проходит на Chromium/iPhone до таймаута.
+- Риски: браузерная память, 15 MB JSON body и отсутствие декодирования/антивируса на сервере.
+- E2E creator #2–#8 проходит на Chromium/iPhone/Pixel в штатном runner.
 
 ### 4.7 Лента
 
@@ -155,8 +200,8 @@ Splint Pixel Studio — мобильное React-приложение в фор�
 ### 4.8 Коллекции, достижения, streak
 
 - Коллекции и achievements доступны из навигации.
-- Streak touch вызывается клиентом при zone completion и сервером при любом успешном progress save.
-- Achievement `ach_first_zone` вызывается клиентом и также сервером; endpoint принимает произвольный существующий achievement id.
+- Streak touch endpoint закрыт для прямого клиента; сервер обновляет streak только в допустимом внутреннем completion flow.
+- Achievement unlock endpoint закрыт (403); выдача остаётся внутренней серверной логикой completion.
 - Покупка коллекции существует только в API.
 
 ### 4.9 Административный сценарий
@@ -215,7 +260,7 @@ Production reverse proxy/static hosting в репозитории отсутст
   - `ColoringCanvas.jsx` — pointer gestures и рисование;
   - `camera/` и `engine/` — чистая геометрия, кластеры, окна, target routing, reducer/history;
   - `ColoringHud`, `Palette`, `DevDiagnostics` — UI и dev telemetry.
-  Используется по умолчанию; E2E указывает на незакрытые переходы состояния.
+  Используется по умолчанию; полный локальный E2E проходит, но реальные устройства и production WebView не проверены.
 - `src/components/LegacyPixelCanvas.jsx` — fallback старого движка; достижим только через env flag. `PixelCanvas.jsx` импортируется только косвенно/исторически и выглядит дублирующим.
 - `src/lib/` — преобразование изображений, crop, flood fill, игровой прогресс, save queue, Telegram bootstrap. Большинство используется и тестируется.
 - `src/api/client.js` — единый JSON fetch wrapper и небольшие API facades. Используется.
@@ -223,7 +268,7 @@ Production reverse proxy/static hosting в репозитории отсутст
 - `server/routes/` — 57 обычных и 3 test-only endpoints. `colorings`, `feed`, часть posts/users/meta используются UI; messages, moderation, paid collection и многие list endpoints — server-only.
 - `server/services/` — media storage, report policy, transactional Stars ledger. Используется маршрутами, хотя финансовые маршруты не имеют UI.
 - `server/database/` — миграции, SQL conversion, transaction adapters, AsyncLocalStorage и SQLite scheduler. Используется.
-- `server/migrations/` и `server/migrations/sqlite/` — параллельные PostgreSQL/SQLite схемы версий 001–006. Используются startup runner.
+- `server/migrations/` и `server/migrations/sqlite/` — параллельные PostgreSQL/SQLite схемы версий 001–009. Используются startup runner; SQLite-миграции 008/009 намеренно оставляют размерную границу на уровне API, а PostgreSQL добавляет CHECK constraints.
 - `server/catalog-templates.json` — minified single-line seed с 6 картами. Используется bootstrap.
 - `public/assets/catalog/` — оригинальные и pixel previews. Используются seed-данными.
 - `assets/` и `server/scripts/build-catalog-assets.py` — исходники/генератор каталога. Скрипт ручной; runtime не использует.
@@ -381,7 +426,7 @@ npm.cmd --prefix server run test:postgres
 - preview/result data URLs раздувают БД;
 - local media и SQLite не production-durable;
 - result PNG генерирует клиент, сервер не сверяет пиксели с template;
-- миграции проверяют checksum и синхронизированы тестами, но PostgreSQL на этом компьютере не подтверждён;
+- миграции проверяют checksum и синхронизированы тестами; PostgreSQL 001–009 подтверждён локальным Docker suite, production topology не проверена;
 - bootstrap архивирует все catalog templates перед upsert, что требует аккуратного управления составом каталога;
 - нет repository-managed backup/restore и object orphan reconciliation.
 
@@ -424,14 +469,17 @@ npm.cmd --prefix server run test:postgres
 | GET | `/colorings/mine` | owned/started | user | — | templates+progress | `App.jsx:157` |
 | GET | `/colorings/:id` | full template | canRead | id | template+cells | `App.jsx:209` |
 | GET | `/colorings/:id/progress` | progress | canRead | id | progress DTO | `App.jsx:209` |
-| PUT | `/colorings/:id/progress` | CAS save/complete | canRead | filled,revision,resultDataUrl | progress/artwork_id | save queue |
-| GET/POST | `/meta/streak`, `/streak/touch` | streak | user | — | streak | App/meta + server save |
+| PUT | `/colorings/:id/progress` | retired whole-map save | auth | — | 405 | regression/security tests |
+| POST | `/colorings/:id/progress/actions` | server-derived CAS action | canRead | changes,revision,resultDataUrl | progress/artwork_id | `App.jsx`, save queue |
+| GET/POST | `/meta/streak`, `/meta/streak/touch` | streak read / guarded touch | user | — | streak / 403 direct touch | App/meta + server save |
 | GET | `/meta/achievements` | definitions/state | user | — | achievements[] | `App.jsx:148` |
-| POST | `/meta/achievements/:id/unlock` | force unlock | user | id | unlocked | `App.jsx:297` |
+| POST | `/meta/achievements/:id/unlock` | direct unlock guard | user | id | 403 `ACHIEVEMENT_UNLOCK_FORBIDDEN` | negative API test; no client call |
 | GET | `/meta/collections` | collection progress | user | — | collection[] | `App.jsx:152` |
 | GET | `/meta/collections/:id/templates` | templates | user | id | summary[] | `App.jsx:680` |
 | POST | `/meta/analytics` | event | user | event,payload | accepted | many client calls |
 | GET | `/meta/analytics/summary` | user counts | user | — | map | не вызывается |
+| PATCH | `/colorings/:id/visibility` | publish/withdraw own user template | owner | visibility | template | `App.jsx:625` |
+| PUT/DELETE | `/colorings/:id/rating` | set/clear one 1–5 rating | user, public template, not owner | rating | rating summary | `App.jsx:642` |
 | POST | `/messages/request/create` | contact request | user | receiverId,post,text | request | не вызывается |
 | POST | `/messages/request/pay` | pay request | sender + key | requestId | transaction result | не вызывается |
 | POST | `/messages/request/reply` | reply | receiver | requestId,replyText | result | не вызывается |
@@ -453,8 +501,8 @@ Test-only при `NODE_ENV=test`: `GET /meta/_test/throw`, `GET /meta/_test/auth
 
 - frontend-запросов без server endpoint не найдено;
 - большая часть server API не вызывается frontend;
-- `POST achievements/:id/unlock` не валидирует критерий;
-- analytics payload не имеет схемы/ограничения глубины;
+- `POST achievements/:id/unlock` намеренно отвечает 403; критерии выдачи остаются только во внутреннем completion flow;
+- analytics payload ограничен allowlist и 4096 bytes, но per-user quota/retention нет;
 - `max_minutes` может стать `NaN`;
 - result PNG проверяется по сигнатуре/размеру, но не соответствует ли содержимое шаблону;
 - route-level validation реализована вручную и неодинаково;
@@ -479,7 +527,7 @@ Mini App ожидает Telegram SDK из `index.html`, вызывает `WebApp
 Недоделано/риск:
 
 - срок 24 часа жёсткий и не конфигурируется;
-- не отвергается `auth_date` из далёкого будущего;
+- допустимое будущее расхождение ограничено 300 секундами, но clock в production не проверен;
 - нет replay nonce, хотя повторное signed initData в окне 24h обычно допустимо;
 - Telegram user profile при последующих входах не обновляет nickname/photo;
 - нет bot setup/deep-link/deployment инструкции;
@@ -504,39 +552,39 @@ Mini App ожидает Telegram SDK из `index.html`, вызывает `WebApp
 | Функция | Unit | Integration | E2E | Доверие |
 |---|---:|---:|---:|---|
 | pixel conversion | да | нет | да | высокое локально |
-| coloring primitives | да | нет | да, частично падает | среднее |
-| smart camera/route | да | нет | да, падает | низкое для UI |
-| save queue | очень подробно | API отдельно | косвенно | высокое на SQLite |
-| progress CAS | частично | SQLite да, PG skipped | да | среднее |
-| completion → post | да | да | да | высокое на SQLite |
+| coloring primitives | да | нет | да | высокое локально |
+| smart camera/route | да | нет | да, 110/114 E2E aggregate | высокое локально |
+| save queue | очень подробно | SQLite + PostgreSQL | косвенно | высокое локально |
+| progress CAS | частично | SQLite + PostgreSQL | да | высокое локально |
+| completion → post | да | да | да | высокое локально; `resultDataUrl` остаётся security-риском |
 | Telegram auth | нет | да | нет | среднее |
 | social interactions | нет | security/API | да | средне-высокое |
 | creator | да частично | create endpoint | да | высокое локально |
 | local media | да | да | creator | высокое local |
-| S3 | нет | нет | нет | неподтверждённо |
-| PostgreSQL | adapter unit | 53 skipped | нет | низкое в этом аудите |
+| S3/MinIO | нет | 1 integration test | нет | высокое локально; cloud не подтверждён |
+| PostgreSQL | adapter unit | 90 passed | нет | высокое локально; production topology не подтверждена |
 | moderation | нет | SQLite да | нет UI | среднее для API |
 | Stars | подробно | SQLite HTTP | нет UI | высокое для API/SQLite |
 | deployment | нет | нет | нет | отсутствует |
 
-Непокрытые критические места: реальный Telegram WebView, production reverse proxy/CORS, S3, backup/restore, unload во время debounce save, полный PostgreSQL run, complete three-project E2E, accessibility.
+Непокрытые критические места: реальный Telegram WebView, production reverse proxy/CORS и secrets, cloud S3 IAM/retry/lifecycle, backup/restore, unload во время debounce save, production load/replicas и accessibility.
 
-Тесты нельзя считать полностью согласованными: zone E2E исправлен так, чтобы запрашивать конкретный template и проверять HTTP status; guided Chromium assertions стабилизированы. Но Playwright teardown на Windows не возвращает итоговый статус, а mobile-профили, PostgreSQL и S3 остаются неподтверждёнными.
+Штатный Playwright-runner теперь завершился с exit 0: `110 passed / 4 expected skipped` на Chromium/iPhone/Pixel. Skips относятся только к desktop-only wheel-тестам мобильных профилей. PostgreSQL и MinIO подтверждены локально в Docker; это не заменяет production smoke-test.
 
 ## 12. Безопасность
 
+Актуальный реестр статусов и доказательств: [SECURITY_FOLLOWUPS.md](../SECURITY_FOLLOWUPS.md) и [docs/AUDIT_FINDINGS.md](AUDIT_FINDINGS.md). Таблица ниже — краткая карта рисков текущей рабочей копии; исторические security-таблицы ниже не переопределяют этот реестр.
+
 | Severity | Доказательство | Сценарий и последствия | Направление исправления |
 |---|---|---|---|
-| **critical** | `server/package-lock.json`, npm audit: `fast-xml-parser <=5.6.0` через AWS SDK | уязвимый XML parser присутствует в production dependency tree; применимость зависит от обрабатываемых S3 XML-ответов | обновить AWS SDK/lockfile и повторить audit/tests |
-| **high** | `server/routes/meta.js:64` | любой auth user вызывает unlock любого achievement без фактического условия; подмена прогресса/награды | убрать client-authoritative unlock, вычислять сервером |
-| **high** | `server/routes/colorings.js:229-336` | клиент может одним PUT отправить точную `cells` карту, мгновенно завершить работу и получить artwork/achievements | серверные правила progression/anti-cheat, rate/time/event checks по продуктовой модели |
+| **high** | `server/routes/colorings.js:351-390` | клиент видит карту шаблона и может автоматизировать серию допустимых actions; прямой PUT отключён, но это не полноценный anti-cheat | при необходимости усилить server-derived progression и abuse controls |
 | **medium** | `colorings.js:328-331` | клиент задаёт completed PNG; можно сохранить постороннее изображение как результат и опубликовать | server rendering или проверка/перегенерация |
 | **medium** | `media-storage.js:15-20` | original проверяется по data URL MIME/размеру, но не magic bytes/декодированию | decode+sniff+pixel limits, malware policy |
 | **medium** | `server/index.js:47-54` | только глобальный IP limit; NAT блокирует всех, распределённый abuse обходит; Stars/login/report требуют разных лимитов | per-user/per-route persistent limiter |
 | **medium** | `server/routes/colorings.js:148-167` | non-transactional delete может оставить частично удалённые данные/orphan media | DB transaction + outbox/reconciliation |
-| **medium** | `auth.js:9` | future `auth_date` проходит, пока разность отрицательная | проверять допустимый future skew |
-| **medium** | `meta.js:115`, `express.json 15mb` | auth user может массово писать произвольные analytics payload до общего лимита | schema/size/event allowlist/retention |
-| **low** | `server/index.js:40-45` | dev CORS `*`; приемлемо локально, опасно при случайном публичном dev server | bind localhost, документировать, не публиковать |
+| **medium** | `auth.js:9` | future `auth_date` ограничен 300 сек, но реальные часы Telegram/proxy не проверены | staging smoke-test и мониторинг clock skew |
+| **medium** | `meta.js:115`, `express.json 15mb` | allowlist и 4096-byte payload закрывают раздувание, но отдельной user quota нет | quota/retention при публичном запуске |
+| **low** | dev CORS в `server/config.js` | wildcard разрешён только вне production; случайная публикация dev-сервера остаётся риском | bind localhost и не публиковать dev mode |
 | **low** | `auth.js:18-25` | nickname/photo не обновляются, возможны stale identity данные | безопасный upsert разрешённых полей |
 
 Положительные меры: production fail-closed config, Telegram HMAC/timing-safe compare, ban check на каждом auth request, role middleware, parameterized SQL, generic 500 response, Helmet, strict production CORS, explicit trust proxy, safe path resolution, file size limits, report uniqueness/daily limit, append-only Stars ledger и idempotency.
@@ -545,13 +593,12 @@ SQL injection/path traversal/чтение чужого private template по и�
 
 ## 13. Что не закончено
 
-- `SECURITY_FOLLOWUPS.md` частично устарел: называет Stars «in progress», хотя history и tests показывают merge; некоторые follow-ups уже исправлены.
+- Исторические блоки `SECURITY_FOLLOWUPS.md` и этого документа сохранены, но текущий snapshot в начале файлов является источником истины.
 - Сообщения, paid collections, followers/following lists, following feed, profile settings, post delete/toggle-comments, analytics summary и moderation — backend без UI.
 - Реальные Telegram Payments/webhooks, refund/withdrawal отсутствуют (`docs/stars-transactions.md` это признаёт).
 - Production app containers/deploy отсутствуют.
-- PostgreSQL и S3 runtime не подтверждены.
-- Guided coloring имеет красные E2E transitions.
-- Zone celebration E2E падает на отсутствующем `zones`.
+- Production PostgreSQL/S3/Telegram runtime, backup/restore и proxy не подтверждены; локальные Docker PG/MinIO проходят.
+- Guided coloring E2E в локальном runner зелёный; реальные устройства и accessibility не проверены.
 - `PixelCanvas.jsx` и `LegacyPixelCanvas.jsx` дублируют старый путь; штатно активен smart engine.
 - `DevDiagnostics` содержит неиспользуемые props и показывается только special env.
 - `IDEA.md` практически пуст (11 байт).
@@ -566,23 +613,21 @@ SQL injection/path traversal/чтение чужого private template по и�
 
 - неправильный `.env.local`/несогласованный dev auth;
 - seed не включён — пустой каталог;
-- локальный junction `server/node_modules/splint-gemini` требует чистой переустановки зависимостей;
-- занятые строгие порты блокируют Playwright/dev.
+- production secrets/Telegram/HTTPS отсутствуют локально;
+- занятые порты блокируют launcher или Docker.
 
 ### Блокирует основной пользовательский сценарий
 
-- guided target/free exploration/onboarding E2E failures;
-- zone response/test failure;
-- возможная потеря debounce-save при закрытии вкладки.
+- возможная потеря debounce-save при закрытии вкладки;
+- ручная проверка результата/публикации в настоящем Telegram WebView.
 
 ### Блокирует production
 
-- critical dependency advisory;
-- неподтверждённые PostgreSQL/S3/Telegram;
+- production Telegram/S3/proxy/backup не подтверждены;
 - нет app deployment/runtime topology;
-- client-authoritative achievements/completion/result image;
+- client-visible map/resultDataUrl и automation risk;
 - нет backup/restore/monitoring;
-- полный E2E не зелёный.
+- нет CI release gate и production smoke-test.
 
 ### Желательно исправить позднее
 
@@ -624,16 +669,16 @@ SQL injection/path traversal/чтение чужого private template по и�
 
 | # | Риск | Вероятность | Влияние | Доказательство | Что проверить/сделать |
 |---:|---|---|---|---|---|
-| 1 | Guided game ломается на реальных viewport/state transitions | высокая | высокое | 16 E2E failures до 90/111 | воспроизвести каждый failure, получить green E2E |
-| 2 | Production dependency critical | высокая (наличие) | высокое | npm audit server | обновить dependency tree |
-| 3 | Непроверенный production data path | высокая | critical | 53 PG skips, нет S3 tests | полный PG/S3 staging suite |
-| 4 | Achievement/progress cheating | высокая | средне-высокое | `meta.js:64`, `colorings.js:229` | перенести авторитет на сервер |
-| 5 | Нет deployable application stack | высокая | высокое | Compose только DB/MinIO | зафиксировать hosting/reverse proxy/deploy |
-| 6 | Потеря последнего autosave при закрытии | средняя | высокое | debounce queue без unload flush | browser lifecycle test/strategy |
-| 7 | Client-supplied result попадает в social content | средняя | высокое | `colorings.js:328` | server render/validation |
-| 8 | SQLite/local media потеряны без backup | средняя | высокое | один binary + uploads | backup/restore drill |
-| 9 | Backend-функции создают ложное ощущение готового продукта | высокая | среднее | десятки endpoints без calls | явно scope/disable/document |
-| 10 | Документация и реальность расходятся | высокая | среднее | security followups, Docker/startup claims | сделать эту карту source of truth и обновлять по CI |
+| 1 | Непроверенный production data path | высокая | critical | Docker PG 90/90 и MinIO 1/1, но нет production topology | staging с real secrets, proxy, backup/restore |
+| 2 | Подмена результата/automation progress | высокая | высокое | `server/routes/colorings.js` actions + client `resultDataUrl` | server-rendered result и abuse model |
+| 3 | Повторный PostgreSQL demo bootstrap неидемпотентен | высокая | высокое | `server/db.js:214` пишет `archived`, migration 001 запрещает это значение при существующих rows; OPS-006 | согласовать статус/seed и добавить repeat-bootstrap test |
+| 4 | Нет deployable application stack | высокая | высокое | Compose только DB/MinIO | зафиксировать hosting/reverse proxy/deploy |
+| 5 | Потеря последнего autosave при закрытии | средняя | высокое | debounce queue и browser lifecycle | browser pagehide/reload test |
+| 6 | SQLite/local media потеряны без backup | средняя | высокое | один binary + uploads | backup/restore drill |
+| 7 | Production Telegram identity не проверена | средняя | высокое | synthetic auth tests only | Telegram Mini App staging smoke-test |
+| 8 | Rate limiting не разделён по пользователю/маршруту | средняя | высокое | global IP limiter | per-route/per-user strategy |
+| 9 | Backend-функции создают ложное ощущение готового продукта | высокая | среднее | десятки endpoints без UI | явно scope/disable/document |
+| 10 | Документация и реальность расходятся | средняя | среднее | historical sections vs current snapshot | обновлять snapshot по каждому release |
 
 ## 17. Что делать дальше
 
@@ -641,16 +686,15 @@ SQL injection/path traversal/чтение чужого private template по и�
 
 | Этап/задача | Приоритет | Результат | Зависимость | Критерий готовности |
 |---|---|---|---|---|
-| 1. Чисто переустановить root/server deps | P0 | нет recursive junction | — | `npm ci` в обоих деревьях, `rg` не зацикливается |
+| 1. Разобрать и подтвердить 24 tracked + 9 untracked изменений | P0 | review-ready diff | текущая рабочая копия | каждый путь классифицирован; generated DB исключена из commit |
+| 1. Согласовать PostgreSQL status constraint и demo seed (OPS-006) | P0 | повторяемый PG bootstrap | migration/seed review | два последовательных запуска с `SEED_DEMO_DATA=true` проходят и `GET /colorings` возвращает 6 шаблонов |
 | 1. Зафиксировать минимальный `.env.local` и seed | P0 | повторяемый старт | deps | новый checkout запускается по инструкции |
-| 1. Проверить health/catalog вручную | P0 | baseline | env | 200 health, 6 templates |
-| 2. Разобрать все E2E failures по одному | P0 | подтверждён core flow | baseline | 111/111 или формально обновлённый корректный suite |
+| 1. Сохранить health/catalog smoke-check | P0 | baseline | env | 200 health, 6 templates |
 | 2. Проверить unload/return autosave | P0 | нет потери прогресса | core | browser test после reload |
 | 2. Проверить complete/publish на desktop+mobile | P0 | основной цикл | saves | persisted artwork/post после restart |
-| 3. Устранить critical dependency advisory | P0 | безопасный lockfile | tests | npm audit без critical + regression green |
-| 3. Закрыть client-authoritative achievement/result | P0 | server authority | core | direct forged calls отклоняются тестом |
-| 4. Прогнать PostgreSQL migrations/concurrency/HTTP | P0 | production DB confidence | Docker | 0 PG skips/fails |
-| 4. Проверить S3 create/delete/orphan behavior | P0 | durable images | MinIO | integration tests green |
+| 3. Закрыть client-visible result image/automation risk | P0 | ясная anti-cheat/content policy | core | negative API/E2E tests и документированное решение |
+| 4. Сделать production smoke-test Telegram/PG/S3/proxy | P1 | production confidence | staging secrets | login, storage, CORS, restore проходят в staging |
+| 4. Проверить S3 create/delete/orphan behavior | P1 | durable images | MinIO | integration tests green и описан orphan policy |
 | 4. Backup/restore и consistency check | P1 | recoverability | storage | документированный успешный drill |
 | 5. Threat model endpoints и per-route limits | P1 | public alpha boundary | auth/data | security matrix и abuse tests |
 | 5. Проверить настоящий Telegram initData/WebView | P1 | real identity flow | HTTPS staging | successful login + expired/invalid rejection |
@@ -669,7 +713,7 @@ SQL injection/path traversal/чтение чужого private template по и�
 
 ### Как запустить
 
-Установите зависимости в корне и `server`, скопируйте `.env.example` в `.env.local`, включите три локальных флага `ALLOW_DEV_AUTH`, `VITE_ALLOW_DEV_AUTH`, `SEED_DEMO_DATA`, затем отдельно запустите `npm run dev:api` и `npm run dev`. Откройте `http://127.0.0.1:5173`.
+Установите зависимости в корне и `server`, скопируйте `.env.example` в `.env.local`, включите три локальных флага `ALLOW_DEV_AUTH`, `VITE_ALLOW_DEV_AUTH`, `SEED_DEMO_DATA`, затем отдельно запустите `npm run dev:api` и `npm run dev`. Для SQLite этот путь проверен; при повторном seed в PostgreSQL сначала требуется закрыть OPS-006 — сейчас существующие catalog rows приводят к конфликту статуса `archived`. Откройте `http://127.0.0.1:5173`.
 
 ### Где главная логика
 
@@ -687,23 +731,25 @@ SQL injection/path traversal/чтение чужого private template по и�
 
 ### Что точно работает в проверенной локальной конфигурации
 
-Сборка, 200 unit-тестов, 151 серверный тест на SQLite, каталог, creator, базовая игра, сохранение, завершение, публикация и социальные действия. Это подтверждено кодом и тестами.
+Сборка, 200 unit-тестов, 152 серверных SQLite-теста, 90 PostgreSQL-тестов в Docker, 1 MinIO-тест, каталог, creator, базовая игра, сохранение, завершение, публикация и социальные действия. Полный Playwright — 110 passed и 4 ожидаемых mobile skip. Это подтверждено кодом и тестами.
 
 ### Что точно не готово
 
-Полностью зелёный E2E, доказанный PostgreSQL/S3 production runtime, deployment всего приложения, защищённые от читинга achievements/progress, UI сообщений/Stars/modерации.
+Production Telegram/S3/proxy/backup runtime, deployment всего приложения, защита от автоматизации допустимых progress actions и клиентского `resultDataUrl`, UI сообщений/Stars/модерации.
 
 ### Три ближайших действия
 
-1. Получить чистый повторяемый локальный старт и полный green Playwright.
-2. Прогнать весь PostgreSQL + MinIO suite без skips.
-3. Закрыть critical dependency и client-authoritative achievements/completion до публичного доступа.
+1. Довести benchmark до полного desktop/mobile потока по плану из [GRID_BENCHMARK.md](GRID_BENCHMARK.md), не поднимая лимит выше `160×160` до получения результата.
+2. Принять решение по content-integrity policy для `resultDataUrl` на основе [RESULT_IMAGE_INTEGRITY.md](RESULT_IMAGE_INTEGRITY.md); текущий finding SEC-004 остаётся `open`.
+3. По [TELEGRAM_DEPLOY_BEGINNER.md](TELEGRAM_DEPLOY_BEGINNER.md) собрать staging и выполнить Telegram WebView smoke-test с PostgreSQL, S3/MinIO, HTTPS/proxy и проверкой restore.
 
 ### Что требует отдельной реальной проверки
 
-Настоящий Telegram бот/WebView, haptics/native share, PostgreSQL под нагрузкой, S3/MinIO жизненный цикл, production proxy/CORS, backup/restore и полный E2E на всех трёх профилях.
+Настоящий Telegram бот/WebView, haptics/native share, PostgreSQL под нагрузкой/репликация, cloud S3 IAM/lifecycle, production proxy/CORS, backup/restore и staging deployment.
 
-## Дополнение: синхронизация состояния после повторной security-проверки
+## Историческое дополнение: синхронизация состояния после повторной security-проверки
+
+Этот блок сохранён для аудиторского следа и относится к промежуточным снимкам 28.07.2026. Он может содержать формулировки «draft» и старые числа. Для текущего состояния рабочей копии приоритет имеют разделы в начале файла и актуальные [SECURITY_FOLLOWUPS.md](../SECURITY_FOLLOWUPS.md) / [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md).
 
 ### Что изменилось в выводах
 
@@ -768,3 +814,10 @@ SQL injection/path traversal/чтение чужого private template по и�
 Ветка `fix/playwright-windows-lifecycle` заменяет Playwright `webServer` на явный `globalSetup/globalTeardown` (`scripts/e2e-global-setup.mjs`) и использует отдельные порты 5190/3012. На Windows подтверждён полный штатный запуск `npm run test:e2e`: **107 passed, 4 skipped, 0 failed**, exit 0 за 4,5 минуты; покрыты Chromium, Mobile iPhone и Mobile Pixel. Четыре skip ожидаемы: desktop-only wheel/free-exploration на мобильных профилях.
 
 Этот результат относится к незамерженной ветке, поэтому предыдущее ограничение остаётся актуальным для `main` до merge. После merge E2E можно рассматривать как надёжный CI-сигнал для покрытых браузерных сценариев, но не как проверку реального Telegram WebView или production инфраструктуры.
+
+### Текущий override после проверки 31.07.2026
+
+- PR #10 уже находится в `main` через `bf70ef3`; security findings SEC-001, SEC-002, SEC-007, SEC-008, SEC-009, SEC-011, SEC-013, SEC-014, SEC-015 и SEC-016 имеют статус `resolved` согласно текущему реестру.
+- Root/server production audits дают `0 vulnerabilities`; обновлять dependency tree по старому advisory больше не требуется.
+- Штатный `npm.cmd run test:e2e` завершён с `110 passed / 4 expected skipped`, exit 0; Docker PostgreSQL — `90/90`, MinIO — `1/1`.
+- Открытыми остаются client-supplied `resultDataUrl`, residual automation risk progress actions, глобальный limiter, non-transactional delete, stale Telegram profile и production-only проверки. Локальная рабочая копия дополнительно содержит намеренные, но ещё не закоммиченные UI/API/migration changes из классификации выше.

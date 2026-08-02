@@ -28,9 +28,11 @@ export function findClusters(template, filled, color) {
     if (visited[i]) continue;
     const cluster = [];
     const queue = [i];
+    let queueHead = 0;
     visited[i] = 1;
-    while (queue.length) {
-      const idx = queue.shift();
+    while (queueHead < queue.length) {
+      const idx = queue[queueHead];
+      queueHead += 1;
       cluster.push(idx);
       const x = idx % width;
       const y = Math.floor(idx / width);
@@ -59,9 +61,11 @@ export function findUnfilledClusters(template, filled) {
     if (visited[i]) continue;
     const cluster = [];
     const queue = [i];
+    let queueHead = 0;
     visited[i] = 1;
-    while (queue.length) {
-      const idx = queue.shift();
+    while (queueHead < queue.length) {
+      const idx = queue[queueHead];
+      queueHead += 1;
       cluster.push(idx);
       const x = idx % width;
       const y = Math.floor(idx / width);

@@ -6,13 +6,13 @@ async function clickActiveWorkCell(page) {
   await expect(canvas).not.toHaveAttribute('data-active-work-cells', '');
   const activeCells = (await canvas.getAttribute('data-active-work-cells')).split(',').map(Number);
   const templateWidth = Number(await canvas.getAttribute('data-template-width'));
-  const box = await canvas.boundingBox();
+  const camera = await readCamera(page);
   const index = activeCells[0];
   await canvas.click({
     force: true,
     position: {
-      x: ((index % templateWidth) + 0.5) * box.width / templateWidth,
-      y: (Math.floor(index / templateWidth) + 0.5) * box.width / templateWidth,
+      x: camera.x + ((index % templateWidth) + 0.5) * 32 * camera.zoom,
+      y: camera.y + (Math.floor(index / templateWidth) + 0.5) * 32 * camera.zoom,
     },
   });
 }
@@ -30,13 +30,13 @@ async function paintActiveTarget(page) {
   const canvas = page.locator('canvas.coloring-canvas');
   const activeCells = (await canvas.getAttribute('data-active-work-cells')).split(',').map(Number);
   const templateWidth = Number(await canvas.getAttribute('data-template-width'));
-  const box = await canvas.boundingBox();
+  const camera = await readCamera(page);
   for (const index of activeCells) {
     await canvas.click({
       force: true,
       position: {
-        x: ((index % templateWidth) + 0.5) * box.width / templateWidth,
-        y: (Math.floor(index / templateWidth) + 0.5) * box.width / templateWidth,
+        x: camera.x + ((index % templateWidth) + 0.5) * 32 * camera.zoom,
+        y: camera.y + (Math.floor(index / templateWidth) + 0.5) * 32 * camera.zoom,
       },
     });
   }
