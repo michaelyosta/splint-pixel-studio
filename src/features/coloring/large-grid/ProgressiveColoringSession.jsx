@@ -158,6 +158,11 @@ export default function ProgressiveColoringSession({
     };
     diagnosticsRef.current = metrics;
     if (typeof window !== 'undefined') window.__splintTiledMetrics = metrics;
+    // The rAF/DOM sampling loop is opt-in: production must not run a
+    // perpetual sampler unless explicitly enabled (env flag or URL param).
+    const samplingEnabled = DIAGNOSTICS_ENABLED
+      || (typeof window !== 'undefined' && /[?&]splintMetrics=1/.test(window.location.search));
+    if (!samplingEnabled) return undefined;
     let raf = 0;
     let last = performance.now();
     const tick = (now) => {

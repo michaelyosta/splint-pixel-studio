@@ -80,7 +80,7 @@ try {
     });
   });
 
-  await page.goto(`http://127.0.0.1:${webPort}/`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`http://127.0.0.1:${webPort}/?splintMetrics=1`, { waitUntil: 'domcontentloaded' });
   await page.getByText('Создать').first().click();
   await page.getByRole('button', { name: 'Из изображения' }).click();
   await page.locator('.file-field input[type="file"]').setInputFiles(resolve(projectRoot, 'e2e', 'fixtures', 'test-image.png'));
