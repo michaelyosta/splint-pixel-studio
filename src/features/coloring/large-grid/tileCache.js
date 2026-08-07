@@ -208,7 +208,10 @@ export class LruTileCache {
           break;
         }
       }
-      if (candidateKey === undefined) candidateKey = this.entries.keys().next().value;
+      // Pinned (visible) tiles are a hard invariant: they must never be
+      // evicted to satisfy the soft cache bound. The cache may temporarily
+      // grow above maxTiles while the pinned set itself exceeds the limit.
+      if (candidateKey === undefined) break;
       const entry = this.entries.get(candidateKey);
       this.entries.delete(candidateKey);
       this.pinned.delete(candidateKey);
@@ -270,4 +273,3 @@ export class TileCellStore {
     return this.cache.stats();
   }
 }
-

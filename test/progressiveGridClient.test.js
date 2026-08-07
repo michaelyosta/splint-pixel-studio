@@ -158,6 +158,34 @@ test('LRU cache evicts the least recently used unpinned tile and stays bounded',
   assert.equal(cache.size, 2);
 });
 
+test('pinned visible tiles are a hard invariant and are never evicted', () => {
+  const evicted = [];
+  const cache = new LruTileCache({ maxTiles: 2, onEvict: (key) => evicted.push(key) });
+  // Simulate an overview of a 1200x1200 map where the visible set (55 tiles)
+  // exceeds the nominal cache limit (2 here).
+  const pinnedKeys = [];
+  for (let index = 0; index < 5; index += 1) pinnedKeys.push(`${index}:0`);
+  cache.setPinnedKeys(pinnedKeys);
+  for (const key of pinnedKeys) cache.set(key, { cellCount: 1, bytes: 4 });
+  assert.equal(cache.size, 5);
+
+  // Adding an unpinned tile cannot grow the cache beyond pinned capacity:
+  // the only eviction candidate is the unpinned tile itself, and pinned
+  // visible tiles must survive.
+  cache.set('9:9', { cellCount: 1, bytes: 4 });
+  assert.equal(cache.has('9:9'), false);
+  assert.equal(cache.size, 5);
+  assert.deepEqual(evicted, ['9:9']);
+  for (const key of pinnedKeys) {
+    assert.equal(cache.has(key), true, `pinned tile ${key} must survive pressure`);
+  }
+
+  // Releasing the pins returns the cache to the nominal bound.
+  cache.setPinnedKeys([]);
+  assert.equal(cache.size, 2);
+  assert.equal(evicted.length, 4);
+});
+
 test('concurrent tile requests are deduplicated and one aborted consumer does not poison another', async () => {
   let tileCalls = 0;
   let releaseTile;
