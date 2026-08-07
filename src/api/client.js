@@ -96,6 +96,15 @@ export const unlocksApi = {
   template: (id) => request(`/unlocks/templates/${encodeURIComponent(id)}`),
 };
 
+export const directorApi = {
+  next: ({ exclude = null } = {}) => {
+    const query = new URLSearchParams();
+    if (exclude) query.set('exclude', String(exclude).slice(0, 100));
+    const qs = query.toString();
+    return request(`/director/next${qs ? `?${qs}` : ''}`);
+  },
+};
+
 /**
  * A 403 direct-ID response from the server carries a stable `code` and an
  * `unlock` payload. The player uses this to render a real locked-state screen

@@ -19,6 +19,7 @@
     "seed:demo": "node seed-demo.js",
     "reset:demo": "node reset-demo.js",
     "check": "node scripts/check.js",
+    "backfill:guidance": "node scripts/backfill-tiled-guidance.mjs",
     "test": "node --test \"test/*.test.js\"",
     "test:sqlite": "node --test \"test/*.test.js\"",
     "backup:postgres": "node scripts/backup-postgres.mjs",

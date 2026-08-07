@@ -179,6 +179,7 @@ export function buildColoringManifest({ template, progress = null, tileSize = DE
     links: {
       tile: `${path}/tiles/{tile_x}/{tile_y}`,
       chunk: `${path}/chunks/{tile_x}/{tile_y}`,
+      guidance: `${path}/guidance`,
       progress: `${path}/progress`,
       progress_actions: `${path}/progress/actions`,
     },

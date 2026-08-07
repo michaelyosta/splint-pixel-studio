@@ -31,6 +31,8 @@ const child = spawn(process.execPath, ['index.js'], {
     RENDER_OUTBOX_POLL_MS: '50',
     ALLOW_DEV_AUTH: 'true',
     SEED_DEMO_DATA: 'true',
+    E2E_SEED_HOOKS: 'true',
+    GUIDANCE_BACKFILL_AUTO: 'false',
   },
   stdio: 'inherit',
 });

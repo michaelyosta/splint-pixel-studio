@@ -9,6 +9,7 @@ import {
   TileCellStore,
   normalizeTilePayload,
 } from '../features/coloring/large-grid/tileCache.js';
+import { normalizeGuidancePayload } from '../features/coloring/large-grid/smartRoute.js';
 
 export const PROGRESSIVE_GRID_STATUS = Object.freeze({
   IDLE: 'idle',
@@ -272,6 +273,7 @@ export function normalizeGridManifest(raw) {
     links: {
       tile: links.tile || `/colorings/${encodeURIComponent(templateId)}/tiles/{tile_x}/{tile_y}`,
       chunk: links.chunk || null,
+      guidance: links.guidance || `/colorings/${encodeURIComponent(templateId)}/guidance`,
       manifest: links.manifest || null,
       progress: links.progress || null,
       progress_actions: links.progress_actions || null,
@@ -315,6 +317,72 @@ export async function loadGridManifest({
     throw new ProgressiveGridClientError('Manifest shape is invalid', {
       kind: 'invalid-manifest',
       code: 'INVALID_MANIFEST',
+      cause: error,
+    });
+  }
+}
+
+function buildGuidanceQuery({
+  selectedColor,
+  targetColor,
+  reason,
+  cameraCenter,
+  recent,
+  tileX,
+  tileY,
+} = {}) {
+  const params = new URLSearchParams();
+  if (selectedColor != null && Number.isInteger(selectedColor)) params.set('selected_color', String(selectedColor));
+  if (targetColor != null && Number.isInteger(targetColor)) params.set('target_color', String(targetColor));
+  if (reason) params.set('reason', String(reason));
+  if (cameraCenter && Number.isFinite(cameraCenter.x) && Number.isFinite(cameraCenter.y)) {
+    params.set('camera_x', cameraCenter.x.toFixed(3));
+    params.set('camera_y', cameraCenter.y.toFixed(3));
+  }
+  if (Array.isArray(recent) && recent.length) params.set('recent', recent.slice(0, 8).join(','));
+  if (tileX != null && tileY != null) {
+    params.set('tile_x', String(tileX));
+    params.set('tile_y', String(tileY));
+  }
+  return params.toString();
+}
+
+export async function loadGuidance({
+  url,
+  templateId,
+  baseUrl = '',
+  fetchImpl = globalThis.fetch,
+  headers,
+  signal,
+  requestInit,
+  ...params
+} = {}) {
+  const earlyAbort = rejectIfAborted(signal);
+  if (earlyAbort) return earlyAbort;
+  const id = String(templateId || '');
+  if (!url && !id) {
+    throw new ProgressiveGridClientError('Guidance URL or templateId is required', {
+      kind: 'configuration',
+      code: 'MISSING_GUIDANCE_URL',
+    });
+  }
+  const path = url || `/colorings/${encodeURIComponent(id)}/guidance`;
+  const query = buildGuidanceQuery(params);
+  const endpoint = joinApiUrl(baseUrl, query ? `${path}?${query}` : path);
+  const raw = await requestJson(endpoint, {
+    fetchImpl,
+    headers,
+    signal,
+    requestInit,
+    context: 'Guidance request',
+  });
+  try {
+    return normalizeGuidancePayload(raw, { templateId: id || undefined });
+  } catch (error) {
+    if (error instanceof ProgressiveGridClientError) throw error;
+    throw new ProgressiveGridClientError('Guidance shape is invalid', {
+      kind: 'invalid-guidance',
+      code: 'INVALID_GUIDANCE',
       cause: error,
     });
   }
@@ -450,6 +518,35 @@ export function createProgressiveGridClient({
     return consumeSharedRequest(pending, signal);
   }
 
+  async function fetchGuidance({
+    selectedColor,
+    targetColor,
+    reason,
+    cameraCenter,
+    recent,
+    tileX,
+    tileY,
+    signal,
+  } = {}) {
+    ensureManifest();
+    return loadGuidance({
+      url: manifest.links.guidance,
+      templateId: manifest.templateId,
+      baseUrl,
+      fetchImpl,
+      headers,
+      signal,
+      requestInit,
+      selectedColor,
+      targetColor,
+      reason,
+      cameraCenter,
+      recent,
+      tileX,
+      tileY,
+    });
+  }
+
   async function loadTile(bounds, signal) {
     const raw = await requestJson(manifestTileUrl(bounds.tileX, bounds.tileY), {
       fetchImpl,
@@ -518,6 +615,31 @@ export function createProgressiveGridClient({
     }));
   }
 
+  /**
+   * Bound the number of "visible" tiles actually fetched. At overview zoom a
+   * 1200x1200 grid makes the whole map "visible" (1444 tiles); fetching and
+   * pinning all of them violates the bounded-cache contract and floods the
+   * server on every camera reset. Keep the tiles nearest the viewport center.
+   */
+  function pickCenterTiles(tiles, camera, viewportWidth, viewportHeight, cellSize, cap) {
+    if (tiles.length <= cap) return tiles;
+    const zoom = Math.max(0.0001, Number(camera?.zoom) || 1);
+    const size = Math.max(1, Number(cellSize) || 32);
+    const centerX = (Number(viewportWidth) / 2 - Number(camera?.x || 0)) / zoom / size;
+    const centerY = (Number(viewportHeight) / 2 - Number(camera?.y || 0)) / zoom / size;
+    return [...tiles]
+      .map((tile) => ({
+        tile,
+        distance: Math.hypot(
+          tile.offsetX + tile.width / 2 - centerX,
+          tile.offsetY + tile.height / 2 - centerY,
+        ),
+      }))
+      .sort((first, second) => first.distance - second.distance)
+      .slice(0, cap)
+      .map((entry) => entry.tile);
+  }
+
   async function loadViewport({
     camera,
     viewportWidth,
@@ -526,6 +648,7 @@ export function createProgressiveGridClient({
     overscanCells = 0,
     overscanTiles = 1,
     maxPrefetchTiles = tileCache.maxTiles,
+    maxVisibleTiles = tileCache.maxTiles,
     signal,
   } = {}) {
     const activeManifest = await loadManifest({ signal });
@@ -538,14 +661,24 @@ export function createProgressiveGridClient({
       overscanCells,
       overscanTiles,
     });
-    tileCache.setPinnedKeys(plan.visible.map((tile) => tile.key));
+    // Bounded visible set: never fetch/pin more than the cache can hold, even
+    // when the whole grid is inside the viewport at overview zoom.
+    const visible = pickCenterTiles(
+      plan.visible,
+      camera,
+      viewportWidth,
+      viewportHeight,
+      cellSize,
+      Math.max(1, Math.floor(Number(maxVisibleTiles) || tileCache.maxTiles)),
+    );
+    tileCache.setPinnedKeys(visible.map((tile) => tile.key));
     const prefetch = plan.prefetch.slice(0, Math.max(0, Math.floor(Number(maxPrefetchTiles) || 0)));
     const [visibleResults, prefetchResults] = await Promise.all([
-      loadGroup(plan.visible, signal),
+      loadGroup(visible, signal),
       loadGroup(prefetch, signal),
     ]);
-    const visible = visibleResults.filter((result) => result.value).map((result) => result.value);
-    const prefetched = prefetchResults.filter((result) => result.value).map((result) => result.value);
+    const loadedVisible = visibleResults.filter((result) => result.value).map((result) => result.value);
+    const loadedPrefetched = prefetchResults.filter((result) => result.value).map((result) => result.value);
     const errors = [...visibleResults, ...prefetchResults]
       .filter((result) => result.error)
       .map((result) => ({ tile: result.tile, error: result.error }));
@@ -559,9 +692,9 @@ export function createProgressiveGridClient({
       setStatus(PROGRESSIVE_GRID_STATUS.READY);
     }
     return {
-      plan: { ...plan, prefetch },
-      visible,
-      prefetched,
+      plan: { ...plan, visible, prefetch },
+      visible: loadedVisible,
+      prefetched: loadedPrefetched,
       errors,
       cache: tileCache.stats(),
     };
@@ -610,6 +743,7 @@ export function createProgressiveGridClient({
 
   return {
     loadManifest,
+    fetchGuidance,
     fetchTile,
     loadViewport,
     getTilePlan,
@@ -623,4 +757,3 @@ export function createProgressiveGridClient({
     cache: tileCache,
   };
 }
-

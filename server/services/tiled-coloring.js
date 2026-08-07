@@ -3,6 +3,7 @@ import {
   getTileBounds,
   getTileGrid,
 } from './coloring-chunks.js';
+import { ensureStaticGuidanceIndex, persistStaticGuidanceCounts } from './tiled-guidance.js';
 
 export const TILED_STORAGE_MODE = 'tiled';
 export const TILED_MAX_DIMENSION = 1_200;
@@ -205,6 +206,103 @@ function storedFilled(row, expectedLength, label) {
   return filled;
 }
 
+function unfilledByColor(cells, filled) {
+  const counts = new Map();
+  for (let index = 0; index < cells.length; index += 1) {
+    if (filled[index] !== -1) continue;
+    const color = cells[index];
+    counts.set(color, (counts.get(color) || 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Keep bounded per-tile/per-color remaining counters in sync after a paint
+ * batch. Only tiles touched by the batch are rewritten; a zero counter stays
+ * explicit so a missing row can always mean "static count still remaining".
+ */
+export async function syncProgressColorCounters(tx, {
+  userId,
+  template,
+  states,
+  now,
+} = {}) {
+  if (!states?.size) return;
+  const paletteLength = template.palette?.length || 0;
+  if (paletteLength < 1) return;
+  await ensureStaticGuidanceIndex(tx, template);
+  const staticTileCounts = new Map();
+  for (const stateTile of states.values()) {
+    const key = `${stateTile.bounds.tile_x}:${stateTile.bounds.tile_y}`;
+    const rows = await tx.all(
+      `SELECT color_index, total_count FROM coloring_template_tile_color_counts
+        WHERE template_id=? AND tile_x=? AND tile_y=?`,
+      [template.id, stateTile.bounds.tile_x, stateTile.bounds.tile_y],
+    );
+    staticTileCounts.set(key, new Map(rows.map((row) => [Number(row.color_index), Number(row.total_count)])));
+  }
+
+  const staticColorRows = await tx.all(
+    'SELECT color_index, total_count FROM coloring_template_color_counts WHERE template_id=?',
+    [template.id],
+  );
+  const staticColorTotals = new Map(
+    staticColorRows.map((row) => [Number(row.color_index), Number(row.total_count)]),
+  );
+  const progressColorRows = await tx.all(
+    'SELECT color_index, remaining_count FROM coloring_tiled_progress_colors WHERE user_id=? AND template_id=?',
+    [userId, template.id],
+  );
+  const globalBefore = new Map(
+    progressColorRows.map((row) => [Number(row.color_index), Number(row.remaining_count)]),
+  );
+  const globalDelta = new Map();
+
+  for (const stateTile of states.values()) {
+    const key = `${stateTile.bounds.tile_x}:${stateTile.bounds.tile_y}`;
+    const staticCounts = staticTileCounts.get(key) || new Map();
+    const before = unfilledByColor(stateTile.cells, stateTile.previousFilled || stateTile.filled);
+    const after = unfilledByColor(stateTile.cells, stateTile.filled);
+    const colors = new Set([...before.keys(), ...after.keys(), ...staticCounts.keys()]);
+    for (const color of colors) {
+      const previous = stateTile.progressTile
+        ? (before.get(color) || 0)
+        : (staticCounts.get(color) || 0);
+      const next = after.get(color) || 0;
+      const delta = next - previous;
+      globalDelta.set(color, (globalDelta.get(color) || 0) + delta);
+      await tx.run(
+        `INSERT INTO coloring_tiled_progress_tile_colors
+          (user_id,template_id,tile_x,tile_y,color_index,remaining_count,updated_at)
+          VALUES (?,?,?,?,?,?,?)
+          ON CONFLICT(user_id,template_id,tile_x,tile_y,color_index)
+            DO UPDATE SET remaining_count=excluded.remaining_count, updated_at=excluded.updated_at`,
+        [userId, template.id, stateTile.bounds.tile_x, stateTile.bounds.tile_y, color, next, now],
+      );
+    }
+  }
+
+  const affectedColors = new Set([
+    ...globalDelta.keys(),
+    ...globalBefore.keys(),
+    ...staticColorTotals.keys(),
+  ]);
+  for (const color of affectedColors) {
+    const previousGlobal = globalBefore.has(color)
+      ? globalBefore.get(color)
+      : (staticColorTotals.get(color) || 0);
+    const nextGlobal = Math.max(0, previousGlobal + (globalDelta.get(color) || 0));
+    await tx.run(
+      `INSERT INTO coloring_tiled_progress_colors
+        (user_id,template_id,color_index,remaining_count,updated_at)
+        VALUES (?,?,?,?,?)
+        ON CONFLICT(user_id,template_id,color_index)
+          DO UPDATE SET remaining_count=excluded.remaining_count, updated_at=excluded.updated_at`,
+      [userId, template.id, color, nextGlobal, now],
+    );
+  }
+}
+
 export function tiledProgressPayload(template, row, artworkId = null) {
   const totalCells = Number(template.width) * Number(template.height);
   const completedCells = Math.max(0, Math.min(totalCells, Number(row?.completed_cells || 0)));
@@ -337,7 +435,7 @@ export async function applyTiledChanges(tx, {
       [userId, template.id, bounds.tile_x, bounds.tile_y],
     );
     const filled = storedFilled(progressTile, bounds.cell_count, `progress tile ${key}`);
-    states.set(key, { bounds, cells, progressTile, filled, delta: 0 });
+    states.set(key, { bounds, cells, progressTile, filled, previousFilled: [...filled], delta: 0 });
   }
 
   const newlyCorrectIndices = [];
@@ -434,6 +532,12 @@ export async function persistTiledChanges(tx, {
       [userId, template.id, bounds.tile_x, bounds.tile_y, bounds.width, bounds.height, JSON.stringify(filled), tileCompletedCells, now, now],
     );
   }
+  await syncProgressColorCounters(tx, {
+    userId,
+    template,
+    states: state.states,
+    now,
+  });
   return { conflict: false, revision: nextRevision, completedAt };
 }
 
@@ -470,6 +574,12 @@ export async function insertTiledTemplate(tx, {
       VALUES (?,?,?,?,?,?,?,?)`,
     [id, tile.tile_x, tile.tile_y, tile.width, tile.height, JSON.stringify(tile.cells), createdAt, updatedAt]);
   }
+  await persistStaticGuidanceCounts(tx, {
+    templateId: id,
+    tiles: validated.tiles,
+    paletteLength: palette.length,
+    now: updatedAt,
+  });
   return { grid: validated.grid, tileCount: validated.tiles.length };
 }
 

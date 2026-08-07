@@ -18,6 +18,7 @@ import metaRouter        from './routes/meta.js';
 import mediaRouter       from './routes/media.js';
 import creatorCollectionsRouter from './routes/creator-collections.js';
 import unlocksRouter from './routes/unlocks.js';
+import directorRouter from './routes/director.js';
 import { validateProductionConfiguration } from './config.js';
 import { checkMediaStorage } from './services/media-storage.js';
 import { cleanupExpiredPaymentRequests } from './services/message-cleanup.js';
@@ -82,6 +83,7 @@ app.use('/colorings',   coloringsRouter);
 app.use('/collections', creatorCollectionsRouter);
 app.use('/meta',        metaRouter);
 app.use('/unlocks',     unlocksRouter);
+app.use('/director',    directorRouter);
 app.use('/media',       mediaRouter);
 
 // ── Health and readiness ─────────────────────────────────────────────────────
@@ -127,6 +129,48 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, () => {
   console.log(`Splint API server running on http://localhost:${PORT}`);
 });
+
+// ── Tiled guidance index backfill (bounded background job) ────────────────
+// Templates created before migration 021 have no static guidance index. The
+// backfill is idempotent (completion marker), restartable (one template per
+// transaction), and throttled so it never saturates the request path. The
+// guidance endpoint also performs a bounded one-template build as a safety
+// net, so the first open of an old 1200x1200 template works even before this
+// job reaches it. Disable with GUIDANCE_BACKFILL_AUTO=false.
+import { backfillGuidanceIndex } from './services/tiled-guidance-backfill.js';
+let guidanceBackfillTimer = null;
+if (process.env.GUIDANCE_BACKFILL_AUTO !== 'false') {
+  const backfillBudget = Number(process.env.GUIDANCE_BACKFILL_BUDGET || 0);
+  const backfillDelay = Math.max(50, Number(process.env.GUIDANCE_BACKFILL_DELAY_MS) || 300);
+  let backfilledCount = 0;
+  let backfillStopped = false;
+  const guidanceBackfillTick = async () => {
+    if (backfillStopped) return;
+    try {
+      const result = await backfillGuidanceIndex(db, { limit: 1, templateLimit: 1 });
+      backfilledCount += result.processed;
+      if (result.processed === 0 || (backfillBudget > 0 && backfilledCount >= backfillBudget)) {
+        backfillStopped = true;
+        console.log(`Tiled guidance backfill finished: ${backfilledCount} template(s), ${result.remaining} remaining`);
+        return;
+      }
+    } catch (error) {
+      console.error(JSON.stringify({ type: 'guidance_backfill_error', error_class: safeErrorClass(error), message: error.message }));
+    }
+    guidanceBackfillTimer = setTimeout(guidanceBackfillTick, backfillDelay);
+    guidanceBackfillTimer.unref?.();
+  };
+  guidanceBackfillTimer = setTimeout(guidanceBackfillTick, 1_500);
+  guidanceBackfillTimer.unref?.();
+}
+
+// ── Test-only e2e seed hooks ───────────────────────────────────────────────
+// Mounted only when E2E_SEED_HOOKS=true (e2e runtime); never in production.
+if (process.env.E2E_SEED_HOOKS === 'true') {
+  const e2eHooksRouter = (await import('./routes/e2e-hooks.js')).default;
+  app.use('/__e2e', e2eHooksRouter);
+  console.log('E2E seed hooks enabled');
+}
 
 const cleanupTimer = setInterval(() => cleanupExpiredPaymentRequests().catch(() => {}), 15 * 60 * 1000);
 cleanupTimer.unref?.();

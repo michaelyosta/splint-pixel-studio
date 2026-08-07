@@ -37,6 +37,13 @@ import {
   TILED_MAX_DIMENSION,
   validateTiledGridDimensions,
 } from '../services/tiled-coloring.js';
+import {
+  buildGuidancePlan,
+  guidanceErrorPayload,
+  isTiledGuidanceError,
+  parseRecentTiles,
+  GUIDANCE_REASON,
+} from '../services/tiled-guidance.js';
 
 const router = Router();
 
@@ -64,6 +71,19 @@ function parseJsonObject(value) {
     }
   }
   return null;
+}
+
+function parseCameraCenterQuery(query = {}) {
+  const rawX = query.camera_x;
+  const rawY = query.camera_y;
+  if (rawX === undefined || rawX === null || rawX === ''
+    || rawY === undefined || rawY === null || rawY === '') {
+    return null;
+  }
+  const x = Number(rawX);
+  const y = Number(rawY);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
 }
 
 function parseTemplate(row) {
@@ -493,6 +513,48 @@ async function getColoringTile(req, res) {
 // as their domain term; both routes are read-only projections of legacy data.
 router.get('/:id/tiles/:tileX/:tileY', authMiddleware, asyncRoute(getColoringTile));
 router.get('/:id/chunks/:tileX/:tileY', authMiddleware, asyncRoute(getColoringTile));
+
+// GET /colorings/:id/guidance — bounded server-assisted navigation for the
+// tiled player. The response never contains full-grid arrays: it carries
+// global per-color counts plus one compact actionable window.
+router.get('/:id/guidance', authMiddleware, asyncRoute(async (req, res) => {
+  const template = parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=? AND status=\'active\'', [req.params.id]));
+  if (!template || !canRead(template, req.userId)) return res.status(404).json({ error: 'Раскраска не найдена' });
+  const guidanceAccess = await withDbTransaction((tx) => assertTemplateAccessible(tx, req.userId, template, { grant: true }));
+  if (guidanceAccess.locked) return sendUnlockLocked(res, guidanceAccess);
+  if (!isTiledTemplate(template)) {
+    return res.status(400).json({ error: 'Guidance доступен только для tiled-раскрасок', code: 'NOT_TILED' });
+  }
+  try {
+    const reason = String(req.query.reason || GUIDANCE_REASON.INITIAL_TARGET).toUpperCase();
+    const supported = new Set(Object.values(GUIDANCE_REASON));
+    // The whole plan build runs in one transaction: reads stay consistent,
+    // and the one-time per-template static index build (pre-021 templates)
+    // is batched instead of issuing thousands of individual persisted writes
+    // that would stall the sqlite scheduler for tens of seconds.
+    const plan = await withDbTransaction((tx) => buildGuidancePlan({
+      db: tx,
+      userId: req.userId,
+      template,
+      selectedColor: req.query.selected_color === undefined || req.query.selected_color === ''
+        ? null
+        : Number(req.query.selected_color),
+      targetColor: req.query.target_color === undefined || req.query.target_color === ''
+        ? null
+        : Number(req.query.target_color),
+      reason: supported.has(reason) ? reason : GUIDANCE_REASON.INITIAL_TARGET,
+      cameraCenter: parseCameraCenterQuery(req.query),
+      recentKeys: parseRecentTiles(req.query.recent),
+      preferredTileKey: req.query.tile_x !== undefined && req.query.tile_y !== undefined
+        ? `${Number(req.query.tile_x)}:${Number(req.query.tile_y)}`
+        : null,
+    }));
+    return res.json(plan);
+  } catch (error) {
+    if (isTiledGuidanceError(error)) return res.status(error.status || 400).json(guidanceErrorPayload(error));
+    throw error;
+  }
+}));
 
 // GET /colorings/:id/zones — fragmented session chunks with per-zone progress
 router.get('/:id/zones', authMiddleware, asyncRoute(async (req, res) => {
