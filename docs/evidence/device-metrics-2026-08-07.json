@@ -1,37 +1,37 @@
 {
-  "capturedAt": "2026-08-07T03:19:20.491Z",
+  "capturedAt": "2026-08-07T07:04:41.118Z",
   "viewport": {
     "width": 390,
     "height": 844
   },
-  "templateId": "color_383e8704-caa1-4b9a-84e0-aa410b4e502d",
+  "templateId": "color_84734e1c-23ea-4472-99be-1702b3b71564",
   "templateSize": "1200x1200",
   "interactions": [
     "keyboard_paint",
     "touch_drag"
   ],
   "frameTiming": {
-    "frames": 83,
+    "frames": 81,
     "medianMs": 16.6,
-    "p95Ms": 18.2
+    "p95Ms": 18.1
   },
   "metrics": {
-    "templateId": "color_383e8704-caa1-4b9a-84e0-aa410b4e502d",
-    "startedAt": 6554.599999904633,
-    "firstTileAt": 7170.099999904633,
-    "frames": 16,
+    "templateId": "color_84734e1c-23ea-4472-99be-1702b3b71564",
+    "startedAt": 7324.700000047684,
+    "firstTileAt": 8129.800000190735,
+    "frames": 22,
     "fps": 60,
     "maxFps": 62,
-    "interactionFrames": 0,
-    "interactionFps": 56,
+    "interactionFrames": 4,
+    "interactionFps": 60,
     "interactionMaxFps": 60,
-    "interactionEndsAt": 9042,
+    "interactionEndsAt": 9924.200000047684,
     "cacheTiles": 48,
     "cacheBytes": 196608,
     "domNodes": 138,
-    "zoom": 1,
+    "zoom": 0.08,
     "heapBytes": 42100000,
     "commits": 2,
-    "lastCommitAt": 8459.799999952316
+    "lastCommitAt": 9346.900000095367
   }
 }

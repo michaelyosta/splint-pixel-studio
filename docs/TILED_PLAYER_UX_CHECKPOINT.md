@@ -172,12 +172,13 @@ the experience made painting look broken:
   completion overlay (2/2).
 - The tiled player now exposes a lightweight device-metrics channel:
   `window.__splintTiledMetrics` always carries `templateId`, `startedAt`,
-  `firstTileAt`, cache tiles/bytes, DOM nodes, and (when the opt-in
-  `VITE_SHOW_COLORING_DIAGNOSTICS=true` flag is set) a visible FPS panel with
-  current/max FPS. The 1200x1200 e2e asserts the channel is populated and
-  the first-tile timestamp is recorded, so the remaining physical-device
-  measurements can be taken directly from a real Telegram WebView without
-  changing the app.
+  `firstTileAt`, and `commits`. The heavier cache/DOM/heap/FPS sampling only
+  runs when explicitly enabled (`VITE_SHOW_COLORING_DIAGNOSTICS=true` or a
+  `?splintMetrics=1` query parameter), and that mode also shows a visible FPS
+  panel. The 1200x1200 e2e asserts the channel is populated and the
+  first-tile timestamp is recorded, so the remaining physical-device
+  measurements can be taken from a real Telegram WebView without changing
+  the app and without paying a production sampling cost.
 - Final local verification (2026-08-07): full Chromium control run 56 passed /
   1 skipped, Mobile Pixel 1200x1200 + completion 2/2, unit 264/264, server
   210/0, lint 89/100, production build green. The diagnostics-enabled
