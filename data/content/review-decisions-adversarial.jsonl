@@ -1,0 +1,84 @@
+{"id": "cma-flower-anemone_g48", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "cma-flower-anemone_g192", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "cma-flower-lily-valley_g64", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "cma-flower-lily-valley_g128", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "cma-flower-wild-rose_g48", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "cma-flower-wild-rose_g64", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "cma-hiroshige-kanazawa_g256", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "cma-hokusai-rain-fuji_g256", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "cma-owl-jars_g48", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "cma-owl-jars_g64", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-elephant_g64", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-elephant_g96", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-giraffe_g64", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-giraffe_g128", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-hippo_g48", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-hippo_g64", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-monkey_g48", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-monkey_g128", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-panda_g48", "decision": "REJECTED", "notes": "adversarial: degenerate: background 81% of frame"}
+{"id": "kenney-animal-pack-panda_g64", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-parrot_g96", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-parrot_g128", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-penguin_g48", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-penguin_g192", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-pig_g48", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-animal-pack-pig_g96", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-food-kit-apple-half_g48", "decision": "REJECTED", "notes": "adversarial: degenerate: background 83% of frame"}
+{"id": "kenney-food-kit-apple-half_g192", "decision": "REJECTED", "notes": "adversarial: degenerate: background 83% of frame"}
+{"id": "kenney-food-kit-bacon_g64", "decision": "REJECTED", "notes": "adversarial: degenerate: background 92% of frame"}
+{"id": "kenney-food-kit-bacon_g192", "decision": "REJECTED", "notes": "adversarial: degenerate: background 92% of frame"}
+{"id": "kenney-food-kit-bacon-raw_g64", "decision": "REJECTED", "notes": "adversarial: degenerate: background 94% of frame"}
+{"id": "kenney-food-kit-bacon-raw_g128", "decision": "REJECTED", "notes": "adversarial: degenerate: background 95% of frame"}
+{"id": "kenney-food-kit-bag_g128", "decision": "REJECTED", "notes": "adversarial: degenerate: background 82% of frame"}
+{"id": "kenney-food-kit-bag_g192", "decision": "REJECTED", "notes": "adversarial: degenerate: background 82% of frame"}
+{"id": "kenney-food-kit-bag-flat_g48", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-food-kit-bag-flat_g64", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0000_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0001_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0002_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0006_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0008_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0012_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0013_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0015_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0024_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0025_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0027_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-farm-tile_0029_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-town-tile_0003_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-town-tile_0004_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-town-tile_0005_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-town-tile_0006_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-town-tile_0008_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "kenney-tiny-town-tile_0009_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-192770_g384", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-194191_g512", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-198704_g384", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-205107_g512", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-205107_g800", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-207157_g384", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-207157_g600", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-237451_g384", "decision": "REJECTED", "notes": "adversarial: exact duplicate of met-207157 (same sha256)"}
+{"id": "met-237451_g600", "decision": "REJECTED", "notes": "adversarial: exact duplicate of met-207157 (same sha256)"}
+{"id": "met-317877_g512", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-317877_g800", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-435711_g384", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-437173_g800", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-448280_g600", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-53449_g512", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-53449_g600", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-53660_g512", "decision": "REJECTED", "notes": "adversarial: calligraphy scroll (poetry, not coloring subject)"}
+{"id": "met-626692_g384", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "met-701293_g512", "decision": "REJECTED", "notes": "adversarial: calligraphy scroll (text, not coloring subject)"}
+{"id": "met-701293_g800", "decision": "REJECTED", "notes": "adversarial: calligraphy scroll (text, not coloring subject)"}
+{"id": "met-816189_g800", "decision": "REJECTED", "notes": "adversarial: calligraphy scroll (text, not coloring subject)"}
+{"id": "met-888663_g512", "decision": "REJECTED", "notes": "adversarial: homoerotic handscroll - inappropriate content"}
+{"id": "nasa-PIA04225_g800", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "nasa-PIA04921_g800", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "nasa-PIA04921_g1024", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "nasa-PIA07902_g1200", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "nasa-PIA07906_g800", "decision": "REJECTED", "notes": "adversarial: monolith background (97.7% one region); degenerate: background 98% of frame"}
+{"id": "nasa-PIA15656_g1200", "decision": "REJECTED", "notes": "adversarial: GALEX infographic with text/diagram"}
+{"id": "oga-food-16x16-00-04_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
+{"id": "oga-food-16x16-05-05_g32", "decision": "APPROVED", "notes": "adversarial audit PASS"}
