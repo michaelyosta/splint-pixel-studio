@@ -27,6 +27,8 @@ const child = spawn(process.execPath, ['index.js'], {
     MEDIA_STORAGE_ROOT: mediaDir,
     STORAGE_DRIVER: 'local',
     RATE_LIMIT_MAX: '1000',
+    RENDER_OUTBOX_ENABLED: 'true',
+    RENDER_OUTBOX_POLL_MS: '50',
     ALLOW_DEV_AUTH: 'true',
     SEED_DEMO_DATA: 'true',
   },

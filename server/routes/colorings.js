@@ -6,12 +6,7 @@ import { isUniqueConstraintError } from '../database/sql.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
 import { decodeImageDataUrl, deletePrivateOriginal, publicMediaUrl, readMediaObject, storeMediaObject, storePrivateOriginal } from '../services/media-storage.js';
-import {
-  renderCanonicalPng,
-  renderCanonicalThumbnail,
-  renderCanonicalTiledPng,
-  renderCanonicalTiledThumbnail,
-} from '../services/canonical-renderer.js';
+import { renderCanonicalPng, renderCanonicalThumbnail } from '../services/canonical-renderer.js';
 import { validatePublicTemplateComplexity } from '../services/template-complexity.js';
 import { rewardVerifiedPainting, rewardVerifiedTiledPainting } from '../services/progression.js';
 import { grantPaintingAchievements, touchDailyStreak } from '../services/progression-achievements.js';
@@ -37,7 +32,6 @@ import {
   isTiledTemplate,
   persistTiledChanges,
   readTiledTile,
-  readTiledTemplateTiles,
   tiledProgressPayload,
   tiledTilePayload,
   TILED_MAX_DIMENSION,
@@ -52,6 +46,19 @@ function parseJsonArray(value) {
   if (typeof value === 'string') {
     try {
       return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function parseJsonObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
     } catch {
       return null;
     }
@@ -692,34 +699,32 @@ router.get('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
       : 'SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?',
     [req.userId, template.id],
   );
-  let artwork = await get("SELECT id,render_status FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
+  let artwork = await get("SELECT id,thumbnail_key,render_status FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
   if (isTiledTemplate(template) && progress?.completed_at && !artwork?.id) {
     const now = new Date().toISOString();
-    const prepared = await withDbTransaction(async (tx) => {
-      const prepared = await prepareTiledArtwork(tx, {
+    await withDbTransaction(async (tx) => {
+      const metadata = await createTiledArtworkMetadata(tx, {
         userId: req.userId,
         template,
         now,
       });
-      if (prepared.renderStatus !== 'ready') {
+      if (metadata.renderStatus !== 'ready') {
         await enqueueRenderJob(tx, {
-          artworkId: prepared.artworkId,
+          artworkId: metadata.artworkId,
           userId: req.userId,
           templateId: template.id,
           renderMode: 'tiled',
           now,
         });
       }
-      return prepared;
     });
-    await persistTiledArtworkMedia(prepared, req.userId);
-    artwork = await get("SELECT id,render_status FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
+    artwork = await get("SELECT id,thumbnail_key,render_status FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
   }
   const completionReward = progress?.completed_at
     ? await get('SELECT xp_amount FROM user_xp_events WHERE user_id=? AND dedupe_key=?', [req.userId, `template-complete:${template.id}`])
     : null;
-  const previewDataUrl = isTiledTemplate(template) && progress?.completed_at && artwork?.id
-    ? await loadTiledPreviewDataUrl(template)
+  const previewDataUrl = isTiledTemplate(template) && progress?.completed_at && artwork?.render_status === 'ready'
+    ? await loadTiledPreviewDataUrl(artwork)
     : null;
   res.json({
     ...progressPayload(template, progress, artwork?.id || null),
@@ -769,22 +774,7 @@ router.put('/:id/progress', authMiddleware, (_req, res) => {
   res.status(405).json({ error: 'Используйте действия раскраски, а не полную карту прогресса' });
 });
 
-async function prepareTiledArtwork(tx, { userId, template, now }) {
-  const tiles = await readTiledTemplateTiles(tx, { template });
-  const renderArtifact = renderCanonicalTiledPng({
-    width: template.width,
-    height: template.height,
-    palette: template.palette,
-    tiles,
-    tileSize: template.tile_size,
-  });
-  const thumbnailArtifact = renderCanonicalTiledThumbnail({
-    width: template.width,
-    height: template.height,
-    palette: template.palette,
-    tiles,
-    tileSize: template.tile_size,
-  });
+async function createTiledArtworkMetadata(tx, { userId, template, now }) {
   const existingArtwork = await tx.get(
     "SELECT * FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?",
     [userId, template.id],
@@ -792,57 +782,39 @@ async function prepareTiledArtwork(tx, { userId, template, now }) {
   const artworkId = existingArtwork?.id || `art_${uuid()}`;
   const storageKey = existingArtwork?.storage_key || canonicalStorageKey(userId, artworkId);
   const thumbnailKey = existingArtwork?.thumbnail_key || canonicalThumbnailStorageKey(userId, artworkId);
-  const renderStatus = existingArtwork?.render_status === 'ready'
-    && existingArtwork?.content_hash === renderArtifact.contentHash
-    ? 'ready'
-    : 'pending';
+  // Template content is immutable, so a previously rendered artwork stays
+  // ready. New or incomplete artwork starts pending and is rendered by the
+  // render outbox worker outside the user transaction.
+  const renderStatus = existingArtwork?.render_status === 'ready' ? 'ready' : 'pending';
+  const contentHash = existingArtwork?.content_hash || null;
+  const width = Number(existingArtwork?.width || template.width);
+  const height = Number(existingArtwork?.height || template.height);
   if (existingArtwork) {
     await tx.run(`UPDATE artworks SET image_url=?, storage_key=?, thumbnail_key=?, content_hash=?, mime_type=?, width=?, height=?, byte_size=?, render_status=?, is_completed=1, title=?, updated_at=? WHERE id=?`,
-      [publicMediaUrl(storageKey), storageKey, thumbnailKey, renderArtifact.contentHash, renderArtifact.mimeType, renderArtifact.width, renderArtifact.height, renderArtifact.byteSize, renderStatus, template.title, now, artworkId]);
+      [publicMediaUrl(storageKey), storageKey, thumbnailKey, contentHash, 'image/png', width, height, Number(existingArtwork?.byte_size || 0), renderStatus, template.title, now, artworkId]);
   } else {
     await tx.run(`INSERT INTO artworks (id,owner_id,source_type,image_url,title,template_id,collection_id,collection_title,rarity,is_completed,storage_key,thumbnail_key,content_hash,mime_type,width,height,byte_size,render_status,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [artworkId, userId, 'coloring', publicMediaUrl(storageKey), template.title, template.id, template.collection_id || null, template.title, template.difficulty, 1, storageKey, thumbnailKey, renderArtifact.contentHash, renderArtifact.mimeType, renderArtifact.width, renderArtifact.height, renderArtifact.byteSize, renderStatus, now, now]);
+    [artworkId, userId, 'coloring', publicMediaUrl(storageKey), template.title, template.id, template.collection_id || null, template.title, template.difficulty, 1, storageKey, thumbnailKey, contentHash, 'image/png', width, height, 0, renderStatus, now, now]);
   }
   return {
     artworkId,
     storageKey,
     thumbnailKey,
     renderStatus,
-    previewDataUrl: `data:image/png;base64,${thumbnailArtifact.buffer.toString('base64')}`,
-    renderArtifact: renderStatus === 'ready' ? null : renderArtifact,
-    thumbnailArtifact: renderStatus === 'ready' ? null : thumbnailArtifact,
   };
 }
 
-async function persistTiledArtworkMedia(artwork, userId) {
-  if (!artwork || !artwork.renderArtifact) {
-    if (artwork?.artworkId) {
-      await markArtworkAndJobReady({ withTransaction: withDbTransaction }, { artworkId: artwork.artworkId, now: new Date() });
-    }
-    return 'ready';
-  }
+async function loadTiledPreviewDataUrl(artwork) {
+  if (!artwork?.thumbnail_key) return null;
+  let body;
   try {
-    await storeMediaObject({ key: artwork.storageKey, body: artwork.renderArtifact.buffer, contentType: artwork.renderArtifact.mimeType });
-    await storeMediaObject({ key: artwork.thumbnailKey, body: artwork.thumbnailArtifact.buffer, contentType: artwork.thumbnailArtifact.mimeType });
-    await markArtworkAndJobReady({ withTransaction: withDbTransaction }, { artworkId: artwork.artworkId, now: new Date() });
-    return 'ready';
+    body = await readMediaObject(artwork.thumbnail_key);
   } catch {
-    await run("UPDATE artworks SET render_status='failed', updated_at=? WHERE id=? AND owner_id=?", [new Date().toISOString(), artwork.artworkId, userId]);
-    return 'failed';
+    return null;
   }
-}
-
-async function loadTiledPreviewDataUrl(template) {
-  const tiles = await readTiledTemplateTiles({ all }, { template });
-  const thumbnail = renderCanonicalTiledThumbnail({
-    width: template.width,
-    height: template.height,
-    palette: template.palette,
-    tiles,
-    tileSize: template.tile_size,
-  });
-  return `data:image/png;base64,${thumbnail.buffer.toString('base64')}`;
+  if (!body) return null;
+  return `data:image/png;base64,${body.toString('base64')}`;
 }
 
 async function processTiledProgressAction(req, res, template) {
@@ -864,31 +836,18 @@ async function processTiledProgressAction(req, res, template) {
     );
     if (existingBatch) {
       if (existingBatch.changes_hash !== batchHash || Number(existingBatch.revision_before) !== clientRevision) return { badBatch: true };
-      const stored = (existingBatch.response_json && typeof existingBatch.response_json === 'object')
-        ? existingBatch.response_json
-        : (parseJsonArray(existingBatch.response_json) || {});
+      const stored = parseJsonObject(existingBatch.response_json) || {};
       const progress = await tx.get('SELECT * FROM coloring_tiled_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
-      const existingArtwork = await tx.get("SELECT id,storage_key,thumbnail_key,content_hash,render_status FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
-      const artwork = progress?.completed_at
-        ? await prepareTiledArtwork(tx, { userId: req.userId, template, now })
-        : null;
-      if (artwork && artwork.renderStatus !== 'ready') {
-        await enqueueRenderJob(tx, {
-          artworkId: artwork.artworkId,
-          userId: req.userId,
-          templateId: template.id,
-          renderMode: 'tiled',
-          now,
-        });
-      }
+      const existingArtwork = await tx.get("SELECT id,render_status FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
+      // Replay must be semantically equivalent to the original response and
+      // must never repeat side effects (rewards, renders, enqueues).
       return {
         replay: true,
-        artwork,
         response: {
-          ...tiledProgressPayload(template, progress, existingArtwork?.id || artwork?.artworkId || null),
-          artwork_id: existingArtwork?.id || artwork?.artworkId || null,
-          render_status: artwork?.renderStatus || existingArtwork?.render_status || null,
-          result_preview_data_url: artwork?.previewDataUrl || null,
+          ...tiledProgressPayload(template, progress, existingArtwork?.id || stored.artwork_id || null),
+          artwork_id: existingArtwork?.id || stored.artwork_id || null,
+          render_status: existingArtwork?.render_status || stored.render_status || null,
+          result_preview_data_url: stored.result_preview_data_url || null,
           idempotent: true,
           rewards: stored.rewards || null,
         },
@@ -930,7 +889,7 @@ async function processTiledProgressAction(req, res, template) {
       now,
     });
     const artwork = state.justCompleted
-      ? await prepareTiledArtwork(tx, { userId: req.userId, template, now })
+      ? await createTiledArtworkMetadata(tx, { userId: req.userId, template, now })
       : null;
     if (artwork && artwork.renderStatus !== 'ready') {
       await enqueueRenderJob(tx, {
@@ -957,7 +916,7 @@ async function processTiledProgressAction(req, res, template) {
       }, artwork?.artworkId || null),
       artwork_id: artwork?.artworkId || null,
       render_status: artwork?.renderStatus || null,
-      result_preview_data_url: artwork?.previewDataUrl || null,
+      result_preview_data_url: null,
       idempotent: false,
       rewards,
     };
@@ -965,7 +924,7 @@ async function processTiledProgressAction(req, res, template) {
       (user_id,template_id,client_batch_id,changes_hash,revision_before,revision_after,response_json,created_at)
       VALUES (?,?,?,?,?,?,?,?)`,
     [req.userId, template.id, clientBatchId, batchHash, clientRevision, persisted.revision, JSON.stringify(response), now]);
-    return { response, artwork };
+    return { response };
     });
   } catch (error) {
     if (sendChunkContractError(res, error)) return;
@@ -974,11 +933,7 @@ async function processTiledProgressAction(req, res, template) {
 
   if (result.badBatch) return res.status(409).json({ error: 'client_batch_id уже использован для другого набора изменений' });
   if (result.conflict) return res.status(409).json({ error: 'Прогресс уже обновлён на другом устройстве', progress: result.progress });
-  const renderStatus = await persistTiledArtworkMedia(result.artwork, req.userId);
-  if (renderStatus === 'failed') {
-    return res.status(503).json({ error: 'Результат сохранён, но медиа ещё не готово к публикации', code: 'MEDIA_RETRY_REQUIRED', artwork_id: result.response.artwork_id });
-  }
-  return res.json({ ...result.response, render_status: renderStatus === 'ready' ? (result.response.render_status ? 'ready' : null) : result.response.render_status });
+  return res.json(result.response);
 }
 
 // POST /colorings/:id/progress/actions — server derives the new map and completion state.
@@ -1015,9 +970,7 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
         }
         const existingProgress = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
         const existingArtwork = await tx.get("SELECT id,storage_key,render_status FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
-        const storedResponse = (existingBatch.response_json && typeof existingBatch.response_json === 'object')
-          ? existingBatch.response_json
-          : (parseJsonArray(existingBatch.response_json) || {});
+        const storedResponse = parseJsonObject(existingBatch.response_json) || {};
         return {
           conflict: false,
           replay: true,

@@ -41,7 +41,18 @@ test('tiled completion shows the completion overlay in the player', async ({ pag
   const completed = await completeResponse.json();
   expect(completed.percent).toBe(100);
   expect(completed.artwork_id).toBeTruthy();
-  expect(completed.render_status).toBe('ready');
+  // Completion commits progress + artwork metadata + the render job and
+  // returns immediately; the outbox worker renders outside the transaction.
+  expect(completed.render_status).toBe('pending');
+
+  await expect
+    .poll(async () => {
+      const progressResponse = await page.request.get(`/api/colorings/${created.id}/progress`);
+      if (!progressResponse.ok()) return null;
+      const progress = await progressResponse.json();
+      return progress.render_status === 'ready' ? progress : null;
+    }, { timeout: 15000 })
+    .not.toBeNull();
 
   await page.goto(`/?coloring=${created.id}`);
   await expect(page.locator('.progressive-coloring-session')).toBeVisible({ timeout: 15000 });

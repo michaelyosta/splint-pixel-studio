@@ -1179,7 +1179,7 @@ function App() {
   const completedPreview = useMemo(() => (
     template && artworkComplete
       ? isLargeGridTemplate(template)
-        ? tiledResultUrl || progress?.result_preview_data_url || null
+        ? tiledResultUrl || progress?.result_preview_data_url || template.preview_url || null
         : renderCompletedImage(template, progress.filled)
       : null
   ), [artworkComplete, progress?.filled, progress?.result_preview_data_url, template, tiledResultUrl]);

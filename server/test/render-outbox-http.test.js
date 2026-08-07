@@ -130,9 +130,18 @@ async function runRecoveryFlow(t, directory, { tiled }) {
     method: 'POST',
     body: await completionBody(`outbox-${tiled ? 'tiled' : 'legacy'}-001`, 64),
   });
-  assert.equal(completed.response.status, 503, 'blocked media must make completion best-effort only');
-  assert.equal(completed.json.code, 'MEDIA_RETRY_REQUIRED');
-  const artworkId = completed.json.artwork_id;
+  let artworkId;
+  if (tiled) {
+    // Tiled completion must never wait on media: it commits and returns a
+    // bounded pending response; the durable outbox job owns rendering.
+    assert.equal(completed.response.status, 200);
+    assert.equal(completed.json.render_status, 'pending');
+    artworkId = completed.json.artwork_id;
+  } else {
+    assert.equal(completed.response.status, 503, 'legacy media outage stays best-effort with retry signal');
+    assert.equal(completed.json.code, 'MEDIA_RETRY_REQUIRED');
+    artworkId = completed.json.artwork_id;
+  }
   assert.ok(artworkId);
 
   server.kill();
@@ -143,7 +152,7 @@ async function runRecoveryFlow(t, directory, { tiled }) {
   assert.ok(state.job, 'durable job must exist after the database commit');
   assert.equal(state.job.status, 'pending');
   assert.equal(state.job.render_mode, tiled ? 'tiled' : 'legacy');
-  assert.equal(state.artwork.render_status, 'failed');
+  assert.equal(state.artwork.render_status, tiled ? 'pending' : 'failed');
 
   await rm(storagePath, { force: true });
   await mkdir(storagePath, { recursive: true });

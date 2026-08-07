@@ -38,6 +38,17 @@ async function waitForServer(server) {
   });
 }
 
+async function waitFor(predicate, { timeout = 15_000, interval = 50 } = {}) {
+  const deadline = Date.now() + timeout;
+  let last;
+  while (Date.now() < deadline) {
+    last = await predicate();
+    if (last) return last;
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+  throw new Error(`Timed out waiting for condition (last=${JSON.stringify(last)})`);
+}
+
 function tiledPayload(width, height, tileSize = 32) {
   const tiles = [];
   const tilesX = Math.ceil(width / tileSize);
@@ -65,6 +76,8 @@ test('manifest and tile API projects legacy arrays without exposing an unsafe pu
       ALLOW_DEV_AUTH: 'true',
       SEED_DEMO_DATA: 'true',
       RATE_LIMIT_MAX: '10000',
+      RENDER_OUTBOX_ENABLED: 'true',
+      RENDER_OUTBOX_POLL_MS: '25',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -263,19 +276,53 @@ test('manifest and tile API projects legacy arrays without exposing an unsafe pu
   assert.equal(completedTiled.response.status, 200);
   assert.equal(completedTiled.json.percent, 100);
   assert.ok(completedTiled.json.artwork_id);
-  assert.equal(completedTiled.json.render_status, 'ready');
-  assert.match(completedTiled.json.result_preview_data_url, /^data:image\/png;base64,/);
+  // The completion request must not wait for canonical rendering: it commits
+  // progress + artwork metadata + the render job and returns a bounded
+  // response while the outbox worker renders outside the transaction.
+  assert.equal(completedTiled.json.render_status, 'pending');
+  assert.equal(completedTiled.json.result_preview_data_url, null);
+  const readyProgress = await waitFor(async () => {
+    const progress = await request(`/colorings/${completableId}/progress`);
+    if (progress.response.status !== 200) return null;
+    return progress.json.render_status === 'ready' ? progress.json : null;
+  });
+  assert.equal(readyProgress.render_status, 'ready');
+  assert.match(readyProgress.result_preview_data_url, /^data:image\/png;base64,/);
+  const replayTiled = await request(`/colorings/${completableId}/progress/actions`, {
+    method: 'POST',
+    body: {
+      revision: 0,
+      clientBatchId: 'tiled-completion-contract-001',
+      changes: Array.from({ length: 64 }, (_, index) => ({ index, color: 0 })),
+    },
+  });
+  assert.equal(replayTiled.response.status, 200);
+  assert.equal(replayTiled.json.idempotent, true);
+  assert.equal(replayTiled.json.artwork_id, completedTiled.json.artwork_id);
+  assert.deepEqual(replayTiled.json.rewards, completedTiled.json.rewards);
+  assert.ok((completedTiled.json.rewards?.xp_awarded || 0) >= 40, 'completion includes the completion XP reward');
+  const artworksAfterReplay = await request(`/colorings/${completableId}/progress`);
+  assert.equal(artworksAfterReplay.json.artwork_id, completedTiled.json.artwork_id);
   const privateResult = await request(`/colorings/${completableId}/result`);
   assert.equal(privateResult.response.status, 200);
   assert.equal(privateResult.response.headers.get('content-type'), 'image/png');
   assert.equal((await privateResult.response.arrayBuffer()).byteLength > 32, true);
   const deniedPrivateResult = await request(`/colorings/${completableId}/result`, { userId: 'user_lenaart' });
   assert.equal(deniedPrivateResult.response.status, 404);
-  const completedProgress = await request(`/colorings/${completableId}/progress`);
-  assert.equal(completedProgress.json.artwork_id, completedTiled.json.artwork_id);
-  assert.equal(completedProgress.json.completion_reward_xp, 40);
-  assert.equal(completedProgress.json.render_status, 'ready');
-  assert.match(completedProgress.json.result_preview_data_url, /^data:image\/png;base64,/);
+  assert.equal(artworksAfterReplay.json.completion_reward_xp, 40);
+  // Repeated GET progress must stay bounded and stable after the artwork is
+  // ready (the source-level guard in tiled-render-architecture.test.js
+  // additionally forbids tile reads/renders in the progress read path).
+  const repeated = await Promise.all([
+    request(`/colorings/${completableId}/progress`),
+    request(`/colorings/${completableId}/progress`),
+    request(`/colorings/${completableId}/progress`),
+  ]);
+  for (const entry of repeated) {
+    assert.equal(entry.response.status, 200);
+    assert.equal(entry.json.render_status, 'ready');
+    assert.match(entry.json.result_preview_data_url, /^data:image\/png;base64,/);
+  }
   const published = await request('/posts/create', {
     method: 'POST',
     body: {
