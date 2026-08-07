@@ -292,7 +292,7 @@ def convert_template(
     Returns {width, height, palette, cells, preview_bytes...} where cells is a
     list of palette indices. Deterministic for the same input.
     """
-    from PIL import Image, ImageEnhance
+    from PIL import Image, ImageEnhance, ImageFilter
 
     if grid_size not in [12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 600, 800, 1024, 1200]:
         raise ValueError(f"unsupported grid size {grid_size}")
@@ -300,6 +300,13 @@ def convert_template(
     source = Image.open(source_path).convert("RGB")
     if crop:
         source = apply_crop(source, crop)
+
+    # Large/masterpiece grids need texture suppression (paper grain, brush
+    # strokes) before downscale; plain BOX resize would bake the noise into
+    # thousands of micro-regions. Median filter removes speckle while keeping
+    # edges — the flat color regions ukiyo-e/posters are famous for survive.
+    if grid_size >= 384:
+        source = source.filter(ImageFilter.MedianFilter(size=3))
 
     source = ImageEnhance.Color(source).enhance(enhance)
     source = ImageEnhance.Contrast(source).enhance(enhance)
@@ -315,6 +322,7 @@ def convert_template(
 
     if cleanup:
         cells, ordered_palette = _cleanup_regions(cells, grid_size, grid_size, ordered_palette)
+        cells, ordered_palette = _merge_close_palette_colors(cells, ordered_palette)
 
     return {
         "width": grid_size,
@@ -322,6 +330,44 @@ def convert_template(
         "palette": [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in ordered_palette],
         "cells": cells,
     }
+
+
+def _merge_close_palette_colors(cells, palette, min_lab_distance: float = 12.0):
+    """Merge palette colors that are visually indistinguishable (LAB < threshold).
+
+    MAXCOVERAGE quantization can produce near-duplicate shades (e.g. two
+    grays at LAB distance 7) — for a coloring game those are two colors the
+    player cannot tell apart. Repeatedly merge the closest pair until all
+    remaining colors are separated by at least `min_lab_distance` or the
+    palette is exhausted.
+    """
+    result = list(cells)
+    palette = [list(color) for color in palette]
+    palette_lab = [_rgb_to_lab(tuple(color)) for color in palette]
+
+    def min_pair():
+        best = (float("inf"), None, None)
+        for i in range(len(palette_lab)):
+            for j in range(i + 1, len(palette_lab)):
+                dist = _lab_distance(palette_lab[i], palette_lab[j])
+                if dist < best[0]:
+                    best = (dist, i, j)
+        return best
+
+    while len(palette) > 2:
+        dist, i, j = min_pair()
+        if dist >= min_lab_distance:
+            break
+        # Merge j into i: recolor cells, drop j.
+        for index, color in enumerate(result):
+            if color == j:
+                result[index] = i
+            elif color > j:
+                result[index] = color - 1
+        del palette[j]
+        del palette_lab[j]
+
+    return result, [tuple(color) for color in palette]
 
 
 def apply_crop(image, crop: dict):
@@ -550,13 +596,14 @@ def _grid_tier(width: int, height: int) -> str:
 
 
 # Experimentally calibrated in CYCLE 2 against 6 production templates
-# (known good, full-resolution contrast 157-360) and synthetic bad samples
-# (gradient: ~0.7, noise: ~2155).
+# (known good, full-resolution contrast 157-360), synthetic bad samples
+# (gradient: ~0.7, noise: ~2155) and 9 museum artworks (Cleveland CC0,
+# good = per10k 30-250, tiny 0.15-0.25).
 TIER_LIMITS = {
     "small": {"singleton": 0.10, "tiny": 0.32, "per10k": 2000, "contrast_min": 60.0, "contrast_max": 1200.0},
     "medium": {"singleton": 0.07, "tiny": 0.28, "per10k": 900, "contrast_min": 60.0, "contrast_max": 1200.0},
-    "large": {"singleton": 0.05, "tiny": 0.25, "per10k": 300, "contrast_min": 60.0, "contrast_max": 1200.0},
-    "masterpiece": {"singleton": 0.04, "tiny": 0.22, "per10k": 150, "contrast_min": 60.0, "contrast_max": 1200.0},
+    "large": {"singleton": 0.05, "tiny": 0.26, "per10k": 350, "contrast_min": 60.0, "contrast_max": 1200.0},
+    "masterpiece": {"singleton": 0.04, "tiny": 0.25, "per10k": 260, "contrast_min": 60.0, "contrast_max": 1200.0},
 }
 
 
@@ -699,7 +746,7 @@ def estimate_difficulty(width, height, regions, palette_info, color_efficiency, 
         if per_10k < 120:
             return "HARD"
         return "EXPERT"
-    if per_10k < 60 and tiny < 0.15:
+    if per_10k < 80 and tiny < 0.2:
         return "MASTERPIECE"
     return "EXPERT"
 
@@ -712,14 +759,80 @@ def now_utc() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def load_jsonl(path: Path) -> list[dict]:
+SOURCE_REQUIRED_FIELDS = (
+    "source_asset_id",
+    "source_title",
+    "source_creator",
+    "source_institution",
+    "source_url",
+    "download_url",
+    "license_type",
+    "license_url",
+    "accessed_at",
+    "public_domain_status",
+    "attribution_required",
+    "commercial_use",
+    "derivative_use",
+    "redistribution_constraints",
+    "license_verdict",
+)
+
+DERIVED_REQUIRED_FIELDS = (
+    "derived_asset_id",
+    "source_asset_id",
+    "grid_width",
+    "grid_height",
+    "palette_size",
+    "state",
+)
+
+
+def validate_source_record(record: dict) -> list[str]:
+    """Return a list of schema violations for a source manifest record."""
+    errors = []
+    for field in SOURCE_REQUIRED_FIELDS:
+        if field not in record or record[field] in (None, ""):
+            errors.append(f"missing required field: {field}")
+    verdict = record.get("license_verdict")
+    if verdict is not None and verdict not in LICENSE_VERDICTS:
+        errors.append(f"invalid license_verdict: {verdict}")
+    state = record.get("state")
+    if state is not None and state not in STAGES:
+        errors.append(f"invalid state: {state}")
+    if record.get("download_url"):
+        parsed = urllib.parse.urlparse(record["download_url"])
+        if parsed.scheme not in ("http", "https"):
+            errors.append(f"bad download_url scheme: {parsed.scheme}")
+    return errors
+
+
+def validate_derived_record(record: dict) -> list[str]:
+    errors = []
+    for field in DERIVED_REQUIRED_FIELDS:
+        if field not in record or record[field] in (None, ""):
+            errors.append(f"missing required field: {field}")
+    state = record.get("state")
+    if state is not None and state not in STAGES:
+        errors.append(f"invalid state: {state}")
+    if record.get("state") == "APPROVED":
+        template = record.get("template")
+        if not template:
+            errors.append("approved asset lacks template")
+        elif not template.get("palette") or not template.get("cells"):
+            errors.append("approved asset template lacks palette/cells")
+    return errors
+
+
+def load_jsonl(path) -> list[dict]:
+    path = Path(path)
     if not path.exists():
         return []
     with open(path, encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
 
 
-def save_jsonl(path: Path, records: list[dict]) -> None:
+def save_jsonl(path, records: list[dict]) -> None:
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         for record in records:

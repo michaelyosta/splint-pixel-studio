@@ -157,13 +157,17 @@ def run_convert(
         # Select candidate sizes from the source's tier (curator override allowed).
         tier = record.get("content_tier", "medium")
         tier_sizes = record.get("candidate_sizes") or TIER_GRIDS.get(tier, TIER_GRIDS["medium"])
-        candidates = [g for g in grids if g in tier_sizes]
+        # Tier sizes win when explicitly requested; else intersect with --grids.
+        if tier in TIER_GRIDS or record.get("candidate_sizes"):
+            candidates = tier_sizes
+        else:
+            candidates = [g for g in grids if g in tier_sizes]
 
         for grid in candidates:
             palette_size = palettes.get(grid, 16)
             key = (record["source_asset_id"], grid, palette_size)
             existing = derived_by_key.get(key)
-            if existing and existing.get("state") != "CONVERTED":
+            if existing and existing.get("state") in ("CONVERTED", "APPROVED", "REJECTED", "QUALITY_REVIEW"):
                 continue
 
             try:

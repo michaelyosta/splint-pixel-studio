@@ -21,6 +21,8 @@ from content_lib import (  # noqa: E402
     sha256_bytes,
     validate_image_file,
     now_utc,
+    validate_source_record,
+    validate_derived_record,
     LICENSE_METADATA,
 )
 
@@ -194,6 +196,76 @@ class TestDerivedLinksBackToSource(unittest.TestCase):
         }
         self.assertIn("source_asset_id", derived)
         self.assertEqual(derived["source_asset_id"], "neon-cat")
+
+
+class TestManifestSchema(unittest.TestCase):
+    def test_source_requires_license_metadata(self):
+        record = {"source_asset_id": "s1", "state": "DISCOVERED"}
+        errors = validate_source_record(record)
+        self.assertTrue(any("license_type" in e for e in errors))
+        self.assertTrue(any("download_url" in e for e in errors))
+
+    def test_bad_url_rejected(self):
+        record = {
+            "source_asset_id": "s1",
+            "license_type": "CC0",
+            "download_url": "ftp://bad.example/x.png",
+        }
+        errors = validate_source_record(record)
+        self.assertTrue(any("bad download_url" in e for e in errors))
+
+    def test_valid_source_record(self):
+        record = {
+            "source_asset_id": "s1",
+            "source_title": "T",
+            "source_creator": "C",
+            "source_institution": "I",
+            "source_url": "https://example.com",
+            "download_url": "https://example.com/x.png",
+            "license_type": "CC0",
+            "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+            "accessed_at": now_utc(),
+            "public_domain_status": True,
+            "attribution_required": False,
+            "commercial_use": True,
+            "derivative_use": True,
+            "redistribution_constraints": "none",
+            "license_verdict": "APPROVED_CC0",
+            "state": "DISCOVERED",
+        }
+        self.assertEqual(validate_source_record(record), [])
+
+    def test_approved_asset_must_have_template(self):
+        derived = {
+            "derived_asset_id": "d1",
+            "source_asset_id": "s1",
+            "grid_width": 32,
+            "grid_height": 32,
+            "palette_size": 10,
+            "state": "APPROVED",
+        }
+        errors = validate_derived_record(derived)
+        self.assertTrue(any("lacks template" in e for e in errors))
+
+    def test_approved_asset_license_gate(self):
+        # Approved derived assets must trace back to an approved license.
+        template = convert_template(TEST_IMAGE, 32, 10)
+        approved = {
+            "derived_asset_id": "d1",
+            "source_asset_id": "s1",
+            "grid_width": 32,
+            "grid_height": 32,
+            "palette_size": 10,
+            "state": "APPROVED",
+            "template": template,
+        }
+        # source record must exist with production-ready verdict
+        source = {
+            "source_asset_id": "s1",
+            "license_verdict": "REVIEW_REQUIRED",
+        }
+        self.assertNotIn(source["license_verdict"], PRODUCTION_READY_VERDICTS)
+        self.assertEqual(validate_derived_record(approved), [])  # derived itself is well-formed
 
 
 if __name__ == "__main__":
