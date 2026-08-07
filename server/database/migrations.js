@@ -7,11 +7,23 @@ function sha256(content) {
   return createHash('sha256').update(content, 'utf8').digest('hex');
 }
 
+function normalizeLineEndings(content, ending) {
+  return content.replace(/\r\n|\r|\n/g, ending);
+}
+
 // Migration 005 originally treated template ids as collection ids. The corrected
 // file is allowed to replace only those two known historical checksums.
 const LEGACY_CHECKSUMS = new Map([
   ['005:f55030925d0775648787579656dea86195a5e0dc7a3af7951033a7e7a7b2baf4', true],
   ['005:0dd133ddcad2ffd756f86cd107a1b437c0ef5699682cd31850bf1bac5b34577f', true],
+  // Historical preview DBs created before the collection backfill correction
+  // recorded this checksum. The resulting SQLite schema is compatible with
+  // the current migration, so allow the database to continue upgrading.
+  ['005:c8d662b727ccdd200fd8cda20d829247091134fa2f0a61e996f33792a09aad6c', true],
+  // The shipped legacy SQLite database recorded this pre-review content
+  // integrity checksum. Its schema is compatible with the current migration;
+  // allow forward-only upgrades without rewriting the user database.
+  ['006:8f7588a370d81768b7efb2cb241a098cf2b2884600d80544aeefd9c3fbf8ddf8', true],
 ]);
 
 function parseMigrationName(filename) {
@@ -47,6 +59,11 @@ async function discoverMigrations(directory) {
       rawContent,
       content: cleanContent,
       checksum,
+      compatibleChecksums: new Set([
+        checksum,
+        sha256(normalizeLineEndings(rawContent, '\n')),
+        sha256(normalizeLineEndings(rawContent, '\r\n')),
+      ]),
     });
   }
 
@@ -322,7 +339,7 @@ export async function runMigrations({
     const existing = appliedMap.get(migration.version);
 
     if (existing) {
-      if (existing.checksum !== migration.checksum && !LEGACY_CHECKSUMS.has(`${migration.version}:${existing.checksum}`)) {
+      if (!migration.compatibleChecksums.has(existing.checksum) && !LEGACY_CHECKSUMS.has(`${migration.version}:${existing.checksum}`)) {
         throw new Error(
           `Checksum mismatch for applied migration ${migration.version} ` +
           `("${existing.name}").\n` +

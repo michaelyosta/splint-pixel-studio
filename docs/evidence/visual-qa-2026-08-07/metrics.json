@@ -1,0 +1,677 @@
+{
+  "capturedAt": "2026-08-06T20:36:31.645Z",
+  "webPort": 5290,
+  "apiPort": 3112,
+  "screens": [
+    {
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "screen": "home",
+      "viewportWidth": 360,
+      "viewportHeight": 800,
+      "documentWidth": 360,
+      "documentHeight": 800,
+      "domNodes": 136,
+      "canvasCount": 0,
+      "canvasPixels": 0,
+      "resourceCount": 109,
+      "resourceBytes": 9948788,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/assets/pixel_hunter_avatar.jpg",
+          "bytes": 739864
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.jsx",
+          "bytes": 434868
+        },
+        {
+          "name": "http://127.0.0.1:5290/@vite/client",
+          "bytes": 209791
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/features/coloring/ColoringSession.jsx",
+          "bytes": 121102
+        },
+        {
+          "name": "http://127.0.0.1:5290/@react-refresh",
+          "bytes": 111894
+        }
+      ],
+      "heapBytes": 26000000
+    },
+    {
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "screen": "catalog",
+      "viewportWidth": 360,
+      "viewportHeight": 800,
+      "documentWidth": 360,
+      "documentHeight": 800,
+      "domNodes": 208,
+      "canvasCount": 0,
+      "canvasPixels": 0,
+      "resourceCount": 112,
+      "resourceBytes": 9957613,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/assets/pixel_hunter_avatar.jpg",
+          "bytes": 739864
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.jsx",
+          "bytes": 434868
+        },
+        {
+          "name": "http://127.0.0.1:5290/@vite/client",
+          "bytes": 209791
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/features/coloring/ColoringSession.jsx",
+          "bytes": 121102
+        },
+        {
+          "name": "http://127.0.0.1:5290/@react-refresh",
+          "bytes": 111894
+        }
+      ],
+      "heapBytes": 26000000
+    },
+    {
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "screen": "player",
+      "viewportWidth": 360,
+      "viewportHeight": 800,
+      "documentWidth": 360,
+      "documentHeight": 800,
+      "domNodes": 121,
+      "canvasCount": 1,
+      "canvasPixels": 185400,
+      "resourceCount": 123,
+      "resourceBytes": 9969114,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/assets/pixel_hunter_avatar.jpg",
+          "bytes": 739864
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.jsx",
+          "bytes": 434868
+        },
+        {
+          "name": "http://127.0.0.1:5290/@vite/client",
+          "bytes": 209791
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/features/coloring/ColoringSession.jsx",
+          "bytes": 121102
+        },
+        {
+          "name": "http://127.0.0.1:5290/@react-refresh",
+          "bytes": 111894
+        }
+      ],
+      "heapBytes": 26000000
+    },
+    {
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "screen": "profile",
+      "viewportWidth": 360,
+      "viewportHeight": 800,
+      "documentWidth": 360,
+      "documentHeight": 800,
+      "domNodes": 152,
+      "canvasCount": 0,
+      "canvasPixels": 0,
+      "resourceCount": 117,
+      "resourceBytes": 7274289,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/lib/pixelColoring.js",
+          "bytes": 53903
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom.js?v=08969433",
+          "bytes": 48822
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=08969433",
+          "bytes": 34713
+        },
+        {
+          "name": "http://127.0.0.1:5290/api/colorings/today",
+          "bytes": 10558
+        },
+        {
+          "name": "http://127.0.0.1:5290/api/colorings/today",
+          "bytes": 10558
+        }
+      ],
+      "heapBytes": 26000000
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "home",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "documentHeight": 844,
+      "domNodes": 136,
+      "canvasCount": 0,
+      "canvasPixels": 0,
+      "resourceCount": 109,
+      "resourceBytes": 9952744,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/assets/pixel_hunter_avatar.jpg",
+          "bytes": 739864
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.jsx",
+          "bytes": 434868
+        },
+        {
+          "name": "http://127.0.0.1:5290/@vite/client",
+          "bytes": 209791
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/features/coloring/ColoringSession.jsx",
+          "bytes": 121102
+        },
+        {
+          "name": "http://127.0.0.1:5290/@react-refresh",
+          "bytes": 111894
+        }
+      ],
+      "heapBytes": 24500000
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "catalog",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "documentHeight": 844,
+      "domNodes": 208,
+      "canvasCount": 0,
+      "canvasPixels": 0,
+      "resourceCount": 112,
+      "resourceBytes": 9961569,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/assets/pixel_hunter_avatar.jpg",
+          "bytes": 739864
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.jsx",
+          "bytes": 434868
+        },
+        {
+          "name": "http://127.0.0.1:5290/@vite/client",
+          "bytes": 209791
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/features/coloring/ColoringSession.jsx",
+          "bytes": 121102
+        },
+        {
+          "name": "http://127.0.0.1:5290/@react-refresh",
+          "bytes": 111894
+        }
+      ],
+      "heapBytes": 24500000
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "player",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "documentHeight": 844,
+      "domNodes": 121,
+      "canvasCount": 1,
+      "canvasPixels": 218010,
+      "resourceCount": 123,
+      "resourceBytes": 9974059,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/assets/pixel_hunter_avatar.jpg",
+          "bytes": 739864
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.jsx",
+          "bytes": 434868
+        },
+        {
+          "name": "http://127.0.0.1:5290/@vite/client",
+          "bytes": 209791
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/features/coloring/ColoringSession.jsx",
+          "bytes": 121102
+        },
+        {
+          "name": "http://127.0.0.1:5290/@react-refresh",
+          "bytes": 111894
+        }
+      ],
+      "heapBytes": 24500000
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "profile",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "documentHeight": 844,
+      "domNodes": 152,
+      "canvasCount": 0,
+      "canvasPixels": 0,
+      "resourceCount": 117,
+      "resourceBytes": 7274289,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/lib/pixelColoring.js",
+          "bytes": 53903
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom.js?v=08969433",
+          "bytes": 48822
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=08969433",
+          "bytes": 34713
+        },
+        {
+          "name": "http://127.0.0.1:5290/api/colorings/today",
+          "bytes": 10558
+        },
+        {
+          "name": "http://127.0.0.1:5290/api/colorings/today",
+          "bytes": 10558
+        }
+      ],
+      "heapBytes": 24500000
+    },
+    {
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "screen": "home",
+      "viewportWidth": 430,
+      "viewportHeight": 932,
+      "documentWidth": 430,
+      "documentHeight": 932,
+      "domNodes": 136,
+      "canvasCount": 0,
+      "canvasPixels": 0,
+      "resourceCount": 109,
+      "resourceBytes": 9952744,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/assets/pixel_hunter_avatar.jpg",
+          "bytes": 739864
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.jsx",
+          "bytes": 434868
+        },
+        {
+          "name": "http://127.0.0.1:5290/@vite/client",
+          "bytes": 209791
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/features/coloring/ColoringSession.jsx",
+          "bytes": 121102
+        },
+        {
+          "name": "http://127.0.0.1:5290/@react-refresh",
+          "bytes": 111894
+        }
+      ],
+      "heapBytes": 24500000
+    },
+    {
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "screen": "catalog",
+      "viewportWidth": 430,
+      "viewportHeight": 932,
+      "documentWidth": 430,
+      "documentHeight": 932,
+      "domNodes": 208,
+      "canvasCount": 0,
+      "canvasPixels": 0,
+      "resourceCount": 112,
+      "resourceBytes": 9961569,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/assets/pixel_hunter_avatar.jpg",
+          "bytes": 739864
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.jsx",
+          "bytes": 434868
+        },
+        {
+          "name": "http://127.0.0.1:5290/@vite/client",
+          "bytes": 209791
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/features/coloring/ColoringSession.jsx",
+          "bytes": 121102
+        },
+        {
+          "name": "http://127.0.0.1:5290/@react-refresh",
+          "bytes": 111894
+        }
+      ],
+      "heapBytes": 24500000
+    },
+    {
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "screen": "player",
+      "viewportWidth": 430,
+      "viewportHeight": 932,
+      "documentWidth": 430,
+      "documentHeight": 932,
+      "domNodes": 121,
+      "canvasCount": 1,
+      "canvasPixels": 278210,
+      "resourceCount": 123,
+      "resourceBytes": 9974059,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/assets/pixel_hunter_avatar.jpg",
+          "bytes": 739864
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.jsx",
+          "bytes": 434868
+        },
+        {
+          "name": "http://127.0.0.1:5290/@vite/client",
+          "bytes": 209791
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/features/coloring/ColoringSession.jsx",
+          "bytes": 121102
+        },
+        {
+          "name": "http://127.0.0.1:5290/@react-refresh",
+          "bytes": 111894
+        }
+      ],
+      "heapBytes": 24500000
+    },
+    {
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "screen": "profile",
+      "viewportWidth": 430,
+      "viewportHeight": 932,
+      "documentWidth": 430,
+      "documentHeight": 932,
+      "domNodes": 152,
+      "canvasCount": 0,
+      "canvasPixels": 0,
+      "resourceCount": 117,
+      "resourceBytes": 7274289,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/lib/pixelColoring.js",
+          "bytes": 53903
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom.js?v=08969433",
+          "bytes": 48822
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=08969433",
+          "bytes": 34713
+        },
+        {
+          "name": "http://127.0.0.1:5290/api/colorings/today",
+          "bytes": 10558
+        },
+        {
+          "name": "http://127.0.0.1:5290/api/colorings/today",
+          "bytes": 10558
+        }
+      ],
+      "heapBytes": 24500000
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "tiled-1200",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "documentHeight": 844,
+      "domNodes": 119,
+      "canvasCount": 1,
+      "canvasPixels": 241336,
+      "resourceCount": 190,
+      "resourceBytes": 9691593,
+      "largestResources": [
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/lucide-react.js?v=08969433",
+          "bytes": 4113691
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react-dom_client.js?v=08969433",
+          "bytes": 2819303
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.jsx",
+          "bytes": 434868
+        },
+        {
+          "name": "http://127.0.0.1:5290/@vite/client",
+          "bytes": 209791
+        },
+        {
+          "name": "http://127.0.0.1:5290/node_modules/.vite/deps/react.js?v=08969433",
+          "bytes": 130087
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/features/coloring/ColoringSession.jsx",
+          "bytes": 121102
+        },
+        {
+          "name": "http://127.0.0.1:5290/@react-refresh",
+          "bytes": 111894
+        },
+        {
+          "name": "http://127.0.0.1:5290/src/App.css",
+          "bytes": 101461
+        }
+      ],
+      "heapBytes": 26000000,
+      "frameTiming": {
+        "frames": 60,
+        "medianMs": 16.9,
+        "p95Ms": 17.6
+      },
+      "wheelInteraction": true,
+      "tileResponses": 62
+    }
+  ]
+}

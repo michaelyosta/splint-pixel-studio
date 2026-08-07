@@ -305,7 +305,7 @@ test('Migration runner is idempotent', async (t) => {
   const result2 = await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
 
   assert.equal(result2.applied, 0, 'Second run should apply zero migrations');
-  assert.equal(result2.skipped, 14, 'Second run should skip all migrations');
+  assert.equal(result2.skipped, 20, 'Second run should skip all migrations');
 });
 
 test('Changed checksum causes error', async (t) => {
@@ -324,6 +324,35 @@ test('Changed checksum causes error', async (t) => {
     /Checksum mismatch/,
     'Should detect checksum mismatch',
   );
+});
+
+test('Known historical preview checksum remains upgrade-compatible', async () => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+
+  const migrationsDir = join(serverDir, 'migrations', 'sqlite');
+  await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
+  db.run("UPDATE schema_migrations SET checksum='c8d662b727ccdd200fd8cda20d829247091134fa2f0a61e996f33792a09aad6c' WHERE version='005'");
+  db.run("UPDATE schema_migrations SET checksum='41c8874dc80d8a310303863f4f8354fd05dd9ef4b8ae8df9ca254c0cdd2e3829' WHERE version='006'");
+
+  const result = await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
+  assert.equal(result.applied, 0);
+  assert.equal(result.skipped, 20);
+});
+
+test('Shipped legacy SQLite checksum remains upgrade-compatible', async () => {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run('PRAGMA foreign_keys = ON;');
+
+  const migrationsDir = join(serverDir, 'migrations', 'sqlite');
+  await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
+  db.run("UPDATE schema_migrations SET checksum='8f7588a370d81768b7efb2cb241a098cf2b2884600d80544aeefd9c3fbf8ddf8' WHERE version='006'");
+
+  const result = await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
+  assert.equal(result.applied, 0);
+  assert.equal(result.skipped, 20);
 });
 
 test('Legacy database (no schema_migrations) upgrades and applies post-baseline migrations', async (t) => {
@@ -350,14 +379,14 @@ test('Legacy database (no schema_migrations) upgrades and applies post-baseline 
 
   const result = await runMigrations({ mode: 'sqlite', pool: null, sqlite: db, persistFn: null, migrationsDir });
 
-  assert.equal(result.applied, 11, 'Legacy DB: should apply migrations 004 through 014');
+  assert.equal(result.applied, 17, 'Legacy DB: should apply migrations 004 through 020');
   assert.equal(result.skipped, 3, 'Legacy DB: should skip baseline 001-003');
 
   const stmt = db.prepare('SELECT version FROM schema_migrations ORDER BY version');
   const versions = [];
   while (stmt.step()) versions.push(stmt.getAsObject().version);
   stmt.free();
-  assert.deepStrictEqual(versions, ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014'], 'All versions recorded');
+  assert.deepStrictEqual(versions, ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020'], 'All versions recorded');
 
   const artwork = db.exec("SELECT template_id,collection_id FROM artworks WHERE id='legacy_artwork'")[0].values[0];
   assert.deepStrictEqual(artwork, ['legacy_template', 'legacy_collection']);

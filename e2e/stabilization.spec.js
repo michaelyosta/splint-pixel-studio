@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
 
+async function openFirstColoring(page) {
+  const firstHomeCard = page.locator('.home-featured-card, .home-art-card').first();
+  await expect(firstHomeCard).toBeVisible({ timeout: 15000 });
+  await firstHomeCard.click();
+}
+
 async function clickActiveWorkCell(page) {
   const canvas = page.locator('canvas.coloring-canvas');
   await expect(canvas).toBeVisible({ timeout: 10000 });
@@ -113,9 +119,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     });
 
     await page.goto('/');
-    const firstCard = page.locator('.coloring-card').first();
-    await expect(firstCard).toBeVisible({ timeout: 15000 });
-    await firstCard.locator('.primary-button').click();
+    await openFirstColoring(page);
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
 
     await page.waitForTimeout(1000);
@@ -133,7 +137,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     });
 
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
 
     await dismissOnboarding(page);
@@ -146,7 +150,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('3. Undo/redo menu buttons present in reveal mode', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
     await dismissOnboarding(page);
 
@@ -166,7 +170,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     page.on('pageerror', (err) => errors.push(err.message));
 
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
     await dismissOnboarding(page);
 
@@ -177,7 +181,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('4. Initial view exposes an actionable target', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
 
     await expect(page.locator('.coloring-task-summary')).toBeVisible({ timeout: 5000 });
@@ -186,7 +190,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('5. Camera auto does not move during painting', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
     await dismissOnboarding(page);
 
@@ -201,7 +205,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
   test('6. Wheel zoom preserves cursor world position', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Mouse wheel is a desktop-only input');
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
     await dismissOnboarding(page);
 
@@ -216,7 +220,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('7. Reveal mode remains actionable without palette controls', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
 
     await dismissOnboarding(page);
@@ -229,14 +233,13 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('8. Onboarding completion persists and can be replayed', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     const skipBtn = page.locator('.onboarding-card .secondary-button');
     await expect(skipBtn).toBeVisible({ timeout: 5000 });
     await skipBtn.click();
 
     await page.reload();
-    await expect(page.locator('.coloring-card').first()).toBeVisible({ timeout: 15000 });
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await expect(page.locator('.coloring-task-summary')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.onboarding-overlay')).toHaveCount(0);
 
@@ -249,7 +252,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
   test('9. Free exploration requires an explicit return to the same target', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Mouse wheel is a desktop-only input');
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await dismissOnboarding(page);
 
     const canvas = page.locator('canvas.coloring-canvas');
@@ -278,7 +281,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('10. Overview explicitly enters free exploration', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await dismissOnboarding(page);
 
     await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'ready');
@@ -291,7 +294,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('11. Auto transition remains focusing until camera animation completes', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await dismissOnboarding(page);
 
     const session = page.locator('.coloring-session');
@@ -309,7 +312,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('12. Ten Next actions always change target or finish', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await dismissOnboarding(page);
 
     const session = page.locator('.coloring-session');
@@ -329,7 +332,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('13. Manual palette selection atomically activates a target of that color', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await dismissOnboarding(page);
 
     const session = page.locator('.coloring-session');
@@ -351,7 +354,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('13b. Selecting a completed color keeps a truthful active target', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await dismissOnboarding(page);
 
     const session = page.locator('.coloring-session');
@@ -379,7 +382,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('14. Guided target is revalidated across required viewport sizes', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await dismissOnboarding(page);
 
     const session = page.locator('.coloring-session');
@@ -404,7 +407,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('15. Expanding the HUD preserves and revalidates the same target', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await dismissOnboarding(page);
 
     const session = page.locator('.coloring-session');
@@ -421,7 +424,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
   test('16. Resize in free exploration preserves manual camera and target', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await openFirstColoring(page);
     await dismissOnboarding(page);
 
     const session = page.locator('.coloring-session');

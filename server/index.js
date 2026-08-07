@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
-import { get, getDb, initDb, closeDb, bootstrapSystemData, seedDemoData } from './db.js';
+import { get, getDb, initDb, closeDb, withDbTransaction, bootstrapSystemData, seedDemoData } from './db.js';
 
 import feedRouter        from './routes/feed.js';
 import postsRouter       from './routes/posts.js';
@@ -16,11 +16,14 @@ import moderationRouter  from './routes/moderation.js';
 import coloringsRouter   from './routes/colorings.js';
 import metaRouter        from './routes/meta.js';
 import mediaRouter       from './routes/media.js';
+import creatorCollectionsRouter from './routes/creator-collections.js';
+import unlocksRouter from './routes/unlocks.js';
 import { validateProductionConfiguration } from './config.js';
 import { checkMediaStorage } from './services/media-storage.js';
 import { cleanupExpiredPaymentRequests } from './services/message-cleanup.js';
 import { metricsSnapshot, requestObservability, safeErrorClass } from './observability.js';
 import { asyncRoute } from './middleware/asyncRoute.js';
+import { drainRenderJobs } from './services/render-outbox.js';
 
 const PORT = process.env.PORT || 3001;
 const productionConfig = validateProductionConfiguration();
@@ -76,7 +79,9 @@ app.use('/users',       profilesRouter);    // GET /users/:id/profile etc.
 app.use('/messages',    messagesRouter);
 app.use('/moderation',  moderationRouter);
 app.use('/colorings',   coloringsRouter);
+app.use('/collections', creatorCollectionsRouter);
 app.use('/meta',        metaRouter);
+app.use('/unlocks',     unlocksRouter);
 app.use('/media',       mediaRouter);
 
 // ── Health and readiness ─────────────────────────────────────────────────────
@@ -126,11 +131,36 @@ const server = app.listen(PORT, () => {
 const cleanupTimer = setInterval(() => cleanupExpiredPaymentRequests().catch(() => {}), 15 * 60 * 1000);
 cleanupTimer.unref?.();
 
+// Durable render worker. Disabled by default outside production so integration
+// tests stay deterministic; production defaults to enabled.
+const renderOutboxEnabled = process.env.RENDER_OUTBOX_ENABLED === 'true'
+  || (isProduction && process.env.RENDER_OUTBOX_ENABLED !== 'false');
+const renderOutboxPollMs = Math.max(50, Number(process.env.RENDER_OUTBOX_POLL_MS) || 5_000);
+const renderOutboxWorkerId = `api-${process.pid}`;
+let renderOutboxTimer = null;
+if (renderOutboxEnabled) {
+  const renderOutboxTick = async () => {
+    try {
+      await drainRenderJobs({ withTransaction: withDbTransaction }, {
+        workerId: renderOutboxWorkerId,
+        batchSize: Number(process.env.RENDER_OUTBOX_BATCH_SIZE) || 16,
+      });
+    } catch (error) {
+      console.error(JSON.stringify({ type: 'render_outbox_error', error_class: safeErrorClass(error) }));
+    }
+  };
+  renderOutboxTick();
+  renderOutboxTimer = setInterval(renderOutboxTick, renderOutboxPollMs);
+  renderOutboxTimer.unref?.();
+  console.log(`Render outbox worker enabled (poll ${renderOutboxPollMs}ms)`);
+}
+
 async function gracefulShutdown(signal) {
   if (!accepting) return;
   accepting = false;
   readinessCache = { at: Date.now(), result: { ready: false, checks: { shutdown: 'in_progress' } } };
   clearInterval(cleanupTimer);
+  if (renderOutboxTimer) clearInterval(renderOutboxTimer);
   const timeout = setTimeout(() => process.exit(1), Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10_000);
   try {
     await new Promise((resolve) => server.close(resolve));

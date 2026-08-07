@@ -78,6 +78,86 @@ function smoothCells(cells, width, height, palette) {
   return result;
 }
 
+function createChunkedYielder(yieldEvery) {
+  if (!Number.isInteger(yieldEvery) || yieldEvery < 1) return null;
+  let counter = 0;
+  return async () => {
+    counter += 1;
+    if (counter % yieldEvery !== 0) return;
+    if (typeof scheduler !== 'undefined' && typeof scheduler.yield === 'function') {
+      await scheduler.yield();
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  };
+}
+
+async function sampleGridColorsAsync(imageData, imageWidth, imageHeight, gridWidth, gridHeight, yieldEvery) {
+  const yieldChunk = createChunkedYielder(yieldEvery);
+  const colors = [];
+  for (let gridY = 0; gridY < gridHeight; gridY += 1) {
+    if (yieldChunk) await yieldChunk();
+    const top = Math.floor((gridY * imageHeight) / gridHeight);
+    const bottom = Math.max(top + 1, Math.floor(((gridY + 1) * imageHeight) / gridHeight));
+    for (let gridX = 0; gridX < gridWidth; gridX += 1) {
+      const left = Math.floor((gridX * imageWidth) / gridWidth);
+      const right = Math.max(left + 1, Math.floor(((gridX + 1) * imageWidth) / gridWidth));
+      const sum = [0, 0, 0];
+      let count = 0;
+      for (let y = top; y < bottom; y += 1) {
+        for (let x = left; x < right; x += 1) {
+          const offset = ((y * imageWidth) + x) * 4;
+          sum[0] += imageData[offset];
+          sum[1] += imageData[offset + 1];
+          sum[2] += imageData[offset + 2];
+          count += 1;
+        }
+      }
+      colors.push(sum.map((channel) => channel / count));
+    }
+  }
+  return colors;
+}
+
+async function edgeAwareSmoothColorsAsync(colors, width, height, yieldEvery) {
+  const yieldChunk = createChunkedYielder(yieldEvery);
+  const labs = colors.map(rgbToLab);
+  const result = new Array(colors.length);
+  for (let index = 0; index < colors.length; index += 1) {
+    if (index % width === 0 && yieldChunk) await yieldChunk();
+    const color = colors[index];
+    const similar = [color];
+    for (const neighbour of neighbouringIndices(index, width, height)) {
+      if (labDistance(labs[index], labs[neighbour]) < 18) similar.push(colors[neighbour]);
+    }
+    result[index] = similar.length < 3
+      ? color
+      : [0, 1, 2].map((channel) => similar.reduce((sum, item) => sum + item[channel], 0) / similar.length);
+  }
+  return result;
+}
+
+async function smoothCellsAsync(cells, width, height, palette, yieldEvery) {
+  const yieldChunk = createChunkedYielder(yieldEvery);
+  const result = [...cells];
+  for (let y = 1; y < height - 1; y += 1) {
+    if (yieldChunk) await yieldChunk();
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = y * width + x;
+      const neighbours = [cells[index - 1], cells[index + 1], cells[index - width], cells[index + width]];
+      const same = neighbours.filter((item) => item === cells[index]).length;
+      const counts = neighbours.reduce((map, color) => map.set(color, (map.get(color) || 0) + 1), new Map());
+      const dominant = [...counts.entries()].sort((first, second) => second[1] - first[1])[0];
+      const currentColor = palette?.[cells[index]];
+      const dominantColor = palette?.[dominant[0]];
+      if (same === 0 && dominant[1] >= 3 && (!currentColor || !dominantColor || perceptualColorDistance(currentColor, dominantColor) < 24)) {
+        result[index] = dominant[0];
+      }
+    }
+  }
+  return result;
+}
+
 function neighbouringIndices(index, width, height) {
   const x = index % width;
   const y = Math.floor(index / width);
@@ -146,6 +226,86 @@ export function cleanUpSmallRegions(cells, width, height, palette) {
   }
 
   return result;
+}
+
+async function cleanUpSmallRegionsAsync(cells, width, height, palette, yieldEvery) {
+  const yieldChunk = createChunkedYielder(yieldEvery);
+  let result = [...cells];
+  const minRegionSize = Math.max(1, Math.floor((width * height) / 500));
+  const paletteLab = palette.map(rgbToLab);
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    const visited = new Uint8Array(result.length);
+    const replacements = [];
+
+    for (let start = 0; start < result.length; start += 1) {
+      if (yieldChunk) await yieldChunk();
+      if (visited[start]) continue;
+      const color = result[start];
+      const component = [];
+      const boundary = new Map();
+      const stack = [start];
+      visited[start] = 1;
+
+      while (stack.length) {
+        const index = stack.pop();
+        component.push(index);
+        for (const neighbour of neighbouringIndices(index, width, height)) {
+          const neighbourColor = result[neighbour];
+          if (neighbourColor === color) {
+            if (!visited[neighbour]) {
+              visited[neighbour] = 1;
+              stack.push(neighbour);
+            }
+          } else {
+            boundary.set(neighbourColor, (boundary.get(neighbourColor) || 0) + 1);
+          }
+        }
+      }
+
+      if (component.length > minRegionSize || !boundary.size) continue;
+      const nearestNeighbourDistance = Math.min(...[...boundary.keys()].map((candidate) => labDistance(paletteLab[color], paletteLab[candidate])));
+      if (nearestNeighbourDistance >= 28) continue;
+
+      let replacement = color;
+      let score = -Infinity;
+      for (const [candidate, sharedEdges] of boundary) {
+        const candidateScore = (sharedEdges * 18) - labDistance(paletteLab[color], paletteLab[candidate]);
+        if (candidateScore > score) {
+          score = candidateScore;
+          replacement = candidate;
+        }
+      }
+      if (replacement !== color) replacements.push({ component, replacement });
+    }
+
+    if (!replacements.length) break;
+    for (const { component, replacement } of replacements) {
+      for (const index of component) result[index] = replacement;
+    }
+  }
+
+  return result;
+}
+
+async function mapColorsToPaletteAsync(sourcePixels, paletteRgb, paletteLab, width, height, yieldEvery) {
+  const yieldChunk = createChunkedYielder(yieldEvery);
+  const cells = new Array(sourcePixels.length);
+  for (let index = 0; index < sourcePixels.length; index += 1) {
+    if (index % width === 0 && yieldChunk) await yieldChunk();
+    const lab = rgbToLab(sourcePixels[index]);
+    let closestIndex = 0;
+    let closestDistance = Infinity;
+    paletteLab.forEach((color, paletteIndex) => {
+      const distance = labDistance(lab, color);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = paletteIndex;
+      }
+    });
+    cells[index] = closestIndex;
+  }
+  return cells;
 }
 
 export function buildPalette(pixels, requestedColors) {
@@ -282,57 +442,110 @@ function paletteSamples(imageData, width, height) {
   return samples;
 }
 
-function renderPreview(width, height, palette, cells) {
-  const pixelCanvas = document.createElement('canvas');
+function createRasterCanvas(width, height) {
+  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(width, height);
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+  throw new Error('Canvas API is unavailable');
+}
+
+function hexToRgb(hex) {
+  const value = String(hex || '').replace('#', '');
+  if (!/^[0-9a-f]{6}$/i.test(value)) return [0, 0, 0];
+  return [parseInt(value.slice(0, 2), 16), parseInt(value.slice(2, 4), 16), parseInt(value.slice(4, 6), 16)];
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Не удалось подготовить preview изображения'));
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function canvasToDataUrl(canvas) {
+  if (typeof canvas.toDataURL === 'function') return canvas.toDataURL('image/png');
+  if (typeof canvas.convertToBlob === 'function') return blobToDataUrl(await canvas.convertToBlob({ type: 'image/png' }));
+  throw new Error('Canvas export API is unavailable');
+}
+
+async function renderPreview(width, height, palette, cells) {
+  const pixelCanvas = createRasterCanvas(width, height);
   pixelCanvas.width = width;
   pixelCanvas.height = height;
   const pixelContext = pixelCanvas.getContext('2d');
-  cells.forEach((color, index) => {
-    pixelContext.fillStyle = palette[color];
-    pixelContext.fillRect(index % width, Math.floor(index / width), 1, 1);
-  });
-  const preview = document.createElement('canvas');
-  preview.width = 512;
-  preview.height = 512;
+  const rgbaPalette = palette.map(hexToRgb);
+  const imageData = pixelContext.createImageData(width, height);
+  for (let index = 0; index < cells.length; index += 1) {
+    const color = rgbaPalette[cells[index]] || [0, 0, 0];
+    const offset = index * 4;
+    imageData.data[offset] = color[0];
+    imageData.data[offset + 1] = color[1];
+    imageData.data[offset + 2] = color[2];
+    imageData.data[offset + 3] = 255;
+  }
+  pixelContext.putImageData(imageData, 0, 0);
+  const preview = createRasterCanvas(512, 512);
   const previewContext = preview.getContext('2d');
   previewContext.imageSmoothingEnabled = false;
   previewContext.drawImage(pixelCanvas, 0, 0, 512, 512);
-  return preview.toDataURL('image/png');
+  return canvasToDataUrl(preview);
 }
 
-export async function buildColoringFromImage(file, { width, height, colors, crop }) {
+export async function buildColoringFromImage(file, { width, height, colors, crop, yieldEvery } = {}) {
   const bitmap = await createImageBitmap(file);
   const analysis = analysisDimensions(width, height);
-  const canvas = document.createElement('canvas');
-  canvas.width = analysis.width;
-  canvas.height = analysis.height;
+  const canvas = createRasterCanvas(analysis.width, analysis.height);
   const context = canvas.getContext('2d', { willReadFrequently: true });
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = 'high';
   drawSourceImage(context, bitmap, analysis.width, analysis.height, crop);
   bitmap.close();
   const pixels = context.getImageData(0, 0, analysis.width, analysis.height).data;
-  const sourcePixels = edgeAwareSmoothColors(
-    sampleGridColors(pixels, analysis.width, analysis.height, width, height),
-    width,
-    height,
-  );
+  const yieldChunk = createChunkedYielder(yieldEvery);
+  const sourcePixels = yieldChunk
+    ? await edgeAwareSmoothColorsAsync(
+      await sampleGridColorsAsync(pixels, analysis.width, analysis.height, width, height, yieldEvery),
+      width,
+      height,
+      yieldEvery,
+    )
+    : edgeAwareSmoothColors(
+      sampleGridColors(pixels, analysis.width, analysis.height, width, height),
+      width,
+      height,
+    );
   const paletteRgb = buildPalette(paletteSamples(pixels, analysis.width, analysis.height), colors);
   const paletteLab = paletteRgb.map(rgbToLab);
-  const cells = sourcePixels.map((rgb) => {
-    const lab = rgbToLab(rgb);
-    let closestIndex = 0;
-    let closestDistance = Infinity;
-    paletteLab.forEach((color, paletteIndex) => {
-      const distance = labDistance(lab, color);
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestIndex = paletteIndex;
-      }
+  const cells = yieldChunk
+    ? await mapColorsToPaletteAsync(sourcePixels, paletteRgb, paletteLab, width, height, yieldEvery)
+    : sourcePixels.map((rgb) => {
+      const lab = rgbToLab(rgb);
+      let closestIndex = 0;
+      let closestDistance = Infinity;
+      paletteLab.forEach((color, paletteIndex) => {
+        const distance = labDistance(lab, color);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = paletteIndex;
+        }
+      });
+      return closestIndex;
     });
-    return closestIndex;
-  });
-  const smoothedCells = cleanUpSmallRegions(smoothCells(cells, width, height, paletteRgb), width, height, paletteRgb);
+  const smoothedCells = yieldChunk
+    ? await cleanUpSmallRegionsAsync(
+      await smoothCellsAsync(cells, width, height, paletteRgb, yieldEvery),
+      width,
+      height,
+      paletteRgb,
+      yieldEvery,
+    )
+    : cleanUpSmallRegions(smoothCells(cells, width, height, paletteRgb), width, height, paletteRgb);
   const palette = paletteRgb.map(([red, green, blue]) => normalizeHex(red, green, blue));
   const originalDataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -345,7 +558,7 @@ export async function buildColoringFromImage(file, { width, height, colors, crop
     height,
     palette,
     cells: smoothedCells,
-    previewDataUrl: renderPreview(width, height, palette, smoothedCells),
+    previewDataUrl: await renderPreview(width, height, palette, smoothedCells),
     originalDataUrl,
   };
 }

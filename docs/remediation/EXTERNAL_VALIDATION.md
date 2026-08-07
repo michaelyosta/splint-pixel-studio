@@ -1,5 +1,11 @@
 # External infrastructure validation
 
+## Latest validation pass addendum — 2026-08-03
+
+This follow-up did not claim new external-infrastructure evidence. Docker Desktop was unavailable, so no disposable PostgreSQL or MinIO project was started. An ephemeral HTTPS Quick Tunnel was used only for frontend/API smoke; its hostname is intentionally omitted. `/api/live` and `/api/ready` returned 200, while the exact production ingress topology and root `/live`/`/ready` routing remain unverified. No production credentials, Telegram configuration, deployment, push, tag, or release action was used.
+
+The latest local regression evidence is: root 201/201; server aggregate 167 passed, 56 skipped, 0 failed after cleaning a stale fixed-port test orphan; syntax 44/44; lint 89 warnings; E2E 109 passed, 4 skipped, 1 full-run Mobile iPhone failure whose isolated rerun passed 1/1. This does not replace the external gates below.
+
 Date: 2026-08-02
 Branch: `release/public-alpha-rc1`
 Base review commit: `140f1226f62dbbd220de2b255268564e9df8910d`

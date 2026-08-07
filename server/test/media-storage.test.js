@@ -60,6 +60,16 @@ describe('media-storage local driver safety', () => {
     await mod.deletePrivateOriginal(mediaKey);
   });
 
+  it('reads and deletes a canonical object through its database key', async () => {
+    const key = 'artworks/user_test/canonical.png';
+    const body = Buffer.from('canonical-object');
+    const stored = await mod.storeMediaObject({ key, body, contentType: 'image/png' });
+    assert.equal(stored, `local://${key}`);
+    assert.deepEqual(await mod.readMediaObject(key), body);
+    await mod.deleteMediaObject(key);
+    await assert.rejects(mod.readMediaObject(key));
+  });
+
   it('double delete does not throw', async () => {
     const mediaKey = await mod.storePrivateOriginal(validDataUrl, 'user_test2');
     await mod.deletePrivateOriginal(mediaKey);

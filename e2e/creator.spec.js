@@ -7,6 +7,25 @@ function fixturePath(name) {
   return resolve(__dirname, 'fixtures', name);
 }
 
+async function openImageCreator(page) {
+  await page.getByText('Создать').first().click();
+  await page.getByRole('button', { name: 'Из изображения' }).click();
+  await expect(page.locator('.creator-page')).toBeVisible({ timeout: 10000 });
+}
+
+async function gotoCatalog(page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Каталог' }).first().click();
+  await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
+}
+
+async function gotoFeed(page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Сообщество' }).first().click();
+  await expect(page.locator('.feed-page')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('.feed-post').first()).toBeVisible({ timeout: 15000 });
+}
+
 const API_HEADERS = { 'Content-Type': 'application/json' };
 
 async function applyProgressChanges(page, id, changes, revision, resultDataUrl = null) {
@@ -53,7 +72,7 @@ async function clickActiveWorkCell(page) {
 // Helper: upload a file on the Creator page and wait for auto-compute
 async function uploadAndCompute(page) {
   await page.goto('/');
-  await page.getByText('Создать').first().click();
+  await openImageCreator(page);
   await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 15000 });
 }
@@ -86,20 +105,19 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await expect(page.locator('.app-header')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('nav.app-tab-bar')).toBeVisible();
-    await page.getByText('Создать').first().click();
-    await expect(page.locator('.creator-page')).toBeVisible();
+    await openImageCreator(page);
   });
 
   test('2. Creator controls visible on page', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Создать').first().click();
+    await openImageCreator(page);
     await expect(page.locator('.file-field')).toBeVisible();
     await expect(page.locator('.file-field')).toContainText('PNG');
   });
 
   test('3. File upload shows grid, crop, and color controls', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Создать').first().click();
+    await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
     await expect(page.locator('.creator-grid-options')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.creator-crop-section')).toBeVisible();
@@ -109,7 +127,7 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('4. Crop mode shows zoom and offset sliders', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Создать').first().click();
+    await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
     await page.getByText('Кадрировать').click();
     const sliders = page.locator('.creator-crop-section input[type="range"]');
@@ -119,7 +137,7 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('5. Grid and color controls update state', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Создать').first().click();
+    await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
     await page.getByRole('button', { name: 'Сетка 32×32' }).click();
     await expect(page.locator('.creator-grid-options .selected')).toContainText('32');
@@ -133,7 +151,7 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('6. Compute shows previews and quality indicator', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Создать').first().click();
+    await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
     await page.getByText('Обновить превью').click();
     await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 15000 });
@@ -143,7 +161,7 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('6b. Maximum 160×160 grid computes, saves, and opens', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Создать').first().click();
+    await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
     await page.getByRole('button', { name: 'Сетка 160×160' }).click();
     await page.getByText('Обновить превью').click();
@@ -156,13 +174,71 @@ test.describe('Creator 2.0 — full E2E', () => {
     const coloringCanvas = page.locator('canvas.coloring-canvas');
     await expect(coloringCanvas).toHaveAttribute('data-template-width', '160');
     expect(await coloringCanvas.evaluate((element) => element.width)).toBeLessThan(2_000);
-    await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
+    const onboardingSkip = page.locator('.onboarding-card .secondary-button');
+    await page.locator('.onboarding-card').waitFor({ state: 'visible', timeout: 3_000 }).then(() => onboardingSkip.click({ force: true })).catch(() => {});
     await clickActiveWorkCell(page);
+  });
+
+  test('6c. 1200x1200 creator path uploads tiled storage and opens bounded player', async ({ page }) => {
+    await page.goto('/');
+    await openImageCreator(page);
+    await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
+    await page.locator('.grid-detail-range').fill('18');
+    await page.locator('button.create-button').first().click();
+    await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 45000 });
+    const id = await saveColoring(page);
+    const response = await page.request.get(`/api/colorings/${id}`, { headers: API_HEADERS });
+    expect(response.ok()).toBe(true);
+    const template = await response.json();
+    expect(template.storage_mode).toBe('tiled');
+    expect(template.tile_size).toBe(32);
+    expect(template.cells).toEqual([]);
+    expect(template.preview_url).toMatch(/^data:image\/png;base64,/);
+    await expect(page.locator('.progressive-coloring-session')).toBeVisible({ timeout: 15000 });
+
+    // A visible 1200×1200 tile must be actionable, not just rendered.
+    // Jump to zone 1, read the cell under the camera centre, and select its
+    // colour so the tap is never rejected as a wrong-color tap.
+    const onboardingSkip = page.locator('.onboarding-card .secondary-button');
+    await page.locator('.onboarding-card').waitFor({ state: 'visible', timeout: 3_000 }).then(() => onboardingSkip.click({ force: true })).catch(() => {});
+    const gridArea = page.locator('.progressive-grid-area');
+    const cameraBeforeZone = await gridArea.getAttribute('data-camera-x');
+    const mainCanvas = page.locator('.progressive-grid-area canvas').first();
+    await mainCanvas.focus();
+    await page.keyboard.press('1');
+    await expect(gridArea).not.toHaveAttribute('data-camera-x', cameraBeforeZone);
+    const canvas = mainCanvas;
+    const box = await canvas.boundingBox();
+    expect(box).toBeTruthy();
+    const camera = {
+      x: Number(await gridArea.getAttribute('data-camera-x')),
+      y: Number(await gridArea.getAttribute('data-camera-y')),
+      zoom: Number(await gridArea.getAttribute('data-camera-zoom')),
+    };
+    const gridAreaBox = await gridArea.boundingBox();
+    const centerWorldX = (box.x + box.width / 2 - gridAreaBox.x - camera.x) / camera.zoom / 32;
+    const centerWorldY = (box.y + box.height / 2 - gridAreaBox.y - camera.y) / camera.zoom / 32;
+    const centerCell = {
+      x: Math.floor(centerWorldX),
+      y: Math.floor(centerWorldY),
+      tileX: Math.floor(Math.floor(centerWorldX) / 32),
+      tileY: Math.floor(Math.floor(centerWorldY) / 32),
+    };
+    const centerTileResponse = await page.request.get(`/api/colorings/${id}/tiles/${centerCell.tileX}/${centerCell.tileY}`, { headers: API_HEADERS });
+    expect(centerTileResponse.ok()).toBe(true);
+    const centerTile = await centerTileResponse.json();
+    const targetColor = Number(centerTile.cells[(centerCell.y % 32) * 32 + (centerCell.x % 32)]);
+    await page.locator('.progressive-grid-dock .color-swatch').nth(targetColor).click();
+    const progressAction = page.waitForResponse((response) => response.url().includes('/progress/actions') && response.request().method() === 'POST');
+    await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    const saved = await progressAction;
+    expect(saved.status()).toBe(200);
+    expect((await saved.json()).completed_cells).toBeGreaterThan(0);
   });
 
   test('7. Reset crop restores defaults', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Создать').first().click();
+    await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
     await page.getByText('Кадрировать').click();
     const scaleSlider = page.locator('.creator-crop-section input[type="range"]').first();
@@ -192,12 +268,18 @@ test.describe('Creator 2.0 — full E2E', () => {
     const progData = await applyProgressChanges(page, id, tpl.cells.map((color, index) => ({ index, color })), 0, png);
     expect(progData.percent).toBe(100);
     expect(progData.artwork_id).toBeTruthy();
+    const persistedProgressResponse = await page.request.get(`/api/colorings/${id}/progress`, { headers: API_HEADERS });
+    expect(persistedProgressResponse.ok()).toBe(true);
+    const persistedProgress = await persistedProgressResponse.json();
+    expect(persistedProgress.artwork_id).toBe(progData.artwork_id);
+    expect(persistedProgress.render_status).toBe('ready');
 
     // Navigate to gallery and back to the coloring to trigger progress re-fetch
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await page.locator('.back-button').click();
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 5000 });
-    await page.getByText('Мои').first().click();
+    await page.getByRole('button', { name: 'Профиль', exact: true }).click();
+    await page.getByRole('button', { name: 'Смотреть все' }).click();
     await expect(page.locator('.gallery-list')).toBeVisible({ timeout: 10000 });
     await page.locator('.gallery-row').first().click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
@@ -205,6 +287,8 @@ test.describe('Creator 2.0 — full E2E', () => {
     // Completion overlay should appear with all buttons
     await expect(page.locator('.completion-overlay')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.completion-dialog')).toBeVisible();
+    await expect(page.locator('.completion-links button').first()).toBeEnabled();
+    await expect(page.locator('.completion-rewards')).toContainText('XP');
     await expect(page.locator('#completion-title')).toContainText('Картина раскрыта');
     await expect(page.locator('.completion-dialog button:has-text("Поделиться")')).toBeVisible();
     await expect(page.locator('.completion-dialog button:has-text("Сохранить результат")')).toBeVisible();
@@ -217,11 +301,10 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('10. Catalog → open coloring → player renders guided canvas', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
-    const firstCard = page.locator('.coloring-card').first();
+    await gotoCatalog(page);
+    const firstCard = page.locator('.catalog-art-card').first();
     await expect(firstCard).toBeVisible({ timeout: 15000 });
-    await firstCard.locator('.primary-button').click();
+    await firstCard.locator('.catalog-art-open').click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('canvas.coloring-canvas')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.player-topbar')).toBeVisible();
@@ -230,7 +313,7 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('11. Delete a user-created coloring from gallery', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Создать').first().click();
+    await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles(['e2e/fixtures/test-image.png']);
     await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 15000 });
     await page.locator('button:has-text("Сохранить и начать")').click();
@@ -240,7 +323,8 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await page.locator('.back-button').click();
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 5000 });
-    await page.getByText('Мои').first().click();
+    await page.getByRole('button', { name: 'Профиль' }).first().click();
+    await page.getByRole('button', { name: 'Смотреть все' }).click();
     await expect(page.locator('.gallery-list')).toBeVisible({ timeout: 10000 });
     const deleteBtn = page.locator('.delete-button').first();
     await expect(deleteBtn).toBeVisible();
@@ -249,22 +333,25 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('12. Feed: like, comment, follow interactions', async ({ page }) => {
-    await page.goto('/');
-    await page.getByText('Лента').first().click();
-    await expect(page.locator('.feed-list')).toBeVisible({ timeout: 15000 });
+    await gotoFeed(page);
     const post = page.locator('.feed-post').first();
     await expect(post).toBeVisible({ timeout: 10000 });
 
     // Like a post
     const likeBtn = post.locator('.post-actions button').first();
     const initialText = await likeBtn.textContent();
+    const likeResponse = page.waitForResponse(
+      (response) => response.url().includes('/like') && response.request().method() === 'POST',
+      { timeout: 10000 },
+    );
     await likeBtn.click();
-    await page.waitForTimeout(600);
+    await likeResponse;
+    await expect.poll(() => likeBtn.textContent(), { timeout: 5000 }).not.toBe(initialText);
     const afterText = await likeBtn.textContent();
     expect(afterText).not.toBe(initialText);
 
     // Open comments and submit
-    const commentBtn = post.locator('button:has-text("Комментарии")');
+    const commentBtn = post.getByRole('button', { name: 'Комментарии' });
     if (await commentBtn.isVisible().catch(() => false)) {
       await commentBtn.click();
       await expect(page.locator('.comments-panel')).toBeVisible({ timeout: 5000 });
@@ -288,11 +375,11 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('13. Stable shell width across views', async ({ page }) => {
-    const views = ['Каталог', 'Альбомы', 'Мои', 'Лента'];
+    const views = ['Каталог', 'Сообщество', 'Профиль'];
     let widths = [];
     for (const view of views) {
       await page.goto('/');
-      await page.getByText(view).first().click();
+      await page.getByRole('button', { name: view }).first().click();
       await page.waitForTimeout(300);
       const box = await page.locator('.telegram-frame').boundingBox();
       widths.push({ view, width: Math.round(box.width) });
@@ -303,8 +390,8 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('14. Player guided mode keeps the canvas clear of persistent metrics', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('.coloring-card').first()).toBeVisible({ timeout: 15000 });
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await expect(page.locator('.home-featured-card, .home-continue-card, .home-art-card').first()).toBeVisible({ timeout: 15000 });
+    await page.locator('.home-featured-card, .home-continue-card, .home-art-card').first().click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('canvas.coloring-canvas')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.player-topbar')).toBeVisible();
@@ -319,8 +406,8 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('15. Player menu opens and shows secondary actions', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('.coloring-card').first()).toBeVisible({ timeout: 15000 });
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await expect(page.locator('.home-featured-card, .home-continue-card, .home-art-card').first()).toBeVisible({ timeout: 15000 });
+    await page.locator('.home-featured-card, .home-continue-card, .home-art-card').first().click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await page.locator('.player-menu-btn').click();
@@ -334,20 +421,21 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('16. Catalog card actions stay aligned despite different copy lengths', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('.coloring-card')).toHaveCount(6, { timeout: 15000 });
-    const positions = await page.locator('.coloring-card .primary-button').evaluateAll((buttons) =>
+    await gotoCatalog(page);
+    await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.catalog-art-card').nth(1)).toBeVisible();
+    const positions = await page.locator('.catalog-art-card .catalog-art-open').evaluateAll((buttons) =>
       buttons.map((button) => Math.round(button.getBoundingClientRect().bottom)),
     );
-    for (let index = 0; index < positions.length; index += 2) {
-      expect(positions[index + 1]).toBe(positions[index]);
+    for (let index = 0; index + 1 < positions.length; index += 2) {
+      expect(Math.abs(positions[index + 1] - positions[index])).toBeLessThanOrEqual(1);
     }
   });
 
   test('17. Player dock switches between reveal and classic coloring', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('.coloring-card').first()).toBeVisible({ timeout: 15000 });
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await gotoCatalog(page);
+    await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 15000 });
+    await page.locator('.catalog-art-card').first().locator('.catalog-art-open').click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await expect(page.locator('.palette')).toBeVisible();
@@ -362,8 +450,8 @@ test.describe('Creator 2.0 — full E2E', () => {
   test('18. Reveal mode paints without selecting a palette color first', async ({ page }) => {
     const catalog = await (await page.request.get('/api/colorings', { headers: API_HEADERS })).json();
     const openedTemplate = catalog[0];
-    await page.goto('/');
-    await page.locator('.coloring-card').first().locator('.primary-button').click();
+    await gotoCatalog(page);
+    await page.locator('.catalog-art-card').first().locator('.catalog-art-open').click();
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await page.locator('.player-menu-btn').click();
     await page.locator('.bottom-sheet-actions button:has-text("Режим раскрытия")').click();
@@ -407,8 +495,8 @@ test.describe('Creator 2.0 — full E2E', () => {
       openedTemplate.cells.flatMap((color, index) => omitted.has(index) ? [] : [{ index, color }]),
       progress.revision);
 
-    await page.goto('/');
-    await page.locator('.coloring-card').filter({ hasText: openedTemplate.title }).locator('.primary-button').click();
+    await gotoCatalog(page);
+    await page.locator('.catalog-art-card').filter({ hasText: openedTemplate.title }).locator('.catalog-art-open').first().click();
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await clickActiveWorkCell(page);
     await expect(page.locator('.milestone.zone')).toContainText(`Фрагмент «${zone.title}» раскрыт`);

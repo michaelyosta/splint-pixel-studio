@@ -1,5 +1,9 @@
 # Implementation plan: public alpha without real payments
 
+## Latest validation status — 2026-08-03
+
+No implementation change was justified by this pass. The source tree retained only the two protected pre-existing local modifications. Local HTTPS/browser smoke passed, but the browser was not Telegram and used development auth; real `initData`, Android/iOS device lifecycle, offline replay, and disposable PostgreSQL/MinIO remain environment gates. The current release classification is `telegram_rc_partially_verified`, with operational subtype `operational_rc_verified_except_telegram`.
+
 ## Independent final-review addendum (2026-08-02)
 
 The plan below is historical implementation guidance. The final operational pass concluded `operational_rc_verified_except_telegram`: disposable PostgreSQL 16.14, MinIO/S3 media and object backup/restore, migrations, concurrency, media sweep, PostgreSQL backup/restore, `/live`, and POSIX graceful shutdown passed. Telegram WebView, real Telegram Stars, production credentials, production IAM/retention, and target deployment behavior remain gates. Exact counts and caveats are in [FINAL_REPORT.md](FINAL_REPORT.md) and [EXTERNAL_VALIDATION.md](EXTERNAL_VALIDATION.md).

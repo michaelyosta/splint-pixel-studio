@@ -1,10 +1,14 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Star, Target, X } from 'lucide-react';
 import ColoringSession from '../features/coloring/ColoringSession';
+import ProgressiveColoringSession from '../features/coloring/large-grid/ProgressiveColoringSession.jsx';
 import LegacyPixelCanvas from '../components/LegacyPixelCanvas';
+import SessionGoalCard from '../features/goals/SessionGoalCard';
+import { useSessionGoals } from '../features/goals/useSessionGoals';
 import { getContextGoal } from '../lib/playLoop';
 import { isProgressComplete } from '../lib/pixelColoring';
 import { renderNumberedPreview } from '../lib/imageCrop';
+import { isLargeGridTemplate } from '../lib/tileGrid';
 import { bindTelegramBackButton } from '../lib/telegram';
 
 const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE !== 'false';
@@ -102,6 +106,13 @@ export default function PlayerView({
   template,
   progress,
   gameProgress,
+  progression,
+  streak,
+  isOnline = true,
+  saveState = 'saved',
+  latestReward,
+  nextRecommendation,
+  onContinue,
   selectedColor,
   onSelectColor,
   zones,
@@ -122,6 +133,7 @@ export default function PlayerView({
   setCompletionOpen,
   sharing,
   saving,
+  onRetrySave = () => {},
   publishing,
   setView,
   setPlayMode,
@@ -135,6 +147,7 @@ export default function PlayerView({
   onWrongCell,
   onFillAt,
   onStrokeCommitted,
+  onTiledStrokeCommitted,
   onResetProgress,
   onShareResult,
   onDownloadResult,
@@ -158,6 +171,21 @@ export default function PlayerView({
   useFocusTrap(bottomSheetRef, menuOpen);
   useFocusTrap(onboardingCardRef, onboarding !== null);
   useFocusTrap(completionDialogRef, completionOpen);
+
+  const sessionGoals = useSessionGoals({
+    template,
+    progress,
+    zones,
+    zoneIndices,
+    isOnline,
+    storage: typeof window !== 'undefined' ? window.localStorage : null,
+    onTrack,
+  });
+
+  const handleFirstPaint = () => {
+    sessionGoals.markFirstPaint();
+    onFirstPaint?.();
+  };
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const closeCompletion = useCallback(() => setCompletionOpen(false), [setCompletionOpen]);
@@ -185,24 +213,36 @@ export default function PlayerView({
   const showHud = () => { setHudHidden(false); declutter(); };
 
   // «До» для слайдера сравнения: пронумерованная сетка этой же раскраски.
-  const complete = gameProgress ? isProgressComplete(gameProgress) : false;
+  const isTiled = isLargeGridTemplate(template);
+  const complete = gameProgress ? (isTiled
+    ? gameProgress.completed === gameProgress.total
+    : isProgressComplete(gameProgress)) : false;
   const beforePreview = useMemo(() => {
-    if (!complete || !template) return null;
+    if (!complete || !template || isTiled) return null;
     try {
       return renderNumberedPreview(template.width, template.height, template.palette, template.cells);
     } catch {
       return null;
     }
-  }, [complete, template]);
+  }, [complete, isTiled, template]);
 
   if (!template || !progress || !gameProgress) {
     return <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div>;
   }
 
   const isComplete = isProgressComplete(gameProgress);
-  const totalXp = gameProgress.completed * 10;
-  const level = Math.floor(totalXp / 1000) + 1;
-  const contextGoal = getContextGoal(zones, zoneIndices, template, progress.filled);
+  const totalXp = progression?.xp_total ?? 0;
+  const level = progression?.level ?? 1;
+  const saveLabel = !isOnline || saveState === 'offline'
+    ? 'Сохранено локально'
+    : saveState === 'pending'
+      ? 'Ожидает отправки'
+      : saving || saveState === 'syncing'
+        ? 'Синхронизация…'
+        : 'Сохранено';
+  const contextGoal = isTiled
+    ? `${gameProgress.percent}% карты раскрыто`
+    : getContextGoal(zones, zoneIndices, template, progress.filled);
 
   const publishLabel = saving || !progress?.artwork_id
     ? 'Сохраняем работу…'
@@ -216,9 +256,10 @@ export default function PlayerView({
       <div className="player-topbar">
         <button className="back-button" onClick={() => setView('catalog')}><ChevronLeft size={18} /></button>
         <span className="player-topbar-title">{template.title}</span>
-        <span className={`save-status${saving ? ' saving' : ''}`} role="status" aria-live="polite">
-          <span className="save-dot" aria-hidden="true" />{saving ? 'Сохраняем…' : 'Сохранено'}
+        <span className={`save-status${saving || saveState === 'syncing' ? ' saving' : ''}${!isOnline || saveState === 'offline' ? ' offline' : ''}`} role="status" aria-live="polite">
+          <span className="save-dot" aria-hidden="true" />{saveLabel}
         </span>
+        {(saveState === 'pending' || saveState === 'offline') && <button className="save-retry" type="button" onClick={onRetrySave} disabled={!isOnline}>Повторить</button>}
         <span className="player-progress" title={`Прогресс: ${gameProgress.percent}%`} aria-hidden="true">
           <svg viewBox="0 0 38 38">
             <circle className="player-progress-track" cx="19" cy="19" r="15" />
@@ -233,11 +274,46 @@ export default function PlayerView({
         <span className="player-hint-target"><Target size={14} /> {contextGoal}</span>
       </div>
 
+      <SessionGoalCard
+        goal={sessionGoals.view}
+        reward={latestReward?.amount ? { amount: latestReward.amount } : null}
+        streak={streak?.current_streak}
+        celebration={sessionGoals.celebration}
+        nextActionLabel={
+          sessionGoals.view?.id === 'picture' && complete
+            ? 'Показать результат'
+            : sessionGoals.celebration?.type === 'expired'
+              ? 'К следующей цели'
+              : 'Следующая цель'
+        }
+        onNextAction={() => {
+          if (sessionGoals.view?.id === 'picture' && complete) {
+            setCompletionOpen(true);
+          } else {
+            sessionGoals.dismissCelebration();
+          }
+        }}
+      />
+
       {zoneReward && <div className="milestone zone"><Target size={17} /> {zoneReward}</div>}
 
-      {import.meta.env.DEV && <div className={`engine-badge ${USE_NEW_COLORING_ENGINE ? 'smart' : 'legacy'}`}>{USE_NEW_COLORING_ENGINE ? 'Engine: Smart' : 'Engine: Legacy'}</div>}
+      {import.meta.env.DEV && import.meta.env.VITE_SHOW_ENGINE_BADGE === 'true' && <div className={`engine-badge ${USE_NEW_COLORING_ENGINE ? 'smart' : 'legacy'}`}>{USE_NEW_COLORING_ENGINE ? 'Engine: Smart' : 'Engine: Legacy'}</div>}
 
-      {USE_NEW_COLORING_ENGINE ? (
+      {isTiled ? (
+        <ProgressiveColoringSession
+          template={template}
+          progress={progress}
+          selectedColor={selectedColor}
+          onSelectColor={onSelectColor}
+          onStrokeCommitted={onTiledStrokeCommitted}
+          onFirstPaint={handleFirstPaint}
+          onWrongCell={onWrongCell}
+          interactionMode={playMode}
+          hideNumbers={hideNumbers}
+          hintMode={playMode === 'classic' && hintMode}
+          onOpenMenu={() => setMenuOpen(true)}
+        />
+      ) : USE_NEW_COLORING_ENGINE ? (
         <ColoringSession
           template={template}
           progress={progress}
@@ -247,7 +323,7 @@ export default function PlayerView({
             declutter();
             onStrokeCommitted(nextFilled, operation);
           }}
-          onFirstPaint={onFirstPaint}
+          onFirstPaint={handleFirstPaint}
           onWrongCell={onWrongCell}
           onUndo={onUndo}
           onRedo={onRedo}
@@ -281,7 +357,7 @@ export default function PlayerView({
                 });
               }}
               onWrong={(index) => { declutter(); onWrongCell(index); }}
-              onFirstPaint={(index) => { declutter(); onFirstPaint(index); }}
+              onFirstPaint={(index) => { declutter(); handleFirstPaint(index); }}
               calmMode={calmMode}
               hideFilledNumbers={playMode === 'reveal' || hideNumbers}
               hintMode={playMode === 'classic' && hintMode}
@@ -334,9 +410,9 @@ export default function PlayerView({
             </>}
             <hr />
             <button onClick={() => { setOnboarding(0); setMenuOpen(false); }}>Показать обучение снова</button>
-            <button onClick={() => { onUndo(); setMenuOpen(false); }} disabled={!history.length}>Отмена</button>
-            <button onClick={() => { onRedo(); setMenuOpen(false); }} disabled={!future.length}>Повтор</button>
-            <button onClick={() => { if (window.confirm('Сбросить весь прогресс?')) { onResetProgress(); setMenuOpen(false); } }}>Сбросить</button>
+            <button onClick={() => { onUndo(); setMenuOpen(false); }} disabled={isTiled || !history.length}>Отмена</button>
+            <button onClick={() => { onRedo(); setMenuOpen(false); }} disabled={isTiled || !future.length}>Повтор</button>
+            <button disabled={isTiled} onClick={() => { if (window.confirm('Сбросить весь прогресс?')) { onResetProgress(); setMenuOpen(false); } }}>Сбросить</button>
           </div>
         </section>
       </div>}
@@ -374,7 +450,10 @@ export default function PlayerView({
           <p className="eyebrow">Картина раскрыта · {formatDifficulty(template.difficulty)}</p>
           <h2 id="completion-title">Картина раскрыта!</h2>
           <p className="completion-work-title">{template.title}</p>
-          <div className="completion-rewards"><span><Sparkles size={16} /> Новая работа в галерее</span><span><Star size={16} /> +500 XP</span></div>
+          <div className="completion-rewards">
+            <span><Sparkles size={16} /> Новая работа в галерее</span>
+            <span><Star size={16} /> {latestReward?.amount ? `+${latestReward.amount} XP` : 'Награда синхронизирована'}</span>
+          </div>
           <p className="completion-copy">Прекрасный финал. Сохраните результат или покажите его друзьям.</p>
           <div className="completion-actions">
             <button className="primary-button" onClick={onShareResult} disabled={sharing}>{sharing ? <><LoaderCircle className="spin" size={17} /> Открываем…</> : <><Share2 size={17} /> Поделиться</>}</button>
@@ -382,6 +461,7 @@ export default function PlayerView({
           </div>
           <div className="completion-links">
             <button onClick={onPublishCompleted} disabled={publishDisabled}>{publishLabel}</button>
+            <button onClick={onContinue}>{nextRecommendation ? `Следующая: ${nextRecommendation.title}` : 'К следующей работе'}</button>
             <button onClick={() => { setCompletionOpen(false); setView('catalog'); }}>К каталогу</button>
           </div>
         </section>

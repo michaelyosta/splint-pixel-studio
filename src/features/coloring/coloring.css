@@ -31,6 +31,12 @@
 .coloring-canvas {
   touch-action: none;
   cursor: crosshair;
+  outline: none;
+}
+
+.coloring-canvas:focus-visible {
+  outline: 3px solid var(--app-cyan);
+  outline-offset: 2px;
 }
 
 .coloring-preparing {
@@ -116,7 +122,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  min-height: 40px;
+  min-height: 44px;
   max-width: 52vw;
   padding: 7px 11px;
   border: 1px solid var(--app-border);
@@ -164,7 +170,7 @@
 
 .hud-btn--collapse {
   padding: 4px 8px;
-  min-height: 28px;
+  min-height: 36px;
   font-size: 14px;
   opacity: 0.55;
 }
@@ -254,7 +260,9 @@
 }
 
 .coloring-dock .color-swatch.completed {
-  opacity: 0.42;
+  opacity: 1;
+  border-color: rgba(46, 229, 157, 0.7);
+  background: rgba(46, 229, 157, 0.07);
 }
 
 .coloring-dock .color-swatch.completed::after {
@@ -265,6 +273,22 @@
   font-size: 10px;
   font-weight: 800;
   color: var(--app-success);
+}
+
+.coloring-dock .color-swatch:disabled {
+  border-style: dashed;
+  border-color: var(--app-border-strong);
+  opacity: 0.85;
+  cursor: wait;
+}
+
+.coloring-dock .color-swatch:disabled i {
+  filter: grayscale(0.45);
+}
+
+.coloring-dock .color-swatch.selected {
+  outline: 2px solid var(--app-cyan);
+  outline-offset: 1px;
 }
 
 .coloring-dock-actions {
@@ -320,7 +344,37 @@
   }
 
   .hud-btn {
-    min-height: 32px;
+    min-height: 36px;
     padding: 4px 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coloring-preparing {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .coloring-canvas-container {
+    background: Canvas;
+  }
+  .coloring-canvas:focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+  }
+  .coloring-dock .color-swatch,
+  .coloring-hud .hud-btn {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+  }
+  .coloring-dock .color-swatch.selected,
+  .coloring-hud .hud-btn.active {
+    outline: 3px solid Highlight;
+    box-shadow: none;
+  }
+  .coloring-dock .color-swatch.completed::after {
+    color: CanvasText;
   }
 }

@@ -2,6 +2,24 @@
 
 Status: `needs_environment_validation`
 
+## Validation pass addendum — 2026-08-03
+
+This pass produced local and HTTPS smoke evidence, but did not produce real Telegram device evidence. The overall classification is `telegram_rc_partially_verified`; the release gate remains open for a real Telegram launch with real `initData` on Android and iOS.
+
+| Test ID | Device | OS | Telegram version | Commit | Expected | Actual | Status | Evidence reference | Issue/commit |
+|---|---|---|---|---|---|---|---|---|---|
+| HTTPS-01 | Codex in-app browser, not Telegram | Windows host context | n/a | `7246358dd4fc958f8780ff24a7f8c1b617979e79` | HTTPS frontend/API ingress loads without mixed content | Ephemeral HTTPS Quick Tunnel loaded the frontend; `/api/live` and `/api/ready` returned 200; hostname intentionally omitted from Git | PASS — smoke only | 2026-08-03 browser smoke | none |
+| AUTH-01 | Local API harness | Windows | n/a | same | Missing auth is rejected | Protected request without init data returned 401 | PASS — local | `server/test/auth.integration.test.js`; local 401 smoke | none |
+| AUTH-02 | Local API harness | Windows | n/a | same | Altered, expired, and future-skewed init data are rejected | Automated auth suite passed invalid hash, expired `auth_date`, and future-skew cases | PASS — automated | `npm --prefix server test` | none |
+| UI-01 | Codex in-app browser, not Telegram | Windows host context | n/a | same | Catalog/player canvas remains usable over HTTPS | Catalog loaded; 32×32 canvas painted the active cell; reload restored the acknowledged progress | PASS — synthetic/local auth | 2026-08-03 browser smoke | none |
+| CANVAS-160 | Playwright Mobile iPhone emulation | Emulated iOS profile | n/a | same | 160×160 creator path computes, saves, and opens | Covered by the E2E run; the 160×160 test passed | PASS — emulation only | `npm run test:e2e` | none |
+| E2E-13B | Playwright Mobile iPhone emulation | Emulated iOS profile | n/a | same | Selecting a completed color keeps a truthful active target | Full run had one failure at this case; isolated rerun passed 1/1 in 8.8s | BLOCKED — flaky/full-run follow-up, not reproduced | Full E2E plus targeted rerun | no source fix justified |
+| DEVICE-ANDROID | Physical Android Telegram stable | Android | unavailable | same | Real Mini App launch with real init data and main flow | No physical Android Telegram session was available | BLOCKED | device validation required | release blocker |
+| DEVICE-IOS | Physical iOS Telegram stable | iOS | unavailable | same | Real Mini App launch with real init data and main flow | No physical iOS Telegram session was available | BLOCKED | device validation required | release blocker |
+| LIFECYCLE-01 | Physical Telegram devices | Android/iOS | unavailable | same | Background, foreground, reload, offline replay, and pagehide preserve durable progress | Not executable without physical Telegram WebView | BLOCKED | device validation required | release blocker |
+
+Environment notes: Docker Desktop was unavailable, so disposable PostgreSQL/MinIO gates were not claimed. The local smoke used SQLite/local storage with development auth; it is not production-like Telegram authentication. No bot token, init data, credentials, personal data, screenshots, or temporary hostname is recorded here.
+
 This package is intentionally a manual gate. It does not claim Telegram WebView, HTTPS `initData`, page suspension, proxy behavior, or real Telegram Stars are validated by local or disposable infrastructure tests. Do not enable real payments for this pass; the supported public-alpha posture remains `PAYMENTS_MODE=disabled`.
 
 ## Preconditions
