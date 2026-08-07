@@ -39,3 +39,6 @@ blob-report/
 *.njsproj
 *.sln
 *.sw?
+data/content-staging/
+data/content/*.png
+data/content/previews/

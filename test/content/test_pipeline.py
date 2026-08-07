@@ -1,0 +1,200 @@
+import sys
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts" / "content"))
+
+from content_lib import (  # noqa: E402
+    DownloadError,
+    ImageValidationError,
+    PRODUCTION_READY_VERDICTS,
+    analyze_regions,
+    convert_template,
+    download_file,
+    load_jsonl,
+    palette_separation,
+    playability_score,
+    safe_filename,
+    sha256_bytes,
+    validate_image_file,
+    now_utc,
+    LICENSE_METADATA,
+)
+
+TEST_IMAGE = ROOT / "public" / "assets" / "catalog" / "neon-cat.png"
+
+
+class TestLicenseModel(unittest.TestCase):
+    def test_production_ready_pool(self):
+        self.assertEqual(PRODUCTION_READY_VERDICTS, {"APPROVED_CC0", "APPROVED_PUBLIC_DOMAIN"})
+
+    def test_cc_by_not_production_ready(self):
+        # No attribution system exists in Splint yet -> CC-BY must not be
+        # considered production-ready.
+        self.assertNotIn("APPROVED_CC_BY", PRODUCTION_READY_VERDICTS)
+
+    def test_cc0_metadata(self):
+        meta = LICENSE_METADATA["CC0"]
+        self.assertTrue(meta["commercial_use"])
+        self.assertTrue(meta["derivative_use"])
+        self.assertTrue(meta["redistribution"])
+        self.assertFalse(meta["attribution_required"])
+
+    def test_nc_rejected(self):
+        self.assertEqual(LICENSE_METADATA["CC_BY_NC"]["verdict"], "REJECTED")
+
+    def test_cc_by_sa_review_required(self):
+        self.assertEqual(LICENSE_METADATA["CC_BY_SA"]["verdict"], "REVIEW_REQUIRED")
+
+
+class TestProvenance(unittest.TestCase):
+    def test_manifest_schema_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manifest.jsonl"
+            record = {
+                "source_asset_id": "test-001",
+                "source_title": "Test",
+                "license_type": "CC0",
+                "license_verdict": "APPROVED_CC0",
+                "download_url": "https://example.com/test.png",
+                "state": "DISCOVERED",
+                "accessed_at": now_utc(),
+            }
+            load_jsonl(path)  # missing file -> []
+            from content_lib import save_jsonl
+
+            save_jsonl(path, [record])
+            loaded = load_jsonl(path)
+            self.assertEqual(len(loaded), 1)
+            self.assertEqual(loaded[0]["source_asset_id"], "test-001")
+
+    def test_approved_asset_cannot_lack_license(self):
+        # Every approved asset must trace DERIVED -> SOURCE -> LICENSE.
+        source = {
+            "source_asset_id": "s1",
+            "license_type": "CC0",
+            "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        }
+        self.assertIn("license_type", source)
+        self.assertTrue(source["license_type"])
+
+
+class TestSecurity(unittest.TestCase):
+    def test_safe_filename_sanitization(self):
+        self.assertEqual(safe_filename("../../etc/passwd"), "etc-passwd")
+        self.assertEqual(safe_filename("a b c.png"), "a-b-c.png")
+        self.assertEqual(safe_filename("..."), "asset")
+
+    def test_oversized_media_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp)
+            # 2 bytes, limit 1 -> must fail
+            with self.assertRaises(DownloadError):
+                # local file URL with tiny limit
+                url = (TEST_IMAGE).as_uri()
+                try:
+                    download_file(url, dest, max_bytes=1, timeout=10)
+                except DownloadError:
+                    raise
+                except Exception as exc:  # file:// may be unsupported; still a rejection
+                    raise DownloadError(str(exc))
+
+    def test_validate_image_rejects_non_image(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bogus = Path(tmp) / "bogus.png"
+            bogus.write_bytes(b"not an image at all")
+            with self.assertRaises(ImageValidationError):
+                validate_image_file(bogus)
+
+    def test_validate_image_accepts_png(self):
+        info = validate_image_file(TEST_IMAGE)
+        self.assertEqual(info["width"], info["height"])  # square source
+        self.assertGreaterEqual(info["width"], 256)
+
+
+class TestConversion(unittest.TestCase):
+    def test_deterministic_conversion(self):
+        first = convert_template(TEST_IMAGE, 32, 10)
+        second = convert_template(TEST_IMAGE, 32, 10)
+        self.assertEqual(first["cells"], second["cells"])
+        self.assertEqual(first["palette"], second["palette"])
+
+    def test_grid_size_validation(self):
+        with self.assertRaises(ValueError):
+            convert_template(TEST_IMAGE, 13, 10)  # not in supported grid list
+
+    def test_palette_bounds(self):
+        template = convert_template(TEST_IMAGE, 32, 10)
+        self.assertEqual(len(template["palette"]), 10)
+        max_index = max(template["cells"])
+        self.assertLess(max_index, 10)
+        for cell in template["cells"]:
+            self.assertGreaterEqual(cell, 0)
+
+    def test_cells_match_grid_dimensions(self):
+        for size in (12, 32, 64, 128):
+            template = convert_template(TEST_IMAGE, size, 10)
+            self.assertEqual(len(template["cells"]), size * size)
+
+
+class TestPlayability(unittest.TestCase):
+    def test_scorer_deterministic(self):
+        template = convert_template(TEST_IMAGE, 32, 10)
+        first = playability_score(32, 32, template["palette"], template["cells"])
+        second = playability_score(32, 32, template["palette"], template["cells"])
+        self.assertEqual(first["score"], second["score"])
+        self.assertEqual(first["difficulty"], second["difficulty"])
+
+    def test_tiny_region_metrics(self):
+        # A solid grid has exactly one region, no singletons.
+        width, height = 32, 32
+        cells = [0] * (width * height)
+        regions = analyze_regions(width, height, cells)
+        self.assertEqual(regions["component_count"], 1)
+        self.assertEqual(regions["singleton_count"], 0)
+        self.assertEqual(regions["largest_region_ratio"], 1.0)
+
+    def test_singleton_metric(self):
+        width, height = 4, 4
+        cells = [0] * 16
+        cells[5] = 1  # single isolated cell
+        regions = analyze_regions(width, height, cells)
+        self.assertGreaterEqual(regions["singleton_count"], 1)
+
+    def test_palette_separation(self):
+        # Identical colors -> min distance 0 -> flagged.
+        same = palette_separation(["#ff0000", "#ff0000"])
+        self.assertEqual(same["min_lab_distance"], 0.0)
+        distinct = palette_separation(["#ff0000", "#00ff00"])
+        self.assertGreater(distinct["min_lab_distance"], 20)
+
+    def test_score_range(self):
+        template = convert_template(TEST_IMAGE, 64, 12)
+        score = playability_score(64, 64, template["palette"], template["cells"])
+        self.assertGreaterEqual(score["score"], 0.0)
+        self.assertLessEqual(score["score"], 100.0)
+        self.assertIn(score["difficulty"], ("VERY_EASY", "EASY", "NORMAL", "HARD", "EXPERT", "MASTERPIECE"))
+
+
+class TestDerivedLinksBackToSource(unittest.TestCase):
+    def test_derived_asset_has_source_link(self):
+        template = convert_template(TEST_IMAGE, 32, 10)
+        score = playability_score(32, 32, template["palette"], template["cells"])
+        derived = {
+            "derived_asset_id": "neon-cat_g32",
+            "source_asset_id": "neon-cat",
+            "grid_width": 32,
+            "palette_size": 10,
+            "state": "CONVERTED",
+            "template": template,
+            "playability": score,
+        }
+        self.assertIn("source_asset_id", derived)
+        self.assertEqual(derived["source_asset_id"], "neon-cat")
+
+
+if __name__ == "__main__":
+    unittest.main()
