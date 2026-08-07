@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Star, Target, X } from 'lucide-react';
+import { ArrowRight, ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Star, Target, X } from 'lucide-react';
 import ColoringSession from '../features/coloring/ColoringSession';
 import ProgressiveColoringSession from '../features/coloring/large-grid/ProgressiveColoringSession.jsx';
 import LegacyPixelCanvas from '../components/LegacyPixelCanvas';
@@ -113,6 +113,8 @@ export default function PlayerView({
   latestReward,
   nextRecommendation,
   onContinue,
+  completionChoices = [],
+  onCompletionChoice,
   selectedColor,
   onSelectColor,
   zones,
@@ -181,6 +183,23 @@ export default function PlayerView({
     storage: typeof window !== 'undefined' ? window.localStorage : null,
     onTrack,
   });
+
+  useEffect(() => {
+    if (!completionOpen) return;
+    onTrack?.('choice_window_seen', {
+      screen: 'completion',
+      id: template?.id,
+      options: completionChoices.length,
+    });
+  }, [completionOpen, template?.id, completionChoices.length, onTrack]);
+
+  useEffect(() => {
+    if (sessionGoals.celebration?.type !== 'completed') return;
+    onTrack?.('goal_completed', { goal: sessionGoals.celebration.goalId, id: template?.id });
+    if (sessionGoals.celebration.goalId === 'first-progress') {
+      onTrack?.('first_success', { id: template?.id });
+    }
+  }, [sessionGoals.celebration, template?.id, onTrack]);
 
   const handleFirstPaint = () => {
     sessionGoals.markFirstPaint();
@@ -459,11 +478,38 @@ export default function PlayerView({
             <button className="primary-button" onClick={onShareResult} disabled={sharing}>{sharing ? <><LoaderCircle className="spin" size={17} /> Открываем…</> : <><Share2 size={17} /> Поделиться</>}</button>
             <button className="secondary-button" onClick={onDownloadResult}><Download size={17} /> Сохранить результат</button>
           </div>
-          <div className="completion-links">
+          {completionChoices.length ? (
+            <div className="completion-choices" data-choice-window="completion">
+              {completionChoices.map((choice) => (
+                <button
+                  key={choice.id}
+                  className={`completion-choice${choice.recommended ? ' is-primary' : ''}`}
+                  type="button"
+                  data-completion-choice="true"
+                  data-choice-id={choice.id}
+                  onClick={() => onCompletionChoice?.(choice)}
+                >
+                  <span className="completion-choice-copy">
+                    <b>{choice.title}</b>
+                    <small>{choice.reward || choice.reason || 'Выбрать'}</small>
+                  </span>
+                  <span className="completion-choice-action">
+                    {choice.recommended ? <em>Рекомендуем</em> : <ArrowRight size={16} aria-hidden="true" />}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="completion-links">
+              <button onClick={onPublishCompleted} disabled={publishDisabled}>{publishLabel}</button>
+              <button onClick={onContinue}>{nextRecommendation ? `Следующая: ${nextRecommendation.title}` : 'К следующей работе'}</button>
+              <button onClick={() => { setCompletionOpen(false); setView('catalog'); }}>К каталогу</button>
+            </div>
+          )}
+          {completionChoices.length ? <div className="completion-links completion-links--quiet">
             <button onClick={onPublishCompleted} disabled={publishDisabled}>{publishLabel}</button>
-            <button onClick={onContinue}>{nextRecommendation ? `Следующая: ${nextRecommendation.title}` : 'К следующей работе'}</button>
             <button onClick={() => { setCompletionOpen(false); setView('catalog'); }}>К каталогу</button>
-          </div>
+          </div> : null}
         </section>
       </div>}
     </section>

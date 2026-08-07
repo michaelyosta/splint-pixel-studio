@@ -14,6 +14,12 @@ const ANALYTICS_EVENTS = new Set([
   'coloring_stroke_commit', 'coloring_color_complete',
   'publish', 'share_native',
   'download_result', 'create_coloring', 'like', 'comment',
+  'app_open', 'primary_action_seen', 'primary_action_started',
+  'first_success', 'goal_completed', 'goal_abandoned',
+  'artwork_completed', 'reward_shown', 'reward_claimed_or_viewed',
+  'unlock_preview_seen', 'unlock_completed',
+  'choice_window_seen', 'choice_selected', 'recommendation_opened',
+  'session_natural_exit', 'session_interrupt_exit', 'next_session_started',
 ]);
 
 function todayKey(date = new Date()) {

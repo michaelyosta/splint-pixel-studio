@@ -87,6 +87,38 @@ test('manifest loader keeps a 1200x1200 manifest metadata-only', async () => {
   assert.equal(manifest.grid.tileSize, TILE_SIZE);
 });
 
+test('overview zoom never floods the server: the visible set is capped to the cache bound', async () => {
+  const calls = [];
+  const client = createProgressiveGridClient({
+    templateId: 'synthetic-1200',
+    maxTiles: 12,
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      if (String(url).endsWith('/manifest')) return jsonResponse(manifestPayload());
+      const coordinates = tileCoordinates(url);
+      assert.ok(coordinates, `unexpected tile URL: ${url}`);
+      return jsonResponse(tilePayload(...coordinates));
+    },
+  });
+
+  // Whole-grid overview camera: at this zoom every one of the 1444 tiles is
+  // "visible". The client must fetch only a bounded centre-neighbourhood.
+  const result = await client.loadViewport({
+    camera: { x: 0, y: 0, zoom: 0.08 },
+    viewportWidth: 390,
+    viewportHeight: 800,
+    cellSize: TILE_SIZE,
+    overscanTiles: 0,
+    maxPrefetchTiles: 4,
+  });
+
+  const tileCalls = calls.filter((url) => url.includes('/tiles/'));
+  assert.ok(tileCalls.length < 38 * 38, `overview must not request the whole grid (requested ${tileCalls.length})`);
+  assert.ok(tileCalls.length <= 16, `overview requests are bounded by the cache (requested ${tileCalls.length})`);
+  assert.equal(result.errors.length, 0);
+  assert.ok(result.cache.tiles <= 12, 'cache stays bounded');
+});
+
 test('synthetic 1200x1200 viewport loads visible and overscan tiles into typed bounded storage', async () => {
   const calls = [];
   const client = createProgressiveGridClient({

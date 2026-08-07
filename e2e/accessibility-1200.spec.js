@@ -64,6 +64,10 @@ test.describe('1200x1200 accessibility and bounded-input gates', () => {
 
   test('tiled 1200 player keeps one canvas, bounded DOM, keyboard paint, and zone navigation', async ({ page, browserName }) => {
     test.skip(browserName === 'webkit', '1200 creator compute is not e2e-practical on WebKit emulation');
+    // The creator-from-image flow plus touch emulation on a mobile project
+    // legitimately takes longer than the global 60s budget; the smart-engine
+    // reopen assertion needs headroom on slow emulated devices.
+    test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 844 });
     const isChromium = browserName === 'chromium';
     const touchSession = isChromium ? await page.context().newCDPSession(page) : null;
@@ -297,25 +301,23 @@ test.describe('1200x1200 accessibility and bounded-input gates', () => {
     await navButton.click();
     await expect(navButton).toHaveAttribute('aria-pressed', 'false');
 
-    // Camera persistence: reopening the coloring restores the same world
-    // centre and zoom instead of parking at the overview.
-    await page.waitForTimeout(700);
-    const savedCameraRaw = await page.evaluate((key) => window.localStorage.getItem(key), `splint:tiled-camera:${id}`);
-    expect(savedCameraRaw).toBeTruthy();
-    const savedCamera = JSON.parse(savedCameraRaw);
+    // Reopening a tiled map goes straight into smart guidance: the engine
+    // picks a colour and focuses a paintable target instead of restoring an
+    // arbitrary saved camera or parking at the overview.
     await page.goto(`/?coloring=${id}`);
     await expect(page.locator('.progressive-coloring-session')).toBeVisible({ timeout: 15000 });
     await dismissOnboarding(page);
     const restoredGridArea = page.locator('.progressive-grid-area');
-    const restoredBox = await restoredGridArea.boundingBox();
+    await expect.poll(
+      () => page.locator('.progressive-coloring-session').getAttribute('data-smart-state'),
+      { timeout: 10000 },
+    ).toBe('ready');
     const restoredZoom = Number(await restoredGridArea.getAttribute('data-camera-zoom'));
-    const restoredX = Number(await restoredGridArea.getAttribute('data-camera-x'));
-    const restoredY = Number(await restoredGridArea.getAttribute('data-camera-y'));
-    const restoredCenterX = (restoredBox.width / 2 - restoredX) / restoredZoom / 32;
-    const restoredCenterY = (restoredBox.height / 2 - restoredY) / restoredZoom / 32;
-    expect(Math.abs(restoredCenterX - savedCamera.centerX)).toBeLessThanOrEqual(1);
-    expect(Math.abs(restoredCenterY - savedCamera.centerY)).toBeLessThanOrEqual(1);
-    expect(Math.abs(restoredZoom - savedCamera.zoom)).toBeLessThan(0.01);
+    expect(restoredZoom).toBeGreaterThanOrEqual(0.4);
+    const restoredTarget = await page.locator('.progressive-coloring-session').getAttribute('data-smart-target-tile');
+    expect(restoredTarget).not.toBe('');
+    const restoredColor = await page.locator('.progressive-coloring-session').getAttribute('data-smart-color');
+    expect(restoredColor).not.toBe('');
 
     await canvas.focus();
     await page.keyboard.press('+');
