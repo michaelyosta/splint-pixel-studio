@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Hand, LoaderCircle, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
-import { rasterizeStroke } from '../engine/strokeRasterizer.js';
-import { createProgressiveGridClient, PROGRESSIVE_GRID_STATUS } from '../../../lib/progressiveGridClient.js';
+import { Crosshair, Hand, LoaderCircle, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
+import { extendStroke, PAINT_STATUS, paintStrokeIndex } from './strokeLive.js';
+import { createProgressiveGridClient, PROGRESSIVE_GRID_STATUS, isAbortError } from '../../../lib/progressiveGridClient.js';
 import { DEV_USER_ID } from '../../../api/client.js';
 import { createBoundedAnnouncer, formatPaletteState, moveKeyboardCursor } from '../../../lib/accessibility.js';
 import { selectViewportTiles } from './gridMath.js';
-import { TileGuideIndex, pickColorWithMostRemaining, pickNextZoneWithCells } from './guide.js';
+import { TileGuideIndex } from './guide.js';
 import { LruTileCache } from './tileCache.js';
+import { createCameraAnimation } from '../camera/cameraAnimation.js';
+import {
+  GUIDANCE_REASON,
+  countPaintedCellsInTarget,
+  guidanceCameraCenter,
+  isGuidanceIndexMissing,
+  isStaleGuidance,
+  isTargetActionable,
+  isTrueColorCompletion,
+  planGuidanceCamera,
+} from './smartRoute.js';
 
 const CELL_SIZE = 32;
 // Keep the initial viewport bounded: at 0.08 a phone sees a small tile
@@ -22,27 +33,14 @@ const MINIMAP_SIZE = 168;
 // instead of one draw call per visible cell.
 const DETAILED_CELL_PIXELS = 5;
 const DIAGNOSTICS_ENABLED = import.meta.env.VITE_SHOW_COLORING_DIAGNOSTICS === 'true';
+// Opt-in stroke instrumentation (URL param or env flag): records per-stroke
+// counters and phase timings into window.__splintStrokeMetrics. Production
+// never runs the recorder unless explicitly enabled.
+const STROKE_METRICS_ENABLED = DIAGNOSTICS_ENABLED
+  || (typeof window !== 'undefined' && /[?&]splintMetrics=1/.test(window.location.search));
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
-}
-
-function zoneCountsEqual(first, second) {
-  const firstKeys = Object.keys(first || {});
-  const secondKeys = Object.keys(second || {});
-  if (firstKeys.length !== secondKeys.length) return false;
-  return firstKeys.every((key) => first[key] === second[key]);
-}
-
-function firstCellsEqual(first, second) {
-  const firstKeys = Object.keys(first || {});
-  const secondKeys = Object.keys(second || {});
-  if (firstKeys.length !== secondKeys.length) return false;
-  return firstKeys.every((key) => {
-    const a = first[key];
-    const b = second[key];
-    return a?.index === b?.index && a?.x === b?.x && a?.y === b?.y;
-  });
 }
 
 function buildZoneRects(width, height) {
@@ -99,12 +97,18 @@ export default function ProgressiveColoringSession({
   const minimapCanvasRef = useRef(null);
   const minimapBaseRef = useRef(null);
   const minimapDragRef = useRef(null);
+  const minimapTimerRef = useRef(null);
   const pendingCellRef = useRef(null);
+  const tilePreloadRef = useRef(null);
+  const strokeMetricsRef = useRef(null);
+  if (STROKE_METRICS_ENABLED && !strokeMetricsRef.current) {
+    strokeMetricsRef.current = { strokes: [], pointerEvents: 0, livePaints: 0 };
+    if (typeof window !== 'undefined') window.__splintStrokeMetrics = strokeMetricsRef.current;
+  }
   const touchPointersRef = useRef(new Map());
   const gestureRef = useRef({ active: false, midpoint: null, distance: 0 });
   const initialCameraRef = useRef(false);
   const cameraSaveTimerRef = useRef(null);
-  const cameraRestoredRef = useRef(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const sizeRef = useRef(size);
   sizeRef.current = size;
@@ -118,10 +122,23 @@ export default function ProgressiveColoringSession({
   const [keyboardCell, setKeyboardCell] = useState(null);
   const [liveText, setLiveText] = useState('');
   const [guide, setGuide] = useState(null);
+  const [smartState, setSmartState] = useState('idle');
   const [wrongNotice, setWrongNotice] = useState(null);
   const [successNotice, setSuccessNotice] = useState(null);
+  const [errorNotice, setErrorNotice] = useState(null);
   const [navigationMode, setNavigationMode] = useState(false);
-  const guideRef = useRef(null);
+  const smartStateRef = useRef('idle');
+  const smartPlanRef = useRef(null);
+  const guidanceTokenRef = useRef(0);
+  const guidanceIndexRetryRef = useRef(0);
+  const guidanceIndexRetryTimerRef = useRef(null);
+  const cameraAnimRef = useRef(null);
+  const autoAdvanceTimerRef = useRef(null);
+  const recentTargetsRef = useRef([]);
+  const targetRemainingRef = useRef(null);
+  const committedRevisionRef = useRef(0);
+  const selectedColorRef = useRef(selectedColor);
+  const guidanceBootstrappedRef = useRef(false);
   const wrongNoticeTimerRef = useRef(null);
   const successNoticeTimerRef = useRef(null);
   const keyboardCellRef = useRef(null);
@@ -131,6 +148,7 @@ export default function ProgressiveColoringSession({
   const liveId = useId();
   const announcerRef = useRef(null);
   const guideIndexRef = useRef(null);
+  selectedColorRef.current = selectedColor;
   if (announcerRef.current === null) {
     announcerRef.current = createBoundedAnnouncer({ onAnnounce: setLiveText });
   }
@@ -204,7 +222,6 @@ export default function ProgressiveColoringSession({
       paletteLength: template.palette.length,
       template,
     });
-    guideRef.current = null;
     const mini = minimapCanvasRef.current;
     if (mini) {
       mini.width = MINIMAP_SIZE;
@@ -261,6 +278,289 @@ export default function ProgressiveColoringSession({
     const metrics = diagnosticsRef.current;
     if (!metrics) return;
     metrics.interactionEndsAt = performance.now() + 600;
+  }
+
+  function setSmartStateValue(next) {
+    smartStateRef.current = next;
+    setSmartState(next);
+  }
+
+  function cancelCameraAnimation() {
+    if (cameraAnimRef.current) {
+      cameraAnimRef.current();
+      cameraAnimRef.current = null;
+    }
+  }
+
+  function cancelAutoAdvance() {
+    if (autoAdvanceTimerRef.current != null) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+  }
+
+  function animateCameraTo(targetCamera, { immediate = false, onComplete } = {}) {
+    cancelCameraAnimation();
+    if (!targetCamera) {
+      onComplete?.();
+      return;
+    }
+    if (immediate) {
+      cameraRef.current = targetCamera;
+      setCamera(targetCamera);
+      onComplete?.();
+      return;
+    }
+    const from = { ...cameraRef.current };
+    cameraAnimRef.current = createCameraAnimation(
+      from,
+      targetCamera,
+      360,
+      (frame) => {
+        cameraRef.current = frame;
+        setCamera(frame);
+      },
+      () => {
+        cameraAnimRef.current = null;
+        onComplete?.();
+      },
+    );
+  }
+
+  function markFreeExploration() {
+    cancelCameraAnimation();
+    cancelAutoAdvance();
+    if (smartStateRef.current === 'freeExploration') return;
+    setSmartStateValue('freeExploration');
+  }
+
+  function clearGuidanceIndexRetry() {
+    guidanceIndexRetryRef.current = 0;
+    if (guidanceIndexRetryTimerRef.current) {
+      clearTimeout(guidanceIndexRetryTimerRef.current);
+      guidanceIndexRetryTimerRef.current = null;
+    }
+  }
+
+  async function applyGuidancePlan(plan, { immediate = false } = {}) {
+    if (!plan) return false;
+    if (isStaleGuidance(plan, committedRevisionRef.current)) {
+      window.setTimeout(() => {
+        void fetchAndApplyGuidance({
+          reason: plan.reason,
+          color: plan.selectedColor,
+          immediate,
+        });
+      }, 350);
+      return false;
+    }
+    if (plan.artworkComplete) {
+      clearGuidanceIndexRetry();
+      setSmartStateValue('artworkComplete');
+      setSuccessNotice('Картина готова');
+      if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
+      successNoticeTimerRef.current = setTimeout(() => setSuccessNotice(null), 3600);
+      return true;
+    }
+    if (isTrueColorCompletion(plan)) {
+      clearGuidanceIndexRetry();
+      setSmartStateValue('colorComplete');
+      smartPlanRef.current = plan;
+      const message = plan.nextColor != null
+        ? `Цвет ${plan.selectedColor + 1} завершён · дальше цвет ${plan.nextColor + 1}`
+        : `Цвет ${plan.selectedColor + 1} завершён`;
+      setSuccessNotice(message);
+      if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
+      successNoticeTimerRef.current = setTimeout(() => setSuccessNotice(null), 3600);
+      try {
+        window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+      } catch {
+        // Haptics are optional.
+      }
+      announcerRef.current?.announce(message);
+      if (plan.nextColor != null && isTargetActionable(plan)) {
+        cancelAutoAdvance();
+        autoAdvanceTimerRef.current = window.setTimeout(() => {
+          if (smartStateRef.current !== 'colorComplete') return;
+          if (plan.nextColor !== selectedColorRef.current) {
+            selectedColorRef.current = plan.nextColor;
+            onSelectColor(plan.nextColor);
+          }
+          void fetchAndApplyGuidance({
+            reason: GUIDANCE_REASON.SAME_COLOR_NEXT,
+            color: plan.nextColor,
+            recent: recentTargetsRef.current,
+          });
+        }, 1100);
+      }
+      return true;
+    }
+    if (isGuidanceIndexMissing(plan)) {
+      // The server has no static guidance index for this template yet
+      // (pre-021 migration, background backfill still running). Retry with
+      // bounded backoff instead of pretending the artwork has no work left.
+      guidanceIndexRetryRef.current += 1;
+      if (guidanceIndexRetryRef.current <= 5) {
+        if (!smartPlanRef.current) setInputNotice('Готовим участок…');
+        const delay = 700 * guidanceIndexRetryRef.current;
+        if (guidanceIndexRetryTimerRef.current) clearTimeout(guidanceIndexRetryTimerRef.current);
+        guidanceIndexRetryTimerRef.current = window.setTimeout(() => {
+          guidanceIndexRetryTimerRef.current = null;
+          void fetchAndApplyGuidance({
+            reason: plan.reason,
+            color: plan.selectedColor,
+            immediate,
+          });
+        }, delay);
+      } else {
+        setInputNotice(null);
+        setSmartStateValue('errorRetryable');
+        setErrorNotice('Не удалось подготовить следующий фрагмент');
+      }
+      return false;
+    }
+    if (!isTargetActionable(plan)) {
+      clearGuidanceIndexRetry();
+      setSmartStateValue('freeExploration');
+      return false;
+    }
+
+    clearGuidanceIndexRetry();
+    smartPlanRef.current = plan;
+    targetRemainingRef.current = plan.target.estimated_cells;
+    const tileKey = `${plan.target.tile_x}:${plan.target.tile_y}`;
+    recentTargetsRef.current = [...recentTargetsRef.current.filter((key) => key !== tileKey), tileKey].slice(-4);
+    setGuide({
+      color: plan.selectedColor,
+      remaining: plan.globalRemainingForColor,
+      targetRemaining: plan.target.estimated_cells,
+      reason: plan.reason,
+    });
+
+    // Contract: READY is forbidden before the guidance target tile is
+    // explicitly loaded. The generic viewport loader is a fallback, never
+    // the dependency that unlocks the route.
+    setSmartStateValue('loadingTarget');
+    try {
+      await clientRef.current.fetchTile(plan.target.tile_x, plan.target.tile_y);
+    } catch (error) {
+      // A cancelled request is a race (new plan, camera change, unmount),
+      // not a failure: the newer plan owns the state machine.
+      if (isAbortError(error)) return false;
+      setSmartStateValue('errorRetryable');
+      setErrorNotice('Не удалось подготовить следующий фрагмент');
+      return false;
+    }
+    markFirstTile();
+    redraw((value) => value + 1);
+    if (plan.selectedColor !== selectedColorRef.current && plan.selectedColor != null) {
+      selectedColorRef.current = plan.selectedColor;
+      onSelectColor(plan.selectedColor);
+    }
+    setSmartStateValue('focusing');
+    const cameraTarget = planGuidanceCamera(plan, sizeRef.current, template, CELL_SIZE);
+    if (cameraTarget) {
+      animateCameraTo(cameraTarget, {
+        immediate,
+        onComplete: () => {
+          if (smartStateRef.current === 'focusing') setSmartStateValue('ready');
+        },
+      });
+    } else {
+      setSmartStateValue('ready');
+    }
+    return true;
+  }
+
+  async function fetchAndApplyGuidance({
+    reason = GUIDANCE_REASON.INITIAL_TARGET,
+    color = null,
+    targetColor = null,
+    tileKey = null,
+    recent = null,
+    immediate = false,
+  } = {}) {
+    const client = clientRef.current;
+    const manifest = client?.getSnapshot().manifest;
+    if (!client || !manifest || !sizeRef.current.width || !sizeRef.current.height) return;
+    const token = ++guidanceTokenRef.current;
+    const [tileX, tileY] = tileKey ? tileKey.split(':').map(Number) : [null, null];
+    try {
+      const plan = await client.fetchGuidance({
+        selectedColor: color ?? smartPlanRef.current?.selectedColor ?? null,
+        targetColor,
+        reason,
+        cameraCenter: guidanceCameraCenter(cameraRef.current, sizeRef.current, CELL_SIZE),
+        recent: recent ?? recentTargetsRef.current,
+        tileX,
+        tileY,
+      });
+      if (token !== guidanceTokenRef.current) return;
+      if (isStaleGuidance(plan, committedRevisionRef.current)) {
+        window.setTimeout(() => {
+          void fetchAndApplyGuidance({ reason, color, targetColor, tileKey, recent, immediate });
+        }, 350);
+        return;
+      }
+      const applied = await applyGuidancePlan(plan, { immediate });
+      if (applied) {
+        setErrorNotice(null);
+        setInputNotice(null);
+      }
+    } catch (error) {
+      if (isAbortError(error)) return;
+      // A failed bootstrap must not leave the user staring at an inert
+      // overview as if everything worked.
+      if (!smartPlanRef.current && smartStateRef.current !== 'errorRetryable') {
+        setSmartStateValue('errorRetryable');
+        setErrorNotice('Не удалось подготовить следующий фрагмент');
+      }
+    }
+  }
+
+  function retrySmartGuidance() {
+    setErrorNotice(null);
+    setInputNotice(null);
+    void fetchAndApplyGuidance({
+      reason: smartPlanRef.current?.reason || GUIDANCE_REASON.INITIAL_TARGET,
+      color: smartPlanRef.current?.selectedColor ?? null,
+      recent: recentTargetsRef.current,
+      immediate: true,
+    });
+  }
+
+  function scheduleAutoAdvance() {
+    cancelAutoAdvance();
+    autoAdvanceTimerRef.current = window.setTimeout(() => {
+      if (smartStateRef.current !== 'ready' || !smartPlanRef.current) return;
+      void fetchAndApplyGuidance({
+        reason: GUIDANCE_REASON.SAME_COLOR_NEXT,
+        color: smartPlanRef.current.selectedColor,
+        recent: recentTargetsRef.current,
+      });
+    }, 900);
+  }
+
+  function returnToTarget() {
+    const plan = smartPlanRef.current;
+    if (!plan?.target) return;
+    cancelAutoAdvance();
+    void fetchAndApplyGuidance({
+      reason: GUIDANCE_REASON.RETURN_TO_TARGET,
+      color: plan.selectedColor,
+      tileKey: `${plan.target.tile_x}:${plan.target.tile_y}`,
+      immediate: true,
+    });
+  }
+
+  function handleSmartGuideAction() {
+    const plan = smartPlanRef.current;
+    if (!plan) return;
+    void fetchAndApplyGuidance({
+      reason: GUIDANCE_REASON.SAME_COLOR_NEXT,
+      color: plan.globalRemainingForColor > 0 ? plan.selectedColor : null,
+      recent: recentTargetsRef.current,
+    });
   }
 
   function minimapPointToLocal(clientX, clientY) {
@@ -380,6 +680,7 @@ export default function ProgressiveColoringSession({
   function handleMinimapPointerDown(event) {
     if (event.button !== 0 && event.pointerType !== 'touch') return;
     event.stopPropagation();
+    markFreeExploration();
     const rect = minimapViewportRect();
     const point = minimapPointToLocal(event.clientX, event.clientY);
     if (!rect || !point) return;
@@ -409,6 +710,7 @@ export default function ProgressiveColoringSession({
     if (!drag || drag.pointerId !== event.pointerId) return;
     event.stopPropagation();
     markInteraction();
+    markFreeExploration();
     const mini = minimapCanvasRef.current;
     if (!mini) return;
     const dxWorld = (event.clientX - drag.startClientX) * (template.width / mini.width);
@@ -452,6 +754,10 @@ export default function ProgressiveColoringSession({
       },
     });
     clientRef.current = client;
+    if (STROKE_METRICS_ENABLED && typeof window !== 'undefined') {
+      // Diagnostic hook: expose the live client for e2e verification.
+      window.__splintClient = client;
+    }
     const unsubscribe = client.subscribe((snapshot) => {
       setStatus(snapshot.status);
       setError(snapshot.lastError || null);
@@ -465,6 +771,15 @@ export default function ProgressiveColoringSession({
       client.destroy();
       clientRef.current = null;
       pendingCellRef.current = null;
+      tilePreloadRef.current = null;
+      if (minimapTimerRef.current != null) {
+        clearTimeout(minimapTimerRef.current);
+        minimapTimerRef.current = null;
+      }
+      cancelCameraAnimation();
+      cancelAutoAdvance();
+      clearGuidanceIndexRetry();
+      guidanceTokenRef.current += 1;
       if (wrongNoticeTimerRef.current) clearTimeout(wrongNoticeTimerRef.current);
       if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
       if (cameraSaveTimerRef.current) {
@@ -478,8 +793,21 @@ export default function ProgressiveColoringSession({
 
   useEffect(() => {
     initialCameraRef.current = false;
-    cameraRestoredRef.current = false;
+    guidanceBootstrappedRef.current = false;
+    smartPlanRef.current = null;
+    smartStateRef.current = 'idle';
+    setSmartState('idle');
+    recentTargetsRef.current = [];
+    targetRemainingRef.current = null;
+    committedRevisionRef.current = 0;
+    guidanceTokenRef.current += 1;
+    clearGuidanceIndexRetry();
+    setErrorNotice(null);
+    setInputNotice(null);
+    cancelAutoAdvance();
+    cancelCameraAnimation();
     setManifestReady(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template.id]);
 
   useEffect(() => {
@@ -514,33 +842,6 @@ export default function ProgressiveColoringSession({
     if (!manifestReady || initialCameraRef.current || !size.width || !size.height) return;
     const manifest = clientRef.current?.getSnapshot().manifest;
     if (!manifest) return;
-    const saved = (() => {
-      if (cameraRestoredRef.current || typeof window === 'undefined') return null;
-      try {
-        const parsed = JSON.parse(window.localStorage.getItem(cameraStorageKey()) || 'null');
-        if (!parsed || !Number.isFinite(parsed.centerX) || !Number.isFinite(parsed.centerY)
-          || !Number.isFinite(parsed.zoom)) return null;
-        const zoom = clamp(Number(parsed.zoom), MIN_ZOOM, 4);
-        if (zoom <= MIN_ZOOM) return null;
-        return {
-          centerX: Number(parsed.centerX),
-          centerY: Number(parsed.centerY),
-          zoom,
-        };
-      } catch {
-        return null;
-      }
-    })();
-    if (saved) {
-      cameraRestoredRef.current = true;
-      initialCameraRef.current = true;
-    updateCamera({
-      x: size.width / 2 - saved.centerX * CELL_SIZE * saved.zoom,
-      y: size.height / 2 - saved.centerY * CELL_SIZE * saved.zoom,
-      zoom: saved.zoom,
-    });
-    return;
-    }
     const zoom = Math.min(
       1,
       (size.width * 0.9) / (manifest.grid.width * CELL_SIZE),
@@ -554,6 +855,25 @@ export default function ProgressiveColoringSession({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manifestReady, size.height, size.width, updateCamera]);
+
+  useEffect(() => {
+    if (!manifestReady || guidanceBootstrappedRef.current || !size.width || !size.height) return;
+    const manifest = clientRef.current?.getSnapshot().manifest;
+    if (!manifest) return;
+    guidanceBootstrappedRef.current = true;
+    void fetchAndApplyGuidance({
+      reason: GUIDANCE_REASON.INITIAL_TARGET,
+      immediate: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manifestReady, size.height, size.width]);
+
+  useEffect(() => {
+    const revision = Number(progress?.revision);
+    if (Number.isSafeInteger(revision) && revision >= 0 && revision > committedRevisionRef.current) {
+      committedRevisionRef.current = revision;
+    }
+  }, [progress?.revision]);
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -694,19 +1014,6 @@ export default function ProgressiveColoringSession({
         }
       }
     }
-    const guideStats = guideIndexRef.current?.snapshot(interactionMode === 'reveal' ? null : selectedColor)
-      || { remaining: 0, remainingByZone: {}, firstCellByZone: {} };
-    const previousGuide = guideRef.current;
-    const guideColor = interactionMode === 'reveal' ? null : selectedColor;
-    if (!previousGuide
-      || previousGuide.color !== guideColor
-      || previousGuide.remaining !== guideStats.remaining
-      || !zoneCountsEqual(previousGuide.remainingByZone, guideStats.remainingByZone)
-      || !firstCellsEqual(previousGuide.firstCellByZone, guideStats.firstCellByZone)) {
-      const nextGuide = { color: guideColor, ...guideStats };
-      guideRef.current = nextGuide;
-      setGuide(nextGuide);
-    }
     if (keyboardCell != null) {
       const cursorX = (keyboardCell % template.width) * CELL_SIZE;
       const cursorY = Math.floor(keyboardCell / template.width) * CELL_SIZE;
@@ -757,72 +1064,182 @@ export default function ProgressiveColoringSession({
         drawMinimap();
         commitIndices([queuedCell.index]);
       })
-      .catch(() => {
+      .catch((error) => {
         if (pendingCellRef.current?.key !== key) return;
+        // A cancelled request is a viewport/camera race, not an unavailable
+        // fragment: never surface it as a permanent failure.
+        if (isAbortError(error)) return;
         pendingCellRef.current = null;
         setInputNotice('Фрагмент пока недоступен. Нажмите ещё раз.');
       });
   }
 
-  function addStrokeCell(cell) {
-    const pointer = pointerRef.current;
-    if (!pointer || !cell || pointer.lastIndex === cell.index) return;
-    const path = rasterizeStroke(pointer.lastIndex, cell.index, template.width, template.height);
-    pointer.lastIndex = cell.index;
-    for (const index of path) if (!pointer.indices.includes(index)) pointer.indices.push(index);
+  function showWrongFeedback(cell) {
+    const targetColor = cell?.target;
+    const message = Number.isInteger(targetColor) && targetColor >= 0
+      ? `Эта клетка относится к цвету ${targetColor + 1}`
+      : 'Неправильный цвет';
+    setWrongNotice(message);
+    if (wrongNoticeTimerRef.current) clearTimeout(wrongNoticeTimerRef.current);
+    wrongNoticeTimerRef.current = setTimeout(() => setWrongNotice(null), 2200);
+    try {
+      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('error');
+    } catch {
+      // Haptics are optional.
+    }
+    onWrongCell?.();
+    announcerRef.current?.announce(Number.isInteger(targetColor) && targetColor >= 0
+      ? `Неправильный цвет, этой клетке нужен цвет ${targetColor + 1}`
+      : 'Неправильный цвет');
   }
 
-  function commitIndices(indices, { announce = false } = {}) {
+  /**
+   * Silent background preload for a tile the finger crossed into during a
+   * drag. Does not touch pendingCellRef, the loading notice, or the minimap:
+   * it only makes the tile resident so a return swipe paints instead of
+   * queueing. `cell.loaded === false` inside a READY drag stays exceptional.
+   */
+  function preloadTileSilently(tileX, tileY) {
     const client = clientRef.current;
-    const changes = [];
-    const unloaded = [];
-    let wrong = false;
-    for (const index of indices) {
-      const x = index % template.width;
-      const y = Math.floor(index / template.width);
-      const cell = client?.getCell(x, y);
-      if (!cell) continue;
-      if (!cell.loaded) {
-        unloaded.push(index);
-        continue;
-      }
-      if (cell.filled !== -1) continue;
-      const color = interactionMode === 'reveal' ? cell.target : selectedColor;
-      if (interactionMode !== 'reveal' && color !== cell.target) {
-        wrong = true;
-        continue;
-      }
-      client.updateFilled(x, y, color);
-      const tile = client.cache.get(cell.tileKey);
-      if (tile) guideIndexRef.current?.refreshTile(tile);
-      changes.push({ index, from: -1, to: color });
+    if (!client) return;
+    const key = `${tileX}:${tileY}`;
+    if (client.cache.has(key)) return;
+    if (tilePreloadRef.current?.has(key)) return;
+    if (!tilePreloadRef.current) tilePreloadRef.current = new Set();
+    tilePreloadRef.current.add(key);
+    client.fetchTile(tileX, tileY)
+      .then((tile) => {
+        tilePreloadRef.current?.delete(key);
+        if (tile && clientRef.current) guideIndexRef.current?.addTile(tile);
+      })
+      .catch(() => {
+        tilePreloadRef.current?.delete(key);
+      });
+  }
+
+  /**
+   * Frame path: paints one optimistically painted cell with direct canvas ops
+   * exactly like draw() renders a filled cell — synchronously in the pointer
+   * event's own task, so the cell changes on screen before the browser paints
+   * the next frame ("краска следует за пальцем"). No React, no network, no
+   * guide/minimap work — the canonical full redraw happens on finalization.
+   */
+  function paintCellImmediate(index) {
+    const canvas = canvasRef.current;
+    const client = clientRef.current;
+    if (!canvas || !client) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const x = index % template.width;
+    const y = Math.floor(index / template.width);
+    const cell = client.getCell(x, y);
+    if (!cell?.loaded || cell.filled === -1) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const current = cameraRef.current;
+    const cellPixels = CELL_SIZE * current.zoom;
+    ctx.setTransform(dpr * current.zoom, 0, 0, dpr * current.zoom, dpr * current.x, dpr * current.y);
+    ctx.fillStyle = template.palette[cell.filled] || '#24465a';
+    ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+    if (cellPixels >= 4) {
+      ctx.strokeStyle = '#0b131a';
+      ctx.lineWidth = 1 / Math.max(current.zoom, 0.1);
+      ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
     }
-    if (changes.length) {
+  }
+
+  function addStrokeCell(pointer, cell) {
+    if (!pointer || !cell) return;
+    pointer.rasterized += extendStroke(pointer, cell.index, {
+      width: template.width,
+      height: template.height,
+      tileSize: 32,
+      mode: interactionMode,
+      getTile: (tileX, tileY) => clientRef.current?.cache.peek(`${tileX}:${tileY}`),
+      onOutcome: (outcome) => {
+        if (outcome.status === PAINT_STATUS.PAINTED) {
+          paintCellImmediate(outcome.index);
+          if (strokeMetricsRef.current) strokeMetricsRef.current.livePaints += 1;
+        } else if (outcome.status === PAINT_STATUS.UNLOADED) preloadTileSilently(outcome.tileX, outcome.tileY);
+      },
+    });
+    pointer.unique = pointer.indexSet.size;
+  }
+
+  /**
+   * Deferred minimap: painted-cell refreshes are secondary to finger-to-paint
+   * latency. Rebuild at most once shortly after a stroke instead of inline in
+   * the finalization path.
+   */
+  function scheduleMinimapRebuild() {
+    if (minimapTimerRef.current != null) return;
+    minimapTimerRef.current = window.setTimeout(() => {
+      minimapTimerRef.current = null;
       rebuildMinimapBase();
       drawMinimap();
+    }, 120);
+  }
+
+  /**
+   * Shared finalization: batch guide refresh once per changed tile (never one
+   * full 32×32 scan per painted cell), defer the minimap, emit exactly one
+   * application-level stroke and one canonical redraw.
+   */
+  function commitChanges(changes, { announce = false, wrongDetected = false, wrongCell = null, unloaded = [] } = {}) {
+    const client = clientRef.current;
+    const changedTiles = new Set();
+    for (const change of changes) changedTiles.add(change.tileKey);
+    for (const tileKey of changedTiles) {
+      const tile = client?.cache.peek(tileKey);
+      if (tile) guideIndexRef.current?.refreshTile(tile);
     }
-    if (wrong && !changes.length) {
-      const firstIndex = indices[0];
-      const wrongCell = firstIndex != null
-        ? client?.getCell(firstIndex % template.width, Math.floor(firstIndex / template.width))
-        : null;
-      const targetColor = wrongCell?.target;
-      const message = Number.isInteger(targetColor) && targetColor >= 0
-        ? `Эта клетка относится к цвету ${targetColor + 1}`
-        : 'Неправильный цвет';
-      setWrongNotice(message);
-      if (wrongNoticeTimerRef.current) clearTimeout(wrongNoticeTimerRef.current);
-      wrongNoticeTimerRef.current = setTimeout(() => setWrongNotice(null), 2200);
+    scheduleMinimapRebuild();
+    if (changes.length) {
+      onFirstPaint?.();
+      const commitMetrics = diagnosticsRef.current;
+      if (commitMetrics) {
+        commitMetrics.commits += 1;
+        commitMetrics.lastCommitAt = performance.now();
+      }
+      const normalized = changes.map(({ index, to }) => ({ index, from: -1, to }));
+      onStrokeCommitted?.(normalized, {
+        type: 'stroke',
+        timestamp: Date.now(),
+        changes: normalized,
+        color: normalized[0].to,
+      });
       try {
-        window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('error');
+        window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
       } catch {
         // Haptics are optional.
       }
-      onWrongCell?.();
-      announcerRef.current?.announce(Number.isInteger(targetColor) && targetColor >= 0
-        ? `Неправильный цвет, этой клетке нужен цвет ${targetColor + 1}`
-        : 'Неправильный цвет');
-    } else if (!changes.length && unloaded.length) {
+      if (interactionMode !== 'reveal') {
+        const paintedInTarget = countPaintedCellsInTarget(
+          smartPlanRef.current,
+          normalized.map(({ index }) => ({ index })),
+          template.width,
+        );
+        if (paintedInTarget > 0 && smartStateRef.current === 'ready') {
+          targetRemainingRef.current = Math.max(0, (targetRemainingRef.current ?? 0) - paintedInTarget);
+          setGuide((current) => (current ? { ...current, targetRemaining: targetRemainingRef.current } : current));
+          if (targetRemainingRef.current === 0) {
+            setSuccessNotice('Участок готов');
+            if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
+            successNoticeTimerRef.current = setTimeout(() => setSuccessNotice(null), 1600);
+            try {
+              window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+            } catch {
+              // Haptics are optional.
+            }
+            announcerRef.current?.announce('Участок готов');
+            scheduleAutoAdvance();
+          }
+        }
+      }
+      redraw((value) => value + 1);
+      if (announce) announcerRef.current?.announce(`Закрашено ${changes.length} клеток`);
+    } else if (wrongDetected && wrongCell) {
+      showWrongFeedback(wrongCell);
+    } else if (unloaded.length) {
       const firstIndex = unloaded[0];
       ensureCellLoaded({
         index: firstIndex,
@@ -832,71 +1249,102 @@ export default function ProgressiveColoringSession({
         tileY: Math.floor(Math.floor(firstIndex / template.width) / 32),
       });
     }
-    if (changes.length) {
-      onFirstPaint?.();
-      const commitMetrics = diagnosticsRef.current;
-      if (commitMetrics) {
-        commitMetrics.commits += 1;
-        commitMetrics.lastCommitAt = performance.now();
-      }
-      onStrokeCommitted?.(changes.map(({ index, from, to }) => ({ index, from, to })), {
-        type: 'stroke',
-        timestamp: Date.now(),
-        changes,
-        color: changes[0].to,
+  }
+
+  /**
+   * Pointerup / pointercancel: finalize the optimistically painted stroke.
+   * Cells were already mutated and drawn live; here we settle guide summaries,
+   * minimap, the save queue and one canonical redraw — no network in the path.
+   */
+  function finalizePointerStroke(event) {
+    const pointer = pointerRef.current;
+    if (!pointer || pointer.pointerId !== event.pointerId) return;
+    pointerRef.current = null;
+    const endAt = performance.now();
+    const metrics = strokeMetricsRef.current;
+    if (metrics) {
+      metrics.strokes.push({
+        startedAt: pointer.startedAt,
+        endedAt: endAt,
+        durationMs: endAt - pointer.startedAt,
+        events: pointer.events,
+        rasterized: pointer.rasterized,
+        unique: pointer.unique,
+        painted: pointer.changes.length,
+        wrong: pointer.wrongDetected,
+        unloaded: pointer.unloadedCells.length,
+        maxEventMs: pointer.maxEventMs,
+        first: pointer.changes[0]?.index ?? null,
+        last: pointer.changes[pointer.changes.length - 1]?.index ?? null,
+        color: pointer.color,
+        finalizeMs: 0,
       });
-      try {
-        window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
-      } catch {
-        // Haptics are optional.
-      }
-      if (interactionMode !== 'reveal') {
-        const remaining = guideIndexRef.current?.snapshot(selectedColor)?.remaining ?? null;
-        if (remaining === 0) {
-          const nextZone = pickNextZoneWithCells(minimapZones, activeZone ?? 0, guideRef.current?.remainingByZone || {});
-          const nextColor = pickColorWithMostRemaining(clientRef.current?.cache.values() || [], template.palette.length);
-          setSuccessNotice(
-            nextZone
-              ? `Цвет ${selectedColor + 1} готов · дальше зона ${nextZone.id + 1}`
-              : nextColor != null && nextColor !== selectedColor
-                ? `Цвет ${selectedColor + 1} готов · дальше цвет ${nextColor + 1}`
-                : `Цвет ${selectedColor + 1} готов`,
-          );
-          if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
-          successNoticeTimerRef.current = setTimeout(() => setSuccessNotice(null), 3400);
-          try {
-            window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
-          } catch {
-            // Haptics are optional.
-          }
-          announcerRef.current?.announce(`Цвет ${selectedColor + 1} в видимой области завершён`);
-          // Keep the player moving: jump to the next zone with this colour,
-          // or auto-select the next colour with remaining loaded cells.
-          if (nextZone) {
-            window.setTimeout(() => {
-              if (guideRef.current?.color === selectedColor) jumpToZone(nextZone);
-            }, 900);
-          } else {
-            if (nextColor != null && nextColor !== selectedColor) {
-              window.setTimeout(() => {
-                if (guideRef.current?.color === selectedColor) {
-                  handleColorSelect(nextColor);
-                  announcerRef.current?.announce(`Цвет ${selectedColor + 1} завершён, выбран цвет ${nextColor + 1}`);
-                }
-              }, 900);
-            }
-          }
-        }
-      }
-      redraw((value) => value + 1);
-      if (announce) announcerRef.current?.announce(`Закрашено ${changes.length} клеток`);
+      const record = metrics.strokes[metrics.strokes.length - 1];
+      const finalizeStart = performance.now();
+      commitChanges(pointer.changes, {
+        wrongDetected: pointer.wrongDetected,
+        wrongCell: pointer.wrongCell,
+        unloaded: pointer.unloadedCells,
+      });
+      record.finalizeMs = performance.now() - finalizeStart;
+    } else {
+      commitChanges(pointer.changes, {
+        wrongDetected: pointer.wrongDetected,
+        wrongCell: pointer.wrongCell,
+        unloaded: pointer.unloadedCells,
+      });
     }
   }
 
+  /**
+   * Synchronous single-shot commit (keyboard paint, tap-after-tile-load):
+   * validates and paints each index, then runs the same finalization.
+   */
+  function commitIndices(indices, { announce = false } = {}) {
+    const client = clientRef.current;
+    if (!client || !indices.length) return;
+    const pointer = {
+      color: interactionMode === 'reveal' ? 0 : selectedColorRef.current,
+      changes: [],
+      dirtyTiles: new Set(),
+      unloadedCells: [],
+      wrongDetected: false,
+      wrongCell: null,
+    };
+    for (const index of indices) {
+      const outcome = paintStrokeIndex(pointer, index, {
+        width: template.width,
+        tileSize: 32,
+        mode: interactionMode,
+        getTile: (tileX, tileY) => client.cache.peek(`${tileX}:${tileY}`),
+      });
+      if (outcome.status === PAINT_STATUS.UNLOADED && !pointer.firstUnloaded) pointer.firstUnloaded = index;
+    }
+    commitChanges(pointer.changes, {
+      announce,
+      wrongDetected: pointer.wrongDetected,
+      wrongCell: pointer.wrongCell,
+      unloaded: pointer.firstUnloaded != null ? [pointer.firstUnloaded] : pointer.unloadedCells,
+    });
+  }
+
   function updateTouchGesture() {
+    // A second finger means pinch-zoom: commit any in-flight optimistically
+    // painted stroke first so painted cells are never lost from the durable
+    // save when the interaction switches to camera control.
+    const activePointer = pointerRef.current;
+    if (activePointer) {
+      pointerRef.current = null;
+      commitChanges(activePointer.changes, {
+        wrongDetected: activePointer.wrongDetected,
+        wrongCell: activePointer.wrongCell,
+        unloaded: activePointer.unloadedCells,
+      });
+    }
     const points = [...touchPointersRef.current.values()];
     if (points.length < 2) return;
     markInteraction();
+    markFreeExploration();
     const midpoint = {
       x: (points[0].x + points[1].x) / 2,
       y: (points[0].y + points[1].y) / 2,
@@ -905,7 +1353,6 @@ export default function ProgressiveColoringSession({
     const previous = gestureRef.current;
     if (!previous.active) {
       gestureRef.current = { active: true, midpoint, distance };
-      pointerRef.current = null;
       return;
     }
     const current = cameraRef.current;
@@ -955,7 +1402,39 @@ export default function ProgressiveColoringSession({
       return;
     }
     event.currentTarget.setPointerCapture(event.pointerId);
-    pointerRef.current = { pointerId: event.pointerId, lastIndex: cell.index, indices: [cell.index] };
+    // Validate the first cell at touch time: a wrong-color touch gets one
+    // immediate bounded notice instead of a deferred pointerup one, and an
+    // already-painted cell does not start a stroke.
+    if (interactionMode !== 'reveal' && current.target !== selectedColorRef.current) {
+      showWrongFeedback(current);
+      if (event.pointerType === 'touch') touchPointersRef.current.delete(event.pointerId);
+      return;
+    }
+    if (current.filled !== -1) return;
+    const strokeColor = interactionMode === 'reveal' ? current.target : selectedColorRef.current;
+    const now = performance.now();
+    const pointer = {
+      pointerId: event.pointerId,
+      color: strokeColor,
+      lastIndex: cell.index,
+      indexSet: new Set([cell.index]),
+      changes: [{ index: cell.index, tileKey: cell.tileKey, to: strokeColor }],
+      dirtyTiles: new Set([cell.tileKey]),
+      unloadedCells: [],
+      wrongDetected: false,
+      wrongCell: null,
+      startedAt: now,
+      events: 0,
+      rasterized: 0,
+      unique: 1,
+      maxEventMs: 0,
+    };
+    pointerRef.current = pointer;
+    // Live optimistic paint of the first cell: mutate the authoritative local
+    // tile and draw it on the next frame — no React, no network, no waiting.
+    const tile = clientRef.current?.cache.peek(cell.tileKey);
+    if (tile) tile.filled[cell.localIndex] = strokeColor;
+    paintCellImmediate(cell.index);
   }
 
   function handlePointerMove(event) {
@@ -970,16 +1449,40 @@ export default function ProgressiveColoringSession({
     }
     if (panRef.current?.pointerId === event.pointerId) {
       markInteraction();
+      markFreeExploration();
       const pan = panRef.current;
       const current = cameraRef.current;
       updateCamera({ ...current, x: current.x + event.clientX - pan.x, y: current.y + event.clientY - pan.y });
       panRef.current = { ...pan, x: event.clientX, y: event.clientY };
       return;
     }
-    if (pointerRef.current?.pointerId !== event.pointerId) return;
+    const pointer = pointerRef.current;
+    if (pointer?.pointerId !== event.pointerId) return;
     event.preventDefault();
     markInteraction();
-    addStrokeCell(mapCell(event));
+    pointer.events += 1;
+    if (strokeMetricsRef.current) strokeMetricsRef.current.pointerEvents += 1;
+    const eventStart = performance.now();
+    // Coalesced pointer samples (Android/Chrome fast swipes): process the raw
+    // samples so a fast stroke is rasterized contiguously. Bounded to 16 to
+    // avoid pathological batches.
+    const coalesced = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : null;
+    const sampleCount = coalesced?.length ? Math.min(coalesced.length, 16) : 1;
+    const rect = viewportRef.current?.getBoundingClientRect();
+    for (let i = 0; i < sampleCount; i += 1) {
+      const sample = coalesced ? coalesced[i] : event;
+      if (!rect || !clientRef.current) break;
+      const cell = clientRef.current.mapPointer({
+        clientX: sample.clientX,
+        clientY: sample.clientY,
+        rect,
+        camera,
+        cellSize: CELL_SIZE,
+      });
+      addStrokeCell(pointer, cell);
+    }
+    const eventTime = performance.now() - eventStart;
+    if (eventTime > pointer.maxEventMs) pointer.maxEventMs = eventTime;
   }
 
   function handlePointerUp(event) {
@@ -995,12 +1498,11 @@ export default function ProgressiveColoringSession({
       return;
     }
     if (pointerRef.current?.pointerId !== event.pointerId) return;
-    const pointer = pointerRef.current;
-    pointerRef.current = null;
-    commitIndices(pointer.indices);
+    finalizePointerStroke(event);
   }
 
   function zoomAt(factor) {
+    markFreeExploration();
     const nextZoom = clamp(camera.zoom * factor, MIN_ZOOM, 4);
     updateCamera({
       x: size.width / 2 - (size.width / 2 - camera.x) * (nextZoom / camera.zoom),
@@ -1010,6 +1512,7 @@ export default function ProgressiveColoringSession({
   }
 
   function jumpToZone(zone) {
+    markFreeExploration();
     const fitZoom = clamp(
       Math.min(
         (size.width * 0.78) / (zone.width * CELL_SIZE),
@@ -1019,56 +1522,31 @@ export default function ProgressiveColoringSession({
       4,
     );
     const zoom = clamp(Math.max(fitZoom, WORK_ZOOM), MIN_ZOOM, 2);
-    const firstCell = guideRef.current?.firstCellByZone?.[zone.id];
-    const focusX = firstCell ? firstCell.x + 0.5 : zone.x + zone.width / 2;
-    const focusY = firstCell ? firstCell.y + 0.5 : zone.y + zone.height / 2;
+    const focusX = zone.x + zone.width / 2;
+    const focusY = zone.y + zone.height / 2;
     updateCamera({
       x: size.width / 2 - focusX * CELL_SIZE * zoom,
       y: size.height / 2 - focusY * CELL_SIZE * zoom,
       zoom,
     });
-    announcerRef.current?.announce(
-      firstCell
-        ? `Открыта зона ${zone.id + 1}, здесь есть клетки цвета ${selectedColor + 1}`
-        : `Открыта зона ${zone.id + 1}`,
-    );
+    announcerRef.current?.announce(`Открыта зона ${zone.id + 1}`);
   }
 
   function handleColorSelect(colorIndex) {
     onSelectColor(colorIndex);
-    if (colorIndex === selectedColor || interactionMode === 'reveal') return;
-    const stats = guideIndexRef.current?.snapshot(colorIndex)
-      || { remaining: 0, remainingByZone: {}, firstCellByZone: {} };
-    // Jump only when the current view cannot show the freshly selected color:
-    // either the user is at overview or the active zone has no cells of it.
-    const currentZoneHasColor = (stats.remainingByZone[activeZone ?? -1] || 0) > 0;
-    const isOverview = camera.zoom <= MIN_ZOOM * 1.5;
-    if ((isOverview || !currentZoneHasColor) && stats.remaining > 0) {
-      const zone = pickNextZoneWithCells(minimapZones, activeZone ?? 0, stats.remainingByZone);
-      if (zone) {
-        jumpToZone(zone);
-        return;
-      }
-    }
+    selectedColorRef.current = colorIndex;
+    if (interactionMode === 'reveal') return;
+    cancelAutoAdvance();
     announcerRef.current?.announce(`Выбран цвет ${colorIndex + 1}`);
+    void fetchAndApplyGuidance({
+      reason: GUIDANCE_REASON.MANUAL_COLOR,
+      color: colorIndex,
+      recent: recentTargetsRef.current,
+    });
   }
 
   function advanceGuide() {
-    const stats = guideRef.current;
-    if (!stats || !minimapZones.length) return;
-    if (stats.remaining === 0) {
-      const nextColor = pickColorWithMostRemaining(clientRef.current?.cache.values() || [], template.palette.length);
-      if (nextColor != null && nextColor !== selectedColor) {
-        handleColorSelect(nextColor);
-        announcerRef.current?.announce(`Цвет ${selectedColor + 1} завершён, выбран цвет ${nextColor + 1}`);
-      } else {
-        announcerRef.current?.announce('В загруженных фрагментах больше нет клеток');
-      }
-      return;
-    }
-    const next = pickNextZoneWithCells(minimapZones, activeZone ?? 0, stats.remainingByZone);
-    if (next) jumpToZone(next);
-    else jumpToZone(minimapZones[(activeZone + 1) % minimapZones.length]);
+    handleSmartGuideAction();
   }
 
   function setKeyboardCursor(index) {
@@ -1093,6 +1571,7 @@ export default function ProgressiveColoringSession({
   }
 
   function focusOverview() {
+    markFreeExploration();
     const manifest = clientRef.current?.getSnapshot().manifest;
     if (!manifest || !size.width || !size.height) return;
     const zoom = clamp(
@@ -1138,6 +1617,7 @@ export default function ProgressiveColoringSession({
       if (event.shiftKey) {
         const delta = 96;
         const current = cameraRef.current;
+        markFreeExploration();
         updateCamera({
           ...current,
           x: current.x + (key === 'ArrowLeft' ? -delta : key === 'ArrowRight' ? delta : 0),
@@ -1203,7 +1683,22 @@ export default function ProgressiveColoringSession({
   };
 
   return (
-    <div className="progressive-coloring-session" data-grid-width={template.width} data-grid-height={template.height}>
+    <div
+      className="progressive-coloring-session"
+      data-grid-width={template.width}
+      data-grid-height={template.height}
+      data-smart-state={smartState}
+      data-smart-color={smartPlanRef.current?.selectedColor == null ? '' : smartPlanRef.current.selectedColor}
+      data-smart-target-tile={smartPlanRef.current?.target == null
+        ? ''
+        : `${smartPlanRef.current.target.tile_x}:${smartPlanRef.current.target.tile_y}`}
+      data-smart-target-x={smartPlanRef.current?.target?.anchor_x == null ? '' : smartPlanRef.current.target.anchor_x}
+      data-smart-target-y={smartPlanRef.current?.target?.anchor_y == null ? '' : smartPlanRef.current.target.anchor_y}
+      data-smart-target-min-x={smartPlanRef.current?.target?.bounds?.min_x == null ? '' : smartPlanRef.current.target.bounds.min_x}
+      data-smart-target-min-y={smartPlanRef.current?.target?.bounds?.min_y == null ? '' : smartPlanRef.current.target.bounds.min_y}
+      data-smart-target-max-x={smartPlanRef.current?.target?.bounds?.max_x == null ? '' : smartPlanRef.current.target.bounds.max_x}
+      data-smart-target-max-y={smartPlanRef.current?.target?.bounds?.max_y == null ? '' : smartPlanRef.current.target.bounds.max_y}
+    >
       <div
         className="player-canvas-area progressive-grid-area"
         ref={viewportRef}
@@ -1214,7 +1709,9 @@ export default function ProgressiveColoringSession({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={(event) => {
-          pointerRef.current = null;
+          // Finalize whatever was optimistically painted: a system gesture
+          // interruption must not discard visually committed cells.
+          finalizePointerStroke(event);
           panRef.current = null;
           if (event.pointerType === 'touch') touchPointersRef.current.delete(event.pointerId);
           if (touchPointersRef.current.size === 0) gestureRef.current = { active: false, midpoint: null, distance: 0 };
@@ -1246,6 +1743,14 @@ export default function ProgressiveColoringSession({
           <span>Обзор карты · фрагменты поля загружаются для раскрашивания</span>
         </div>}
         {inputNotice && <div className="progressive-grid-input-notice" role="status" aria-live="polite">{inputNotice}</div>}
+        {smartState === 'loadingTarget' && <div className="progressive-grid-status" role="status"><LoaderCircle className="spin" size={18} /> Загружаем участок…</div>}
+        {smartState === 'errorRetryable' && errorNotice && (
+          <div className="progressive-grid-status progressive-grid-error" data-smart-error="true" role="alert">
+            <span>{errorNotice}</span>
+            <button type="button" onClick={retrySmartGuidance}><RotateCw size={15} /> Повторить</button>
+            <button type="button" onClick={() => { setErrorNotice(null); setInputNotice(null); markFreeExploration(); }}>Свободный просмотр</button>
+          </div>
+        )}
         {DIAGNOSTICS_ENABLED && diagnostics && (
           <div
             className="progressive-grid-diagnostics"
@@ -1284,6 +1789,7 @@ export default function ProgressiveColoringSession({
             className="progressive-grid-guide"
             data-guide-color={guide.color == null ? '' : guide.color}
             data-guide-remaining={guide.remaining}
+            data-guide-target-remaining={guide.targetRemaining == null ? '' : guide.targetRemaining}
           >
             <span
               className="progressive-grid-guide-dot"
@@ -1292,9 +1798,11 @@ export default function ProgressiveColoringSession({
             />
             <span>{interactionMode === 'reveal'
               ? `Видно клеток: ${guide.remaining}`
-              : `Цвет ${guide.color + 1} · видно ${guide.remaining}`}</span>
+              : guide.targetRemaining == null
+                ? `Цвет ${guide.color + 1} · осталось ${guide.remaining}`
+                : `Цвет ${guide.color + 1} · осталось ${guide.remaining} · участок ${guide.targetRemaining}`}</span>
             <button type="button" onClick={advanceGuide} aria-label="К следующему участку">
-              {guide.remaining === 0 ? 'Сменить цвет' : 'Дальше'}
+              Дальше
             </button>
           </div>
         )}
@@ -1314,6 +1822,18 @@ export default function ProgressiveColoringSession({
           >
             <Hand size={16} />
           </button>
+          {smartState === 'freeExploration' && smartPlanRef.current?.target && (
+            <button
+              type="button"
+              className="progressive-grid-return"
+              onClick={returnToTarget}
+              aria-label="Вернуться к цели"
+              title="Вернуться к цели"
+              data-return-target
+            >
+              <Crosshair size={16} />
+            </button>
+          )}
           <button type="button" onClick={() => zoomAt(1.2)} aria-label="Увеличить"><ZoomIn size={16} /></button>
           <button type="button" onClick={() => zoomAt(0.83)} aria-label="Уменьшить"><ZoomOut size={16} /></button>
         </div>

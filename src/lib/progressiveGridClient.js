@@ -586,7 +586,12 @@ export function createProgressiveGridClient({
     pending.promise.then(
       (tile) => {
         if (destroyed) return;
-        tileCache.set(tile.key, tile);
+        // Never clobber a resident tile: a racing loadViewport (camera
+        // animation re-plans) or a stale prefetch may resolve AFTER local
+        // optimistic paints and would erase them from the cache. The first
+        // successful fetch wins; the server's authoritative state arrives
+        // via the progress revision, not by re-fetching a live tile.
+        if (!tileCache.has(tile.key)) tileCache.set(tile.key, tile);
         tileErrors.delete(tile.key);
         if (status === PROGRESSIVE_GRID_STATUS.LOADING_TILES) setStatus(PROGRESSIVE_GRID_STATUS.READY);
         else notify();

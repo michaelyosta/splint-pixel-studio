@@ -21,7 +21,17 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+/**
+ * Descriptor memo: locateCell/mapPointerToCell re-derive the grid descriptor
+ * on every call (per painted cell in a stroke). The descriptor is pure
+ * (read-only, derived from the source object), so caching by source identity
+ * is safe and removes a per-call allocation from the input hot path.
+ */
+const gridDescriptorCache = new WeakMap();
+
 export function createGridDescriptor(source = {}) {
+  const cached = gridDescriptorCache.get(source);
+  if (cached) return cached;
   const grid = source.grid || source;
   const width = asPositiveInteger(grid.width ?? source.template?.width, 'Grid width');
   const height = asPositiveInteger(grid.height ?? source.template?.height, 'Grid height');
@@ -36,7 +46,7 @@ export function createGridDescriptor(source = {}) {
   if (!Number.isSafeInteger(totalCells) || !Number.isSafeInteger(count)) {
     throw new RangeError('Grid is too large for safe row-major coordinates');
   }
-  return {
+  const result = {
     width,
     height,
     tileSize,
@@ -50,6 +60,8 @@ export function createGridDescriptor(source = {}) {
     count,
     totalCells,
   };
+  gridDescriptorCache.set(source, result);
+  return result;
 }
 
 export function tileKey(tileX, tileY) {
