@@ -124,6 +124,12 @@ class TestConversion(unittest.TestCase):
         self.assertEqual(first["cells"], second["cells"])
         self.assertEqual(first["palette"], second["palette"])
 
+    def test_deterministic_large_conversion(self):
+        first = convert_template(TEST_IMAGE, 512, 24)
+        second = convert_template(TEST_IMAGE, 512, 24)
+        self.assertEqual(first["cells"], second["cells"])
+        self.assertEqual(first["palette"], second["palette"])
+
     def test_grid_size_validation(self):
         with self.assertRaises(ValueError):
             convert_template(TEST_IMAGE, 13, 10)  # not in supported grid list
@@ -135,6 +141,39 @@ class TestConversion(unittest.TestCase):
         self.assertLess(max_index, 10)
         for cell in template["cells"]:
             self.assertGreaterEqual(cell, 0)
+
+    def test_palette_merge_separates_colors(self):
+        # After cleanup+merge, palette colors must be distinguishable.
+        from content_lib import palette_separation
+
+        template = convert_template(TEST_IMAGE, 128, 16)
+        separation = palette_separation(template["palette"])
+        self.assertGreaterEqual(separation["min_lab_distance"], 12.0)
+        # merge may reduce palette, but never below 2 colors
+        self.assertGreaterEqual(len(template["palette"]), 2)
+
+    def test_transparent_source_composited_on_white(self):
+        # Kenney/OGA sprites have alpha; converting naively would bake
+        # transparency into black and drown the subject. Verify a light
+        # background survives conversion.
+        from PIL import Image
+        import numpy as np
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            sprite = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+            # draw a small opaque square in the middle
+            for y in range(24, 40):
+                for x in range(24, 40):
+                    sprite.putpixel((x, y), (200, 50, 50, 255))
+            path = Path(tmp) / "sprite.png"
+            sprite.save(path)
+            template = convert_template(path, 32, 8)
+            cells = template["cells"]
+            # background cells (corners) must NOT be the darkest palette color
+            # if the palette has lighter colors available
+            corner = cells[0]
+            self.assertNotEqual(template["palette"][corner], template["palette"][0])
 
     def test_cells_match_grid_dimensions(self):
         for size in (12, 32, 64, 128):

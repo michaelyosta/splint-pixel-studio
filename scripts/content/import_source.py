@@ -163,6 +163,10 @@ def run_convert(
         else:
             candidates = [g for g in grids if g in tier_sizes]
 
+        done = sum(1 for g in candidates if derived_by_key.get((record["source_asset_id"], g, palettes.get(g, 16))) and
+                   derived_by_key[(record["source_asset_id"], g, palettes.get(g, 16))].get("state") in ("CONVERTED", "APPROVED", "REJECTED", "QUALITY_REVIEW"))
+        print(f"[convert] {record['source_asset_id']} ({done}/{len(candidates)} done, tier={tier})", flush=True)
+
         for grid in candidates:
             palette_size = palettes.get(grid, 16)
             key = (record["source_asset_id"], grid, palette_size)

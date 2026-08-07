@@ -297,7 +297,16 @@ def convert_template(
     if grid_size not in [12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 600, 800, 1024, 1200]:
         raise ValueError(f"unsupported grid size {grid_size}")
 
-    source = Image.open(source_path).convert("RGB")
+    source = Image.open(source_path)
+    # Sprites with transparency (Kenney/OGA PNGs) must be composited onto a
+    # light background — plain .convert("RGB") would bake alpha=0 into black
+    # and drown the subject. White matches coloring-book convention.
+    if source.mode in ("RGBA", "LA", "P"):
+        source = source.convert("RGBA")
+        background = Image.new("RGBA", source.size, (255, 255, 255, 255))
+        background.alpha_composite(source)
+        source = background
+    source = source.convert("RGB")
     if crop:
         source = apply_crop(source, crop)
 
@@ -358,12 +367,11 @@ def _merge_close_palette_colors(cells, palette, min_lab_distance: float = 12.0):
         dist, i, j = min_pair()
         if dist >= min_lab_distance:
             break
-        # Merge j into i: recolor cells, drop j.
-        for index, color in enumerate(result):
-            if color == j:
-                result[index] = i
-            elif color > j:
-                result[index] = color - 1
+        # Merge j into i: remap colors once, drop j from palette.
+        remap = []
+        for color in result:
+            remap.append(i if color == j else (color - 1 if color > j else color))
+        result = remap
         del palette[j]
         del palette_lab[j]
 
@@ -406,44 +414,94 @@ def _cleanup_regions(cells, width, height, palette):
 
     Two passes of connected-component analysis; regions smaller than
     total/500 that are not high-contrast (LAB distance < 28) get merged
-    into their most favorable boundary neighbor.
+    into their most favorable boundary neighbor. Vectorized via scipy.
     """
+    import numpy as np
+    from scipy import ndimage
+
     total = width * height
     min_region_size = max(1, total // 500)
     palette_lab = [_rgb_to_lab(rgb) for rgb in palette]
-    result = list(cells)
+    grid = np.asarray(cells, dtype=np.int32).reshape(height, width)
+    structure = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.uint8)
+    color_count = int(grid.max()) + 1
 
     for _pass in range(2):
-        visited = [False] * total
-        replacements = []
-        for start in range(total):
-            if visited[start]:
+        next_label = 1
+        per_color_labels = {}
+        for color in range(color_count):
+            mask = grid == color
+            if not mask.any():
                 continue
-            color = result[start]
-            component = []
-            boundary = {}
-            stack = [start]
-            visited[start] = True
-            while stack:
-                index = stack.pop()
-                component.append(index)
-                x, y = index % width, index // width
-                for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
-                    if nx < 0 or nx >= width or ny < 0 or ny >= height:
-                        continue
-                    neighbour = ny * width + nx
-                    neighbour_color = result[neighbour]
-                    if neighbour_color == color:
-                        if not visited[neighbour]:
-                            visited[neighbour] = True
-                            stack.append(neighbour)
-                    else:
-                        boundary[neighbour_color] = boundary.get(neighbour_color, 0) + 1
-            if len(component) > min_region_size or not boundary:
+            labels, count = ndimage.label(mask, structure=structure)
+            labels[labels > 0] += next_label - 1
+            next_label += count
+            per_color_labels[color] = labels
+
+        # Global label -> (color, size)
+        label_color = np.zeros(next_label, dtype=np.int32)
+        label_size = np.zeros(next_label, dtype=np.int64)
+        for color, labels in per_color_labels.items():
+            sizes = np.bincount(labels.ravel())
+            nonzero = np.nonzero(sizes)[0]
+            label_color[nonzero] = color
+            label_size[nonzero] = sizes[nonzero]
+
+        small_labels = np.nonzero((label_size > 0) & (label_size <= min_region_size))[0]
+        if small_labels.size == 0:
+            break
+
+        # Build a grid of unique label ids.
+        label_grid = np.zeros_like(grid)
+        for color, labels in per_color_labels.items():
+            label_grid[labels > 0] = labels[labels > 0]
+
+        # Boundary edges: count shared edges between label pairs via shifts.
+        edges = {}
+        shifts = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        for dy, dx in shifts:
+            shifted = np.roll(label_grid, (dy, dx), axis=(0, 1))
+            if dy < 0:
+                shifted[-1, :] = 0
+            elif dy > 0:
+                shifted[0, :] = 0
+            if dx < 0:
+                shifted[:, -1] = 0
+            elif dx > 0:
+                shifted[:, 0] = 0
+            both = (label_grid > 0) & (shifted > 0) & (label_grid != shifted)
+            if not both.any():
+                continue
+            src = label_grid[both]
+            dst = shifted[both]
+            # Pack unordered pairs into int64 and aggregate with 1D unique
+            # (axis=0 unique on millions of pairs is pathologically slow).
+            lo = np.minimum(src, dst)
+            hi = np.maximum(src, dst)
+            packed = lo.astype(np.int64) * (next_label + 1) + hi.astype(np.int64)
+            uniq, counts = np.unique(packed, return_counts=True)
+            for pair, count in zip(uniq.tolist(), counts.tolist()):
+                a = pair // (next_label + 1)
+                b = pair % (next_label + 1)
+                key = (a, b)
+                edges[key] = edges.get(key, 0) + count
+
+        # Invert to adjacency list: label -> {neighbor_color: shared_edges}.
+        adjacency = {}
+        for (a, b), count in edges.items():
+            adjacency.setdefault(a, {})
+            adjacency.setdefault(b, {})
+            adjacency[a][int(label_color[b])] = adjacency[a].get(int(label_color[b]), 0) + count
+            adjacency[b][int(label_color[a])] = adjacency[b].get(int(label_color[a]), 0) + count
+
+        replacements = {}
+        for label in small_labels:
+            color = int(label_color[label])
+            boundary = adjacency.get(int(label), {})
+            if not boundary:
                 continue
             nearest_distance = min(
-                (_lab_distance(palette_lab[color], palette_lab[candidate]) for candidate in boundary),
-                default=float("inf"),
+                _lab_distance(palette_lab[color], palette_lab[candidate]) for candidate in boundary
             )
             if nearest_distance >= 28:
                 continue  # high-contrast tiny regions are intentional features
@@ -453,14 +511,18 @@ def _cleanup_regions(cells, width, height, palette):
                 if score > best:
                     best, replacement = score, candidate
             if replacement != color:
-                replacements.append((component, replacement))
+                replacements[label] = replacement
+
         if not replacements:
             break
-        for component, replacement in replacements:
-            for index in component:
-                result[index] = replacement
+        # Apply all merges in one vectorized pass: map label -> replacement.
+        # Default must be the label's own color (identity), not zero!
+        repl_arr = label_color.copy()
+        for label, replacement in replacements.items():
+            repl_arr[label] = replacement
+        grid = repl_arr[label_grid]
 
-    return result, palette
+    return grid.ravel().tolist(), palette
 
 
 # ---------------------------------------------------------------------------
