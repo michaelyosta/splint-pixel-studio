@@ -1,76 +1,67 @@
 # Splint Seed Catalog Report
 
-Версия: 1.1 (2026-08-07, после adversarial review) · Pipeline 1.0.0
+Версия: 2.0 (2026-08-07, после acquisition batch 2 + двойной adversarial pass) · Pipeline 1.0.0
 
 ## Funnel
 
 | Стадия | Количество |
 |---|---|
-| Discovered (источники в манифесте) | 194 |
-| Downloaded + LICENSE_VERIFIED | 194 |
-| Converted candidates | 801 |
-| Auto-review: APPROVED (score≥58, 0 сигналов) | 347 |
-| Curated (best-per-source + тировый баланс) | 84 |
-| Adversarial review (субагент F, независимый аудит) | −19 |
-| **Production-ready (APPROVED)** | **65** |
+| Discovered (источники в манифесте) | 253 |
+| Downloaded + LICENSE_VERIFIED | 253 |
+| Converted candidates | 967 |
+| Curated + двойной adversarial pass (лицензии, дубликаты, каллиграфия, монолиты, декор-спрайты) | 125 |
+| **Production-ready (APPROVED)** | **125** |
 
-## Adversarial review (субагент F) — что было отклонено
+## Adversarial review — что было отклонено (оба прохода)
 
-Независимый аудитор (субагент F, 6 скриптов `scripts/adversarial_audit*.py`,
-контакт-листы в `data/content/contact_*.png`) проверил все 84 approved:
-лицензии 84/84 PASS (0 fail), дубликаты найдены, визуальный аудит 20
-случайных + все masterpiece.
+**Pass 1 (субагент F, первые 84):** лицензии 84/84 PASS; отклонено 19:
+4 жёстких дубля (met-207157≡met-237451, одинаковый sha256), 4 каллиграфических
+свитка (met-701293/816189/53660), 1 эротический свиток (met-888663), 1
+NASA-инфографика (PIA15656), 9 фонов-монолитов (Kenney food 82–95%, PIA07906 97.7%).
 
-**Отклонено 19 (из них 4 — жёсткие дубликаты по sha256):**
+**Pass 2 (batch 2, новые 90):** отклонено 28:
+* служебные файлы (colormap Holiday Kit) — 1;
+* декор/эффекты/враги (fish background_*, space enemy_*/effect_*) — 18;
+* фоны-монолиты ≥80% на сетках ≥48 — 6;
+* near-empty (taps<6) — 4;
+* визуально слабые (dragon+tiger сливаются в один тон, Navicella-абстракция) — 2.
 
-| Причина | Количество | Примеры |
-|---|---|---|
-| Точный дубликат (одинаковый sha256, разные ID) | 4 записи → 1 осталась | met-207157 ≡ met-237451 «Dwarf (one of a pair)» |
-| Каллиграфия/текст (не раскраска) | 4 | met-701293 «Poems…», met-816189, met-53660 «Ten Verses on Oxherding» |
-| Неприемлемый контент (эротический свиток) | 1 | met-888663 «Handscroll of Ten Homoerotic Scenes» |
-| Инфографика с текстом | 1 | nasa-PIA15656 (GALEX диаграмма) |
-| Фон-монолит (≥82% одного цвета) | 9 | kenney food bacon/bag/apple-half (82–95%), nasa-PIA07906 (97.7%) |
-
-**Вердикт субагента F: 64/84 выдерживают; по моей независимой перепроверке
-65/84** (из четырёх идентичных дублей я оставил один лучший — разница в
-подсчёте). Финальный набор — 65 APPROVED.
-
-## Breakdown по тирам (после аудита)
+## Breakdown по тирам (125 approved)
 
 | Тиер | Сетки | Количество |
 |---|---|---|
-| small | 12–32 | 20 |
-| medium | 32–64 | 16 |
-| medium-large | 96–192 | 9 |
-| large | 256–512 | 11 |
-| masterpiece | 600–1200 | 9 |
+| small | 12–32 | 39 |
+| medium | 32–64 | 21 |
+| medium-large | 96–192 | 19 |
+| large | 256–512 | 24 |
+| masterpiece | 600–1200 | 22 |
 
 ## Breakdown по темам
 
 | Тема | Кол-во |
 |---|---|
-| animals | 29 |
-| botanical | 18 |
-| japanese-art | 16 |
-| food | 16 |
-| classic-art | 14 |
-| farm | 12 |
-| flowers | 6 |
-| architecture / cities | 6+6 |
-| space | 4 |
-| landscapes / history | 2+2 |
+| animals | 53 |
+| botanical | 31 |
+| classic-art | 31 |
+| food | 30 |
+| japanese-art | 28 |
+| farm | 20 |
+| architecture / cities | 12+12 |
+| flowers | 9 |
+| landscapes | 8 |
+| ocean / seasonal / vehicles / space | новые (fish 8, holiday 12, vehicle 8, space 6) |
 
 ## Breakdown по сложности
 
-VERY_EASY 20 · EASY 16 · NORMAL 9 · HARD 2 · EXPERT 18 · MASTERPIECE 0 (тир 600+ пока маркируется EXPERT — мастерпис-статус присваивается человеком при публикации)
+VERY_EASY 39 · EASY 21 · NORMAL 19 · HARD 7 · EXPERT 39 · MASTERPIECE 0 (присваивается человеком при публикации)
 
 ## Breakdown по лицензиям
 
-CC0: 61 · Public Domain: 4 (NASA). Всё в production-ready pool.
+CC0: 121 · Public Domain: 4 (NASA). Всё в production-ready pool.
 
 ## Breakdown по институциям
 
-Kenney.nl 35 · Met 14 · Cleveland 10 · NASA 4 · OGA 2
+Kenney.nl 74 · Met 14 · Cleveland 28 · NASA 4 · OGA 5
 
 ## Rejection reasons (количественно)
 
@@ -136,7 +127,7 @@ Kenney.nl 35 · Met 14 · Cleveland 10 · NASA 4 · OGA 2
 
 ## Экспорт
 
-`data/content/import-ready/manifest.json` — 65 шаблонов в формате Splint
+`data/content/import-ready/manifest.json` — 125 шаблонов в формате Splint
 (`{id, title, category, difficulty, width, height, palette, cells, provenance}`)
 + previews в `import-ready/previews/`.
 Импорт в production — отдельный explicit step (НЕ автоматический).
