@@ -23,6 +23,16 @@ function cloneEnv(overrides = {}) {
   return { ...env, ...overrides };
 }
 
+async function stopServer(server) {
+  if (server.exitCode !== null) return;
+  const exited = new Promise((resolve) => server.once('exit', resolve));
+  server.kill();
+  await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+}
+
 // ── Demo seed tests ─────────────────────────────────────────────────
 
 test('Normal startup does not create demo users', async (t) => {
@@ -116,7 +126,7 @@ test('SEED_DEMO_DATA is idempotent (repeat seed does not duplicate)', async (t) 
   });
   const firstBody = await first.json();
 
-  server.kill();
+  await stopServer(server);
   await new Promise((r) => setTimeout(r, 500));
 
   server = startServer();
@@ -135,7 +145,7 @@ test('SEED_DEMO_DATA is idempotent (repeat seed does not duplicate)', async (t) 
 
   assert.equal(firstBody.stars_balance, secondBody.stars_balance, 'Stars should not increase on repeat seed');
 
-  server.kill();
+  await stopServer(server);
   await rm(dir, { recursive: true, force: true });
 });
 

@@ -178,6 +178,7 @@ export async function buildNextBestAction(db, userId, { excludeTemplateId = null
   const secondary = [];
   const push = (action) => {
     if (!action || secondary.some((item) => item.id === action.id || (action.template_id && item.template_id === action.template_id))) return;
+    if (excluded(action)) return;
     if (primary.template_id && action.template_id === primary.template_id) return;
     secondary.push(action);
   };

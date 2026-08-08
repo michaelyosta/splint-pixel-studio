@@ -170,11 +170,21 @@ async function startServer(directory, port) {
   return server;
 }
 
+async function stopServer(server) {
+  if (server.exitCode !== null) return;
+  const exited = new Promise((resolve) => server.once('exit', resolve));
+  server.kill();
+  await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+}
+
 async function withServer(t, port, fn) {
   const directory = await mkdtemp(join(tmpdir(), 'splint-unlocks-'));
   const server = await startServer(directory, port);
   t.after(async () => {
-    server.kill();
+    await stopServer(server);
     await rm(directory, { recursive: true, force: true });
   });
   return fn(port);
