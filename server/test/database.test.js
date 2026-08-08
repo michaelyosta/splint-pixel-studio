@@ -224,7 +224,7 @@ test('Reset preserves tg_ users', async (t) => {
     headers: { 'X-User-Id': 'tg_12345' },
   });
 
-  server.kill();
+  await stopServer(server);
   await new Promise((r) => setTimeout(r, 500));
 
   const resetProc = spawn('node', ['reset-demo.js'], {
@@ -273,7 +273,7 @@ test('Reset preserves tg_ users', async (t) => {
   });
   assert.notEqual(demoBodyRes.status, 200, 'Demo user profile should be gone after reset');
 
-  server.kill();
+  await stopServer(server);
   await rm(dir, { recursive: true, force: true });
 });
 
