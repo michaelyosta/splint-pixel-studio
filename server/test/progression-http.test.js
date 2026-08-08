@@ -17,6 +17,16 @@ const migrationsDir = join(serverDir, 'migrations', 'sqlite');
 const basePort = 31923;
 const NOW = '2026-08-07T10:00:00.000Z';
 
+async function stopServer(server) {
+  if (server.exitCode !== null) return;
+  const exited = new Promise((resolve) => server.once('exit', resolve));
+  server.kill();
+  await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+}
+
 const ACHIEVEMENTS = [
   ['ach_first_pixel', 'Первый мазок'],
   ['ach_first_zone', 'Зона закрыта'],
@@ -185,7 +195,7 @@ test('legacy and tiled completions grant the same applicable achievements', asyn
   });
 
   t.after(async () => {
-    server.kill();
+    await stopServer(server);
     await rm(directory, { recursive: true, force: true });
   });
   await waitForServer(server);
@@ -232,7 +242,7 @@ test('/colorings/mine includes tiled progress with a bounded 1200x1200 payload',
   });
 
   t.after(async () => {
-    server.kill();
+    await stopServer(server);
     await rm(directory, { recursive: true, force: true });
   });
   await waitForServer(server);
@@ -277,7 +287,7 @@ test('undo, repaint, replay, and parallel requests cannot farm progression', asy
   });
 
   t.after(async () => {
-    server.kill();
+    await stopServer(server);
     await rm(directory, { recursive: true, force: true });
   });
   await waitForServer(server);

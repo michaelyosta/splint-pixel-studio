@@ -59,7 +59,7 @@ test('Normal startup does not create demo users', async (t) => {
   });
   assert.equal(res.status, 200, 'Dev auth creates user on demand');
 
-  server.kill();
+  await stopServer(server);
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -97,7 +97,7 @@ test('SEED_DEMO_DATA creates demo dataset', async (t) => {
   const catBody = await catalog.json();
   assert.ok(catBody.length >= 6, 'Should have catalog templates');
 
-  server.kill();
+  await stopServer(server);
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -171,7 +171,7 @@ test('Production blocks SEED_DEMO_DATA', async (t) => {
     'Should mention SEED_DEMO_DATA restriction',
   );
 
-  server.kill();
+  await stopServer(server);
   await rm(dir, { recursive: true, force: true });
 });
 
