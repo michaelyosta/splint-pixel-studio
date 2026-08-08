@@ -42,3 +42,7 @@ blob-report/
 data/content-staging/
 data/content/*.png
 data/content/previews/
+
+# Python
+__pycache__/
+*.pyc
