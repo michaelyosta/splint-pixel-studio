@@ -1,0 +1,353 @@
+{
+  "capturedAt": "2026-08-06T21:25:34.392Z",
+  "screens": [
+    {
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "idle": {
+        "innerWidth": 360,
+        "innerHeight": 800,
+        "documentWidth": 360,
+        "documentHeight": 800,
+        "noHorizontalOverflow": true,
+        "cardWithinViewport": true,
+        "cardClearOfCanvas": true,
+        "topbar": {
+          "left": 0,
+          "top": 0,
+          "right": 360,
+          "bottom": 55,
+          "width": 360,
+          "height": 55,
+          "clientWidth": 360,
+          "scrollWidth": 360
+        },
+        "hint": {
+          "left": 0,
+          "top": 55,
+          "right": 360,
+          "bottom": 92,
+          "width": 360,
+          "height": 37,
+          "clientWidth": 360,
+          "scrollWidth": 360
+        },
+        "goalCard": {
+          "left": 8,
+          "top": 94,
+          "right": 352,
+          "bottom": 189,
+          "width": 344,
+          "height": 95,
+          "clientWidth": 342,
+          "scrollWidth": 342
+        },
+        "canvasArea": {
+          "left": 0,
+          "top": 196,
+          "right": 360,
+          "bottom": 800,
+          "width": 360,
+          "height": 604,
+          "clientWidth": 360,
+          "scrollWidth": 360
+        },
+        "overlaps": {
+          "cardTopbar": false,
+          "cardCanvas": false
+        },
+        "textScroll": [],
+        "textScrollCount": 0
+      },
+      "running": {
+        "innerWidth": 360,
+        "innerHeight": 800,
+        "documentWidth": 360,
+        "documentHeight": 800,
+        "noHorizontalOverflow": true,
+        "cardWithinViewport": true,
+        "cardClearOfCanvas": true,
+        "topbar": {
+          "left": 0,
+          "top": 0,
+          "right": 360,
+          "bottom": 55,
+          "width": 360,
+          "height": 55,
+          "clientWidth": 360,
+          "scrollWidth": 360
+        },
+        "hint": {
+          "left": 0,
+          "top": 55,
+          "right": 360,
+          "bottom": 92,
+          "width": 360,
+          "height": 37,
+          "clientWidth": 360,
+          "scrollWidth": 360
+        },
+        "goalCard": {
+          "left": 8,
+          "top": 94,
+          "right": 352,
+          "bottom": 169,
+          "width": 344,
+          "height": 75,
+          "clientWidth": 342,
+          "scrollWidth": 342
+        },
+        "canvasArea": {
+          "left": 0,
+          "top": 176,
+          "right": 360,
+          "bottom": 800,
+          "width": 360,
+          "height": 624,
+          "clientWidth": 360,
+          "scrollWidth": 360
+        },
+        "overlaps": {
+          "cardTopbar": false,
+          "cardCanvas": false
+        },
+        "textScroll": [],
+        "textScrollCount": 0
+      }
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "idle": {
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "documentWidth": 390,
+        "documentHeight": 844,
+        "noHorizontalOverflow": true,
+        "cardWithinViewport": true,
+        "cardClearOfCanvas": true,
+        "topbar": {
+          "left": 0,
+          "top": 0,
+          "right": 390,
+          "bottom": 55,
+          "width": 390,
+          "height": 55,
+          "clientWidth": 390,
+          "scrollWidth": 390
+        },
+        "hint": {
+          "left": 0,
+          "top": 55,
+          "right": 390,
+          "bottom": 92,
+          "width": 390,
+          "height": 37,
+          "clientWidth": 390,
+          "scrollWidth": 390
+        },
+        "goalCard": {
+          "left": 10,
+          "top": 94,
+          "right": 380,
+          "bottom": 189,
+          "width": 370,
+          "height": 95,
+          "clientWidth": 368,
+          "scrollWidth": 368
+        },
+        "canvasArea": {
+          "left": 0,
+          "top": 196,
+          "right": 390,
+          "bottom": 844,
+          "width": 390,
+          "height": 648,
+          "clientWidth": 390,
+          "scrollWidth": 390
+        },
+        "overlaps": {
+          "cardTopbar": false,
+          "cardCanvas": false
+        },
+        "textScroll": [],
+        "textScrollCount": 0
+      },
+      "running": {
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "documentWidth": 390,
+        "documentHeight": 844,
+        "noHorizontalOverflow": true,
+        "cardWithinViewport": true,
+        "cardClearOfCanvas": true,
+        "topbar": {
+          "left": 0,
+          "top": 0,
+          "right": 390,
+          "bottom": 55,
+          "width": 390,
+          "height": 55,
+          "clientWidth": 390,
+          "scrollWidth": 390
+        },
+        "hint": {
+          "left": 0,
+          "top": 55,
+          "right": 390,
+          "bottom": 92,
+          "width": 390,
+          "height": 37,
+          "clientWidth": 390,
+          "scrollWidth": 390
+        },
+        "goalCard": {
+          "left": 10,
+          "top": 94,
+          "right": 380,
+          "bottom": 169,
+          "width": 370,
+          "height": 75,
+          "clientWidth": 368,
+          "scrollWidth": 368
+        },
+        "canvasArea": {
+          "left": 0,
+          "top": 176,
+          "right": 390,
+          "bottom": 844,
+          "width": 390,
+          "height": 668,
+          "clientWidth": 390,
+          "scrollWidth": 390
+        },
+        "overlaps": {
+          "cardTopbar": false,
+          "cardCanvas": false
+        },
+        "textScroll": [],
+        "textScrollCount": 0
+      }
+    },
+    {
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "idle": {
+        "innerWidth": 430,
+        "innerHeight": 932,
+        "documentWidth": 430,
+        "documentHeight": 932,
+        "noHorizontalOverflow": true,
+        "cardWithinViewport": true,
+        "cardClearOfCanvas": true,
+        "topbar": {
+          "left": 0,
+          "top": 0,
+          "right": 430,
+          "bottom": 55,
+          "width": 430,
+          "height": 55,
+          "clientWidth": 430,
+          "scrollWidth": 430
+        },
+        "hint": {
+          "left": 0,
+          "top": 55,
+          "right": 430,
+          "bottom": 92,
+          "width": 430,
+          "height": 37,
+          "clientWidth": 430,
+          "scrollWidth": 430
+        },
+        "goalCard": {
+          "left": 10,
+          "top": 94,
+          "right": 420,
+          "bottom": 189,
+          "width": 410,
+          "height": 95,
+          "clientWidth": 408,
+          "scrollWidth": 408
+        },
+        "canvasArea": {
+          "left": 0,
+          "top": 196,
+          "right": 430,
+          "bottom": 932,
+          "width": 430,
+          "height": 736,
+          "clientWidth": 430,
+          "scrollWidth": 430
+        },
+        "overlaps": {
+          "cardTopbar": false,
+          "cardCanvas": false
+        },
+        "textScroll": [],
+        "textScrollCount": 0
+      },
+      "running": {
+        "innerWidth": 430,
+        "innerHeight": 932,
+        "documentWidth": 430,
+        "documentHeight": 932,
+        "noHorizontalOverflow": true,
+        "cardWithinViewport": true,
+        "cardClearOfCanvas": true,
+        "topbar": {
+          "left": 0,
+          "top": 0,
+          "right": 430,
+          "bottom": 55,
+          "width": 430,
+          "height": 55,
+          "clientWidth": 430,
+          "scrollWidth": 430
+        },
+        "hint": {
+          "left": 0,
+          "top": 55,
+          "right": 430,
+          "bottom": 92,
+          "width": 430,
+          "height": 37,
+          "clientWidth": 430,
+          "scrollWidth": 430
+        },
+        "goalCard": {
+          "left": 10,
+          "top": 94,
+          "right": 420,
+          "bottom": 169,
+          "width": 410,
+          "height": 75,
+          "clientWidth": 408,
+          "scrollWidth": 408
+        },
+        "canvasArea": {
+          "left": 0,
+          "top": 176,
+          "right": 430,
+          "bottom": 932,
+          "width": 430,
+          "height": 756,
+          "clientWidth": 430,
+          "scrollWidth": 430
+        },
+        "overlaps": {
+          "cardTopbar": false,
+          "cardCanvas": false
+        },
+        "textScroll": [],
+        "textScrollCount": 0
+      }
+    }
+  ]
+}

@@ -1,9 +1,11 @@
 // server/routes/meta.js — meta-game: streaks, achievements, collections, analytics
 import { Router } from 'express';
 import { v4 as uuid } from 'uuid';
-import { all, get, run } from '../db.js';
+import { all, get, run, withDbTransaction } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
+import { getDailyChallengeStatus, getUserProgression, getWeeklyChallengeStatus } from '../services/progression.js';
+import { assertCollectionAccessible } from '../services/unlock-service.js';
 
 const router = Router();
 const ANALYTICS_EVENTS = new Set([
@@ -12,6 +14,12 @@ const ANALYTICS_EVENTS = new Set([
   'coloring_stroke_commit', 'coloring_color_complete',
   'publish', 'share_native',
   'download_result', 'create_coloring', 'like', 'comment',
+  'app_open', 'primary_action_seen', 'primary_action_started',
+  'first_success', 'goal_completed', 'goal_abandoned',
+  'artwork_completed', 'reward_shown', 'reward_claimed_or_viewed',
+  'unlock_preview_seen', 'unlock_completed',
+  'choice_window_seen', 'choice_selected', 'recommendation_opened',
+  'session_natural_exit', 'session_interrupt_exit', 'next_session_started',
 ]);
 
 function todayKey(date = new Date()) {
@@ -38,6 +46,28 @@ router.post('/streak/touch', authMiddleware, (_req, res) => {
   res.status(403).json({ error: 'Серия обновляется только серверной игровой логикой', code: 'STREAK_TOUCH_FORBIDDEN' });
 });
 
+// GET /meta/progression — persistent server-derived XP and level. The client
+// cannot mutate these values; they are granted from validated game actions.
+router.get('/progression', authMiddleware, asyncRoute(async (req, res) => {
+  const progression = await withDbTransaction((tx) => getUserProgression(tx, req.userId));
+  res.json(progression);
+}));
+
+// GET /meta/daily-challenge — creates/fetches today's frozen assignment and
+// returns only progress computed from persisted coloring state.
+router.get('/daily-challenge', authMiddleware, asyncRoute(async (req, res) => {
+  const challenge = await withDbTransaction((tx) => getDailyChallengeStatus(tx, req.userId));
+  if (!challenge) return res.status(404).json({ error: 'Нет доступных раскрасок для ежедневного задания', code: 'DAILY_CHALLENGE_UNAVAILABLE' });
+  res.json(challenge);
+}));
+
+// GET /meta/weekly-challenge — one UTC-week goal shared across verified painting actions.
+router.get('/weekly-challenge', authMiddleware, asyncRoute(async (req, res) => {
+  const challenge = await withDbTransaction((tx) => getWeeklyChallengeStatus(tx, req.userId));
+  if (!challenge) return res.status(404).json({ error: 'Недельное задание пока недоступно', code: 'WEEKLY_CHALLENGE_UNAVAILABLE' });
+  res.json(challenge);
+}));
+
 // GET /meta/achievements — all definitions with unlocked state for the user
 router.get('/achievements', authMiddleware, asyncRoute(async (req, res) => {
   const defs = await all('SELECT * FROM achievements ORDER BY category, title');
@@ -53,7 +83,11 @@ router.post('/achievements/:id/unlock', authMiddleware, (_req, res) => {
 
 // GET /meta/collections — collection catalog with completion per user
 router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
-  const cols = await all('SELECT * FROM collections ORDER BY title');
+  const cols = await all(`SELECT * FROM collections
+    WHERE owner_id IS NULL
+      OR owner_id=?
+      OR (status='published' AND visibility='public')
+    ORDER BY title`, [req.userId]);
   const rows = await Promise.all(cols.map(async (col) => {
     const completed = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.collection_id=? AND a.is_completed=1", [req.userId, col.id]);
     const total = await all('SELECT COUNT(*) as c FROM coloring_templates WHERE collection_id=?', [col.id]);
@@ -64,7 +98,25 @@ router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
 
 // GET /meta/collections/:id/templates — templates belonging to a collection
 router.get('/collections/:id/templates', authMiddleware, asyncRoute(async (req, res) => {
-  const rows = await all("SELECT * FROM coloring_templates WHERE collection_id=? AND status='active' ORDER BY title", [req.params.id]);
+  const collection = await get('SELECT id, owner_id, status, visibility, pack_type, price_in_stars FROM collections WHERE id=?', [req.params.id]);
+  const isOwner = collection?.owner_id === req.userId;
+  const isPublic = collection && (collection.owner_id === null || (collection.status === 'published' && collection.visibility === 'public'));
+  if (!collection || (!isOwner && !isPublic)) {
+    return res.status(404).json({ error: 'Коллекция не найдена' });
+  }
+  const collectionAccess = await withDbTransaction((tx) => assertCollectionAccessible(tx, req.userId, collection, { grant: true }));
+  if (collectionAccess.locked) {
+    return res.status(403).json({
+      error: collectionAccess.state === 'premium_locked'
+        ? 'Контент доступен после покупки премиум-коллекции'
+        : 'Контент ещё не открыт',
+      code: collectionAccess.reason_code,
+      unlock: collectionAccess,
+    });
+  }
+  const rows = await all(`SELECT * FROM coloring_templates WHERE collection_id=? AND status='active'
+    ${isOwner ? '' : "AND visibility='public'"}
+    ORDER BY title`, [req.params.id]);
   res.json(rows.map(publicTemplateSummary));
 }));
 

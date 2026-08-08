@@ -17,8 +17,8 @@ async function buildProfile(user, viewerId) {
   return { ...user, followers_count: followersCount, following_count: followingCount, posts_count: postsCount, is_following: isFollowing };
 }
 
-const PUBLIC_USER_FIELDS = 'id,nickname,avatar_url,status,karma';
-const OWN_USER_FIELDS = `${PUBLIC_USER_FIELDS},stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,created_at,updated_at`;
+const PUBLIC_USER_FIELDS = 'id,nickname,avatar_url,status,karma,level';
+const OWN_USER_FIELDS = `${PUBLIC_USER_FIELDS},xp_total,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,created_at,updated_at`;
 
 // GET /users/me
 router.get('/me', authMiddleware, asyncRoute(async (req, res) => {
@@ -106,7 +106,10 @@ if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_AUTH === 'tru
 
 // GET /collections  — catalog data
 router.get('/collections/all', authMiddleware, asyncRoute(async (req, res) => {
-  const cols = await all('SELECT * FROM collections');
+  const cols = await all(`SELECT * FROM collections
+    WHERE owner_id IS NULL
+      OR owner_id=?
+      OR (status='published' AND visibility='public')`, [req.userId]);
   res.json(cols);
 }));
 
@@ -118,6 +121,11 @@ router.post('/collections/:id/add', authMiddleware, asyncRoute(async (req, res) 
 
   if (!colId || typeof colId !== 'string') {
     return res.status(400).json({ error: 'collection id обязателен' });
+  }
+
+  const collection = await get('SELECT owner_id,status,visibility FROM collections WHERE id=?', [colId]);
+  if (!collection || collection.owner_id !== null || collection.status !== 'published' || collection.visibility !== 'public') {
+    return res.status(404).json({ error: 'Набор недоступен', code: 'COLLECTION_UNAVAILABLE' });
   }
 
   if (getPaymentsMode() === 'disabled') {

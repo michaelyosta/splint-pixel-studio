@@ -85,6 +85,8 @@ export default async function globalSetup() {
   }
 
   return async () => {
-    await Promise.allSettled(startedProcesses.reverse().map(stopServer));
+    // Stop Vite before the API so no in-flight browser requests are proxied
+    // into a server that has already been torn down during runner cleanup.
+    await Promise.allSettled(startedProcesses.map(stopServer));
   };
 }

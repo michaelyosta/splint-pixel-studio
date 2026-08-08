@@ -176,8 +176,13 @@ export async function readMediaObject(mediaKey) {
     const response = await s3Client().send(new GetObjectCommand({ Bucket: s3Location.bucket, Key: s3Location.key }));
     return Buffer.from(await response.Body.transformToByteArray());
   }
-  if (!mediaKey?.startsWith('local://')) return null;
-  return readFile(safeLocalPath(mediaKey.slice('local://'.length)));
+  const localKey = mediaKey?.startsWith('local://')
+    ? mediaKey.slice('local://'.length)
+    : typeof mediaKey === 'string' && !mediaKey.includes('://')
+      ? mediaKey
+      : null;
+  if (!localKey) return null;
+  return readFile(safeLocalPath(localKey));
 }
 
 export async function deleteMediaObject(mediaKey) {
@@ -189,8 +194,9 @@ export async function deleteMediaObject(mediaKey) {
     await client.send(new DeleteObjectCommand({ Bucket: s3Location.bucket, Key: s3Location.key }));
     return;
   }
-  if (mediaKey.startsWith('local://')) {
-    await unlink(safeLocalPath(mediaKey.slice('local://'.length))).catch((error) => {
+  if (mediaKey.startsWith('local://') || !mediaKey.includes('://')) {
+    const localKey = mediaKey.startsWith('local://') ? mediaKey.slice('local://'.length) : mediaKey;
+    await unlink(safeLocalPath(localKey)).catch((error) => {
       if (error.code !== 'ENOENT') throw error;
     });
   }

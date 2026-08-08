@@ -1,5 +1,17 @@
 # Public-alpha release-candidate final verification
 
+## Validation pass addendum — 2026-08-03
+
+- Initial and final HEAD: `7246358dd4fc958f8780ff24a7f8c1b617979e79`; new commits: none.
+- Working tree protection remained intact: `src/lib/imageCrop.js` and `src/lib/pixelColoring.js` were not changed by this pass; local DB/uploads were preserved.
+- HTTPS smoke used an ephemeral Cloudflare Quick Tunnel to the frontend ingress. Frontend, `/api/live`, and `/api/ready` returned successfully. The temporary hostname is intentionally omitted from repository documentation.
+- The browser session was not Telegram: `window.Telegram?.WebApp` was absent, `initData` was not present, and the UI identified itself as `LOCAL`. Therefore no real Telegram authentication or device lifecycle claim is made.
+- Local browser smoke passed catalog load, 32×32 canvas paint, and reload restoration under development auth. This is synthetic/local evidence only.
+- Root tests: 201 passed. Server aggregate: 223 total, 167 passed, 56 skipped, 0 failed after removing a stale orphan test server on fixed port 32001. Server syntax: 44 files passed. Lint: 89 warnings, 0 errors, within the 100-warning budget. Build and clean installs passed.
+- PostgreSQL/MinIO disposable gates were blocked because Docker Desktop was unavailable. Without those services, `test:postgres` reported 40 passed and 54 environment skips; S3 integration reported 0 passed and 2 skips.
+- E2E: 109 passed, 4 skipped, 1 failed in the full 114-test run. The only failure was Mobile iPhone stabilization case 13b; its isolated rerun passed 1/1 in 8.8s, so no source fix was justified.
+- Current verdict: `telegram_rc_partially_verified`. Operational subtype: `operational_rc_verified_except_telegram`. Release blockers remain the real Telegram launch/initData, physical Android/iOS validation, mobile lifecycle/offline replay, and disposable PostgreSQL/MinIO evidence.
+
 Date of verification: 2026-08-02
 Base commit: `140f1226f62dbbd220de2b255268564e9df8910d`
 Pre-pass HEAD: `7e65ea401ae3e853a9d9baf338dc40f443ad61aa`

@@ -38,6 +38,17 @@ export function createWorkingWindows(cluster, template, viewWidth, viewHeight, s
   const windows = [];
   const stepX = Math.max(1, Math.floor(cellsVisibleX * 0.65));
   const stepY = Math.max(1, Math.floor(cellsVisibleY * 0.65));
+  // Index the cluster once by row. A window only needs to inspect rows that
+  // intersect its rectangle; scanning the whole cluster for every window
+  // makes large overview routes grow quadratically.
+  const rowBuckets = new Map();
+  for (const idx of cluster) {
+    const cy = Math.floor(idx / width);
+    const cx = idx - (cy * width);
+    const row = rowBuckets.get(cy);
+    if (row) row.push({ idx, x: cx });
+    else rowBuckets.set(cy, [{ idx, x: cx }]);
+  }
   for (let wy = bounds.minY; wy <= bounds.maxY; wy += stepY) {
     for (let wx = bounds.minX; wx <= bounds.maxX; wx += stepX) {
       const winMinX = wx;
@@ -45,11 +56,13 @@ export function createWorkingWindows(cluster, template, viewWidth, viewHeight, s
       const winMaxX = Math.min(bounds.maxX, wx + cellsVisibleX - 1);
       const winMaxY = Math.min(bounds.maxY, wy + cellsVisibleY - 1);
       const winCells = [];
-      for (const idx of cluster) {
-        const cx = idx % width;
-        const cy = Math.floor(idx / width);
-        if (cx >= winMinX && cx <= winMaxX && cy >= winMinY && cy <= winMaxY) {
-          winCells.push(idx);
+      for (let cy = winMinY; cy <= winMaxY; cy++) {
+        const row = rowBuckets.get(cy);
+        if (!row) continue;
+        for (const entry of row) {
+          if (entry.x >= winMinX && entry.x <= winMaxX) {
+            winCells.push(entry.idx);
+          }
         }
       }
       if (winCells.length > 0) {

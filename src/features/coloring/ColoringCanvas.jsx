@@ -1,27 +1,19 @@
-import { useRef, useCallback, useLayoutEffect, useState, useEffect } from 'react';
+import { useId, useRef, useCallback, useLayoutEffect, useState, useEffect, useMemo } from 'react';
 import { rasterizeStroke } from './engine/strokeRasterizer.js';
 import { centroid, distance, computePinchPan, isTapGesture } from './engine/gestureMath.js';
+import { DEFAULT_TILE_SIZE, UNFILLED_CELL, selectVisibleTiles, toTypedCellBuffer } from '../../lib/tileGrid.js';
+import { createBoundedAnnouncer, moveKeyboardCursor } from '../../lib/accessibility.js';
 
 const BASE_CELL = 32;
 const MAX_VIEWPORT_RENDER_SCALE = 2;
-
-function visibleCellBounds(template, camera, viewWidth, viewHeight) {
-  const zoom = Math.max(0.001, camera.zoom || 1);
-  return {
-    startX: Math.max(0, Math.floor((-camera.x / zoom) / BASE_CELL) - 1),
-    endX: Math.min(template.width - 1, Math.ceil(((viewWidth - camera.x) / zoom) / BASE_CELL) + 1),
-    startY: Math.max(0, Math.floor((-camera.y / zoom) / BASE_CELL) - 1),
-    endY: Math.min(template.height - 1, Math.ceil(((viewHeight - camera.y) / zoom) / BASE_CELL) + 1),
-  };
-}
 
 function applyCameraTransform(ctx, camera, renderScale) {
   const zoom = camera.zoom || 1;
   ctx.setTransform(renderScale * zoom, 0, 0, renderScale * zoom, renderScale * camera.x, renderScale * camera.y);
 }
 
-function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColorIndex) {
-  const { width, cells, palette } = template;
+function drawGrid(ctx, template, targetCells, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColorIndex, keyboardCursor) {
+  const { width, palette } = template;
   const bitmapW = Math.ceil(viewWidth * renderScale);
   const bitmapH = Math.ceil(viewHeight * renderScale);
   if (ctx.canvas.width !== bitmapW || ctx.canvas.height !== bitmapH) {
@@ -42,21 +34,39 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
   const flashSet = new Set(flash?.cells || []);
   const flashAlpha = flash?.alpha || 0;
   const activeSet = new Set(activeWorkCells || []);
-  const { startX, endX, startY, endY } = visibleCellBounds(template, camera, viewWidth, viewHeight);
-  for (let gridY = startY; gridY <= endY; gridY++) {
-    for (let gridX = startX; gridX <= endX; gridX++) {
+  const visibleTiles = selectVisibleTiles({
+    width: template.width,
+    height: template.height,
+    tileSize: DEFAULT_TILE_SIZE,
+    cellSize: BASE_CELL,
+    camera,
+    viewportWidth: viewWidth,
+    viewportHeight: viewHeight,
+    overscanCells: 1,
+  });
+  for (const tile of visibleTiles.tiles) {
+    const { minX: startX, maxX: endX, minY: startY, maxY: endY } = tile.visibleBounds;
+    for (let gridY = startY; gridY <= endY; gridY++) {
+      for (let gridX = startX; gridX <= endX; gridX++) {
     const i = gridY * width + gridX;
     const x = gridX * BASE_CELL;
     const y = gridY * BASE_CELL;
     const paint = filled[i];
-    const target = cells[i];
-    const isSelected = paint === -1 && selectedColor === target;
-    const isHint = hintMode && paint === -1 && target === selectedColor;
+    const target = targetCells[i];
+    const isSelected = paint === UNFILLED_CELL && selectedColor === target;
+    const isHint = hintMode && paint === UNFILLED_CELL && target === selectedColor;
     const inFlash = flashSet.has(i);
     const isActiveTarget = activeSet.has(i);
-    if (paint === -1) {
+    if (paint === UNFILLED_CELL) {
       ctx.fillStyle = interactionMode === 'reveal' ? '#17232d' : isSelected ? '#24465a' : isHint ? '#2f6f5a' : '#172735';
       ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
+      if (isSelected) {
+        // Selected-color cells get a shape signal as well as a lighter fill,
+        // so selection never depends on color perception alone.
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x + 2.5, y + 2.5, BASE_CELL - 5, BASE_CELL - 5);
+      }
     } else {
       ctx.fillStyle = palette[paint];
       ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
@@ -67,7 +77,7 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
     }
     // Long-press peek: гасим всё, кроме незакрашенных клеток выбранного цвета.
     if (peekColorIndex != null) {
-      if (paint === -1 && target === peekColorIndex) {
+      if (paint === UNFILLED_CELL && target === peekColorIndex) {
         ctx.strokeStyle = '#7fe7ff';
         ctx.lineWidth = 2;
         ctx.strokeRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
@@ -81,12 +91,12 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
       ctx.lineWidth = 1;
       ctx.strokeRect(x, y, BASE_CELL, BASE_CELL);
     }
-    if (isActiveTarget && paint === -1) {
+    if (isActiveTarget && paint === UNFILLED_CELL) {
       ctx.strokeStyle = activeTargetColor === target ? '#7fe7ff' : '#ffffff';
       ctx.lineWidth = 3;
       ctx.strokeRect(x + 2, y + 2, BASE_CELL - 4, BASE_CELL - 4);
     }
-    if (paint === -1 && showNumbers && interactionMode !== 'reveal') {
+    if (paint === UNFILLED_CELL && showNumbers && interactionMode !== 'reveal') {
       ctx.fillStyle = isSelected ? '#ffffff' : isHint ? '#bfffe0' : '#8d9fa5';
       ctx.fillText(String(target + 1), x + BASE_CELL / 2, y + BASE_CELL / 2 + 1);
     }
@@ -94,12 +104,27 @@ function drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumb
       ctx.strokeStyle = '#ff4d4d';
       ctx.lineWidth = 3;
       ctx.strokeRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
+      ctx.beginPath();
+      ctx.moveTo(x + 8, y + 8);
+      ctx.lineTo(x + BASE_CELL - 8, y + BASE_CELL - 8);
+      ctx.moveTo(x + BASE_CELL - 8, y + 8);
+      ctx.lineTo(x + 8, y + BASE_CELL - 8);
+      ctx.stroke();
     }
+    if (keyboardCursor === i) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 1.5, y + 1.5, BASE_CELL - 3, BASE_CELL - 3);
+      ctx.strokeStyle = '#7fe7ff';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 4.5, y + 4.5, BASE_CELL - 9, BASE_CELL - 9);
+    }
+      }
     }
   }
 }
 
-function drawStrokePreviewCells(ctx, template, indices, camera, renderScale) {
+function drawStrokePreviewCells(ctx, template, targetCells, indices, camera, renderScale) {
   if (!ctx || !indices.length) return;
   applyCameraTransform(ctx, camera, renderScale);
   ctx.save();
@@ -107,7 +132,7 @@ function drawStrokePreviewCells(ctx, template, indices, camera, renderScale) {
   for (const index of indices) {
     const x = (index % template.width) * BASE_CELL;
     const y = Math.floor(index / template.width) * BASE_CELL;
-    ctx.fillStyle = template.palette[template.cells[index]];
+    ctx.fillStyle = template.palette[targetCells[index]];
     ctx.fillRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
     ctx.strokeStyle = '#7fe7ff';
     ctx.lineWidth = 2;
@@ -141,6 +166,7 @@ export default function ColoringCanvas({
   onManualExplore,
   interactionDisabled = false,
   peekColor = null,
+  onResetView,
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -148,6 +174,15 @@ export default function ColoringCanvas({
   const lastCellRef = useRef(null);
   const [wrongCell, setWrongCell] = useState(null);
   const [flash, setFlash] = useState({ cells: [], alpha: 0 });
+  const [keyboardCell, setKeyboardCell] = useState(null);
+  const [liveText, setLiveText] = useState('');
+  const keyboardCellRef = useRef(null);
+  const instructionsId = useId();
+  const liveId = useId();
+  const announcerRef = useRef(null);
+  if (announcerRef.current === null) {
+    announcerRef.current = createBoundedAnnouncer({ onAnnounce: setLiveText });
+  }
   const drawingRef = useRef(false);
   const flashTimerRef = useRef(null);
   const flashFadeTimerRef = useRef(null);
@@ -156,22 +191,32 @@ export default function ColoringCanvas({
   const transformRef = useRef(null);
   const tapStartRef = useRef(null);
   const deviceScale = typeof window === 'undefined' ? 1 : (window.devicePixelRatio || 1);
-  const isLargeGrid = template.width * template.height >= 4096;
+  const cellCount = template.width * template.height;
+  const isLargeGrid = cellCount >= 4096;
   const renderScale = Math.min(MAX_VIEWPORT_RENDER_SCALE, Math.max(1, deviceScale));
+  const targetCells = useMemo(
+    () => toTypedCellBuffer(template.cells, { type: 'uint16', length: cellCount, fillValue: 0 }),
+    [template.cells, cellCount],
+  );
+  const filledCells = useMemo(
+    () => toTypedCellBuffer(filled, { type: 'int16', length: cellCount, fillValue: UNFILLED_CELL }),
+    [filled, cellCount],
+  );
 
   useEffect(() => {
     return () => {
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
       if (flashFadeTimerRef.current) clearTimeout(flashFadeTimerRef.current);
+      announcerRef.current?.destroy();
     };
   }, []);
 
   const redraw = useCallback(() => {
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx || !template) return;
-    drawGrid(ctx, template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode,
-      wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColor);
-  }, [template, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColor]);
+    drawGrid(ctx, template, targetCells, filledCells, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode,
+      wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColor, keyboardCell);
+  }, [template, targetCells, filledCells, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColor, keyboardCell]);
 
   useLayoutEffect(() => { redraw(); }, [redraw]);
 
@@ -254,8 +299,8 @@ export default function ColoringCanvas({
 
       const index = cellFromEvent(event);
       if (index == null) return;
-      if (filled[index] !== -1) return;
-      if (interactionMode !== 'reveal' && template.cells[index] !== selectedColor) {
+      if (filledCells[index] !== UNFILLED_CELL) return;
+      if (interactionMode !== 'reveal' && targetCells[index] !== selectedColor) {
         if (calmMode) return;
         setWrongCell(index);
         if (onWrongCell) onWrongCell();
@@ -274,7 +319,7 @@ export default function ColoringCanvas({
         lastCell: index,
       };
       lastCellRef.current = index;
-      drawStrokePreviewCells(canvasRef.current?.getContext('2d'), template, [index], camera, renderScale);
+      drawStrokePreviewCells(canvasRef.current?.getContext('2d'), template, targetCells, [index], camera, renderScale);
     } else if (activePointers.current.size === 2 && !transformRef.current) {
       cancelStroke();
       drawingRef.current = false;
@@ -325,13 +370,13 @@ export default function ColoringCanvas({
     const addedCells = [];
     for (const ci of cells) {
       if (stroke.indexSet.has(ci)) continue;
-      if (filled[ci] !== -1) continue;
-      if (interactionMode !== 'reveal' && template.cells[ci] !== stroke.color) continue;
+      if (filledCells[ci] !== UNFILLED_CELL) continue;
+      if (interactionMode !== 'reveal' && targetCells[ci] !== stroke.color) continue;
       stroke.indexSet.add(ci);
       stroke.indices.push(ci);
       addedCells.push(ci);
     }
-    drawStrokePreviewCells(canvasRef.current?.getContext('2d'), template, addedCells, camera, renderScale);
+    drawStrokePreviewCells(canvasRef.current?.getContext('2d'), template, targetCells, addedCells, camera, renderScale);
   }
 
   function handlePointerUp(event) {
@@ -398,6 +443,130 @@ export default function ColoringCanvas({
     });
   }
 
+  function paintKeyboardCell() {
+    const index = keyboardCellRef.current;
+    if (index == null || index < 0 || index >= cellCount) return;
+    if (onTapCell) {
+      onTapCell(index);
+      return;
+    }
+    if (filledCells[index] !== UNFILLED_CELL) return;
+    if (interactionMode !== 'reveal' && targetCells[index] !== selectedColor) {
+      setWrongCell(index);
+      onWrongCell?.();
+      announcerRef.current?.announce('Неправильный цвет для этой клетки');
+      window.setTimeout(() => setWrongCell(null), 260);
+      return;
+    }
+    if (!hasPaintedRef.current) {
+      hasPaintedRef.current = true;
+      onFirstPaint?.();
+    }
+    const now = Date.now();
+    onStrokeComplete({
+      strokeId: `keyboard_${now}_${Math.random().toString(36).slice(2, 6)}`,
+      color: interactionMode === 'reveal' ? -1 : selectedColor,
+      source: 'keyboard',
+      indices: [index],
+      startedAt: now,
+      completedAt: Date.now(),
+    });
+    announcerRef.current?.announce('Закрашена клетка');
+  }
+
+  function panBy(deltaX, deltaY) {
+    cancelAnimation();
+    pauseAuto();
+    onManualExplore?.();
+    setCamera({ x: camera.x + deltaX, y: camera.y + deltaY, zoom: camera.zoom });
+  }
+
+  function zoomBy(factor) {
+    if (interactionDisabled) return;
+    cancelAnimation();
+    pauseAuto();
+    onManualExplore?.();
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mx = rect.width / 2;
+    const my = rect.height / 2;
+    const nextZoom = Math.min(4, Math.max(0.25, camera.zoom * factor));
+    setCamera({
+      x: mx - (mx - camera.x) * (nextZoom / camera.zoom),
+      y: my - (my - camera.y) * (nextZoom / camera.zoom),
+      zoom: nextZoom,
+    });
+  }
+
+  function handleCanvasFocus() {
+    if (keyboardCellRef.current == null) {
+      const firstActive = activeWorkCells?.[0];
+      const center = Math.floor(template.height / 2) * template.width + Math.floor(template.width / 2);
+      const initial = firstActive != null ? firstActive : center;
+      keyboardCellRef.current = initial;
+      setKeyboardCell(initial);
+    }
+    announcerRef.current?.announce(
+      `Поле раскраски ${template.width} на ${template.height}. Стрелки перемещают курсор, Enter закрашивает, плюс и минус меняют масштаб, 0 показывает обзор.`,
+    );
+  }
+
+  function handleCanvasKeyDown(event) {
+    const key = event.key;
+    if (interactionDisabled) {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Enter', '+', '-', '='].includes(key)) {
+        event.preventDefault();
+      }
+      return;
+    }
+    if (key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        const delta = 96;
+        const x = key === 'ArrowLeft' ? -delta : key === 'ArrowRight' ? delta : 0;
+        const y = key === 'ArrowUp' ? -delta : key === 'ArrowDown' ? delta : 0;
+        panBy(x, y);
+        return;
+      }
+      const next = moveKeyboardCursor(keyboardCellRef.current ?? 0, key, {
+        width: template.width,
+        height: template.height,
+      });
+      keyboardCellRef.current = next;
+      setKeyboardCell(next);
+      return;
+    }
+    if (key === 'Home' || key === 'End' || key === 'PageUp' || key === 'PageDown') {
+      event.preventDefault();
+      const next = moveKeyboardCursor(keyboardCellRef.current ?? 0, key, {
+        width: template.width,
+        height: template.height,
+      });
+      keyboardCellRef.current = next;
+      setKeyboardCell(next);
+      return;
+    }
+    if (key === 'Enter' || key === ' ') {
+      event.preventDefault();
+      paintKeyboardCell();
+      return;
+    }
+    if (key === '+' || key === '=') {
+      event.preventDefault();
+      zoomBy(1.2);
+      return;
+    }
+    if (key === '-' || key === '_') {
+      event.preventDefault();
+      zoomBy(0.83);
+      return;
+    }
+    if (key === '0') {
+      event.preventDefault();
+      onResetView?.();
+    }
+  }
+
   return (
     <div
       className="coloring-canvas-viewport"
@@ -414,12 +583,20 @@ export default function ColoringCanvas({
           className="coloring-canvas"
           data-active-work-cells={activeWorkCells.join(',')}
           data-active-target-color={activeTargetColor ?? ''}
+          data-keyboard-cell={keyboardCell == null ? '' : keyboardCell}
           data-template-width={template?.width}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
-          aria-label={`Раскраска ${template?.title}`}
+          onFocus={handleCanvasFocus}
+          onKeyDown={handleCanvasKeyDown}
+          role="application"
+          aria-roledescription="поле раскраски"
+          aria-label={`Поле раскраски «${template?.title}», ${template?.width} на ${template?.height}`}
+          aria-describedby={instructionsId}
+          aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Enter Space + - 0"
+          tabIndex={interactionDisabled ? -1 : 0}
           style={{
             display: 'block',
             width: viewWidth,
@@ -428,6 +605,10 @@ export default function ColoringCanvas({
             touchAction: 'none',
           }}
       />
+      <span id={instructionsId} className="sr-only">
+        Стрелки перемещают курсор, Enter или пробел закрашивают клетку, плюс и минус меняют масштаб, 0 показывает обзор.
+      </span>
+      <span id={liveId} role="status" aria-live="polite" className="sr-only">{liveText}</span>
     </div>
   );
 }

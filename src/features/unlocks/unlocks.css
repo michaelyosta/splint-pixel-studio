@@ -1,0 +1,507 @@
+/* Unlockable progression and personalized recommendations */
+
+.unlock-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  max-width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 999px;
+  background: var(--app-card);
+  color: var(--app-text-secondary);
+  font-size: 10px;
+  font-weight: 750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.unlock-chip--available { border-color: rgba(43, 217, 254, 0.55); color: var(--app-cyan); background: rgba(43, 217, 254, 0.1); }
+.unlock-chip--owned { border-color: rgba(46, 229, 157, 0.5); color: var(--app-success); background: rgba(46, 229, 157, 0.1); }
+.unlock-chip--progression_locked { border-color: rgba(157, 107, 255, 0.55); color: #C9B8FF; background: rgba(157, 107, 255, 0.12); }
+.unlock-chip--premium_locked { border-color: rgba(255, 199, 44, 0.55); color: var(--app-gold); background: rgba(255, 199, 44, 0.1); }
+.unlock-chip svg { flex: 0 0 auto; }
+
+.unlock-journey-card,
+.recommendations-strip {
+  margin-bottom: 18px;
+  min-width: 0;
+}
+
+.unlock-journey-heading,
+.recommendations-heading {
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.unlock-journey-counts,
+.recommendations-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--app-text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.unlock-journey-counts svg,
+.recommendations-count svg { color: var(--app-cyan); }
+
+.unlock-journey-status,
+.recommendations-status {
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed var(--app-border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+.unlock-journey-status--error,
+.recommendations-status--error {
+  flex-direction: column;
+  gap: 10px;
+}
+.unlock-journey-status--error .secondary-button,
+.recommendations-status--error .secondary-button {
+  width: auto;
+  min-width: 132px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.unlock-journey-status > p,
+.recommendations-status > p {
+  line-height: 1.4;
+}
+
+.unlock-journey-current {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid rgba(157, 107, 255, 0.4);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(130deg, rgba(157, 107, 255, 0.12), rgba(16, 29, 45, 0.96) 68%),
+    var(--app-card);
+  box-shadow: var(--shadow-card);
+}
+
+.unlock-journey-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.unlock-journey-title-row > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.unlock-journey-title-row b {
+  overflow: hidden;
+  color: var(--app-text-primary);
+  font-size: 15px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+}
+.unlock-journey-title-row small {
+  color: var(--app-text-faint);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.unlock-journey-reason {
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.unlock-requirement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.unlock-requirement {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+  background: rgba(8, 18, 29, 0.72);
+}
+.unlock-requirement--ready {
+  color: var(--app-text-secondary);
+  font-size: 11px;
+}
+.unlock-requirement.is-satisfied {
+  border-color: rgba(46, 229, 157, 0.45);
+  background: rgba(46, 229, 157, 0.06);
+}
+
+.unlock-requirement-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.unlock-requirement-head > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.unlock-requirement-head b {
+  color: var(--app-text-primary);
+  font-size: 11px;
+}
+.unlock-requirement-head small {
+  color: var(--app-text-faint);
+  font-size: 9px;
+}
+.unlock-requirement-head strong {
+  color: var(--app-cyan);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.unlock-requirement.is-satisfied .unlock-requirement-head strong {
+  color: var(--app-success);
+}
+
+.unlock-requirement-track {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(6, 16, 27, 0.85);
+}
+.unlock-requirement-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--app-violet), var(--app-cyan));
+}
+.unlock-requirement.is-satisfied .unlock-requirement-track i {
+  background: linear-gradient(90deg, var(--app-success), #7CF3C0);
+}
+
+.unlock-requirement-action {
+  color: var(--app-text-secondary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+.unlock-requirement.is-satisfied .unlock-requirement-action {
+  color: var(--app-success);
+}
+
+.unlock-journey-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.unlock-journey-hint {
+  color: var(--app-text-faint);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.unlock-journey-empty {
+  display: flex;
+  min-height: 88px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 16px 12px;
+  border: 1px dashed var(--app-border-strong);
+  border-radius: var(--radius-lg);
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+.unlock-journey-empty .secondary-button {
+  width: auto;
+  min-width: 140px;
+  margin: 0;
+}
+
+.unlock-journey-next {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+  background: var(--app-card);
+}
+.unlock-journey-next > span {
+  flex: 0 0 auto;
+  color: var(--app-text-faint);
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.unlock-journey-next b {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--app-text-primary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recommendations-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px 1px 8px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.recommendations-scroll::-webkit-scrollbar { display: none; }
+
+.recommendation-card {
+  flex: 0 0 150px;
+  width: 150px;
+  scroll-snap-align: start;
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-lg);
+  background: var(--app-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.recommendation-card-open {
+  display: flex;
+  width: 100%;
+  min-height: 150px;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.recommendation-preview {
+  display: grid;
+  width: 100%;
+  height: 92px;
+  place-items: center;
+  border-bottom: 1px solid var(--app-border);
+  background-color: #0A1827;
+  background-position: center;
+  background-size: cover;
+  image-rendering: pixelated;
+  color: var(--app-cyan);
+}
+.recommendation-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 10px 10px;
+}
+.recommendation-copy b {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.recommendation-copy small {
+  color: var(--app-cyan);
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.recommendation-copy em {
+  color: var(--app-text-faint);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.recommendation-card-open:focus-visible {
+  outline: 2px solid var(--app-cyan);
+  outline-offset: 2px;
+}
+.recommendation-card-open:active {
+  transform: scale(0.98);
+}
+
+/* Direct-ID locked player screen */
+.unlock-locked-page {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 14px;
+}
+.unlock-locked-page .player-topbar {
+  padding-left: 0;
+  padding-right: 0;
+}
+.unlock-locked-page .player-topbar-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.unlock-locked-page .player-topbar .unlock-chip {
+  flex: 0 0 auto;
+}
+
+.unlock-locked-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid rgba(255, 199, 44, 0.34);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(130deg, rgba(255, 199, 44, 0.1), rgba(16, 29, 45, 0.96) 68%),
+    var(--app-card);
+}
+.unlock-locked-hero--progression {
+  border-color: rgba(157, 107, 255, 0.4);
+  background:
+    linear-gradient(130deg, rgba(157, 107, 255, 0.12), rgba(16, 29, 45, 0.96) 68%),
+    var(--app-card);
+}
+.unlock-locked-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+  border-radius: 15px;
+  background: rgba(255, 199, 44, 0.14);
+  color: var(--app-gold);
+}
+.unlock-locked-hero--progression .unlock-locked-icon {
+  background: rgba(157, 107, 255, 0.16);
+  color: #C9B8FF;
+}
+.unlock-locked-hero h1 {
+  color: var(--app-text-primary);
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.unlock-locked-reason {
+  margin-top: 8px;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.unlock-locked-gate {
+  margin-top: 8px;
+  color: var(--app-text-faint);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.unlock-locked-requirements {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.unlock-locked-requirements h2 {
+  color: var(--app-text-primary);
+  font-size: 15px;
+}
+.unlock-locked-empty {
+  color: var(--app-text-secondary);
+  font-size: 12px;
+}
+
+.unlock-locked-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+.unlock-locked-actions .secondary-button {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+@media (max-width: 360px) {
+  .recommendation-card {
+    flex-basis: 138px;
+    width: 138px;
+  }
+  .unlock-journey-title-row b {
+    font-size: 14px;
+  }
+  .unlock-locked-hero h1 {
+    font-size: 20px;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .unlock-chip,
+  .unlock-requirement,
+  .unlock-journey-current,
+  .unlock-journey-next,
+  .recommendation-card {
+    border-color: var(--app-border-strong);
+  }
+}
+
+@media (forced-colors: active) {
+  .unlock-chip,
+  .unlock-requirement,
+  .unlock-journey-current,
+  .unlock-journey-next,
+  .unlock-journey-empty,
+  .unlock-locked-hero,
+  .recommendation-card,
+  .recommendations-status,
+  .unlock-journey-status {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+  }
+  .unlock-chip--available,
+  .unlock-chip--owned,
+  .unlock-chip--progression_locked,
+  .unlock-chip--premium_locked {
+    color: CanvasText;
+    background: Canvas;
+  }
+  .unlock-chip svg,
+  .recommendation-copy small,
+  .unlock-requirement-head strong,
+  .unlock-requirement-track i,
+  .unlock-journey-counts svg,
+  .recommendations-count svg {
+    color: Highlight;
+  }
+  .recommendation-card-open:focus-visible,
+  .unlock-locked-page .back-button:focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+  }
+}

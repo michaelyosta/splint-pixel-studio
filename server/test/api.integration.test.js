@@ -13,6 +13,16 @@ const port = 31901;
 const baseUrl = `http://127.0.0.1:${port}`;
 const validPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
+async function stopServer(server) {
+  if (server.exitCode !== null) return;
+  const exited = new Promise((resolve) => server.once('exit', resolve));
+  server.kill();
+  await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+}
+
 async function request(path, { userId = 'user_pixelhunter', method = 'GET', body } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
@@ -32,7 +42,7 @@ test('coloring progress can become a social post', async (t) => {
   });
 
   t.after(async () => {
-    server.kill();
+    await stopServer(server);
     await rm(directory, { recursive: true, force: true });
   });
 
@@ -104,11 +114,34 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(maxGrid.json.width, 160);
   assert.equal(maxGrid.json.height, 160);
 
+  const tiledGrid = await request('/colorings/create', {
+    method: 'POST',
+    body: {
+      title: 'Tiled preview contract',
+      width: 32,
+      height: 32,
+      palette: ['#102030', '#00b5d8'],
+      storageMode: 'tiled',
+      tileSize: 32,
+      tiles: [{ x: 0, y: 0, width: 32, height: 32, cells: Array(32 * 32).fill(0) }],
+      previewDataUrl: validPng,
+    },
+  });
+  assert.equal(tiledGrid.response.status, 201);
+  assert.equal(tiledGrid.json.preview_url, validPng);
+  const tiledManifest = await request(`/colorings/${tiledGrid.json.id}/manifest`);
+  assert.equal(tiledManifest.response.status, 200);
+  assert.equal(tiledManifest.json.template.preview_url, validPng);
+  const tiledProgress = await request(`/colorings/${tiledGrid.json.id}/progress`);
+  assert.equal(tiledProgress.response.status, 200);
+  assert.equal(tiledProgress.json.completion_reward_xp, 0);
+
   const tooLargeGrid = await request('/colorings/create', {
     method: 'POST',
     body: { title: 'Too large', width: 161, height: 161, palette: ['#102030', '#00b5d8'], cells: Array(161 * 161).fill(0) },
   });
-  assert.equal(tooLargeGrid.response.status, 400);
+  assert.equal(tooLargeGrid.response.status, 422);
+  assert.equal(tooLargeGrid.json.code, 'INCOMPLETE_TILED_TEMPLATE');
 
   const tooComplex = await request('/colorings/create', {
     method: 'POST',

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect, useEffectEvent, useLayoutEffect } from 'react';
+import { useId, useState, useCallback, useRef, useMemo, useEffect, useEffectEvent, useLayoutEffect } from 'react';
 import ColoringCanvas from './ColoringCanvas.jsx';
 import ColoringPalette from './ColoringPalette.jsx';
 import ColoringHud from './ColoringHud.jsx';
@@ -13,7 +13,11 @@ import {
   computeVisibleUnfilledCount, createActiveTarget, ensureActionableViewport,
   isTargetConsideredDone, normalizeSafeArea, resolveColorTransition, resolveNextOutcome,
 } from './engine/routeTargeting.js';
+import { createBoundedAnnouncer } from '../../lib/accessibility.js';
 import './coloring.css';
+
+const LARGE_ROUTE_DIMENSION = 160;
+const ROUTE_TILE_SIZE = 32;
 
 function createRouteState() {
   return {
@@ -67,6 +71,15 @@ export default function ColoringSession({
   const [routeDisplay, setRouteDisplay] = useState(createRouteState());
   const lastColorRef = useRef(selectedColor);
   const transitionTokenRef = useRef(0);
+  const focusWatchdogRef = useRef(null);
+  const largeRouteIndexRef = useRef(null);
+  const liveStatusId = useId();
+  const [liveStatus, setLiveStatus] = useState('');
+  const liveStatusRef = useRef(null);
+  if (liveStatusRef.current === null) {
+    liveStatusRef.current = createBoundedAnnouncer({ onAnnounce: setLiveStatus });
+  }
+  const announcedTargetKeyRef = useRef('');
 
   const safeArea = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
   const [safeAreaState, setSafeAreaState] = useState(safeArea.current);
@@ -129,6 +142,48 @@ export default function ColoringSession({
 
   const computeWorkingWindows = useCallback((filled, color) => {
     if (!template || !filled?.length) return [];
+    // Large maps must not enter the whole-image BFS route. Route by bounded
+    // 32×32 windows and let the renderer load only the actionable region.
+    if (template.width > LARGE_ROUTE_DIMENSION || template.height > LARGE_ROUTE_DIMENSION) {
+      const key = `${template.id}:${template.width}:${template.height}:${template.cells.length}`;
+      let index = largeRouteIndexRef.current;
+      if (index?.key !== key || index.cellsRef !== template.cells) {
+        const allByTile = new Map();
+        for (let cellIndex = 0; cellIndex < template.cells.length; cellIndex += 1) {
+          const x = cellIndex % template.width;
+          const y = Math.floor(cellIndex / template.width);
+          const tileX = Math.floor(x / ROUTE_TILE_SIZE);
+          const tileY = Math.floor(y / ROUTE_TILE_SIZE);
+          const tileKey = `${tileX}:${tileY}`;
+          let bucket = allByTile.get(tileKey);
+          if (!bucket) {
+            bucket = { tileX, tileY, cells: [] };
+            allByTile.set(tileKey, bucket);
+          }
+          bucket.cells.push(cellIndex);
+        }
+        index = { key, cellsRef: template.cells, all: [...allByTile.values()] };
+        largeRouteIndexRef.current = index;
+      }
+      return index.all.map((source) => {
+        const cells = source.cells.filter((cellIndex) => (
+          filled[cellIndex] === -1 && (color == null || template.cells[cellIndex] === color)
+        ));
+        if (!cells.length) return null;
+        const minX = source.tileX * ROUTE_TILE_SIZE;
+        const minY = source.tileY * ROUTE_TILE_SIZE;
+        const maxX = Math.min(template.width - 1, minX + ROUTE_TILE_SIZE - 1);
+        const maxY = Math.min(template.height - 1, minY + ROUTE_TILE_SIZE - 1);
+        return {
+          cells,
+          centerX: (minX + maxX + 1) / 2,
+          centerY: (minY + maxY + 1) / 2,
+          zoom: 1,
+          cellCount: cells.length,
+          bounds: { minX, maxX, minY, maxY, width: maxX - minX + 1, height: maxY - minY + 1 },
+        };
+      }).filter(Boolean);
+    }
     const clusters = color != null
       ? findClusters(template, filled, color)
       : findUnfilledClusters(template, filled);
@@ -161,7 +216,7 @@ export default function ColoringSession({
     if (selectedColor !== lastColorRef.current) {
       lastColorRef.current = selectedColor;
       if (interactionMode !== 'reveal') {
-        cancelAnimation();
+        if (routeStateRef.current.status !== 'focusingTarget') cancelAnimation();
         windowsGenerationRef.current += 1;
         setWindowsGeneration(windowsGenerationRef.current);
       }
@@ -174,7 +229,7 @@ export default function ColoringSession({
     if (arraysEqual(newFilled, filledRef.current)) {
       return;
     }
-    cancelAnimation();
+    if (routeStateRef.current.status !== 'focusingTarget') cancelAnimation();
     filledRef.current = newFilled;
     setLocalFilled(newFilled);
     windowsGenerationRef.current += 1;
@@ -188,6 +243,28 @@ export default function ColoringSession({
 
   function syncRouteDisplay() {
     setRouteDisplay({ ...routeStateRef.current });
+  }
+
+  function clearFocusWatchdog() {
+    if (focusWatchdogRef.current != null) {
+      clearTimeout(focusWatchdogRef.current);
+      focusWatchdogRef.current = null;
+    }
+  }
+
+  function armFocusWatchdog(token, reason) {
+    clearFocusWatchdog();
+    focusWatchdogRef.current = setTimeout(() => {
+      if (transitionTokenRef.current !== token || routeStateRef.current.status !== 'focusingTarget') return;
+      transitionTokenRef.current += 1;
+      routeStateRef.current = {
+        ...routeStateRef.current,
+        status: 'freeExploration',
+        reason: `${reason}:focus_timeout`,
+      };
+      syncRouteDisplay();
+      focusOverview();
+    }, 1500);
   }
 
   function candidateForCells(cells, zoom = 1) {
@@ -306,9 +383,11 @@ export default function ColoringSession({
       allTargetCellsVisible: true,
     };
     syncRouteDisplay();
+    armFocusWatchdog(token, reason);
 
     const committed = commitFocusOnWindow(cameraTransition, force, (actualCamera) => {
       if (transitionTokenRef.current !== token) return;
+      clearFocusWatchdog();
       const actualReadiness = ensureActionableViewport({
         activeTarget,
         progress: filledRef.current,
@@ -341,6 +420,7 @@ export default function ColoringSession({
     });
 
     if (!committed) {
+      clearFocusWatchdog();
       transitionTokenRef.current += 1;
       routeStateRef.current = previous.route;
       visitedTargetsRef.current = previous.visited;
@@ -389,9 +469,11 @@ export default function ColoringSession({
       allTargetCellsVisible: true,
     };
     syncRouteDisplay();
+    armFocusWatchdog(token, reason);
 
     const committed = commitFocusOnWindow(cameraTransition, true, (actualCamera) => {
       if (transitionTokenRef.current !== token) return;
+      clearFocusWatchdog();
       const actualReadiness = ensureActionableViewport({
         activeTarget: target,
         progress: filledRef.current,
@@ -418,6 +500,7 @@ export default function ColoringSession({
       syncRouteDisplay();
     });
     if (!committed) {
+      clearFocusWatchdog();
       transitionTokenRef.current += 1;
       routeStateRef.current = current;
       syncRouteDisplay();
@@ -436,7 +519,9 @@ export default function ColoringSession({
     for (const win of wins) {
       const unfilled = win.cells.reduce((c, idx) => c + (filled[idx] === -1 ? 1 : 0), 0);
       if (unfilled === 0) continue;
-      let score = scoreTargetQuality(win, template, filled);
+      let score = template.width > LARGE_ROUTE_DIMENSION || template.height > LARGE_ROUTE_DIMENSION
+        ? unfilled * 10
+        : scoreTargetQuality(win, template, filled);
       const dx = win.centerX - viewCenterX;
       const dy = win.centerY - viewCenterY;
       score -= Math.sqrt(dx * dx + dy * dy) * 0.05;
@@ -507,6 +592,7 @@ export default function ColoringSession({
     if (outcome.type === 'artwork_complete') {
       routeStateRef.current = { ...routeStateRef.current, status: 'artworkComplete', reason: `${reason}:complete` };
       syncRouteDisplay();
+      liveStatusRef.current?.announce('Картина готова');
       return { ok: true, complete: true };
     }
     routeStateRef.current = { ...routeStateRef.current, status: 'error', reason: `${reason}:${outcome.reason}` };
@@ -590,14 +676,29 @@ export default function ColoringSession({
   }
 
   function handleColorSelect(colorIndex) {
-    transitionToColor(colorIndex);
+    const result = transitionToColor(colorIndex);
+    if (result?.ok && !result.unchanged) {
+      liveStatusRef.current?.announce(`Выбран цвет ${colorIndex + 1}`);
+    }
   }
 
   useEffect(() => {
     return () => {
+      if (focusWatchdogRef.current != null) clearTimeout(focusWatchdogRef.current);
+      liveStatusRef.current?.destroy();
       transitionTokenRef.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    if (routeDisplay.status !== 'ready' || !routeDisplay.target) return;
+    const key = `${routeDisplay.targetId}:${routeDisplay.generation}`;
+    if (key === announcedTargetKeyRef.current) return;
+    announcedTargetKeyRef.current = key;
+    liveStatusRef.current?.announce(
+      `Участок: цвет ${routeDisplay.target.color + 1}, осталось ${routeDisplay.targetRemaining} клеток`,
+    );
+  }, [routeDisplay]);
 
   const initializeRoute = useEffectEvent(() => {
     if (!containerSize.width || !containerSize.height) return;
@@ -619,7 +720,7 @@ export default function ColoringSession({
         if (interactionMode !== 'reveal') {
           const nextColor = findRewardingColor(template, filledRef.current, selectedColor);
           if (nextColor !== undefined && nextColor !== selectedColor) onSelectColor(nextColor);
-          else routeStateRef.current = { ...routeStateRef.current, status: 'error', reason: 'initial:no_actionable_target' };
+          else routeStateRef.current = { ...routeStateRef.current, status: 'freeExploration', reason: 'initial:no_actionable_target' };
           syncRouteDisplay();
         }
       } else {
@@ -739,11 +840,21 @@ export default function ColoringSession({
     setLocalFilled(nextFilled);
     if (onSaveProgress) onSaveProgress(nextFilled, operation);
     if (onTrack) onTrack('coloring_stroke_commit', { templateId: template.id, color: stroke.color, cells: stroke.indices.length });
+    try {
+      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
+    } catch {
+      // Haptics are optional.
+    }
     if (interactionMode !== 'reveal') {
       const remainingForColor = template.cells.reduce((count, target, ci) =>
         count + (target === stroke.color && nextFilled[ci] === -1 ? 1 : 0), 0);
       if (remainingForColor === 0) {
         if (onTrack) onTrack('coloring_color_complete', { templateId: template.id, color: stroke.color });
+        try {
+          window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+        } catch {
+          // Haptics are optional.
+        }
         const nextColor = findRewardingColor(template, nextFilled, stroke.color);
         if (nextColor !== undefined) onSelectColor(nextColor);
       }
@@ -767,6 +878,7 @@ export default function ColoringSession({
   }, [template, onSaveProgress, onSelectColor, interactionMode, onTrack, autoState, camera, containerSize]);
 
   const handleWrongCell = useCallback(() => {
+    liveStatusRef.current?.announce('Неправильный цвет для этой клетки');
     if (onWrongCell) onWrongCell();
   }, [onWrongCell]);
 
@@ -780,6 +892,7 @@ export default function ColoringSession({
     pauseAuto();
     routeStateRef.current = { ...current, status: 'freeExploration', reason: 'manual_exploration' };
     syncRouteDisplay();
+    liveStatusRef.current?.announce('Свободный просмотр. Shift со стрелками двигает поле, 0 показывает обзор.');
   }
 
   function handleOverview() {
@@ -789,6 +902,16 @@ export default function ColoringSession({
     routeStateRef.current = { ...current, status: 'freeExploration', reason: 'overview' };
     syncRouteDisplay();
     focusOverview();
+    liveStatusRef.current?.announce('Показан обзор всей картины.');
+  }
+
+  function handleCanvasResetView() {
+    const current = routeStateRef.current;
+    if (current?.target) handleOverview();
+    else {
+      pauseAuto();
+      focusOverview();
+    }
   }
 
   function returnToTarget() {
@@ -848,7 +971,7 @@ export default function ColoringSession({
     >
       <div className="coloring-canvas-container" ref={containerRef} style={ambilight ? { '--ambilight': ambilight } : undefined}>
         {['ready', 'freeExploration'].includes(routeDisplay.status) && routeDisplay.target && (
-          <div className="coloring-task-context" aria-live="polite">
+          <div className="coloring-task-context">
             <b>Цвет {routeDisplay.target.color + 1} · Осталось {routeDisplay.targetRemaining} клеток</b>
             <span>{
               routeDisplay.reason?.includes(':color_complete:')
@@ -885,6 +1008,7 @@ export default function ColoringSession({
             onManualExplore={enterFreeExploration}
             interactionDisabled={routeDisplay.status === 'focusingTarget'}
             peekColor={peekColor}
+            onResetView={handleCanvasResetView}
           />
         )}
         {!showCanvas && (
@@ -915,7 +1039,7 @@ export default function ColoringSession({
           onResize={handleHudResize}
         />
       </div>
-      <div className={`coloring-task-summary${showTaskSummary ? '' : ' coloring-task-summary--empty'}`} aria-live="polite">
+      <div className={`coloring-task-summary${showTaskSummary ? '' : ' coloring-task-summary--empty'}`}>
         {showTaskSummary && (
           <>
           <span className="task-color-dot" style={{ background: template.palette[routeDisplay.target.color] }} aria-hidden="true" />
@@ -923,6 +1047,7 @@ export default function ColoringSession({
           </>
         )}
       </div>
+      <span id={liveStatusId} role="status" aria-live="polite" className="sr-only">{liveStatus}</span>
       {interactionMode !== 'reveal' && (
         <div className="coloring-dock">
           <ColoringPalette

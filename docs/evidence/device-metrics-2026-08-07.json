@@ -1,0 +1,37 @@
+{
+  "capturedAt": "2026-08-07T07:04:41.118Z",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "templateId": "color_84734e1c-23ea-4472-99be-1702b3b71564",
+  "templateSize": "1200x1200",
+  "interactions": [
+    "keyboard_paint",
+    "touch_drag"
+  ],
+  "frameTiming": {
+    "frames": 81,
+    "medianMs": 16.6,
+    "p95Ms": 18.1
+  },
+  "metrics": {
+    "templateId": "color_84734e1c-23ea-4472-99be-1702b3b71564",
+    "startedAt": 7324.700000047684,
+    "firstTileAt": 8129.800000190735,
+    "frames": 22,
+    "fps": 60,
+    "maxFps": 62,
+    "interactionFrames": 4,
+    "interactionFps": 60,
+    "interactionMaxFps": 60,
+    "interactionEndsAt": 9924.200000047684,
+    "cacheTiles": 48,
+    "cacheBytes": 196608,
+    "domNodes": 138,
+    "zoom": 0.08,
+    "heapBytes": 42100000,
+    "commits": 2,
+    "lastCommitAt": 9346.900000095367
+  }
+}
