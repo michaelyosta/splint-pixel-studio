@@ -13,6 +13,16 @@ import { getTileGrid } from '../services/coloring-chunks.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const serverDir = join(__dirname, '..');
 
+async function stopServer(server) {
+  if (server.exitCode !== null) return;
+  const exited = new Promise((resolve) => server.once('exit', resolve));
+  server.kill();
+  await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+}
+
 const port = 31913;
 const baseUrl = `http://127.0.0.1:${port}`;
 const PALETTE = ['#101820', '#ffffff', '#ff6b6b', '#3ecf8e', '#f7c948', '#8ab4f8'];
@@ -153,7 +163,7 @@ test('PRE-021 DATABASE → migration → real app flow: guidance returns a real 
   });
 
   t.after(async () => {
-    server.kill();
+    await stopServer(server);
     await rm(directory, { recursive: true, force: true });
   });
 

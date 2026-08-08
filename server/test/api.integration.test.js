@@ -13,6 +13,16 @@ const port = 31901;
 const baseUrl = `http://127.0.0.1:${port}`;
 const validPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
+async function stopServer(server) {
+  if (server.exitCode !== null) return;
+  const exited = new Promise((resolve) => server.once('exit', resolve));
+  server.kill();
+  await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+}
+
 async function request(path, { userId = 'user_pixelhunter', method = 'GET', body } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
@@ -32,7 +42,7 @@ test('coloring progress can become a social post', async (t) => {
   });
 
   t.after(async () => {
-    server.kill();
+    await stopServer(server);
     await rm(directory, { recursive: true, force: true });
   });
 
