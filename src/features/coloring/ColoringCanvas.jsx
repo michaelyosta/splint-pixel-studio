@@ -3,6 +3,7 @@ import { rasterizeStroke } from './engine/strokeRasterizer.js';
 import { centroid, distance, computePinchPan, isTapGesture } from './engine/gestureMath.js';
 import { DEFAULT_TILE_SIZE, UNFILLED_CELL, selectVisibleTiles, toTypedCellBuffer } from '../../lib/tileGrid.js';
 import { createBoundedAnnouncer, moveKeyboardCursor } from '../../lib/accessibility.js';
+import { drawSpecialMarker, specialMarkerScreenRadius } from './specialMarker.js';
 
 const BASE_CELL = 32;
 const MAX_VIEWPORT_RENDER_SCALE = 2;
@@ -12,7 +13,7 @@ function applyCameraTransform(ctx, camera, renderScale) {
   ctx.setTransform(renderScale * zoom, 0, 0, renderScale * zoom, renderScale * camera.x, renderScale * camera.y);
 }
 
-function drawGrid(ctx, template, targetCells, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColorIndex, keyboardCursor) {
+function drawGrid(ctx, template, targetCells, filled, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColorIndex, keyboardCursor, specialCells) {
   const { width, palette } = template;
   const bitmapW = Math.ceil(viewWidth * renderScale);
   const bitmapH = Math.ceil(viewHeight * renderScale);
@@ -34,6 +35,9 @@ function drawGrid(ctx, template, targetCells, filled, selectedColor, calmMode, h
   const flashSet = new Set(flash?.cells || []);
   const flashAlpha = flash?.alpha || 0;
   const activeSet = new Set(activeWorkCells || []);
+  const specialMap = new Map((specialCells || [])
+    .filter((special) => special.state === 'unseen')
+    .map((special) => [Number(special.cell_index), special]));
   const visibleTiles = selectVisibleTiles({
     width: template.width,
     height: template.height,
@@ -99,6 +103,11 @@ function drawGrid(ctx, template, targetCells, filled, selectedColor, calmMode, h
     if (paint === UNFILLED_CELL && showNumbers && interactionMode !== 'reveal') {
       ctx.fillStyle = isSelected ? '#ffffff' : isHint ? '#bfffe0' : '#8d9fa5';
       ctx.fillText(String(target + 1), x + BASE_CELL / 2, y + BASE_CELL / 2 + 1);
+    }
+    const special = paint === UNFILLED_CELL ? specialMap.get(i) : null;
+    if (special) {
+      const screenRadius = specialMarkerScreenRadius(BASE_CELL * camera.zoom);
+      drawSpecialMarker(ctx, special, x + BASE_CELL / 2, y + BASE_CELL / 2, screenRadius, camera.zoom);
     }
     if (wrongCell === i) {
       ctx.strokeStyle = '#ff4d4d';
@@ -167,6 +176,8 @@ export default function ColoringCanvas({
   interactionDisabled = false,
   peekColor = null,
   onResetView,
+  specialCells = [],
+  onVisibleSpecialKinds,
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -215,10 +226,39 @@ export default function ColoringCanvas({
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx || !template) return;
     drawGrid(ctx, template, targetCells, filledCells, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode,
-      wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColor, keyboardCell);
-  }, [template, targetCells, filledCells, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColor, keyboardCell]);
+      wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColor, keyboardCell, specialCells);
+  }, [template, targetCells, filledCells, selectedColor, calmMode, hideFilledNumbers, hintMode, interactionMode, wrongCell, flash, activeWorkCells, activeTargetColor, camera, viewWidth, viewHeight, renderScale, peekColor, keyboardCell, specialCells]);
 
   useLayoutEffect(() => { redraw(); }, [redraw]);
+
+  useEffect(() => {
+    if (!onVisibleSpecialKinds) return;
+    const tiles = selectVisibleTiles({
+      width: template.width,
+      height: template.height,
+      tileSize: DEFAULT_TILE_SIZE,
+      cellSize: BASE_CELL,
+      camera,
+      viewportWidth: viewWidth,
+      viewportHeight: viewHeight,
+      overscanCells: 1,
+    });
+    const kinds = [];
+    for (const special of specialCells || []) {
+      if (special.state !== 'unseen') continue;
+      const index = Number(special.cell_index);
+      if (!Number.isInteger(index) || index < 0 || index >= cellCount) continue;
+      if (filledCells[index] !== UNFILLED_CELL) continue;
+      const x = index % template.width;
+      const y = Math.floor(index / template.width);
+      const visible = tiles.tiles.some((tile) => (
+        x >= tile.visibleBounds.minX && x <= tile.visibleBounds.maxX
+        && y >= tile.visibleBounds.minY && y <= tile.visibleBounds.maxY
+      ));
+      if (visible && special.kind && !kinds.includes(special.kind)) kinds.push(special.kind);
+    }
+    onVisibleSpecialKinds(kinds);
+  }, [camera, cellCount, filledCells, onVisibleSpecialKinds, specialCells, template.height, template.width, viewHeight, viewWidth]);
 
   function cellFromPoint(clientX, clientY) {
     const container = containerRef.current;
@@ -602,7 +642,6 @@ export default function ColoringCanvas({
             width: viewWidth,
             height: viewHeight,
             imageRendering: 'pixelated',
-            touchAction: 'none',
           }}
       />
       <span id={instructionsId} className="sr-only">

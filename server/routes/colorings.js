@@ -27,6 +27,7 @@ import {
 } from '../services/coloring-chunks.js';
 import {
   applyTiledChanges,
+  ensureTiledSpecialCells,
   insertTiledTemplate,
   isTiledColoringError,
   isTiledTemplate,
@@ -44,8 +45,60 @@ import {
   parseRecentTiles,
   GUIDANCE_REASON,
 } from '../services/tiled-guidance.js';
+import {
+  BOMB_RADIUS,
+  buildArtifactProgress,
+  buildSpecialDiagnostics,
+  createOfferToken,
+  deriveBombChanges,
+  deriveLegacyBombChanges,
+  deriveFuseChanges,
+  deriveTiledFuseChanges,
+  buildFuseOfferSteps,
+  findStoredFuseChain,
+  remainingFuseChangesFromChain,
+  takeFuseStepChanges,
+  remainingFuseStepChanges,
+  deriveSparkChanges,
+  deriveLegacySparkChanges,
+  buildLegacySparkTargetOptions,
+  findSpecial,
+  findSpark,
+  findActiveSpecialProgress,
+  findStoredSparkOffer,
+  generateLegacySparkCells,
+  getSparkProgress,
+  getSparkExperimentGroup,
+  hashOfferToken,
+  isSpecialDiagnosticsEnabled,
+  isTiledSpecialError,
+  markSparkConsumed,
+  markSpecialConsumedDirect,
+  markSparkOffered,
+  markSparkSkipped,
+  persistSparkCells,
+  SPECIAL_MAX_DERIVED_CHANGES,
+  SPARK_TARGET_MAX_CELLS,
+  specialError,
+  specialActionMeta,
+} from '../services/tiled-specials.js';
+import {
+  buildHazardMissPenalty,
+  buildHazardOffer,
+  deriveHazardDisarmChanges,
+  deriveTiledHazardDisarmChanges,
+  generateLegacyHazardCells,
+  persistHazardCells,
+} from '../services/tiled-hazard.js';
 
 const router = Router();
+
+async function assertNoOtherActiveSpecialOffer(tx, { userId, templateId, specialId } = {}) {
+  const active = await findActiveSpecialProgress(tx, { userId, templateId });
+  if (active && String(active.special_id) !== String(specialId)) {
+    throw specialError('Resolve the current special event first', 'SPECIAL_ACTIVE_OFFER', 409);
+  }
+}
 
 function parseJsonArray(value) {
   if (Array.isArray(value)) return value;
@@ -84,6 +137,74 @@ function parseCameraCenterQuery(query = {}) {
   const y = Number(rawY);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   return { x, y };
+}
+
+async function ensureLegacySparkCells(db, template) {
+  if (isTiledTemplate(template) || !Array.isArray(template?.cells)) return [];
+  const existing = await db.all(
+    'SELECT special_id,kind,cell_index,tile_x,tile_y,local_index,generation_version FROM coloring_special_cells WHERE template_id=? ORDER BY cell_index',
+    [template.id],
+  );
+  const generated = existing.length
+    ? existing
+    : generateLegacySparkCells({
+      templateId: template.id,
+      width: template.width,
+      height: template.height,
+      cells: template.cells,
+    });
+  if (!existing.length) {
+    await persistSparkCells(db, { templateId: template.id, cells: generated });
+  }
+  if (!generated.some((cell) => cell.kind === 'hazard')) {
+    const hazard = generateLegacyHazardCells({
+      templateId: template.id,
+      width: template.width,
+      height: template.height,
+      cells: template.cells,
+      occupiedIndices: generated.map((cell) => cell.cell_index),
+    });
+    await persistHazardCells(db, { templateId: template.id, cells: hazard });
+    if (hazard.length) generated.push(...hazard);
+  }
+  return generated;
+}
+
+async function readLegacySparkPayload(db, { template, userId, progress } = {}) {
+  const experimentGroup = getSparkExperimentGroup(userId, template.id);
+  if (experimentGroup !== 'treatment') {
+    return { specials: [], specials_experiment_group: experimentGroup };
+  }
+  const generated = await ensureLegacySparkCells(db, template);
+  const rows = await db.all(`
+    SELECT c.special_id, c.kind, c.cell_index, c.local_index,
+           COALESCE(p.status, 'unseen') AS status
+      FROM coloring_special_cells c
+      LEFT JOIN coloring_special_progress p
+        ON p.template_id=c.template_id AND p.special_id=c.special_id AND p.user_id=?
+     WHERE c.template_id=?
+     ORDER BY c.cell_index`,
+  [userId, template.id]);
+  const filled = parseJsonArray(progress?.filled_json) || progress?.filled || [];
+  return {
+    specials: rows.map((row) => ({
+      id: String(row.special_id),
+      kind: String(row.kind),
+      cell_index: Number(row.cell_index),
+      local_index: Number(row.local_index),
+      state: String(row.status || 'unseen'),
+      filled: filled[Number(row.cell_index)] ?? -1,
+    })),
+    specials_experiment_group: experimentGroup,
+    special_generation_version: Number(generated[0]?.generation_version || 0),
+  };
+}
+
+function withSparkCohort(payload, userId, template) {
+  return {
+    ...payload,
+    specials_experiment_group: getSparkExperimentGroup(userId, template.id),
+  };
 }
 
 function parseTemplate(row) {
@@ -468,15 +589,21 @@ async function getColoringTile(req, res) {
   if (loaded.error) return sendChunkContractError(res, loaded.error);
 
   if (isTiledTemplate(loaded.template)) {
+    await withDbTransaction((tx) => ensureTiledSpecialCells(tx, loaded.template));
     const progressRow = await get('SELECT * FROM coloring_tiled_progress WHERE user_id=? AND template_id=?', [req.userId, loaded.template.id]);
     const progress = tiledProgressPayload(loaded.template, progressRow);
-    const tile = await readTiledTile({ get }, {
+    const tile = await readTiledTile({ get, all, run }, {
       template: loaded.template,
       userId: req.userId,
       tileX: req.params.tileX,
       tileY: req.params.tileY,
       progress,
     });
+    // Control users never receive special positions; the legacy payload
+    // already applies the same boundary.
+    if (getSparkExperimentGroup(req.userId, loaded.template.id) !== 'treatment') {
+      tile.specials = [];
+    }
     return res.json(tiledTilePayload({ template: loaded.template, tile, progress }));
   }
 
@@ -548,6 +675,8 @@ router.get('/:id/guidance', authMiddleware, asyncRoute(async (req, res) => {
       preferredTileKey: req.query.tile_x !== undefined && req.query.tile_y !== undefined
         ? `${Number(req.query.tile_x)}:${Number(req.query.tile_y)}`
         : null,
+      specialId: req.query.special_id ? String(req.query.special_id) : null,
+      sparkTreatment: getSparkExperimentGroup(req.userId, template.id) === 'treatment',
     }));
     return res.json(plan);
   } catch (error) {
@@ -621,30 +750,51 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
   const originalMediaKey = await storePrivateOriginal(originalDataUrl, req.userId);
   if (tiledRequested) {
     try {
-      await withDbTransaction((tx) => insertTiledTemplate(tx, {
-        id,
-        ownerId: req.userId,
-        title: safeTitle,
-        description: String(description).slice(0, 280),
-        width: safeWidth,
-        height: safeHeight,
-        palette,
-        previewUrl: previewDataUrl,
-        originalMediaKey,
-        createdAt: now,
-        updatedAt: now,
-        tileSize,
-        tiles,
-      }));
+      await withDbTransaction(async (tx) => {
+        await insertTiledTemplate(tx, {
+          id,
+          ownerId: req.userId,
+          title: safeTitle,
+          description: String(description).slice(0, 280),
+          width: safeWidth,
+          height: safeHeight,
+          palette,
+          previewUrl: previewDataUrl,
+          originalMediaKey,
+          createdAt: now,
+          updatedAt: now,
+          tileSize,
+          tiles,
+        });
+        // The shared tiled insert now generates production hazard rows. The
+        // fixture-only flag is not needed for tiled templates.
+      });
     } catch (error) {
       if (sendChunkContractError(res, error)) return;
       throw error;
     }
     return res.status(201).json({ ...parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=?', [id])), source_stored: Boolean(originalMediaKey) });
   }
-  await run(`INSERT INTO coloring_templates (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+  await withDbTransaction(async (tx) => {
+    await tx.run(`INSERT INTO coloring_templates (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, req.userId, safeTitle, String(description).slice(0, 280), 'custom', 'custom', safeWidth, safeHeight, JSON.stringify(palette), JSON.stringify(cells), null, originalMediaKey, 'user', 'private', 'active', now, now]);
+    const legacy = generateLegacySparkCells({ templateId: id, width: safeWidth, height: safeHeight, cells });
+    await persistSparkCells(tx, {
+      templateId: id,
+      cells: legacy,
+    });
+    await persistHazardCells(tx, {
+      templateId: id,
+      cells: generateLegacyHazardCells({
+        templateId: id,
+        width: safeWidth,
+        height: safeHeight,
+        cells,
+        occupiedIndices: legacy.map((cell) => cell.cell_index),
+      }),
+    });
+  });
   res.status(201).json({ ...parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=?', [id])), source_stored: Boolean(originalMediaKey) });
 }));
 
@@ -788,12 +938,39 @@ router.get('/:id/progress', authMiddleware, asyncRoute(async (req, res) => {
   const previewDataUrl = isTiledTemplate(template) && progress?.completed_at && artwork?.render_status === 'ready'
     ? await loadTiledPreviewDataUrl(artwork)
     : null;
-  res.json({
-    ...progressPayload(template, progress, artwork?.id || null),
+  let generationInfo = null;
+  if (isTiledTemplate(template)) {
+    generationInfo = await withDbTransaction((tx) => ensureTiledSpecialCells(tx, template));
+  }
+  let payload = {
+    ...withSparkCohort(progressPayload(template, progress, artwork?.id || null), req.userId, template),
     completion_reward_xp: Number(completionReward?.xp_amount || 0),
     render_status: artwork?.render_status || null,
     result_preview_data_url: previewDataUrl,
+  };
+  if (!isTiledTemplate(template)) {
+    Object.assign(payload, await withDbTransaction((tx) => readLegacySparkPayload(
+      tx,
+      { template, userId: req.userId, progress },
+    )));
+  }
+  if (isSpecialDiagnosticsEnabled()) {
+    payload.special_diagnostics = await buildSpecialDiagnostics({ get, all }, {
+      userId: req.userId,
+      template,
+      progress,
+      generationInfo,
+    });
+  }
+  payload.special_offer = await findStoredSparkOffer({ get, all }, {
+    userId: req.userId,
+    templateId: template.id,
   });
+  payload.artifact_progress = await buildArtifactProgress({ get, all }, {
+    userId: req.userId,
+    templateId: template.id,
+  });
+  res.json(payload);
 }));
 
 // Full canonical results stay private until the owner publishes the artwork.
@@ -880,24 +1057,62 @@ async function loadTiledPreviewDataUrl(artwork) {
 }
 
 async function processTiledProgressAction(req, res, template) {
-  const changes = req.body.changes;
+  const changes = Array.isArray(req.body.changes) ? req.body.changes : [];
+  const rawSpecialAction = req.body.special_action;
+  const specialAction = rawSpecialAction && typeof rawSpecialAction === 'object' && !Array.isArray(rawSpecialAction)
+    ? {
+      type: String(rawSpecialAction.type || ''),
+      special_id: String(rawSpecialAction.special_id || ''),
+      offer_token: rawSpecialAction.offer_token ? String(rawSpecialAction.offer_token) : null,
+      option_id: rawSpecialAction.option_id ? String(rawSpecialAction.option_id) : null,
+      camera_center: rawSpecialAction.camera_center || null,
+      center_x: rawSpecialAction.center_x === undefined || rawSpecialAction.center_x === null || rawSpecialAction.center_x === ''
+        ? null
+        : Number(rawSpecialAction.center_x),
+      center_y: rawSpecialAction.center_y === undefined || rawSpecialAction.center_y === null || rawSpecialAction.center_y === ''
+        ? null
+        : Number(rawSpecialAction.center_y),
+    }
+    : null;
+  const actionMeta = specialAction ? specialActionMeta(specialAction.type) : null;
+  if (specialAction && !actionMeta) {
+    return res.status(400).json({ error: 'Неизвестное действие special cell', code: 'INVALID_SPECIAL_ACTION' });
+  }
+  if (specialAction && getSparkExperimentGroup(req.userId, template.id) !== 'treatment') {
+    return res.status(404).json({ error: 'Special cells are unavailable for this cohort', code: 'SPECIAL_COHORT_CONTROL' });
+  }
+    if (specialAction && (!/^[\x21-\x7e]{2,128}$/.test(specialAction.special_id)
+      || (!actionMeta.claim && !/^[a-f0-9]{16,128}$/i.test(specialAction.offer_token || ''))
+      || ((specialAction.type === 'use_spark' || specialAction.type === 'use_choice')
+        && !/^[a-z_]{1,32}$/.test(specialAction.option_id || ''))
+    || (specialAction.type === 'use_bomb'
+      && (!Number.isFinite(specialAction.center_x) || !Number.isFinite(specialAction.center_y))))) {
+    return res.status(400).json({ error: 'Некорректное действие special cell', code: 'INVALID_SPECIAL_ACTION' });
+  }
+  if (specialAction && !actionMeta.claim && changes.length) {
+    return res.status(400).json({ error: 'Special use/skip actions cannot contain paint changes', code: 'INVALID_SPECIAL_ACTION' });
+  }
+  if (!changes.length && (!specialAction || actionMeta.claim)) {
+    return res.status(400).json({ error: 'Tiled action must contain changes', code: 'INVALID_TILED_CHANGES' });
+  }
   const clientRevision = Number(req.body.revision);
   if (!Number.isInteger(clientRevision) || clientRevision < 0) {
     return res.status(400).json({ error: 'Некорректная revision' });
   }
-  const batchHash = changesHash(changes);
+  const batchHash = changesHash({ changes, special_action: specialAction });
   const clientBatchId = normalizeClientBatchId(req.body.clientBatchId || req.headers['idempotency-key'], clientRevision, batchHash);
   const now = new Date().toISOString();
 
   let result;
   try {
     result = await withDbTransaction(async (tx) => {
+    const generationInfo = await ensureTiledSpecialCells(tx, template);
     const existingBatch = await tx.get(
       'SELECT * FROM coloring_progress_batches WHERE user_id=? AND template_id=? AND client_batch_id=?',
       [req.userId, template.id, clientBatchId],
     );
     if (existingBatch) {
-      if (existingBatch.changes_hash !== batchHash || Number(existingBatch.revision_before) !== clientRevision) return { badBatch: true };
+        if (existingBatch.changes_hash !== batchHash || Number(existingBatch.revision_before) !== clientRevision) return { badBatch: true };
       const stored = parseJsonObject(existingBatch.response_json) || {};
       const progress = await tx.get('SELECT * FROM coloring_tiled_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
       const existingArtwork = await tx.get("SELECT id,render_status FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
@@ -907,11 +1122,27 @@ async function processTiledProgressAction(req, res, template) {
         replay: true,
         response: {
           ...tiledProgressPayload(template, progress, existingArtwork?.id || stored.artwork_id || null),
+          specials_experiment_group: getSparkExperimentGroup(req.userId, template.id),
+          ...(isSpecialDiagnosticsEnabled()
+            ? { special_diagnostics: await buildSpecialDiagnostics(tx, {
+              userId: req.userId,
+              template,
+              progress,
+              generationInfo,
+            }) }
+            : {}),
           artwork_id: existingArtwork?.id || stored.artwork_id || null,
           render_status: existingArtwork?.render_status || stored.render_status || null,
           result_preview_data_url: stored.result_preview_data_url || null,
           idempotent: true,
           rewards: stored.rewards || null,
+          special_offer: stored.special_offer || null,
+          special_applied_changes: stored.special_applied_changes || [],
+          special_discovered: null,
+          artifact_progress: await buildArtifactProgress(tx, {
+            userId: req.userId,
+            templateId: template.id,
+          }),
         },
       };
     }
@@ -922,25 +1153,491 @@ async function processTiledProgressAction(req, res, template) {
       return { conflict: true, progress: tiledProgressPayload(template, existing) };
     }
 
-    const state = await applyTiledChanges(tx, {
+    // A special offer is a server-side flow barrier, not only a client HUD
+    // convention. This also prevents a second device from appending ordinary
+    // batches until the bounded offer-recovery journal can no longer find its
+    // token.
+    await assertNoOtherActiveSpecialOffer(tx, {
       userId: req.userId,
-      template,
-      existingProgress: existing,
-      changes,
+      templateId: template.id,
+      specialId: specialAction?.special_id || null,
     });
-    const persisted = await persistTiledChanges(tx, {
-      userId: req.userId,
-      template,
-      existingProgress: existing,
-      clientRevision,
-      now,
-      state,
-    });
-    if (persisted.conflict) return { conflict: true, progress: tiledProgressPayload(template, await tx.get('SELECT * FROM coloring_tiled_progress WHERE user_id=? AND template_id=?', [req.userId, template.id])) };
 
-    const painted = state.painted;
+    let state = null;
+    let persisted = {
+      conflict: false,
+      revision: serverRevision,
+      completedAt: existing?.completed_at || null,
+    };
+    let specialOffer = null;
+    let specialAppliedChanges = [];
+    let specialDiscovered = null;
+    let claimedSpecialIndex = null;
+    let fuseChain = [];
+    let fuseRemainingAfterStep = [];
+
+    if (specialAction?.type === 'skip_spark' || specialAction?.type === 'skip_fuse'
+      || specialAction?.type === 'skip_hazard') {
+      const special = await findSpecial(tx, {
+        templateId: template.id,
+        specialId: specialAction.special_id,
+        kind: actionMeta.kind,
+      });
+      const specialProgress = await getSparkProgress(tx, {
+        userId: req.userId, templateId: template.id, specialId: specialAction.special_id,
+      });
+      if (!special || !specialProgress || specialProgress.status !== 'offered'
+        || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+        throw specialError(`${actionMeta.kind === 'fuse' ? 'Fuse' : actionMeta.kind === 'hazard' ? 'Hazard' : 'Spark'} offer is no longer available`, 'SPECIAL_OFFER_STALE', 409);
+      }
+      if (!await markSparkSkipped(tx, {
+        userId: req.userId,
+        templateId: template.id,
+        specialId: specialAction.special_id,
+        tokenHash: hashOfferToken(specialAction.offer_token),
+        now,
+      })) throw specialError(`${actionMeta.kind === 'fuse' ? 'Fuse' : actionMeta.kind === 'hazard' ? 'Hazard' : 'Spark'} offer is no longer available`, 'SPECIAL_OFFER_STALE', 409);
+      if (specialAction.type === 'skip_hazard') {
+        specialDiscovered = {
+          special_id: specialAction.special_id,
+          kind: 'hazard',
+          missed: true,
+          temporary_penalty: buildHazardMissPenalty({
+            width: template.width,
+            height: template.height,
+            specialIndex: Number(special.cell_index),
+          }),
+        };
+      }
+    } else {
+      let effectiveChanges = changes;
+      if (specialAction?.type === 'claim_spark' || specialAction?.type === 'claim_bomb'
+        || specialAction?.type === 'claim_fuse' || specialAction?.type === 'claim_choice'
+        || specialAction?.type === 'claim_artifact' || specialAction?.type === 'claim_hazard') {
+        const special = await findSpecial(tx, {
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          kind: actionMeta.kind,
+        });
+        const specialProgress = await getSparkProgress(tx, {
+          userId: req.userId, templateId: template.id, specialId: specialAction.special_id,
+        });
+        await assertNoOtherActiveSpecialOffer(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+        });
+        const hit = changes.find((change) => change?.index === Number(special?.cell_index));
+        if (!special || (specialProgress && ['offered', 'consumed', 'skipped'].includes(specialProgress.status))
+          || !hit || !Number.isInteger(hit.color) || hit.color < 0) {
+          throw specialError(
+            special?.kind === 'bomb' ? 'Bomb cell cannot be claimed'
+            : special?.kind === 'fuse' ? 'Fuse cell cannot be claimed'
+              : special?.kind === 'choice' ? 'Choice cell cannot be claimed'
+                : special?.kind === 'artifact' ? 'Artifact cell cannot be claimed'
+                  : special?.kind === 'hazard' ? 'Hazard cell cannot be claimed'
+                    : 'Spark cell cannot be claimed',
+            'SPECIAL_CLAIM_INVALID',
+            409,
+          );
+        }
+        claimedSpecialIndex = Number(special.cell_index);
+        specialDiscovered = { special_id: specialAction.special_id, kind: special.kind };
+      }
+      if (specialAction?.type === 'use_spark') {
+        const special = await findSpark(tx, { templateId: template.id, specialId: specialAction.special_id });
+        const specialProgress = await getSparkProgress(tx, {
+          userId: req.userId, templateId: template.id, specialId: specialAction.special_id,
+        });
+        if (!special || !specialProgress || specialProgress.status !== 'offered'
+          || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+          throw specialError('Spark offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+        }
+        const storedOffer = await findStoredSparkOffer(tx, {
+          userId: req.userId,
+          templateId: template.id,
+        });
+        const option = String(storedOffer?.special_id || '') === String(specialAction.special_id)
+          ? (storedOffer.target_options || []).find((candidate) => candidate.option_id === specialAction.option_id)
+          : null;
+        if (!option) throw specialError('Spark target is no longer available', 'SPECIAL_TARGET_STALE', 409);
+        effectiveChanges = await deriveSparkChanges(tx, {
+          userId: req.userId,
+          template,
+          target: option,
+        });
+        if (!effectiveChanges.length) throw specialError('Spark target has no remaining cells', 'SPECIAL_TARGET_EMPTY', 409);
+      }
+      if (specialAction?.type === 'use_bomb') {
+        const special = await findSpecial(tx, {
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          kind: actionMeta.kind,
+        });
+        const specialProgress = await getSparkProgress(tx, {
+          userId: req.userId, templateId: template.id, specialId: specialAction.special_id,
+        });
+        if (!special || !specialProgress || specialProgress.status !== 'offered'
+          || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+          throw specialError('Bomb offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+        }
+        effectiveChanges = await deriveBombChanges(tx, {
+          userId: req.userId,
+          template,
+          special,
+          centerX: specialAction.center_x,
+          centerY: specialAction.center_y,
+        });
+        if (!effectiveChanges.length) throw specialError('Bomb target has no remaining cells', 'SPECIAL_TARGET_EMPTY', 409);
+      }
+      if (specialAction?.type === 'use_choice') {
+        const special = await findSpecial(tx, {
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          kind: actionMeta.kind,
+        });
+        const specialProgress = await getSparkProgress(tx, {
+          userId: req.userId, templateId: template.id, specialId: specialAction.special_id,
+        });
+        if (!special || !specialProgress || specialProgress.status !== 'offered'
+          || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+          throw specialError('Choice offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+        }
+        if (specialAction.option_id === 'smart_target') {
+          const plan = await buildGuidancePlan({
+            db: tx,
+            userId: req.userId,
+            template,
+            reason: GUIDANCE_REASON.SPECIAL_TARGETS,
+            specialId: specialAction.special_id,
+            cameraCenter: specialAction.camera_center,
+          });
+          const target = plan.target_options?.[0];
+          if (!target) throw specialError('Choice target is no longer available', 'SPECIAL_TARGET_STALE', 409);
+          effectiveChanges = await deriveSparkChanges(tx, {
+            userId: req.userId,
+            template,
+            target,
+            maxChanges: SPECIAL_MAX_DERIVED_CHANGES,
+          });
+        } else if (specialAction.option_id === 'local_burst') {
+          effectiveChanges = await deriveBombChanges(tx, {
+            userId: req.userId,
+            template,
+            special,
+            centerX: Number(special.cell_index) % Number(template.width),
+            centerY: Math.floor(Number(special.cell_index) / Number(template.width)),
+          });
+        } else {
+          throw specialError('Choice option is no longer available', 'SPECIAL_TARGET_STALE', 409);
+        }
+        if (!effectiveChanges.length) throw specialError('Choice target has no remaining cells', 'SPECIAL_TARGET_EMPTY', 409);
+      }
+      if (specialAction?.type === 'disarm_fuse') {
+        const special = await findSpecial(tx, {
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          kind: actionMeta.kind,
+        });
+        const specialProgress = await getSparkProgress(tx, {
+          userId: req.userId, templateId: template.id, specialId: specialAction.special_id,
+        });
+        if (!special || !specialProgress || specialProgress.status !== 'offered'
+          || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+          throw specialError('Fuse offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+        }
+        const storedChain = await findStoredFuseChain(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+        });
+        if (!storedChain) throw specialError('Fuse offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+        const windowChanges = await deriveTiledFuseChanges(tx, {
+          userId: req.userId,
+          template,
+          special,
+          excludeFilled: true,
+        });
+        fuseChain = storedChain;
+        const derived = remainingFuseChangesFromChain(windowChanges, storedChain);
+        if (!derived.length) throw specialError('Fuse target has no remaining cells', 'SPECIAL_TARGET_EMPTY', 409);
+        effectiveChanges = takeFuseStepChanges(derived);
+        fuseRemainingAfterStep = remainingFuseStepChanges(derived);
+      }
+      if (specialAction?.type === 'disarm_hazard') {
+        const special = await findSpecial(tx, {
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          kind: actionMeta.kind,
+        });
+        const specialProgress = await getSparkProgress(tx, {
+          userId: req.userId, templateId: template.id, specialId: specialAction.special_id,
+        });
+        if (!special || !specialProgress || specialProgress.status !== 'offered'
+          || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+          throw specialError('Hazard offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+        }
+        effectiveChanges = await deriveTiledHazardDisarmChanges(tx, {
+          userId: req.userId,
+          template,
+          special,
+        });
+        if (!effectiveChanges.length) throw specialError('Hazard target has no remaining cells', 'SPECIAL_TARGET_EMPTY', 409);
+      }
+      state = await applyTiledChanges(tx, {
+        userId: req.userId,
+        template,
+        existingProgress: existing,
+        changes: effectiveChanges,
+        maxChanges: specialAction?.type === 'use_spark'
+          ? SPARK_TARGET_MAX_CELLS
+          : undefined,
+      });
+      if ((specialAction?.type === 'claim_spark' || specialAction?.type === 'claim_bomb'
+        || specialAction?.type === 'claim_fuse' || specialAction?.type === 'claim_choice'
+        || specialAction?.type === 'claim_artifact' || specialAction?.type === 'claim_hazard')
+        && !state.newlyCorrectIndices.includes(claimedSpecialIndex)) {
+        throw specialError(
+          specialAction.type === 'claim_bomb' ? 'Bomb cell cannot be claimed'
+            : specialAction.type === 'claim_fuse' ? 'Fuse cell cannot be claimed'
+              : specialAction.type === 'claim_choice' ? 'Choice cell cannot be claimed'
+                : specialAction.type === 'claim_artifact' ? 'Artifact cell cannot be claimed'
+                  : specialAction.type === 'claim_hazard' ? 'Hazard cell cannot be claimed'
+                    : 'Spark cell cannot be claimed',
+          'SPECIAL_CLAIM_INVALID',
+          409,
+        );
+      }
+      persisted = await persistTiledChanges(tx, {
+        userId: req.userId,
+        template,
+        existingProgress: existing,
+        clientRevision,
+        now,
+        state,
+      });
+      if (persisted.conflict) return { conflict: true, progress: tiledProgressPayload(template, await tx.get('SELECT * FROM coloring_tiled_progress WHERE user_id=? AND template_id=?', [req.userId, template.id])) };
+      if (specialAction?.type === 'claim_spark') {
+        const offer = await buildGuidancePlan({
+          db: tx,
+          userId: req.userId,
+          template,
+          reason: GUIDANCE_REASON.SPECIAL_TARGETS,
+          specialId: specialAction.special_id,
+          cameraCenter: specialAction.camera_center,
+        });
+        if ((offer.target_options || []).length >= 2) {
+          const token = createOfferToken();
+          await markSparkOffered(tx, {
+            userId: req.userId,
+            templateId: template.id,
+            specialId: specialAction.special_id,
+            revision: persisted.revision,
+            tokenHash: token.hash,
+            now,
+          });
+          specialOffer = {
+            special_id: specialAction.special_id,
+            offer_token: token.token,
+            progress_revision: persisted.revision,
+            target_options: offer.target_options.slice(0, 2),
+          };
+        } else {
+          await tx.run(`INSERT INTO coloring_special_progress
+            (user_id,template_id,special_id,status,offer_revision,offer_token_hash,updated_at)
+            VALUES (?,?,?,?,?,?,?)
+            ON CONFLICT(user_id,template_id,special_id) DO UPDATE SET
+              status=excluded.status, offer_revision=excluded.offer_revision,
+              offer_token_hash=NULL, updated_at=excluded.updated_at`,
+          [req.userId, template.id, specialAction.special_id, 'skipped', persisted.revision, null, now]);
+        }
+      } else if (specialAction?.type === 'claim_bomb') {
+        const token = createOfferToken();
+        await markSparkOffered(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: persisted.revision,
+          tokenHash: token.hash,
+          now,
+        });
+        const bombIndex = Number(claimedSpecialIndex);
+        specialOffer = {
+          special_id: specialAction.special_id,
+          offer_token: token.token,
+          progress_revision: persisted.revision,
+          kind: actionMeta.kind,
+          radius: BOMB_RADIUS,
+          center_x: bombIndex % Number(template.width),
+          center_y: Math.floor(bombIndex / Number(template.width)),
+        };
+      } else if (specialAction?.type === 'claim_fuse') {
+        const token = createOfferToken();
+        await markSparkOffered(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: persisted.revision,
+          tokenHash: token.hash,
+          now,
+        });
+        const claimedFuse = await findSpecial(tx, {
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          kind: actionMeta.kind,
+        });
+        const derived = await deriveTiledFuseChanges(tx, {
+          userId: req.userId,
+          template,
+          special: claimedFuse,
+          excludeFilled: false,
+        });
+        specialOffer = {
+          special_id: specialAction.special_id,
+          offer_token: token.token,
+          progress_revision: persisted.revision,
+          kind: actionMeta.kind,
+          steps: buildFuseOfferSteps(derived),
+          disarm: true,
+          chain_cells: derived.map((change) => change.index),
+        };
+      } else if (specialAction?.type === 'claim_hazard') {
+        const token = createOfferToken();
+        await markSparkOffered(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: persisted.revision,
+          tokenHash: token.hash,
+          now,
+        });
+        const claimedHazard = await findSpecial(tx, {
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          kind: actionMeta.kind,
+        });
+        const derived = await deriveTiledHazardDisarmChanges(tx, {
+          userId: req.userId,
+          template,
+          special: claimedHazard,
+        });
+        specialOffer = buildHazardOffer({
+          specialId: specialAction.special_id,
+          offerToken: token.token,
+          progressRevision: persisted.revision,
+          rewardCells: derived.length,
+        });
+      } else if (specialAction?.type === 'claim_choice') {
+        const token = createOfferToken();
+        await markSparkOffered(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: persisted.revision,
+          tokenHash: token.hash,
+          now,
+        });
+        specialOffer = {
+          special_id: specialAction.special_id,
+          offer_token: token.token,
+          progress_revision: persisted.revision,
+          kind: actionMeta.kind,
+          choice_options: [
+            { option_id: 'smart_target', label: 'Smart zone' },
+            { option_id: 'local_burst', label: 'Local burst' },
+          ],
+        };
+      } else if (specialAction?.type === 'claim_artifact') {
+        await tx.run(`INSERT INTO coloring_special_progress
+          (user_id,template_id,special_id,status,offer_revision,offer_token_hash,updated_at)
+          VALUES (?,?,?,?,?,?,?)
+          ON CONFLICT(user_id,template_id,special_id) DO UPDATE SET
+            status='consumed', offer_revision=excluded.offer_revision,
+            offer_token_hash=NULL, updated_at=excluded.updated_at`,
+        [req.userId, template.id, specialAction.special_id, 'consumed', persisted.revision, null, now]);
+        const fragmentRow = await tx.get(`SELECT COUNT(*) AS count
+          FROM coloring_special_progress p
+          JOIN coloring_special_cells c
+            ON c.template_id=p.template_id AND c.special_id=p.special_id
+         WHERE p.user_id=? AND p.template_id=? AND c.kind='artifact' AND p.status='consumed'`,
+        [req.userId, template.id]);
+        specialDiscovered = {
+          special_id: specialAction.special_id,
+          kind: 'artifact',
+          artifact_fragments: Math.min(3, Number(fragmentRow?.count || 0)),
+          artifact_complete: Number(fragmentRow?.count || 0) >= 3,
+        };
+      } else if (specialAction?.type === 'use_spark' || specialAction?.type === 'use_bomb'
+        || specialAction?.type === 'disarm_fuse' || specialAction?.type === 'use_choice'
+        || specialAction?.type === 'disarm_hazard') {
+        if (specialAction.type === 'disarm_fuse' && fuseRemainingAfterStep.length) {
+          await markSparkOffered(tx, {
+            userId: req.userId,
+            templateId: template.id,
+            specialId: specialAction.special_id,
+            revision: persisted.revision,
+            tokenHash: hashOfferToken(specialAction.offer_token),
+            now,
+          });
+          specialOffer = {
+            special_id: specialAction.special_id,
+            offer_token: specialAction.offer_token,
+            progress_revision: persisted.revision,
+            kind: actionMeta.kind,
+            steps: buildFuseOfferSteps(fuseRemainingAfterStep),
+            disarm: true,
+            chain_cells: fuseChain,
+          };
+          specialAppliedChanges = state.changes.map((change) => ({ index: change.index, color: change.color }));
+        } else if (specialAction.type === 'disarm_hazard') {
+          if (!await markSparkConsumed(tx, {
+            userId: req.userId,
+            templateId: template.id,
+            specialId: specialAction.special_id,
+            tokenHash: hashOfferToken(specialAction.offer_token),
+            now,
+          })) throw specialError('Hazard offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+          specialAppliedChanges = state.changes.map((change) => ({ index: change.index, color: change.color }));
+        } else {
+          const consumed = await markSparkConsumed(tx, {
+            userId: req.userId,
+            templateId: template.id,
+            specialId: specialAction.special_id,
+            tokenHash: hashOfferToken(specialAction.offer_token),
+            now,
+          });
+          if (!consumed) throw specialError(
+          specialAction.type === 'use_bomb' ? 'Bomb offer is no longer available'
+            : specialAction.type === 'disarm_fuse' ? 'Fuse offer is no longer available'
+              : specialAction.type === 'use_choice' ? 'Choice offer is no longer available'
+                : specialAction.type === 'disarm_hazard' ? 'Hazard offer is no longer available'
+                  : 'Spark offer is no longer available',
+            'SPECIAL_OFFER_STALE',
+            409,
+          );
+          specialAppliedChanges = state.changes.map((change) => ({ index: change.index, color: change.color }));
+        }
+      }
+    }
+
+    // A final-cell claim or a final Fuse/Hazard disarm must still report
+    // discovery/effect, but it cannot leave a live offer behind because the
+    // artwork is already complete.
+    if (state?.justCompleted && (/^claim_(spark|bomb|fuse|choice|hazard)$/.test(String(specialAction?.type || ''))
+      || specialAction?.type === 'disarm_fuse' || specialAction?.type === 'disarm_hazard')) {
+      await markSpecialConsumedDirect(tx, {
+        userId: req.userId,
+        templateId: template.id,
+        specialId: specialAction.special_id,
+        revision: persisted.revision,
+        now,
+      });
+      specialOffer = null;
+    }
+
+    const painted = Boolean(state?.painted);
     if (painted) await touchDailyStreak(tx, { userId: req.userId, now });
-    const rewards = await rewardVerifiedTiledPainting(tx, {
+    const rewards = state ? await rewardVerifiedTiledPainting(tx, {
       userId: req.userId,
       template,
       newlyCorrectIndices: state.newlyCorrectIndices,
@@ -949,8 +1646,8 @@ async function processTiledProgressAction(req, res, template) {
       revision: persisted.revision,
       justCompleted: state.justCompleted,
       now,
-    });
-    const artwork = state.justCompleted
+    }) : null;
+    const artwork = state?.justCompleted
       ? await createTiledArtworkMetadata(tx, { userId: req.userId, template, now })
       : null;
     if (artwork && artwork.renderStatus !== 'ready') {
@@ -962,7 +1659,7 @@ async function processTiledProgressAction(req, res, template) {
         now,
       });
     }
-    await grantPaintingAchievements(tx, {
+    if (state) await grantPaintingAchievements(tx, {
       userId: req.userId,
       template,
       painted,
@@ -973,14 +1670,32 @@ async function processTiledProgressAction(req, res, template) {
     const response = {
       ...tiledProgressPayload(template, {
         revision: persisted.revision,
-        completed_cells: state.completedCells,
+        completed_cells: state?.completedCells ?? existing?.completed_cells ?? 0,
         completed_at: persisted.completedAt,
       }, artwork?.artworkId || null),
+      specials_experiment_group: getSparkExperimentGroup(req.userId, template.id),
+      ...(isSpecialDiagnosticsEnabled()
+        ? { special_diagnostics: await buildSpecialDiagnostics(tx, {
+          userId: req.userId,
+          template,
+          progress: {
+            completed_cells: state?.completedCells ?? existing?.completed_cells ?? 0,
+          },
+          generationInfo,
+        }) }
+        : {}),
       artwork_id: artwork?.artworkId || null,
       render_status: artwork?.renderStatus || null,
       result_preview_data_url: null,
       idempotent: false,
       rewards,
+      special_offer: specialOffer,
+      special_applied_changes: specialAppliedChanges,
+      special_discovered: specialDiscovered,
+      artifact_progress: await buildArtifactProgress(tx, {
+        userId: req.userId,
+        templateId: template.id,
+      }),
     };
     await tx.run(`INSERT INTO coloring_progress_batches
       (user_id,template_id,client_batch_id,changes_hash,revision_before,revision_after,response_json,created_at)
@@ -990,11 +1705,19 @@ async function processTiledProgressAction(req, res, template) {
     });
   } catch (error) {
     if (sendChunkContractError(res, error)) return;
+    if (isTiledSpecialError(error)) {
+      return res.status(error.status || 400).json({ error: error.message, code: error.code });
+    }
     throw error;
   }
 
   if (result.badBatch) return res.status(409).json({ error: 'client_batch_id уже использован для другого набора изменений' });
   if (result.conflict) return res.status(409).json({ error: 'Прогресс уже обновлён на другом устройстве', progress: result.progress });
+  if (result.specialError) return res.status(result.specialError.status || 409).json({
+    error: result.specialError.message,
+    code: result.specialError.code,
+    progress: result.progress || null,
+  });
   return res.json(result.response);
 }
 
@@ -1008,8 +1731,43 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
 
   if (isTiledTemplate(template)) return processTiledProgressAction(req, res, template);
 
-  const changes = req.body.changes;
-  const validationError = validateChanges(template, changes);
+  const changes = Array.isArray(req.body.changes) ? req.body.changes : [];
+  const rawSpecialAction = req.body.special_action;
+  const specialAction = rawSpecialAction && typeof rawSpecialAction === 'object' && !Array.isArray(rawSpecialAction)
+    ? {
+      type: String(rawSpecialAction.type || ''),
+      special_id: String(rawSpecialAction.special_id || ''),
+      offer_token: rawSpecialAction.offer_token ? String(rawSpecialAction.offer_token) : null,
+      option_id: rawSpecialAction.option_id ? String(rawSpecialAction.option_id) : null,
+      center_x: rawSpecialAction.center_x === undefined || rawSpecialAction.center_x === null || rawSpecialAction.center_x === ''
+        ? null
+        : Number(rawSpecialAction.center_x),
+      center_y: rawSpecialAction.center_y === undefined || rawSpecialAction.center_y === null || rawSpecialAction.center_y === ''
+        ? null
+        : Number(rawSpecialAction.center_y),
+    }
+    : null;
+  const actionMeta = specialAction ? specialActionMeta(specialAction.type) : null;
+  if (specialAction && !actionMeta) {
+    return res.status(400).json({ error: 'Unknown special cell action', code: 'INVALID_SPECIAL_ACTION' });
+  }
+  if (specialAction && getSparkExperimentGroup(req.userId, template.id) !== 'treatment') {
+    return res.status(404).json({ error: 'Special cells are unavailable for this cohort', code: 'SPECIAL_COHORT_CONTROL' });
+  }
+  if (specialAction && (!/^[\x21-\x7e]{2,128}$/.test(specialAction.special_id)
+    || (!actionMeta.claim && !/^[a-f0-9]{16,128}$/i.test(specialAction.offer_token || ''))
+    || ((specialAction.type === 'use_spark' || specialAction.type === 'use_choice')
+      && !/^[a-z_]{1,32}$/.test(specialAction.option_id || ''))
+    || (specialAction.type === 'use_bomb'
+      && (!Number.isFinite(specialAction.center_x) || !Number.isFinite(specialAction.center_y))))) {
+    return res.status(400).json({ error: 'Invalid special cell action', code: 'INVALID_SPECIAL_ACTION' });
+  }
+  if (specialAction && !actionMeta.claim && changes.length) {
+    return res.status(400).json({ error: 'Special use/skip actions cannot contain paint changes', code: 'INVALID_SPECIAL_ACTION' });
+  }
+  const validationError = changes.length || !specialAction || actionMeta.claim
+    ? validateChanges(template, changes)
+    : null;
   if (validationError) return res.status(400).json({ error: validationError });
 
   const clientRevision = Number(req.body.revision);
@@ -1017,11 +1775,13 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
     return res.status(400).json({ error: 'Некорректная revision' });
   }
 
-  const batchHash = changesHash(changes);
+  const batchHash = changesHash({ changes, special_action: specialAction });
   const clientBatchId = normalizeClientBatchId(req.body.clientBatchId || req.headers['idempotency-key'], clientRevision, batchHash);
 
   const now = new Date().toISOString();
-  const casResult = await withDbTransaction(async (tx) => {
+  let casResult;
+  try {
+    casResult = await withDbTransaction(async (tx) => {
       const existingBatch = await tx.get(
         'SELECT * FROM coloring_progress_batches WHERE user_id=? AND template_id=? AND client_batch_id=?',
         [req.userId, template.id, clientBatchId],
@@ -1041,9 +1801,13 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
           renderStatus: existingArtwork?.render_status || null,
           progress: existingProgress ? progressPayload(template, existingProgress) : null,
           rewards: storedResponse.rewards || null,
+          specialOffer: storedResponse.special_offer || null,
+          specialAppliedChanges: storedResponse.special_applied_changes || [],
+          specialDiscovered: null,
         };
       }
 
+      await ensureLegacySparkCells(tx, template);
       const existing = await tx.get('SELECT * FROM coloring_progress WHERE user_id=? AND template_id=?', [req.userId, template.id]);
 
       if (existing) {
@@ -1059,15 +1823,194 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
 
       const currentFilled = existing ? (parseJsonArray(existing.filled_json) || emptyProgress(template)) : emptyProgress(template);
       if (currentFilled.length !== template.cells.length) return { conflict: true, progress: existing ? progressPayload(template, existing) : null };
+      await assertNoOtherActiveSpecialOffer(tx, {
+        userId: req.userId,
+        templateId: template.id,
+        specialId: specialAction?.special_id || null,
+      });
       const filled = [...currentFilled];
-      for (const change of changes) {
+      let effectiveChanges = changes;
+      let specialOffer = null;
+      let specialAppliedChanges = [];
+      let specialDiscovered = null;
+      let fuseRemainingAfterStep = [];
+      const special = specialAction ? await findSpecial(tx, {
+        templateId: template.id,
+        specialId: specialAction.special_id,
+        kind: actionMeta.kind,
+      }) : null;
+      const specialProgress = specialAction ? await getSparkProgress(tx, {
+        userId: req.userId, templateId: template.id, specialId: specialAction.special_id,
+      }) : null;
+      if (specialAction?.type === 'skip_spark' || specialAction?.type === 'skip_fuse'
+        || specialAction?.type === 'skip_hazard') {
+        if (!special || !specialProgress || specialProgress.status !== 'offered'
+          || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+          throw specialError(`${actionMeta.kind === 'fuse' ? 'Fuse' : actionMeta.kind === 'hazard' ? 'Hazard' : 'Spark'} offer is no longer available`, 'SPECIAL_OFFER_STALE', 409);
+        }
+        if (!await markSparkSkipped(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          tokenHash: hashOfferToken(specialAction.offer_token),
+          now,
+        })) throw specialError(`${actionMeta.kind === 'fuse' ? 'Fuse' : actionMeta.kind === 'hazard' ? 'Hazard' : 'Spark'} offer is no longer available`, 'SPECIAL_OFFER_STALE', 409);
+        if (specialAction.type === 'skip_hazard') {
+          specialDiscovered = {
+            special_id: specialAction.special_id,
+            kind: 'hazard',
+            missed: true,
+            temporary_penalty: buildHazardMissPenalty({
+              width: template.width,
+              height: template.height,
+              specialIndex: Number(special.cell_index),
+            }),
+          };
+        }
+      }
+      if (specialAction?.type === 'claim_spark' || specialAction?.type === 'claim_bomb'
+        || specialAction?.type === 'claim_fuse' || specialAction?.type === 'claim_choice'
+        || specialAction?.type === 'claim_artifact' || specialAction?.type === 'claim_hazard') {
+        await assertNoOtherActiveSpecialOffer(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+        });
+        const hit = changes.find((change) => change?.index === Number(special?.cell_index));
+        if (!special || (specialProgress && ['offered', 'consumed', 'skipped'].includes(specialProgress.status))
+          || !hit || currentFilled[Number(special.cell_index)] !== -1
+          || hit.color !== template.cells[Number(special.cell_index)]) {
+          throw specialError(
+            special?.kind === 'bomb' ? 'Bomb cell cannot be claimed'
+            : special?.kind === 'fuse' ? 'Fuse cell cannot be claimed'
+              : special?.kind === 'choice' ? 'Choice cell cannot be claimed'
+                : special?.kind === 'artifact' ? 'Artifact cell cannot be claimed'
+                  : special?.kind === 'hazard' ? 'Hazard cell cannot be claimed'
+                    : 'Spark cell cannot be claimed',
+            'SPECIAL_CLAIM_INVALID',
+            409,
+          );
+        }
+        specialDiscovered = { special_id: specialAction.special_id, kind: special.kind };
+      }
+      if (specialAction?.type === 'use_spark') {
+        if (!special || !specialProgress || specialProgress.status !== 'offered'
+          || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+          throw specialError('Spark offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+        }
+        const storedOffer = await findStoredSparkOffer(tx, {
+          userId: req.userId,
+          templateId: template.id,
+        });
+        const option = String(storedOffer?.special_id || '') === String(specialAction.special_id)
+          ? (storedOffer.target_options || []).find((candidate) => candidate.option_id === specialAction.option_id)
+          : null;
+        if (!option) throw specialError('Spark target is no longer available', 'SPECIAL_TARGET_STALE', 409);
+        effectiveChanges = deriveLegacySparkChanges({
+          cells: template.cells,
+          filled: currentFilled,
+          width: template.width,
+          height: template.height,
+          target: option,
+        });
+        if (!effectiveChanges.length) throw specialError('Spark target has no remaining cells', 'SPECIAL_TARGET_EMPTY', 409);
+      }
+      if (specialAction?.type === 'use_bomb') {
+        if (!special || !specialProgress || specialProgress.status !== 'offered'
+          || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+          throw specialError('Bomb offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+        }
+        effectiveChanges = deriveLegacyBombChanges({
+          cells: template.cells,
+          filled: currentFilled,
+          width: template.width,
+          height: template.height,
+          specialIndex: Number(special.cell_index),
+          centerX: specialAction.center_x,
+          centerY: specialAction.center_y,
+        });
+        if (!effectiveChanges.length) throw specialError('Bomb target has no remaining cells', 'SPECIAL_TARGET_EMPTY', 409);
+      }
+      if (specialAction?.type === 'use_choice') {
+        if (!special || !specialProgress || specialProgress.status !== 'offered'
+          || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+          throw specialError('Choice offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+        }
+        if (specialAction.option_id === 'smart_target') {
+          const options = buildLegacySparkTargetOptions({
+            cells: template.cells,
+            filled: currentFilled,
+            width: template.width,
+            height: template.height,
+            specialIndex: Number(special.cell_index),
+            maxOptions: 1,
+          });
+          if (!options.length) throw specialError('Choice target is no longer available', 'SPECIAL_TARGET_STALE', 409);
+          effectiveChanges = deriveLegacySparkChanges({
+            cells: template.cells,
+            filled: currentFilled,
+            width: template.width,
+            height: template.height,
+            target: options[0],
+            maxChanges: SPECIAL_MAX_DERIVED_CHANGES,
+          });
+        } else if (specialAction.option_id === 'local_burst') {
+          effectiveChanges = deriveLegacyBombChanges({
+            cells: template.cells,
+            filled: currentFilled,
+            width: template.width,
+            height: template.height,
+            specialIndex: Number(special.cell_index),
+          });
+        } else {
+          throw specialError('Choice option is no longer available', 'SPECIAL_TARGET_STALE', 409);
+        }
+        if (!effectiveChanges.length) throw specialError('Choice target has no remaining cells', 'SPECIAL_TARGET_EMPTY', 409);
+      }
+      if (specialAction?.type === 'disarm_fuse' || specialAction?.type === 'disarm_hazard') {
+        if (!special || !specialProgress || specialProgress.status !== 'offered'
+          || specialProgress.offer_token_hash !== hashOfferToken(specialAction.offer_token)) {
+          throw specialError(`${specialAction.type === 'disarm_fuse' ? 'Fuse' : 'Hazard'} offer is no longer available`, 'SPECIAL_OFFER_STALE', 409);
+        }
+        if (specialAction.type === 'disarm_fuse') {
+          const storedChain = await findStoredFuseChain(tx, {
+            userId: req.userId,
+            templateId: template.id,
+            specialId: specialAction.special_id,
+          });
+          if (!storedChain) throw specialError('Fuse offer is no longer available', 'SPECIAL_OFFER_STALE', 409);
+          const windowChanges = deriveFuseChanges({
+            cells: template.cells,
+            filled: Array(template.width * template.height).fill(-1),
+            width: template.width,
+            height: template.height,
+            specialIndex: Number(special.cell_index),
+          });
+          fuseChain = storedChain;
+          const derived = remainingFuseChangesFromChain(windowChanges, storedChain);
+          if (!derived.length) throw specialError('Fuse target has no remaining cells', 'SPECIAL_TARGET_EMPTY', 409);
+          effectiveChanges = takeFuseStepChanges(derived);
+          fuseRemainingAfterStep = remainingFuseStepChanges(derived);
+        } else {
+          effectiveChanges = deriveHazardDisarmChanges({
+            cells: template.cells,
+            filled: currentFilled,
+            width: template.width,
+            height: template.height,
+            specialIndex: Number(special.cell_index),
+          });
+          if (!effectiveChanges.length) throw specialError('Hazard target has no remaining cells', 'SPECIAL_TARGET_EMPTY', 409);
+        }
+      }
+      for (const change of effectiveChanges) {
         if (change.color !== -1 && change.color !== template.cells[change.index]) {
           return { badAction: true };
         }
         filled[change.index] = change.color;
       }
       const completed = isComplete(template, filled);
-      const nextRevision = clientRevision + 1;
+      const nextRevision = specialAction?.type === 'skip_spark'
+        || specialAction?.type === 'skip_hazard' ? clientRevision : clientRevision + 1;
       const completedAt = completed ? (existing?.completed_at || now) : null;
       let artworkId = null;
       let renderArtifact = null;
@@ -1097,8 +2040,203 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
         }
       }
 
+      if (specialAction?.type === 'claim_spark') {
+        const options = buildLegacySparkTargetOptions({
+          cells: template.cells,
+          filled,
+          width: template.width,
+          height: template.height,
+          specialIndex: Number(special.cell_index),
+        });
+        if (options.length >= 2) {
+          const token = createOfferToken();
+          await markSparkOffered(tx, {
+            userId: req.userId,
+            templateId: template.id,
+            specialId: specialAction.special_id,
+            revision: nextRevision,
+            tokenHash: token.hash,
+            now,
+          });
+          specialOffer = {
+            special_id: specialAction.special_id,
+            offer_token: token.token,
+            progress_revision: nextRevision,
+            target_options: options.slice(0, 2),
+          };
+        } else {
+          await tx.run(`INSERT INTO coloring_special_progress
+            (user_id,template_id,special_id,status,offer_revision,offer_token_hash,updated_at)
+            VALUES (?,?,?,?,?,?,?)
+            ON CONFLICT(user_id,template_id,special_id) DO UPDATE SET
+              status=excluded.status, offer_revision=excluded.offer_revision,
+              offer_token_hash=NULL, updated_at=excluded.updated_at`,
+          [req.userId, template.id, specialAction.special_id, 'skipped', nextRevision, null, now]);
+        }
+      } else if (specialAction?.type === 'claim_bomb') {
+        const token = createOfferToken();
+        await markSparkOffered(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: nextRevision,
+          tokenHash: token.hash,
+          now,
+        });
+        const bombIndex = Number(special?.cell_index);
+        specialOffer = {
+          special_id: specialAction.special_id,
+          offer_token: token.token,
+          progress_revision: nextRevision,
+          kind: actionMeta.kind,
+          radius: BOMB_RADIUS,
+          center_x: bombIndex % Number(template.width),
+          center_y: Math.floor(bombIndex / Number(template.width)),
+        };
+      } else if (specialAction?.type === 'claim_fuse') {
+        const token = createOfferToken();
+        await markSparkOffered(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: nextRevision,
+          tokenHash: token.hash,
+          now,
+        });
+        const derived = deriveFuseChanges({
+          cells: template.cells,
+          filled: Array(template.width * template.height).fill(-1),
+          width: template.width,
+          height: template.height,
+          specialIndex: Number(special.cell_index),
+        });
+        specialOffer = {
+          special_id: specialAction.special_id,
+          offer_token: token.token,
+          progress_revision: nextRevision,
+          kind: actionMeta.kind,
+          steps: buildFuseOfferSteps(derived),
+          disarm: true,
+          chain_cells: derived.map((change) => change.index),
+        };
+      } else if (specialAction?.type === 'claim_hazard') {
+        const token = createOfferToken();
+        await markSparkOffered(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: nextRevision,
+          tokenHash: token.hash,
+          now,
+        });
+        const derived = deriveHazardDisarmChanges({
+          cells: template.cells,
+          filled,
+          width: template.width,
+          height: template.height,
+          specialIndex: Number(special.cell_index),
+        });
+        specialOffer = buildHazardOffer({
+          specialId: specialAction.special_id,
+          offerToken: token.token,
+          progressRevision: nextRevision,
+          rewardCells: derived.length,
+        });
+      } else if (specialAction?.type === 'claim_choice') {
+        const token = createOfferToken();
+        await markSparkOffered(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: nextRevision,
+          tokenHash: token.hash,
+          now,
+        });
+        specialOffer = {
+          special_id: specialAction.special_id,
+          offer_token: token.token,
+          progress_revision: nextRevision,
+          kind: actionMeta.kind,
+          choice_options: [
+            { option_id: 'smart_target', label: 'Smart zone' },
+            { option_id: 'local_burst', label: 'Local burst' },
+          ],
+        };
+      } else if (specialAction?.type === 'claim_artifact') {
+        await tx.run(`INSERT INTO coloring_special_progress
+          (user_id,template_id,special_id,status,offer_revision,offer_token_hash,updated_at)
+          VALUES (?,?,?,?,?,?,?)
+          ON CONFLICT(user_id,template_id,special_id) DO UPDATE SET
+            status='consumed', offer_revision=excluded.offer_revision,
+            offer_token_hash=NULL, updated_at=excluded.updated_at`,
+        [req.userId, template.id, specialAction.special_id, 'consumed', nextRevision, null, now]);
+        const fragmentRow = await tx.get(`SELECT COUNT(*) AS count
+          FROM coloring_special_progress p
+          JOIN coloring_special_cells c
+            ON c.template_id=p.template_id AND c.special_id=p.special_id
+         WHERE p.user_id=? AND p.template_id=? AND c.kind='artifact' AND p.status='consumed'`,
+        [req.userId, template.id]);
+        specialDiscovered = {
+          special_id: specialAction.special_id,
+          kind: 'artifact',
+          artifact_fragments: Math.min(3, Number(fragmentRow?.count || 0)),
+          artifact_complete: Number(fragmentRow?.count || 0) >= 3,
+        };
+      } else if (specialAction?.type === 'use_spark' || specialAction?.type === 'use_bomb'
+        || specialAction?.type === 'disarm_fuse' || specialAction?.type === 'use_choice'
+        || specialAction?.type === 'disarm_hazard') {
+        if (specialAction.type === 'disarm_fuse' && fuseRemainingAfterStep.length) {
+          await markSparkOffered(tx, {
+            userId: req.userId,
+            templateId: template.id,
+            specialId: specialAction.special_id,
+            revision: nextRevision,
+            tokenHash: hashOfferToken(specialAction.offer_token),
+            now,
+          });
+          specialOffer = {
+            special_id: specialAction.special_id,
+            offer_token: specialAction.offer_token,
+            progress_revision: nextRevision,
+            kind: actionMeta.kind,
+            steps: buildFuseOfferSteps(fuseRemainingAfterStep),
+            disarm: true,
+            chain_cells: fuseChain,
+          };
+          specialAppliedChanges = effectiveChanges.map((change) => ({ index: change.index, color: change.color }));
+        } else {
+          if (!await markSparkConsumed(tx, {
+            userId: req.userId,
+            templateId: template.id,
+            specialId: specialAction.special_id,
+            tokenHash: hashOfferToken(specialAction.offer_token),
+            now,
+          })) throw specialError(
+            specialAction.type === 'use_bomb' ? 'Bomb offer is no longer available'
+              : specialAction.type === 'disarm_fuse' ? 'Fuse offer is no longer available'
+                : specialAction.type === 'use_choice' ? 'Choice offer is no longer available'
+                  : specialAction.type === 'disarm_hazard' ? 'Hazard offer is no longer available'
+                    : 'Spark offer is no longer available',
+            'SPECIAL_OFFER_STALE',
+            409,
+          );
+          specialAppliedChanges = effectiveChanges.map((change) => ({ index: change.index, color: change.color }));
+        }
+      }
+
       const wasEmpty = !existing || currentFilled.every((color) => color === -1);
       const justCompleted = completed && !existing?.completed_at;
+      if (justCompleted && (/^claim_(spark|bomb|fuse|choice|hazard)$/.test(String(specialAction?.type || ''))
+        || specialAction?.type === 'disarm_fuse' || specialAction?.type === 'disarm_hazard')) {
+        await markSpecialConsumedDirect(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: nextRevision,
+          now,
+        });
+        specialOffer = null;
+      }
       if (justCompleted) {
         renderArtifact = renderCanonicalPng({
           width: template.width,
@@ -1132,7 +2270,7 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
         });
       }
 
-      const painted = changes.some((change) => change.color !== -1);
+      const painted = effectiveChanges.some((change) => change.color !== -1);
       if (painted) await touchDailyStreak(tx, { userId: req.userId, now });
 
       const rewards = await rewardVerifiedPainting(tx, {
@@ -1156,10 +2294,39 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
 
       await tx.run(`INSERT INTO coloring_progress_batches (user_id,template_id,client_batch_id,changes_hash,revision_before,revision_after,response_json,created_at)
         VALUES (?,?,?,?,?,?,?,?)`,
-      [req.userId, template.id, clientBatchId, batchHash, clientRevision, nextRevision, JSON.stringify({ revision: nextRevision, artwork_id: artworkId, render_status: renderStatus, rewards }), now]);
+      [req.userId, template.id, clientBatchId, batchHash, clientRevision, nextRevision, JSON.stringify({
+        revision: nextRevision,
+        artwork_id: artworkId,
+        render_status: renderStatus,
+        rewards,
+        special_offer: specialOffer,
+        special_applied_changes: specialAppliedChanges,
+        special_discovered: specialDiscovered,
+      }), now]);
 
-      return { conflict: false, revision: nextRevision, completed, justCompleted, wasEmpty, painted, artworkId, renderStatus, rewards, renderArtifact, renderThumbnailArtifact: justCompleted ? renderCanonicalThumbnail({ width: template.width, height: template.height, palette: template.palette, cells: template.cells, filled }) : null };
+      return {
+        conflict: false,
+        revision: nextRevision,
+        completed,
+        justCompleted,
+        wasEmpty,
+        painted,
+        artworkId,
+        renderStatus,
+        rewards,
+        specialOffer,
+        specialAppliedChanges,
+        specialDiscovered,
+        renderArtifact,
+        renderThumbnailArtifact: justCompleted ? renderCanonicalThumbnail({ width: template.width, height: template.height, palette: template.palette, cells: template.cells, filled }) : null,
+      };
     });
+  } catch (error) {
+    if (isTiledSpecialError(error)) {
+      return res.status(error.status || 400).json({ error: error.message, code: error.code });
+    }
+    throw error;
+  }
 
   if (casResult.badBatch) return res.status(409).json({ error: 'client_batch_id уже использован для другого набора изменений' });
   if (casResult.badAction) return res.status(400).json({ error: 'Сервер отклонил цвет, не соответствующий клетке' });
@@ -1208,7 +2375,25 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
     }
   }
 
-  res.json({ ...progressPayload(template, saved), artwork_id: artworkId, render_status: casResult.renderStatus || null, idempotent: Boolean(casResult.replay), rewards: casResult.rewards || null });
+  const legacySpecialPayload = await readLegacySparkPayload(
+    { all, run, get },
+    { template, userId: req.userId, progress: saved },
+  );
+  res.json({
+    ...withSparkCohort(progressPayload(template, saved), req.userId, template),
+    ...legacySpecialPayload,
+    artwork_id: artworkId,
+    render_status: casResult.renderStatus || null,
+    idempotent: Boolean(casResult.replay),
+    rewards: casResult.rewards || null,
+    special_offer: casResult.specialOffer || null,
+    special_applied_changes: casResult.specialAppliedChanges || [],
+    special_discovered: casResult.specialDiscovered || null,
+    artifact_progress: await buildArtifactProgress({ get }, {
+      userId: req.userId,
+      templateId: template.id,
+    }),
+  });
 }));
 
 export default router;

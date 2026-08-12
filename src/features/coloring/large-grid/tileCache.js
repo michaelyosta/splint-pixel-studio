@@ -85,6 +85,20 @@ export function normalizeTilePayload(payload, { grid: gridSource, templateId } =
   const filled = toTypedArray(payload.filled, Int16Array, bounds.cellCount, 'filled', UNFILLED_CELL);
   validateCellRange(cells, { min: 0, max: 65_535, label: 'cells' });
   validateCellRange(filled, { min: -1, max: 32_767, label: 'filled' });
+  // Tile payloads stay bounded even after cadence is increased. Eight
+  // records is enough for a work tile while preserving a hard client-side
+  // memory/network ceiling; the server orders active/nearby records first.
+  const specials = Array.isArray(payload.specials)
+    ? payload.specials.slice(0, 8).map((special) => ({
+      id: String(special.id || special.special_id || ''),
+      kind: String(special.kind || ''),
+      cellIndex: Number(special.cell_index),
+      localIndex: Number(special.local_index),
+      state: String(special.state || 'unseen'),
+      meta: special.meta && typeof special.meta === 'object' ? { ...special.meta } : null,
+    })).filter((special) => special.id && Number.isInteger(special.localIndex)
+      && special.localIndex >= 0 && special.localIndex < bounds.cellCount)
+    : [];
   return {
     key: bounds.key,
     tileX: bounds.tileX,
@@ -101,6 +115,7 @@ export function normalizeTilePayload(payload, { grid: gridSource, templateId } =
     cell_count: bounds.cell_count,
     cells,
     filled,
+    specials,
     progress: payload.progress ? { ...payload.progress } : null,
     contentRevision: payload.content_revision ?? null,
     bytes: cells.byteLength + filled.byteLength,

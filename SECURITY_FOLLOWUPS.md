@@ -1,6 +1,30 @@
 # Повторная проверка security follow-ups
 
-## Актуальный снимок на 01.08.2026
+## Актуальный снимок на 08.08.2026
+
+Проверено на HEAD `37180e0ca2b0e793ad42814d7a7f7df760b4872a` ветки `codex/tiled-player-1200`; baseline `main` — `origin/main` `68d751e1da35de3bfd92f6bec382f0af830ac502`. Снимок от 01.08.2026 ниже сохранён как история.
+
+| Статус | Количество security findings |
+|---|---:|
+| resolved | 12 |
+| partially_resolved | 3 |
+| open | 0 |
+| requires_environment_validation | 1 |
+| in_progress | 0 |
+
+Ключевые изменения против снимка 01.08:
+
+- SEC-004 → `resolved`: серверный canonical renderer и durable render outbox; клиентский `resultDataUrl` не сохраняется как artwork (`server/services/canonical-renderer.js`, `server/services/render-outbox.js`, `server/routes/colorings.js`, `server/test/canonical-renderer.test.js`, `server/test/render-outbox-http.test.js`).
+- SEC-010 → `resolved`: Telegram-owned nickname/avatar обновляются при каждом входе (`server/middleware/auth.js`, `ensureTelegramUser`).
+- SEC-005 остаётся `partially_resolved`, но доказательство расширено: PNG decode/dimension/pixel limits и idempotent canonical media keys; cloud IAM/retention остаются внешними.
+- SEC-006 остаётся `partially_resolved`: к глобальному IP limiter добавлены durable per-actor counters (`server/services/abuse-limiter.js`, migration `013`) для comments/messages и route-level лимиты публикаций/подписок/репортов; единая per-route persistent policy на все API не введена.
+- SEC-003 остаётся `partially_resolved`: сервер проверяет действия, но client-visible map допускает автоматизацию допустимых действий.
+- OPS-006 → `resolved`: повторный `SEED_DEMO_DATA` идемпотентен (`server/db.js`, `server/test/database.test.js`, `server/test/postgres-demo-seed.test.js`).
+- SEC-012 остаётся `requires_environment_validation`.
+
+Локальные тесты 08.08.2026: `npm test` — `283/283` при изолированном прогоне (один timing-флаки `createBoundedAnnouncer` при параллельной нагрузке, изолированно 5/5); `npm --prefix server test` — `295` total, `229 passed`, `65 skipped`, `1 failed` (`server/test/director.test.js`); lint `93/100`, build зелёный. Внешние disposable-гейты 02.08 и Telegram/manual-гейты — [docs/remediation/FINAL_REPORT.md](docs/remediation/FINAL_REPORT.md), [docs/remediation/EXTERNAL_VALIDATION.md](docs/remediation/EXTERNAL_VALIDATION.md), [docs/remediation/TELEGRAM_WEBVIEW_VALIDATION.md](docs/remediation/TELEGRAM_WEBVIEW_VALIDATION.md).
+
+## Актуальный снимок на 01.08.2026 (исторический)
 
 Повторная проверка выполнена на `main`, commit `782110afe05bb98936afd64a96c74171f658b306`. PR #10 (`feature/public-alpha-hardening`) уже смержен в основную ветку через commit `bf70ef3`; его исправления больше не являются `in_progress`. Исторические разделы ниже сохранены для аудиторского следа и описывают состояние до merge.
 
@@ -182,4 +206,4 @@ SEC-012 остаётся `requires_environment_validation`: локальный p
 | AWS SDK audit | `SEC-001`, in_progress в draft PR #10: на ветке audit 0 vulnerabilities, в `main` до merge остаётся уязвимое дерево. |
 | Database runtime integrity | `SF-012`, partially_resolved; CAS защищает от гонок, но не устраняет `SEC-003` client-authoritative progress. |
 
-> Current RC note (2026-08-02): this file contains a historical snapshot above. The current verdict is `operational_rc_verified_except_telegram`; use `docs/remediation/FINAL_REPORT.md` and `docs/remediation/EXTERNAL_VALIDATION.md` for authoritative evidence. Server completion no longer treats `resultDataUrl` as authoritative, media/feed safeguards and atomic abuse counters have coverage, and disposable PostgreSQL/MinIO/database/object restore checks, `/live`, and POSIX graceful shutdown passed. Telegram WebView, production credentials/IAM/retention, and target-runtime deployment behavior remain pending.
+> RC note (2026-08-02, historical): this file contains a historical snapshot above. The current verdict at that date was `operational_rc_verified_except_telegram`; use `docs/remediation/FINAL_REPORT.md` and `docs/remediation/EXTERNAL_VALIDATION.md` for authoritative evidence. Server completion no longer treats `resultDataUrl` as authoritative, media/feed safeguards and atomic abuse counters have coverage, and disposable PostgreSQL/MinIO/database/object restore checks, `/live`, and POSIX graceful shutdown passed. Telegram WebView, production credentials/IAM/retention, and target-runtime deployment behavior remain pending.

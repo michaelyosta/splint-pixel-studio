@@ -2,6 +2,7 @@ import {
   createGridDescriptor,
   getTileBounds,
   mapPointerToCell,
+  GRID_LOD_MODE,
   selectViewportTiles,
 } from '../features/coloring/large-grid/gridMath.js';
 import {
@@ -20,6 +21,8 @@ export const PROGRESSIVE_GRID_STATUS = Object.freeze({
   ERROR: 'error',
   DESTROYED: 'destroyed',
 });
+
+const TILE_RETRY_DELAYS_MS = [1_000, 3_000, 10_000];
 
 export class ProgressiveGridClientError extends Error {
   constructor(message, {
@@ -330,6 +333,8 @@ function buildGuidanceQuery({
   recent,
   tileX,
   tileY,
+  specialId,
+  sparkTreatment,
 } = {}) {
   const params = new URLSearchParams();
   if (selectedColor != null && Number.isInteger(selectedColor)) params.set('selected_color', String(selectedColor));
@@ -344,6 +349,8 @@ function buildGuidanceQuery({
     params.set('tile_x', String(tileX));
     params.set('tile_y', String(tileY));
   }
+  if (specialId) params.set('special_id', String(specialId));
+  if (sparkTreatment != null) params.set('spark_treatment', sparkTreatment ? '1' : '0');
   return params.toString();
 }
 
@@ -408,6 +415,21 @@ export function createProgressiveGridClient({
   let destroyed = false;
   let lastError = null;
   const tileErrors = new Map();
+  const tileFailures = new Map();
+  const networkMetrics = {
+    viewportPlans: 0,
+    overviewPlans: 0,
+    workPlans: 0,
+    tileFetches: 0,
+    tileFetchSuccesses: 0,
+    tileFetchFailures: 0,
+    abortedRequests: 0,
+    dedupedTileRequests: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    activeTileRequests: 0,
+    peakConcurrentTileRequests: 0,
+  };
   let status = PROGRESSIVE_GRID_STATUS.IDLE;
 
   function snapshot() {
@@ -418,9 +440,13 @@ export function createProgressiveGridClient({
       cache: tileCache.stats(),
       pendingTiles: [...tileRequests.keys()],
       tileErrors: Object.fromEntries(tileErrors),
+      tileRetries: Object.fromEntries([...tileFailures].map(([key, value]) => [key, {
+        attempts: value.attempts,
+        nextRetryAt: value.nextRetryAt,
+      }])),
+      network: { ...networkMetrics },
     };
   }
-
   function notify() {
     const value = snapshot();
     for (const listener of listeners) {
@@ -526,6 +552,8 @@ export function createProgressiveGridClient({
     recent,
     tileX,
     tileY,
+    specialId,
+    sparkTreatment,
     signal,
   } = {}) {
     ensureManifest();
@@ -544,31 +572,60 @@ export function createProgressiveGridClient({
       recent,
       tileX,
       tileY,
+      specialId,
+      sparkTreatment,
     });
   }
 
   async function loadTile(bounds, signal) {
-    const raw = await requestJson(manifestTileUrl(bounds.tileX, bounds.tileY), {
-      fetchImpl,
-      headers,
-      signal,
-      requestInit,
-      context: `Tile ${bounds.key} request`,
-    });
-    return normalizeTilePayload(raw, { grid: manifest.grid, templateId: manifest.templateId });
+    networkMetrics.tileFetches += 1;
+    networkMetrics.activeTileRequests += 1;
+    networkMetrics.peakConcurrentTileRequests = Math.max(
+      networkMetrics.peakConcurrentTileRequests,
+      networkMetrics.activeTileRequests,
+    );
+    try {
+      const raw = await requestJson(manifestTileUrl(bounds.tileX, bounds.tileY), {
+        fetchImpl,
+        headers,
+        signal,
+        requestInit,
+        context: `Tile ${bounds.key} request`,
+      });
+      const tile = normalizeTilePayload(raw, { grid: manifest.grid, templateId: manifest.templateId });
+      networkMetrics.tileFetchSuccesses += 1;
+      return tile;
+    } catch (error) {
+      networkMetrics.tileFetchFailures += 1;
+      if (isAbortError(error)) networkMetrics.abortedRequests += 1;
+      throw error;
+    } finally {
+      networkMetrics.activeTileRequests = Math.max(0, networkMetrics.activeTileRequests - 1);
+    }
   }
 
-  function fetchTile(tileX, tileY, { signal } = {}) {
+  function fetchTile(tileX, tileY, { signal, force = false } = {}) {
     const activeManifest = ensureManifest();
     const bounds = getTileBounds(activeManifest.grid, tileX, tileY);
     const cached = tileCache.get(bounds.key);
-    if (cached) return Promise.resolve(cached);
+    if (cached) {
+      networkMetrics.cacheHits += 1;
+      return Promise.resolve(cached);
+    }
+    networkMetrics.cacheMisses += 1;
     const earlyAbort = rejectIfAborted(signal);
     if (earlyAbort) return earlyAbort;
     const existing = tileRequests.get(bounds.key);
     if (existing && !existing.controller.signal.aborted) {
+      networkMetrics.dedupedTileRequests += 1;
       return consumeSharedRequest(existing, signal);
     }
+
+    const failure = tileFailures.get(bounds.key);
+    if (!force && failure && Date.now() < failure.nextRetryAt) {
+      return Promise.reject(failure.error);
+    }
+    if (force) tileFailures.delete(bounds.key);
 
     if (status === PROGRESSIVE_GRID_STATUS.READY) setStatus(PROGRESSIVE_GRID_STATUS.LOADING_TILES);
     const pending = createSharedRequest(
@@ -593,6 +650,7 @@ export function createProgressiveGridClient({
         // via the progress revision, not by re-fetching a live tile.
         if (!tileCache.has(tile.key)) tileCache.set(tile.key, tile);
         tileErrors.delete(tile.key);
+        tileFailures.delete(tile.key);
         if (status === PROGRESSIVE_GRID_STATUS.LOADING_TILES) setStatus(PROGRESSIVE_GRID_STATUS.READY);
         else notify();
       },
@@ -600,10 +658,18 @@ export function createProgressiveGridClient({
         if (destroyed || isAbortError(error)) return;
         const clientError = asClientError(error, `Tile ${bounds.key} request`);
         tileErrors.set(bounds.key, clientError);
-        setStatus(
-          clientError.kind === 'offline' ? PROGRESSIVE_GRID_STATUS.OFFLINE : PROGRESSIVE_GRID_STATUS.ERROR,
-          clientError,
-        );
+        const previous = tileFailures.get(bounds.key);
+        const attempts = (previous?.attempts || 0) + 1;
+        const delay = TILE_RETRY_DELAYS_MS[Math.min(attempts - 1, TILE_RETRY_DELAYS_MS.length - 1)];
+        tileFailures.set(bounds.key, {
+          error: clientError,
+          attempts,
+          nextRetryAt: Date.now() + delay,
+        });
+        // A missing optional tile is not a manifest/player failure. Keep the
+        // existing canvas visible and expose the tile-local state via the
+        // snapshot for a bounded user retry.
+        notify();
       },
     );
     return consumeSharedRequest(pending, signal);
@@ -650,6 +716,7 @@ export function createProgressiveGridClient({
     viewportWidth,
     viewportHeight,
     cellSize,
+    mode = GRID_LOD_MODE.WORK,
     overscanCells = 0,
     overscanTiles = 1,
     maxPrefetchTiles = tileCache.maxTiles,
@@ -657,6 +724,9 @@ export function createProgressiveGridClient({
     signal,
   } = {}) {
     const activeManifest = await loadManifest({ signal });
+    const lodMode = mode === GRID_LOD_MODE.OVERVIEW ? GRID_LOD_MODE.OVERVIEW : GRID_LOD_MODE.WORK;
+    networkMetrics.viewportPlans += 1;
+    networkMetrics[`${lodMode}Plans`] += 1;
     const plan = selectViewportTiles({
       grid: activeManifest.grid,
       camera,
@@ -666,6 +736,23 @@ export function createProgressiveGridClient({
       overscanCells,
       overscanTiles,
     });
+
+    if (lodMode === GRID_LOD_MODE.OVERVIEW) {
+      // The preview is the overview source of truth. Cached detail tiles may
+      // still be painted as an optional enhancement by the renderer, but a
+      // low-zoom camera must never fetch or pin a logical full-map tile set.
+      tileCache.setPinnedKeys([]);
+      if (!destroyed) setStatus(PROGRESSIVE_GRID_STATUS.READY);
+      return {
+        mode: lodMode,
+        plan: { ...plan, mode: lodMode, visible: [], prefetch: [], all: [] },
+        visible: [],
+        prefetched: [],
+        errors: [],
+        cache: tileCache.stats(),
+      };
+    }
+
     // Bounded visible set: never fetch/pin more than the cache can hold, even
     // when the whole grid is inside the viewport at overview zoom.
     const visible = pickCenterTiles(
@@ -687,22 +774,38 @@ export function createProgressiveGridClient({
     const errors = [...visibleResults, ...prefetchResults]
       .filter((result) => result.error)
       .map((result) => ({ tile: result.tile, error: result.error }));
-    if (errors.length) {
-      const firstError = errors[0].error;
-      setStatus(
-        firstError.kind === 'offline' ? PROGRESSIVE_GRID_STATUS.OFFLINE : PROGRESSIVE_GRID_STATUS.ERROR,
-        firstError,
-      );
-    } else if (!destroyed) {
+    if (!destroyed) {
+      // Tile failures are recoverable and stay localized in tileErrors. The
+      // manifest-backed canvas remains usable even when every optional tile in
+      // this particular plan is temporarily unavailable.
       setStatus(PROGRESSIVE_GRID_STATUS.READY);
     }
     return {
-      plan: { ...plan, visible, prefetch },
+      mode: lodMode,
+      plan: { ...plan, mode: lodMode, visible, prefetch },
       visible: loadedVisible,
       prefetched: loadedPrefetched,
       errors,
       cache: tileCache.stats(),
     };
+  }
+
+  function retryTile(tileX, tileY, { signal } = {}) {
+    const activeManifest = ensureManifest();
+    const bounds = getTileBounds(activeManifest.grid, tileX, tileY);
+    tileErrors.delete(bounds.key);
+    tileFailures.delete(bounds.key);
+    notify();
+    return fetchTile(tileX, tileY, { signal, force: true });
+  }
+
+  async function retryFailedTiles({ signal } = {}) {
+    const keys = [...tileErrors.keys()];
+    const results = await Promise.allSettled(keys.map((key) => {
+      const [tileX, tileY] = key.split(':').map(Number);
+      return retryTile(tileX, tileY, { signal });
+    }));
+    return results;
   }
 
   function getCell(x, y) {
@@ -750,12 +853,15 @@ export function createProgressiveGridClient({
     loadManifest,
     fetchGuidance,
     fetchTile,
+    retryTile,
+    retryFailedTiles,
     loadViewport,
     getTilePlan,
     getCell,
     updateFilled,
     mapPointer,
     getMemoryStats: () => tileCache.stats(),
+    getNetworkStats: () => ({ ...networkMetrics }),
     getSnapshot: snapshot,
     subscribe,
     destroy,

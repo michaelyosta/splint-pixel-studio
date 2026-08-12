@@ -2,6 +2,135 @@ export function getTelegramWebApp() {
   return window.Telegram?.WebApp ?? null;
 }
 
+/**
+ * WebApp API version that introduced vertical swipe control
+ * (`isVerticalSwipesEnabled`, `enableVerticalSwipes`, `disableVerticalSwipes`).
+ */
+export const TELEGRAM_SWIPE_CONTROL_VERSION = '7.7';
+
+/** Compares dotted Telegram WebApp versions; returns -1, 0, or 1. */
+export function compareTelegramVersions(left, right) {
+  const parts = (value) => String(value ?? '').split('.').map((part) => {
+    const parsed = Number.parseInt(part, 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  });
+  const a = parts(left);
+  const b = parts(right);
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (a[index] || 0) - (b[index] || 0);
+    if (diff !== 0) return diff > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+export function isTelegramVersionAtLeast(version, minimum = TELEGRAM_SWIPE_CONTROL_VERSION) {
+  return compareTelegramVersions(version, minimum) >= 0;
+}
+
+export function isRealTelegramSession(webApp = getTelegramWebApp()) {
+  return Boolean(webApp && String(webApp.initData || '').trim());
+}
+
+/**
+ * Reports whether this WebApp can disable the vertical swipe-to-close gesture.
+ * Prefers Telegram's own `isVersionAtLeast` capability check and falls back to
+ * comparing `version` when the capability helper is unavailable or throws.
+ */
+export function supportsTelegramVerticalSwipes(webApp = getTelegramWebApp()) {
+  if (!webApp) return false;
+  let versionSupported = false;
+  if (typeof webApp.isVersionAtLeast === 'function') {
+    try {
+      versionSupported = Boolean(webApp.isVersionAtLeast(TELEGRAM_SWIPE_CONTROL_VERSION));
+    } catch {
+      versionSupported = false;
+    }
+  }
+  if (!versionSupported) {
+    versionSupported = isTelegramVersionAtLeast(webApp.version, TELEGRAM_SWIPE_CONTROL_VERSION);
+  }
+  return versionSupported
+    && typeof webApp.disableVerticalSwipes === 'function'
+    && typeof webApp.enableVerticalSwipes === 'function';
+}
+
+/** Disables Telegram vertical swipe-to-close gestures when supported. */
+export function disableTelegramVerticalSwipes(webApp = getTelegramWebApp()) {
+  if (!supportsTelegramVerticalSwipes(webApp)) return false;
+  try {
+    webApp.disableVerticalSwipes();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Re-enables Telegram vertical swipe-to-close gestures when supported. */
+export function enableTelegramVerticalSwipes(webApp = getTelegramWebApp()) {
+  if (!supportsTelegramVerticalSwipes(webApp)) return false;
+  try {
+    webApp.enableVerticalSwipes();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const SWIPE_PROTECTION_ATTR = 'data-tg-swipe-protected';
+
+/**
+ * Observes the last known Telegram vertical-swipe state. If the official
+ * bridge accepted a call but still reports swipes enabled, the protection is
+ * uncertain rather than claimed.
+ */
+export function getTelegramVerticalSwipeStatus(webApp = getTelegramWebApp()) {
+  const apiSupported = supportsTelegramVerticalSwipes(webApp);
+  const previousState = webApp?.isVerticalSwipesEnabled == null
+    ? null
+    : Boolean(webApp.isVerticalSwipesEnabled);
+  const currentState = webApp?.isVerticalSwipesEnabled == null
+    ? null
+    : Boolean(webApp.isVerticalSwipesEnabled);
+  const fallbackApplied = typeof document !== 'undefined'
+    && document.documentElement.hasAttribute(SWIPE_PROTECTION_ATTR);
+  let protectionApplied = fallbackApplied;
+  let uncertain = false;
+  if (apiSupported && currentState === false) protectionApplied = true;
+  if (apiSupported && currentState === true) uncertain = true;
+  return {
+    apiSupported,
+    fallbackApplied,
+    previousState,
+    currentState,
+    protectionApplied,
+    uncertain,
+  };
+}
+
+/**
+ * Binds lifecycle-scoped Telegram vertical swipe protection. Disables swipes
+ * while the returned cleanup is pending and restores the previous state on
+ * leave. Older WebApp versions get a CSS overscroll fallback only in a real
+ * Telegram session, so normal browser SDK stubs do not globally alter
+ * overscroll. The protection applies regardless of Telegram's fullscreen mode.
+ */
+export function bindTelegramVerticalSwipes(webApp = getTelegramWebApp()) {
+  const wasEnabled = webApp?.isVerticalSwipesEnabled !== false;
+  const officialApplied = disableTelegramVerticalSwipes(webApp);
+  let fallbackApplied = false;
+  if (!officialApplied && webApp && isRealTelegramSession(webApp) && typeof document !== 'undefined') {
+    document.documentElement.setAttribute(SWIPE_PROTECTION_ATTR, 'true');
+    fallbackApplied = true;
+  }
+  return () => {
+    if (fallbackApplied && typeof document !== 'undefined') {
+      document.documentElement.removeAttribute(SWIPE_PROTECTION_ATTR);
+    }
+    if (wasEnabled) enableTelegramVerticalSwipes(webApp);
+  };
+}
+
 export function initializeTelegramWebApp() {
   const webApp = getTelegramWebApp();
   if (!webApp) return null;

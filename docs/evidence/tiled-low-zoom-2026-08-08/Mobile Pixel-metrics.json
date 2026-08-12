@@ -1,0 +1,119 @@
+{
+  "capturedAt": "2026-08-08T13:53:50.431Z",
+  "project": "Mobile Pixel",
+  "viewport": {
+    "width": 393,
+    "height": 727
+  },
+  "grid": {
+    "width": 1200,
+    "height": 1200,
+    "tileSize": 32
+  },
+  "overview": {
+    "stableWindowMs": 455,
+    "tileRequestCount": 0,
+    "client": {
+      "cache": {
+        "tiles": 3,
+        "maxTiles": 48,
+        "cells": 3072,
+        "bytes": 12288,
+        "pinnedTiles": 0
+      },
+      "network": {
+        "viewportPlans": 3,
+        "overviewPlans": 2,
+        "workPlans": 1,
+        "tileFetches": 12,
+        "tileFetchSuccesses": 3,
+        "tileFetchFailures": 9,
+        "abortedRequests": 9,
+        "dedupedTileRequests": 0,
+        "cacheHits": 1,
+        "cacheMisses": 12,
+        "activeTileRequests": 0,
+        "peakConcurrentTileRequests": 11
+      }
+    }
+  },
+  "work": {
+    "tileRequestCount": 9,
+    "client": {
+      "cache": {
+        "tiles": 11,
+        "maxTiles": 48,
+        "cells": 11264,
+        "bytes": 45056,
+        "pinnedTiles": 4
+      },
+      "network": {
+        "viewportPlans": 4,
+        "overviewPlans": 2,
+        "workPlans": 2,
+        "tileFetches": 21,
+        "tileFetchSuccesses": 11,
+        "tileFetchFailures": 9,
+        "abortedRequests": 9,
+        "dedupedTileRequests": 0,
+        "cacheHits": 5,
+        "cacheMisses": 21,
+        "activeTileRequests": 1,
+        "peakConcurrentTileRequests": 11
+      }
+    }
+  },
+  "rapidPinch": {
+    "additionalTileRequestCount": 2,
+    "client": {
+      "cache": {
+        "tiles": 12,
+        "maxTiles": 48,
+        "cells": 12288,
+        "bytes": 49152,
+        "pinnedTiles": 4
+      },
+      "network": {
+        "viewportPlans": 4,
+        "overviewPlans": 2,
+        "workPlans": 2,
+        "tileFetches": 21,
+        "tileFetchSuccesses": 12,
+        "tileFetchFailures": 9,
+        "abortedRequests": 9,
+        "dedupedTileRequests": 0,
+        "cacheHits": 5,
+        "cacheMisses": 21,
+        "activeTileRequests": 0,
+        "peakConcurrentTileRequests": 11
+      }
+    }
+  },
+  "final": {
+    "cache": {
+      "tiles": 1,
+      "maxTiles": 48,
+      "cells": 1024,
+      "bytes": 4096,
+      "pinnedTiles": 0
+    },
+    "network": {
+      "viewportPlans": 5,
+      "overviewPlans": 3,
+      "workPlans": 2,
+      "tileFetches": 23,
+      "tileFetchSuccesses": 13,
+      "tileFetchFailures": 10,
+      "abortedRequests": 9,
+      "dedupedTileRequests": 0,
+      "cacheHits": 5,
+      "cacheMisses": 23,
+      "activeTileRequests": 0,
+      "peakConcurrentTileRequests": 11
+    }
+  },
+  "longTasks": {
+    "count": 0,
+    "totalDurationMs": 0
+  }
+}

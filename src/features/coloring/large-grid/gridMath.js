@@ -2,6 +2,26 @@ export const DEFAULT_TILE_SIZE = 32;
 export const DEFAULT_CELL_SIZE = 32;
 export const MAX_GRID_DIMENSION = 1_200;
 
+// The canvas switches from preview-first drawing to per-cell drawing at five
+// screen pixels per cell. Keep one pixel of hysteresis on both sides of that
+// renderer boundary so pinch/animated camera movement cannot flap the data
+// loading policy around a single zoom value.
+export const OVERVIEW_ENTER_CELL_PIXELS = 4;
+export const WORK_ENTER_CELL_PIXELS = 6;
+export const GRID_LOD_MODE = Object.freeze({
+  OVERVIEW: 'overview',
+  WORK: 'work',
+});
+
+export function resolveGridLodMode(cellPixels, previousMode = GRID_LOD_MODE.OVERVIEW) {
+  const pixels = Number(cellPixels);
+  if (!Number.isFinite(pixels)) return previousMode;
+  if (previousMode === GRID_LOD_MODE.WORK) {
+    return pixels < OVERVIEW_ENTER_CELL_PIXELS ? GRID_LOD_MODE.OVERVIEW : GRID_LOD_MODE.WORK;
+  }
+  return pixels >= WORK_ENTER_CELL_PIXELS ? GRID_LOD_MODE.WORK : GRID_LOD_MODE.OVERVIEW;
+}
+
 function asPositiveInteger(value, label) {
   const number = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
   if (!Number.isSafeInteger(number) || number <= 0) {

@@ -87,7 +87,7 @@ export function createProgressJournal({ scope, ttlMs = DEFAULT_TTL_MS, maxEntrie
   }
 
   return {
-    async put({ templateId, userScope, clientBatchId, baseServerRevision, filled, changes = null, state = 'pending', keyOverride = null }) {
+    async put({ templateId, userScope, clientBatchId, baseServerRevision, baseFilled = null, filled, changes = null, specialAction = null, state = 'pending', keyOverride = null }) {
       const key = keyOverride || `${journalScope}:${clientBatchId}`;
       const record = {
         key,
@@ -96,8 +96,10 @@ export function createProgressJournal({ scope, ttlMs = DEFAULT_TTL_MS, maxEntrie
         userScope,
         clientBatchId,
         baseServerRevision,
+        baseFilled: Array.isArray(baseFilled) ? [...baseFilled] : null,
         filled: Array.isArray(filled) ? [...filled] : null,
         changes,
+        specialAction,
         createdAt: Date.now(),
         retryCount: 0,
         state,

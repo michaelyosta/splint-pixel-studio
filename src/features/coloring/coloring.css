@@ -19,6 +19,21 @@
   transition: background 0.5s ease;
 }
 
+.coloring-canvas-container,
+.coloring-canvas-viewport,
+.coloring-canvas-layer,
+.coloring-canvas {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.coloring-canvas-container,
+.coloring-canvas-viewport,
+.coloring-canvas-layer {
+  overscroll-behavior: contain;
+}
+
 .coloring-canvas-viewport {
   touch-action: none;
 }
@@ -32,6 +47,23 @@
   touch-action: none;
   cursor: crosshair;
   outline: none;
+  -webkit-user-drag: none;
+}
+
+.coloring-canvas-container img,
+.coloring-canvas-viewport img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+.coloring-canvas-container input,
+.coloring-canvas-container textarea,
+.coloring-canvas-container [contenteditable],
+.coloring-canvas-viewport input,
+.coloring-canvas-viewport textarea,
+.coloring-canvas-viewport [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .coloring-canvas:focus-visible {

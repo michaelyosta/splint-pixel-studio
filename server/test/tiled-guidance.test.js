@@ -181,6 +181,111 @@ test('INITIAL_TARGET: opening a fresh map returns a color, a compact target and 
   db.close();
 });
 
+test('Spark pity makes the first treatment target contain the deterministic early Spark', async () => {
+  const db = await createGuidanceDb();
+  const adapter = wrapSqlite(db);
+  const template = await seedTemplate(adapter);
+  const special = await adapter.get(
+    "SELECT * FROM coloring_special_cells WHERE template_id=? AND special_id LIKE 'sc_early_%'",
+    [template.id],
+  );
+  const treatment = await buildGuidancePlan({
+    db: adapter,
+    userId: 'user-guidance',
+    template,
+    reason: GUIDANCE_REASON.INITIAL_TARGET,
+    cameraCenter: { x: 32, y: 32 },
+    sparkTreatment: true,
+  });
+  assert.equal(treatment.special_pity, true);
+  assert.equal(treatment.special_id, special.special_id);
+  const specialX = Number(special.cell_index) % template.width;
+  const specialY = Math.floor(Number(special.cell_index) / template.width);
+  assert.ok(specialX >= treatment.target.bounds.min_x && specialX <= treatment.target.bounds.max_x);
+  assert.ok(specialY >= treatment.target.bounds.min_y && specialY <= treatment.target.bounds.max_y);
+
+  const control = await buildGuidancePlan({
+    db: adapter,
+    userId: 'user-guidance',
+    template,
+    reason: GUIDANCE_REASON.INITIAL_TARGET,
+    cameraCenter: { x: 32, y: 32 },
+    sparkTreatment: false,
+  });
+  assert.equal(control.special_pity, undefined);
+  db.close();
+});
+
+test('Spark early guarantee survives resume progress until the first event is handled', async () => {
+  const db = await createGuidanceDb();
+  const adapter = wrapSqlite(db);
+  const template = await seedTemplate(adapter);
+  const special = await adapter.get(
+    "SELECT * FROM coloring_special_cells WHERE template_id=? AND special_id LIKE 'sc_early_%'",
+    [template.id],
+  );
+  const nonSpecialIndex = Number(special.cell_index) === 0 ? 1 : 0;
+  await paintColor(adapter, template, [nonSpecialIndex], 0);
+
+  const resumed = await buildGuidancePlan({
+    db: adapter,
+    userId: 'user-guidance',
+    template,
+    reason: GUIDANCE_REASON.INITIAL_TARGET,
+    cameraCenter: { x: 32, y: 32 },
+    sparkTreatment: true,
+  });
+  assert.equal(resumed.progress_revision, 1);
+  assert.equal(resumed.special_pity, true);
+  assert.equal(resumed.special_id, special.special_id);
+  const specialX = Number(special.cell_index) % template.width;
+  const specialY = Math.floor(Number(special.cell_index) / template.width);
+  assert.ok(specialX >= resumed.target.bounds.min_x && specialX <= resumed.target.bounds.max_x);
+  assert.ok(specialY >= resumed.target.bounds.min_y && specialY <= resumed.target.bounds.max_y);
+
+  await adapter.run(`INSERT INTO coloring_special_progress
+    (user_id,template_id,special_id,status,offer_revision,offer_token_hash,updated_at)
+    VALUES (?,?,?,?,?,?,?)`,
+  ['user-guidance', template.id, special.special_id, 'offered', 1, 'token-hash', '2026-08-07T00:00:01.000Z']);
+  await assert.rejects(
+    () => buildGuidancePlan({
+      db: adapter,
+      userId: 'user-guidance',
+      template,
+      reason: GUIDANCE_REASON.INITIAL_TARGET,
+      cameraCenter: { x: 32, y: 32 },
+      sparkTreatment: true,
+    }),
+    (error) => error?.code === 'SPECIAL_ACTIVE_OFFER' && error?.status === 409,
+    'an active offer owns the next guidance decision',
+  );
+  const offeredTargets = await buildGuidancePlan({
+    db: adapter,
+    userId: 'user-guidance',
+    template,
+    reason: GUIDANCE_REASON.SPECIAL_TARGETS,
+    specialId: special.special_id,
+    cameraCenter: { x: 32, y: 32 },
+    sparkTreatment: true,
+  });
+  assert.equal(offeredTargets.reason, GUIDANCE_REASON.SPECIAL_TARGETS);
+
+  await adapter.run(`UPDATE coloring_special_progress
+    SET status='consumed', offer_token_hash=NULL, updated_at=?
+    WHERE user_id=? AND template_id=? AND special_id=?`,
+  ['2026-08-07T00:00:02.000Z', 'user-guidance', template.id, special.special_id]);
+  const handled = await buildGuidancePlan({
+    db: adapter,
+    userId: 'user-guidance',
+    template,
+    reason: GUIDANCE_REASON.INITIAL_TARGET,
+    cameraCenter: { x: 32, y: 32 },
+    sparkTreatment: true,
+  });
+  assert.equal(handled.special_pity, undefined);
+  db.close();
+});
+
 test('GLOBAL_DISCOVERY and MANUAL_COLOR: color absent from a loaded area is found in another tile', async () => {
   const db = await createGuidanceDb();
   const adapter = wrapSqlite(db);

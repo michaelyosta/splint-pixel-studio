@@ -1,0 +1,163 @@
+/* ── Special-cell help ─────────────────────────────────────────── */
+.special-help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(3, 7, 12, 0.72);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.18s ease;
+}
+.special-help-sheet {
+  width: 100%;
+  max-width: 360px;
+  max-height: min(84vh, 560px);
+  overflow-y: auto;
+  position: relative;
+  background: var(--app-bg-elevated);
+  border: 1px solid var(--app-border-strong);
+  border-radius: var(--radius-xl);
+  padding: 20px 16px 16px;
+  box-shadow: var(--shadow-pop);
+  animation: dialogSlideUp 0.26s cubic-bezier(0.25, 1, 0.5, 1);
+  outline: none;
+}
+.special-help-sheet:focus-visible { outline: 2px solid var(--app-cyan); outline-offset: 2px; }
+.special-help-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+  background: var(--app-dark-gray);
+  color: var(--app-text-secondary);
+  cursor: pointer;
+}
+.special-help-close:hover { color: var(--app-text-primary); border-color: var(--app-border-strong); }
+.special-help-sheet h3 {
+  margin: 0 0 12px;
+  padding-right: 44px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--app-text-primary);
+}
+.special-help-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.special-help-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.special-help-mark {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  border: 1px solid rgba(8, 18, 24, 0.9);
+  border-radius: 4px;
+}
+.special-help-mark[data-special-help-kind='spark'] { background: rgba(127, 231, 255, 0.92); }
+.special-help-mark[data-special-help-kind='bomb'] { background: rgba(255, 126, 116, 0.95); }
+.special-help-mark[data-special-help-kind='fuse'] { background: rgba(255, 194, 91, 0.95); }
+.special-help-mark[data-special-help-kind='choice'] { background: rgba(120, 224, 173, 0.95); }
+.special-help-mark[data-special-help-kind='hazard'] { background: rgba(255, 88, 88, 0.95); }
+.special-help-mark[data-special-help-kind='artifact'] { background: rgba(255, 214, 145, 0.95); }
+.special-help-copy { min-width: 0; flex: 1; }
+.special-help-copy b {
+  display: block;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--app-text-primary);
+}
+.special-help-copy small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--app-text-secondary);
+}
+.special-help-actions { margin-top: 14px; }
+.special-help-actions .primary-button { width: 100%; min-height: 46px; font-size: 13px; }
+
+/* Contextual onboarding step shown only when the picture has specials. */
+.special-help-onboarding p {
+  margin: 8px 0 2px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--app-text-secondary);
+}
+
+/* Compact non-modal first-special hint above the canvas. */
+.special-help-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 10px 7px;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid rgba(127, 231, 255, 0.4);
+  border-radius: 12px;
+  background: rgba(7, 18, 27, 0.92);
+  color: var(--app-text-primary);
+  font-size: 11px;
+  line-height: 1.35;
+  box-shadow: var(--shadow-card);
+}
+.special-help-hint .special-help-mark { flex: none; width: 12px; height: 12px; margin: 0; }
+.special-help-hint-copy { min-width: 0; flex: 1; }
+.special-help-hint-copy b { color: var(--app-cyan); font-weight: 750; }
+.special-help-hint button {
+  flex: none;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid rgba(127, 231, 255, 0.55);
+  border-radius: 8px;
+  background: rgba(43, 217, 254, 0.14);
+  color: var(--app-text-primary);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.special-help-hint button:hover { background: rgba(43, 217, 254, 0.25); }
+.special-help-hint .special-help-hint-close {
+  min-width: 30px;
+  padding: 0;
+  border-color: var(--app-border-strong);
+  background: transparent;
+  color: var(--app-text-secondary);
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .special-help-overlay,
+  .special-help-sheet {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .special-help-sheet { border: 2px solid CanvasText; }
+  .special-help-mark,
+  .special-help-hint .special-help-mark { border: 2px solid CanvasText; }
+  .special-help-close,
+  .special-help-hint button { background: Canvas; color: CanvasText; border-color: CanvasText; }
+}
+
+html[data-tg-theme='light'] .special-help-overlay { background: rgba(23, 43, 66, 0.45); }

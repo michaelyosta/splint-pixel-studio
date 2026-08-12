@@ -59,6 +59,12 @@ export default function ColoringSession({
   onFillAt,
   onOpenMenu,
   onTrack,
+  specialCells = [],
+  specialCohort = 'control',
+  specialOffer = null,
+  specialDiscovered = null,
+  onSpecialAction,
+  onVisibleSpecialKinds,
 }) {
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const containerRef = useRef(null);
@@ -80,6 +86,12 @@ export default function ColoringSession({
     liveStatusRef.current = createBoundedAnnouncer({ onAnnounce: setLiveStatus });
   }
   const announcedTargetKeyRef = useRef('');
+  const claimedSpecialsRef = useRef(new Set());
+  const specialTreatment = specialCohort === 'treatment';
+  const artifactProgress = progress?.artifact_progress || null;
+  const activeSpecial = specialOffer
+    ? specialCells.find((special) => special.id === specialOffer.special_id)
+    : null;
 
   const safeArea = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
   const [safeAreaState, setSafeAreaState] = useState(safeArea.current);
@@ -134,6 +146,10 @@ export default function ColoringSession({
     }
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    claimedSpecialsRef.current = new Set();
+  }, [template?.id]);
 
   const windowsGenerationRef = useRef(0);
   const [windowsGeneration, setWindowsGeneration] = useState(0);
@@ -838,7 +854,21 @@ export default function ColoringSession({
     }
     filledRef.current = nextFilled;
     setLocalFilled(nextFilled);
-    if (onSaveProgress) onSaveProgress(nextFilled, operation);
+    const special = specialTreatment
+      ? specialCells.find((special) => ['spark', 'bomb', 'fuse', 'choice', 'artifact', 'hazard'].includes(special.kind)
+        && special.state === 'unseen'
+        && !claimedSpecialsRef.current.has(special.id)
+        && operation.changes.some((change) => change.index === Number(special.cell_index)
+          && change.to === template.cells[change.index]))
+      : null;
+    const specialAction = special ? {
+      type: `claim_${special.kind}`,
+      special_id: special.id,
+      cell_index: Number(special.cell_index),
+      experiment_group: 'treatment',
+    } : null;
+    if (special) claimedSpecialsRef.current.add(special.id);
+    if (onSaveProgress) onSaveProgress(nextFilled, operation, specialAction);
     if (onTrack) onTrack('coloring_stroke_commit', { templateId: template.id, color: stroke.color, cells: stroke.indices.length });
     try {
       window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
@@ -875,7 +905,7 @@ export default function ColoringSession({
       if (visRem === 0 && tgtRem > 0) {
       }
     }
-  }, [template, onSaveProgress, onSelectColor, interactionMode, onTrack, autoState, camera, containerSize]);
+  }, [template, onSaveProgress, onSelectColor, interactionMode, onTrack, autoState, camera, containerSize, specialCells, specialTreatment]);
 
   const handleWrongCell = useCallback(() => {
     liveStatusRef.current?.announce('Неправильный цвет для этой клетки');
@@ -968,6 +998,7 @@ export default function ColoringSession({
       data-safe-right={safeAreaState.right}
       data-safe-bottom={safeAreaState.bottom}
       data-safe-left={safeAreaState.left}
+      data-special-cohort={specialCohort}
     >
       <div className="coloring-canvas-container" ref={containerRef} style={ambilight ? { '--ambilight': ambilight } : undefined}>
         {['ready', 'freeExploration'].includes(routeDisplay.status) && routeDisplay.target && (
@@ -1009,6 +1040,8 @@ export default function ColoringSession({
             interactionDisabled={routeDisplay.status === 'focusingTarget'}
             peekColor={peekColor}
             onResetView={handleCanvasResetView}
+            specialCells={specialTreatment ? specialCells : []}
+            onVisibleSpecialKinds={onVisibleSpecialKinds}
           />
         )}
         {!showCanvas && (
@@ -1028,6 +1061,15 @@ export default function ColoringSession({
           camera={camera}
           containerSize={containerSize}
           onTrack={onTrack}
+          specialCohort={specialCohort}
+          specialProgress={progress}
+          specialCells={specialCells}
+          specialOffer={specialOffer}
+          specialDiscovered={specialDiscovered}
+          specialTarget={routeDisplay.target}
+          specialPlan={routeDisplay}
+          specialRecentTargets={[...visitedTargetsRef.current]}
+          specialTargetActive={routeDisplay.status !== 'freeExploration'}
         />
         <ColoringHud
           routeState={routeDisplay}
@@ -1038,6 +1080,162 @@ export default function ColoringSession({
           isPainting={false}
           onResize={handleHudResize}
         />
+        {specialTreatment && specialOffer?.kind === 'bomb' && (
+          <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" data-special-kind="bomb">
+            <span className="progressive-grid-special-title">Бомба: применить вокруг клетки</span>
+            <button
+              type="button"
+              data-special-action="use"
+              onClick={() => onSpecialAction?.({
+                type: 'use_bomb',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                center_x: activeSpecial ? Number(activeSpecial.cell_index) % template.width : 0,
+                center_y: activeSpecial ? Math.floor(Number(activeSpecial.cell_index) / template.width) : 0,
+                experiment_group: 'treatment',
+              })}
+            >Использовать</button>
+          </div>
+        )}
+        {specialTreatment && specialOffer?.kind === 'fuse' && (
+          <div
+            className="progressive-grid-special-offer legacy-grid-special-offer"
+            role="group"
+            data-special-kind="fuse"
+            data-fuse-steps-remaining={Array.isArray(specialOffer.steps) ? specialOffer.steps.length : 0}
+          >
+            <button
+              type="button"
+              className="progressive-grid-special-skip"
+              data-special-action="skip"
+              onClick={() => onSpecialAction?.({
+                type: 'skip_fuse',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                experiment_group: 'treatment',
+              })}
+            >Leave it and continue</button>
+            <span className="progressive-grid-special-title">Фитиль: обезвредить цепочку</span>
+            <button
+              type="button"
+              data-special-action="disarm"
+              data-fuse-step-distance={Array.isArray(specialOffer.steps) ? specialOffer.steps[0]?.distance : undefined}
+              data-fuse-steps-remaining={Array.isArray(specialOffer.steps) ? specialOffer.steps.length : 0}
+              onClick={() => onSpecialAction?.({
+                type: 'disarm_fuse',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                experiment_group: 'treatment',
+              })}
+            >
+              {Array.isArray(specialOffer.steps) && specialOffer.steps.length > 1
+                ? `Обезвредить звено ${specialOffer.steps[0]?.distance}`
+                : 'Обезвредить и продолжить'}
+            </button>
+          </div>
+        )}
+        {specialTreatment && specialOffer?.kind === 'hazard' && (
+          <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" data-special-kind="hazard">
+            <button
+              type="button"
+              className="progressive-grid-special-skip"
+              data-special-action="skip"
+              onClick={() => onSpecialAction?.({
+                type: 'skip_hazard',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                experiment_group: 'treatment',
+              })}
+            >Пропустить (маленькая пауза)</button>
+            <span className="progressive-grid-special-title">Опасность: обезвредьте маркер</span>
+            <button
+              type="button"
+              data-special-action="disarm"
+              data-hazard-disarm
+              onClick={() => onSpecialAction?.({
+                type: 'disarm_hazard',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                experiment_group: 'treatment',
+              })}
+            >Обезвредить и продолжить</button>
+          </div>
+        )}
+        {specialTreatment && specialOffer?.kind === 'choice' && Array.isArray(specialOffer.choice_options) && (
+          <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" data-special-kind="choice">
+            <span className="progressive-grid-special-title">Выберите способ продолжить</span>
+            {specialOffer.choice_options.slice(0, 2).map((option) => (
+              <button
+                key={option.option_id}
+                type="button"
+                data-special-option={option.option_id}
+                onClick={() => onSpecialAction?.({
+                  type: 'use_choice',
+                  special_id: specialOffer.special_id,
+                  offer_token: specialOffer.offer_token,
+                  option_id: option.option_id,
+                  experiment_group: 'treatment',
+                })}
+              >{option.label}</button>
+            ))}
+          </div>
+        )}
+        {specialTreatment && specialOffer && !specialOffer.kind && Array.isArray(specialOffer.target_options) && (
+          <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" aria-label="Выберите участок для Spark">
+            <span className="progressive-grid-special-title">Искра: выбрать участок</span>
+            {specialOffer.target_options.slice(0, 2).map((option, index) => (
+              <button
+                key={option.option_id || index}
+                type="button"
+                data-special-option={option.option_id || (index === 0 ? 'a' : 'b')}
+                onClick={() => onSpecialAction?.({
+                  type: 'use_spark',
+                  special_id: specialOffer.special_id,
+                  offer_token: specialOffer.offer_token,
+                  option_id: option.option_id || (index === 0 ? 'a' : 'b'),
+                  experiment_group: 'treatment',
+                })}
+              >
+                Участок {index === 0 ? 'A' : 'B'} · {option.estimated_cells} клеток
+              </button>
+            ))}
+            <button
+              type="button"
+              className="progressive-grid-special-skip"
+              onClick={() => onSpecialAction?.({
+                type: 'skip_spark',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                experiment_group: 'treatment',
+              })}
+            >Пропустить</button>
+          </div>
+        )}
+        {specialTreatment && specialDiscovered && !specialOffer && (
+          <div className="progressive-grid-special-offer legacy-grid-special-offer" role="status" data-special-discovered>
+            <span className="progressive-grid-special-title">
+              {specialDiscovered.kind === 'artifact'
+                ? `Артефакт: фрагмент ${specialDiscovered.artifact_fragments || 1}/3`
+                : specialDiscovered.kind === 'hazard' && specialDiscovered.missed
+                  ? 'Опасность пропущена: небольшая локальная пауза'
+                  : `${specialDiscovered.kind || 'Spark'} найден`}
+            </span>
+          </div>
+        )}
+        {specialTreatment && artifactProgress && artifactProgress.fragments > 0
+          && !specialOffer && !specialDiscovered && (
+          <div
+            className="progressive-grid-special-offer legacy-grid-special-offer"
+            role="status"
+            data-artifact-progress
+            data-artifact-fragments={String(artifactProgress.fragments)}
+            data-artifact-total={String(artifactProgress.total || 3)}
+          >
+            <span className="progressive-grid-special-title">
+              {`Артефакт: ${artifactProgress.complete ? 'собран' : `фрагмент ${artifactProgress.fragments}/${artifactProgress.total || 3}`}`}
+            </span>
+          </div>
+        )}
       </div>
       <div className={`coloring-task-summary${showTaskSummary ? '' : ' coloring-task-summary--empty'}`}>
         {showTaskSummary && (

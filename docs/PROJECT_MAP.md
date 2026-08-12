@@ -1,6 +1,23 @@
 # Карта проекта Splint Pixel Studio
 
-## Актуальное состояние на 01.08.2026
+## Актуальное состояние на 08.08.2026
+
+Проверка выполнена на ветке `codex/tiled-player-1200`, HEAD `37180e0ca2b0e793ad42814d7a7f7df760b4872a`. Запрашиваемая `main` на момент проверки: локальный ref `d850c5198f3e38e80fae9cb1f8d49721e081023d`, актуальный `origin/main` — `68d751e1da35de3bfd92f6bec382f0af830ac502`. Снимок от 01.08.2026 ниже сохранён как история; при расхождении приоритет у этого раздела.
+
+Что изменилось после снимка 01.08:
+
+- Миграции доведены до `022` в обеих деревьях (`server/migrations/`, `server/migrations/sqlite/`), включая tiled storage (`017`), render outbox (`019`), unlockable content (`020`) и tiled guidance index (`021–022`).
+- Creator принимает размеры `8×8…1200×1200` (`server/routes/colorings.js`); сетки больше `160×160` хранятся и играются через tiled-контракт (`server/migrations/017_large_grid_tiles.sql`, `server/services/tiled-coloring.js`, `src/lib/tileGrid.js`).
+- Завершение серверное: `resultDataUrl` клиента не является источником artwork; canonical PNG/thumbnail строит `server/services/canonical-renderer.js`, durable retry реализован через `server/services/render-outbox.js` (миграция `019`), публикация требует `render_status='ready'`.
+- Добавлены серверный guidance index, Director и unlock-контракты: `server/services/tiled-guidance*.js`, `server/services/director.js`, `server/routes/director.js`, `server/routes/unlocks.js`.
+- Stroke engine v2 и live-paint: `src/features/coloring/large-grid/strokeLive.js`, `src/features/coloring/large-grid/ProgressiveColoringSession.jsx`.
+- `SEED_DEMO_DATA` идемпотентен; OPS-006 закрыт тестами (`server/test/database.test.js` «SEED_DEMO_DATA is idempotent», `server/test/postgres-demo-seed.test.js`).
+
+Локальная проверка 08.08.2026: `npm test` — `283/283` при изолированном прогоне; при параллельной нагрузке один раз упал timing-зависимый `createBoundedAnnouncer` (`test/accessibility.test.js`), изолированно проходит 5/5; `npm --prefix server test` — `295` тестов, `229 passed`, `65 skipped` (PostgreSQL/S3 environment), `1 failed` (`server/test/director.test.js`, «director exclude keeps the current artwork out of the next action»); `npm run lint` — 93 предупреждения из бюджета 100; `npm run build` — успешно. E2E в этом проходе не запускался; последние зафиксированные в ветке E2E-гейты и метрики: [TILED_PLAYER_UX_CHECKPOINT.md](TILED_PLAYER_UX_CHECKPOINT.md), [TILED_STROKE_ENGINE.md](TILED_STROKE_ENGINE.md), [GRID_TILED_CHECKPOINT.md](GRID_TILED_CHECKPOINT.md).
+
+Внешние гейты без изменений: реальный Telegram WebView, production HTTPS/proxy, cloud S3/IAM/retention и target-runtime backup/restore остаются непроверенными.
+
+## Актуальное состояние на 01.08.2026 (исторический снимок)
 
 Последний commit `main`: `782110afe05bb98936afd64a96c74171f658b306`. Основной локальный запуск подтверждён через Desktop launcher: SQLite-база `server/splint-preview-20260729.db.bin` применила миграции `001–009`, API отвечает на `3001/health`, фронтенд — на `5173`.
 
@@ -27,7 +44,7 @@
 - **Целостность итогового изображения.** Сервер авторитетно проверяет допустимые progress actions и вычисляет завершение, но принимает клиентский `resultDataUrl` как PNG без декодирования пикселей и сравнения с `template.cells`. Это отдельный остаточный риск, а не доказательство подделки результата; разбор потока и варианты server-authoritative render: [RESULT_IMAGE_INTEGRITY.md](RESULT_IMAGE_INTEGRITY.md).
 - **Staging/deploy Telegram Mini App.** Подготовлена пошаговая инструкция для новичка: окружение, PostgreSQL, S3/MinIO, HTTPS/reverse proxy, BotFather, smoke-test и backup/restore. Локальные проверки не заменяют реальный Telegram WebView, cloud S3, production proxy и restore drill: [TELEGRAM_DEPLOY_BEGINNER.md](TELEGRAM_DEPLOY_BEGINNER.md).
 
-### Незакоммиченная рабочая копия
+### Незакоммиченная рабочая копия (исторический снимок 01.08.2026)
 
 После `782110a` в рабочем дереве находятся изменения, которые нельзя автоматически считать частью main: визуальный редизайн, улучшения Smart Coloring, deep links/haptics/share, публикация и рейтинги пользовательских раскрасок, расширение creator до `160×160`, миграции `007–009`, тестовые изменения и локальные шрифты. До отдельного review/commit эти изменения являются кандидатом на релиз, а не стабильным состоянием репозитория.
 
@@ -822,6 +839,6 @@ Production Telegram/S3/proxy/backup runtime, deployment всего прилож�
 - Штатный `npm.cmd run test:e2e` завершён с `110 passed / 4 expected skipped`, exit 0; Docker PostgreSQL — `90/90`, MinIO — `1/1`.
 - Открытыми остаются client-supplied `resultDataUrl`, residual automation risk progress actions, глобальный limiter, non-transactional delete, stale Telegram profile и production-only проверки. Локальная рабочая копия дополнительно содержит намеренные, но ещё не закоммиченные UI/API/migration changes из классификации выше.
 
-## Current RC verification (2026-08-02)
+## RC verification (2026-08-02, historical snapshot)
 
 The review branch is a local public-alpha candidate without real payments. Root tests: 201 passed. Clean server aggregate: 223 total, 167 passed, 56 expected skips. E2E: 110 passed, 4 expected skips. Lint is within the 100-warning budget at 89 warnings; build, syntax, and dependency audits pass. The external disposable pass verified PostgreSQL 91/91, MinIO/S3 2/2, migrations, media sweep, database and object backup/restore, `/live`, readiness, and POSIX graceful shutdown. Telegram WebView, production credentials/IAM/retention, and target-runtime deployment behavior remain unverified. See `docs/remediation/EXTERNAL_VALIDATION.md` for the evidence record.

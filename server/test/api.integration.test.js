@@ -84,6 +84,24 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(validAnalytics.response.status, 200);
   const smartEngineAnalytics = await request('/meta/analytics', { method: 'POST', body: { event: 'camera_activate_target', payload: { templateId: 'catalog_fox' } } });
   assert.equal(smartEngineAnalytics.response.status, 200);
+  for (const event of ['special_cell_discovered', 'powerup_received', 'powerup_used', 'special_action_selected']) {
+    const specialAnalytics = await request('/meta/analytics', {
+      method: 'POST',
+      body: {
+        event,
+        payload: {
+          template_id: 'catalog_fox',
+          session_id: 'fixture-session',
+          special_id: 'sc_fixture',
+          kind: 'spark',
+          action: 'use_spark',
+          revision: 1,
+          experiment_group: 'treatment',
+        },
+      },
+    });
+    assert.equal(specialAnalytics.response.status, 200, `${event} must remain accepted`);
+  }
 
   const publicProfile = await request('/users/user_lenaart/profile');
   assert.equal(publicProfile.response.status, 200);

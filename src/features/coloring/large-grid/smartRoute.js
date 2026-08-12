@@ -6,6 +6,7 @@ export const GUIDANCE_REASON = Object.freeze({
   COLOR_COMPLETE: 'COLOR_COMPLETE',
   MANUAL_COLOR: 'MANUAL_COLOR',
   RETURN_TO_TARGET: 'RETURN_TO_TARGET',
+  SPECIAL_TARGETS: 'SPECIAL_TARGETS',
   ARTWORK_COMPLETE: 'ARTWORK_COMPLETE',
   NO_ACTIONABLE_CELLS: 'NO_ACTIONABLE_CELLS',
 });
@@ -68,6 +69,31 @@ export function normalizeGuidancePayload(raw, { templateId } = {}) {
         : asInteger(raw.target.color, 'target.color'),
     };
   }
+  const targetOptions = Array.isArray(raw.target_options)
+    ? raw.target_options.slice(0, 2).map((option, index) => {
+      if (!option || typeof option !== 'object') throw new TypeError('Invalid guidance target option');
+      const bounds = option.bounds || {};
+      return {
+        optionId: String(option.option_id || (index === 0 ? 'a' : 'b')),
+        tile_x: asInteger(option.tile_x, 'target_options.tile_x'),
+        tile_y: asInteger(option.tile_y, 'target_options.tile_y'),
+        anchor_x: asInteger(option.anchor_x, 'target_options.anchor_x'),
+        anchor_y: asInteger(option.anchor_y, 'target_options.anchor_y'),
+        bounds: {
+          min_x: asInteger(bounds.min_x, 'target_options.bounds.min_x'),
+          min_y: asInteger(bounds.min_y, 'target_options.bounds.min_y'),
+          max_x: asInteger(bounds.max_x, 'target_options.bounds.max_x'),
+          max_y: asInteger(bounds.max_y, 'target_options.bounds.max_y'),
+          width: asInteger(bounds.width, 'target_options.bounds.width'),
+          height: asInteger(bounds.height, 'target_options.bounds.height'),
+        },
+        estimated_cells: asInteger(option.estimated_cells, 'target_options.estimated_cells'),
+        color: option.color === null || option.color === undefined
+          ? selectedColor
+          : asInteger(option.color, 'target_options.color'),
+      };
+    })
+    : [];
   return {
     schemaVersion: raw.schema_version ?? null,
     templateId: raw.template_id ? String(raw.template_id) : null,
@@ -80,6 +106,9 @@ export function normalizeGuidancePayload(raw, { templateId } = {}) {
     colorComplete: Boolean(raw.color_complete),
     artworkComplete: Boolean(raw.artwork_complete),
     target,
+    specialId: raw.special_id ? String(raw.special_id) : null,
+    specialPity: Boolean(raw.special_pity),
+    targetOptions,
   };
 }
 
@@ -138,6 +167,10 @@ export function planGuidanceCamera(plan, viewport, template, cellSize = 32) {
     viewport.height,
     template.width,
     template.height,
+    // The tiled surface carries the guide HUD and the action dock inside the
+    // same viewport. Keep edge targets in the visual channel between those
+    // overlays so a valid special marker is never hidden under chrome.
+    { top: 58, right: 0, bottom: 58, left: 0 },
   );
 }
 

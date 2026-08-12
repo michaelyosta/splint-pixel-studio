@@ -15,6 +15,7 @@
     "test:integration": "node --test server/test/api.integration.test.js",
     "test:server": "npm --prefix server test",
     "test:e2e": "playwright test",
+    "qa:specials": "node --env-file=.env.local scripts/check-special-cells-qa.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

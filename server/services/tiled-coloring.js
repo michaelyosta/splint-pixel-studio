@@ -4,6 +4,18 @@ import {
   getTileGrid,
 } from './coloring-chunks.js';
 import { ensureStaticGuidanceIndex, persistStaticGuidanceCounts } from './tiled-guidance.js';
+import {
+  HAZARD_KIND,
+  SPECIAL_GAMEPLAY_GENERATION_VERSION,
+  SPARK_TARGET_MAX_CELLS,
+  generateSpecialCells,
+  persistSparkCells,
+  readTileSpecials,
+} from './tiled-specials.js';
+import {
+  generateHazardCells,
+  persistHazardCells,
+} from './tiled-hazard.js';
 
 export const TILED_STORAGE_MODE = 'tiled';
 export const TILED_MAX_DIMENSION = 1_200;
@@ -154,10 +166,20 @@ export function validateTiledTemplateInput({ width, height, palette, tiles, tile
   return { grid, tiles: normalized };
 }
 
-export function validateTiledChanges(changes, { width, height, tileSize = DEFAULT_TILE_SIZE, paletteLength } = {}) {
+export function validateTiledChanges(changes, {
+  width,
+  height,
+  tileSize = DEFAULT_TILE_SIZE,
+  paletteLength,
+  maxChanges = TILED_MAX_CHANGES,
+} = {}) {
   const grid = validateTiledGridDimensions(width, height, tileSize);
-  if (!Array.isArray(changes) || changes.length < 1 || changes.length > TILED_MAX_CHANGES) {
-    throw new TiledColoringError('A tiled batch must contain between 1 and 64 changes', 'INVALID_TILED_CHANGES', 400);
+  const safeMaxChanges = Math.max(
+    1,
+    Math.min(SPARK_TARGET_MAX_CELLS, Number(maxChanges) || TILED_MAX_CHANGES),
+  );
+  if (!Array.isArray(changes) || changes.length < 1 || changes.length > safeMaxChanges) {
+    throw new TiledColoringError(`A tiled batch must contain between 1 and ${safeMaxChanges} changes`, 'INVALID_TILED_CHANGES', 400);
   }
   const seen = new Set();
   const normalized = [];
@@ -334,10 +356,17 @@ export async function readTiledTile(db, { template, userId, tileX, tileY, progre
     [userId, template.id, bounds.tile_x, bounds.tile_y],
   );
   const filled = storedFilled(progressTile, bounds.cell_count, `progress tile ${bounds.tile_x}:${bounds.tile_y}`);
+  const specials = await readTileSpecials(db, {
+    templateId: template.id,
+    userId,
+    tileX: bounds.tile_x,
+    tileY: bounds.tile_y,
+  });
   return {
     bounds,
     cells,
     filled,
+    specials,
     progress,
   };
 }
@@ -366,6 +395,226 @@ export async function readTiledTemplateTiles(db, { template } = {}) {
   });
 }
 
+/**
+ * Pre-021 fixtures stored every tile as a full tileSize x tileSize block,
+ * including partial edge tiles. Special placement only needs the real
+ * top-left submatrix for those edge rows, so this reader tolerates that
+ * legacy shape instead of treating a 1200x1200 upgrade database as corrupt.
+ */
+export async function readTiledTemplateTilesForSpecials(db, { template } = {}) {
+  const grid = validateTiledGridDimensions(template.width, template.height, template.tile_size);
+  const rows = await db.all(
+    `SELECT tile_x, tile_y, width, height, cells_json
+      FROM coloring_template_tiles
+      WHERE template_id=?
+      ORDER BY tile_y, tile_x`,
+    [template.id],
+  );
+  if (rows.length !== grid.tiles_x * grid.tiles_y) {
+    throw new TiledColoringError('Tiled template is missing one or more tiles', 'CORRUPT_TILED_TEMPLATE', 500);
+  }
+  return rows.map((row) => {
+    const bounds = getTileBounds({ ...grid, tileX: row.tile_x, tileY: row.tile_y, tileSize: grid.tile_size });
+    const label = `tile ${bounds.tile_x}:${bounds.tile_y}`;
+    const cells = parseJsonArray(row?.cells_json);
+    const storedWidth = Number(row?.width || bounds.tile_size);
+    const storedHeight = Number(row?.height || bounds.tile_size);
+    if (!cells) {
+      throw new TiledColoringError(`${label} must contain exactly ${bounds.cell_count} cells`, 'CORRUPT_TILED_TEMPLATE', 500);
+    }
+    if (cells.length === bounds.cell_count) {
+      return {
+        tile_x: bounds.tile_x,
+        tile_y: bounds.tile_y,
+        width: bounds.width,
+        height: bounds.height,
+        cells,
+      };
+    }
+    if (storedWidth === bounds.tile_size && storedHeight === bounds.tile_size
+      && cells.length === bounds.tile_size * bounds.tile_size) {
+      const sliced = [];
+      for (let y = 0; y < bounds.height; y += 1) {
+        sliced.push(...cells.slice(y * storedWidth, y * storedWidth + bounds.width));
+      }
+      return {
+        tile_x: bounds.tile_x,
+        tile_y: bounds.tile_y,
+        width: bounds.width,
+        height: bounds.height,
+        cells: sliced,
+      };
+    }
+    throw new TiledColoringError(`${label} must contain exactly ${bounds.cell_count} cells`, 'CORRUPT_TILED_TEMPLATE', 500);
+  });
+}
+
+const specialGenerationLocks = new Map();
+
+async function withSpecialGenerationLock(templateId, fn) {
+  while (specialGenerationLocks.has(templateId)) {
+    await specialGenerationLocks.get(templateId);
+  }
+  let release;
+  const lock = new Promise((resolve) => {
+    release = resolve;
+  });
+  specialGenerationLocks.set(templateId, lock);
+  try {
+    return await fn();
+  } finally {
+    specialGenerationLocks.delete(templateId);
+    release();
+  }
+}
+
+/**
+ * Transactional, idempotent special-cell delivery for tiled templates.
+ *
+ * This is the single place that materializes special rows for existing tiled
+ * templates. Guidance and tile reads call it before they look at specials so
+ * a pre-existing 1200x1200 template receives the same deterministic first
+ * target as a freshly created one. Existing rows are never moved: rows older
+ * than v3 with no special progress are rebuilt to the frozen mixed v3
+ * placement, and any existing template missing its separate Hazard row gets
+ * exactly one deterministic Hazard backfilled into a tile with metadata room.
+ */
+export async function ensureTiledSpecialCells(db, template, { diagnostics = null } = {}) {
+  if (!isTiledTemplate(template)) {
+    return { status: 'skipped', action: 'skipped', special_count: 0, generation_version: 0, elapsed_ms: 0 };
+  }
+  return withSpecialGenerationLock(template.id, async () => {
+    const startedAt = performance.now();
+    const result = await ensureTiledSpecialCellsUnlocked(db, template);
+    const elapsedMs = Math.round(performance.now() - startedAt);
+    const payload = { ...result, elapsed_ms: elapsedMs };
+    if (result.action === 'built' || result.action === 'rebuilt' || result.action === 'hazard_backfilled') {
+      console.log(
+        `[tiled-specials] ${result.action} template=${template.id} count=${result.special_count} version=${result.generation_version} elapsed_ms=${elapsedMs}`,
+      );
+    }
+    if (diagnostics) {
+      diagnostics.generation_action = result.action;
+      diagnostics.generation_elapsed_ms = elapsedMs;
+      diagnostics.generation_count = result.special_count;
+      diagnostics.generation_version = result.generation_version;
+    }
+    return payload;
+  });
+}
+
+async function ensureTiledSpecialCellsUnlocked(db, template) {
+  const grid = validateTiledGridDimensions(template.width, template.height, template.tile_size);
+  const summary = await db.get(
+    `SELECT COUNT(*) AS count,
+            MIN(generation_version) AS min_version,
+            SUM(CASE WHEN kind=? THEN 1 ELSE 0 END) AS hazard_count
+       FROM coloring_special_cells
+      WHERE template_id=?`,
+    [HAZARD_KIND, template.id],
+  );
+  const specialCount = Math.max(0, Number(summary?.count || 0));
+  const generationVersion = Number(summary?.min_version || 0);
+  const hazardCount = Math.max(0, Number(summary?.hazard_count || 0));
+
+  if (specialCount > 0 && hazardCount > 0
+    && generationVersion >= SPECIAL_GAMEPLAY_GENERATION_VERSION) {
+    return {
+      status: 'ready',
+      action: 'ready',
+      special_count: specialCount,
+      generation_version: generationVersion,
+    };
+  }
+
+  const tiles = await readTiledTemplateTilesForSpecials(db, { template });
+  const tileCells = tiles.map((tile) => ({
+    tile_x: tile.tile_x,
+    tile_y: tile.tile_y,
+    cells: tile.cells,
+  }));
+
+  const generateAndPersist = async ({ occupiedIndices }) => {
+    const generated = generateSpecialCells({
+      templateId: template.id,
+      width: grid.width,
+      height: grid.height,
+      tileSize: grid.tile_size,
+      tiles: tileCells,
+    });
+    const hazard = generateHazardCells({
+      templateId: template.id,
+      width: grid.width,
+      height: grid.height,
+      tileSize: grid.tile_size,
+      tiles: tileCells,
+      occupiedIndices: occupiedIndices || generated.map((cell) => cell.cell_index),
+    });
+    await persistSparkCells(db, { templateId: template.id, cells: generated });
+    await persistHazardCells(db, { templateId: template.id, cells: hazard });
+    return {
+      special_count: generated.length + hazard.length,
+      generation_version: SPECIAL_GAMEPLAY_GENERATION_VERSION,
+    };
+  };
+
+  if (specialCount === 0) {
+    const built = await generateAndPersist({});
+    return { status: 'built', action: 'built', ...built };
+  }
+
+  // Older shared rows with no special progress are rebuilt onto the current
+  // deterministic kind mix. Coordinates remain generated by the same placer;
+  // rows with any user state are grandfathered so an offered/consumed event
+  // never changes kind underneath the player.
+  if (generationVersion < SPECIAL_GAMEPLAY_GENERATION_VERSION) {
+    const progressSummary = await db.get(
+      'SELECT COUNT(*) AS count FROM coloring_special_progress WHERE template_id=?',
+      [template.id],
+    );
+    if (Number(progressSummary?.count || 0) === 0) {
+      await db.run('DELETE FROM coloring_special_cells WHERE template_id=?', [template.id]);
+      const rebuilt = await generateAndPersist({});
+      return { status: 'rebuilt', action: 'rebuilt', ...rebuilt };
+    }
+    if (hazardCount > 0) {
+      return {
+        status: 'preserved',
+        action: 'preserved',
+        special_count: specialCount,
+        generation_version: generationVersion,
+      };
+    }
+  }
+
+  const existingRows = await db.all(
+    'SELECT cell_index FROM coloring_special_cells WHERE template_id=?',
+    [template.id],
+  );
+  const hazard = generateHazardCells({
+    templateId: template.id,
+    width: grid.width,
+    height: grid.height,
+    tileSize: grid.tile_size,
+    tiles: tileCells,
+    occupiedIndices: existingRows.map((row) => Number(row.cell_index)),
+  });
+  if (hazard.length) {
+    await persistHazardCells(db, { templateId: template.id, cells: hazard });
+  }
+  const after = await db.get(
+    'SELECT COUNT(*) AS count, MIN(generation_version) AS min_version FROM coloring_special_cells WHERE template_id=?',
+    [template.id],
+  );
+  return {
+    status: hazard.length ? 'hazard_backfilled' : 'hazard_unavailable',
+    action: hazard.length ? 'hazard_backfilled' : 'hazard_unavailable',
+    special_count: Math.max(0, Number(after?.count || 0)),
+    generation_version: Number(after?.min_version || 0),
+    hazard_added: hazard.length,
+  };
+}
+
 export function tiledTilePayload({ template, tile, progress }) {
   const { bounds } = tile;
   return {
@@ -388,6 +637,7 @@ export function tiledTilePayload({ template, tile, progress }) {
     encoding: 'row-major-palette-index',
     cells: tile.cells,
     filled: tile.filled,
+    specials: tile.specials || [],
     progress,
     links: {
       manifest: `/colorings/${encodeURIComponent(String(template.id))}/manifest`,
@@ -405,12 +655,14 @@ export async function applyTiledChanges(tx, {
   template,
   existingProgress,
   changes,
+  maxChanges = TILED_MAX_CHANGES,
 } = {}) {
   const validated = validateTiledChanges(changes, {
     width: template.width,
     height: template.height,
     tileSize: template.tile_size,
     paletteLength: template.palette.length,
+    maxChanges,
   });
   const states = new Map();
 
@@ -579,6 +831,25 @@ export async function insertTiledTemplate(tx, {
     tiles: validated.tiles,
     paletteLength: palette.length,
     now: updatedAt,
+  });
+  const generated = generateSpecialCells({
+    templateId: id,
+    width: validated.grid.width,
+    height: validated.grid.height,
+    tileSize: validated.grid.tile_size,
+    tiles: validated.tiles,
+  });
+  await persistSparkCells(tx, { templateId: id, cells: generated });
+  await persistHazardCells(tx, {
+    templateId: id,
+    cells: generateHazardCells({
+      templateId: id,
+      width: validated.grid.width,
+      height: validated.grid.height,
+      tileSize: validated.grid.tile_size,
+      tiles: validated.tiles,
+      occupiedIndices: generated.map((cell) => cell.cell_index),
+    }),
   });
   return { grid: validated.grid, tileCount: validated.tiles.length };
 }

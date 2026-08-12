@@ -1,0 +1,37 @@
+{
+  "browser": {
+    "active": "",
+    "camera": {},
+    "count": "7727",
+    "mode": "work",
+    "override": "",
+    "smart": "ready",
+    "specialVisible": "",
+    "target": "26:0",
+    "targetX": "849",
+    "targetY": "0",
+    "treatment": "treatment"
+  },
+  "guidance": {
+    "template_id": "color_c72b6a88-5e18-4804-bd7e-5d9980f9cc73",
+    "mode": "WORK",
+    "special_treatment": "treatment",
+    "special_count": 7727,
+    "smart_target": {
+      "tile_x": 26,
+      "tile_y": 0,
+      "anchor_x": 849,
+      "anchor_y": 0,
+      "bounds": {
+        "min_x": 843,
+        "min_y": 0,
+        "max_x": 854,
+        "max_y": 11,
+        "width": 12,
+        "height": 12
+      },
+      "estimated_cells": 144
+    },
+    "evidence_note": "Live browser reload after safe-area camera framing; Spark target is in the canvas visual channel."
+  }
+}

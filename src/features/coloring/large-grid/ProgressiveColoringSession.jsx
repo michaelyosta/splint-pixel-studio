@@ -1,13 +1,35 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Crosshair, Hand, LoaderCircle, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Crosshair,
+  Hand,
+  LoaderCircle,
+  RotateCw,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import { extendStroke, PAINT_STATUS, paintStrokeIndex } from './strokeLive.js';
 import { createProgressiveGridClient, PROGRESSIVE_GRID_STATUS, isAbortError } from '../../../lib/progressiveGridClient.js';
 import { DEV_USER_ID } from '../../../api/client.js';
+import {
+  buildSpecialCellsDiagnosticsSnapshot,
+  getSpecialCellsLastError,
+  isSpecialCellsDiagnosticsEnabled,
+} from '../../../lib/specialCellsDiagnostics.js';
 import { createBoundedAnnouncer, formatPaletteState, moveKeyboardCursor } from '../../../lib/accessibility.js';
-import { selectViewportTiles } from './gridMath.js';
+import SpecialCellsDevHud from '../SpecialCellsDevHud.jsx';
+import {
+  GRID_LOD_MODE,
+  resolveGridLodMode,
+  selectViewportTiles,
+} from './gridMath.js';
 import { TileGuideIndex } from './guide.js';
 import { LruTileCache } from './tileCache.js';
 import { createCameraAnimation } from '../camera/cameraAnimation.js';
+import { drawSpecialMarker, specialMarkerScreenRadius, SPECIAL_MARKER_VISUALS } from '../specialMarker.js';
 import {
   GUIDANCE_REASON,
   countPaintedCellsInTarget,
@@ -38,6 +60,7 @@ const DIAGNOSTICS_ENABLED = import.meta.env.VITE_SHOW_COLORING_DIAGNOSTICS === '
 // never runs the recorder unless explicitly enabled.
 const STROKE_METRICS_ENABLED = DIAGNOSTICS_ENABLED
   || (typeof window !== 'undefined' && /[?&]splintMetrics=1/.test(window.location.search));
+const SPECIAL_CELLS_ENABLED = import.meta.env.VITE_SPECIAL_CELLS_V0 !== 'false';
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -75,12 +98,469 @@ function buildZoneRects(width, height) {
   });
 }
 
+// The server contract exposes `kind` on tile specials and on
+// special_discovered; the offer response keeps its existing spark shape and
+// may carry `kind` in later slices. Everything here is client presentation
+// only: unsupported kinds stay visible but their action buttons are disabled
+// instead of guessing at a server effect.
+const SPECIAL_KIND_VISUALS = {
+  spark: {
+    label: 'Искра',
+    markerColor: 'rgba(127, 231, 255, 0.92)',
+    markerOutline: '#081218',
+    markerShape: 'diamond',
+    title: 'Искра: выбрать участок',
+    groupLabel: 'Выберите участок для Искры',
+    useLabel: 'Использовать искру',
+    supported: true,
+  },
+  bomb: {
+    label: 'Бомба',
+    markerColor: 'rgba(255, 126, 116, 0.95)',
+    markerOutline: '#2a0c0a',
+    markerShape: 'bomb',
+    title: 'Бомба: выбрать точку',
+    groupLabel: 'Бомба: выбрать точку применения',
+    useLabel: 'Использовать бомбу',
+    supported: true,
+  },
+  fuse: {
+    label: 'Фитиль',
+    markerColor: 'rgba(255, 194, 91, 0.95)',
+    markerOutline: '#2a1c06',
+    markerShape: 'fuse',
+    title: 'Фитиль: обезвредить',
+    groupLabel: 'Особая клетка: фитиль',
+    useLabel: 'Обезвредить фитиль',
+    supported: true,
+  },
+  choice: {
+    label: 'Выбор',
+    markerColor: 'rgba(120, 224, 173, 0.95)',
+    markerOutline: '#06231a',
+    markerShape: 'choice',
+    title: 'Выбор: выбрать эффект',
+    groupLabel: 'Особая клетка: выбор',
+    useLabel: 'Выбрать эффект',
+    supported: true,
+  },
+  artifact: {
+    label: 'Артефакт',
+    markerColor: 'rgba(255, 214, 145, 0.95)',
+    markerOutline: '#2a1d06',
+    markerShape: 'artifact',
+    title: 'Артефакт: найти',
+    groupLabel: 'Особая клетка: артефакт',
+    useLabel: 'Забрать артефакт',
+    supported: false,
+  },
+  hazard: {
+    label: 'Опасность',
+    markerColor: 'rgba(255, 88, 88, 0.95)',
+    markerOutline: '#2a0505',
+    markerShape: 'hazard',
+    title: 'Опасность: обезвредьте маркер',
+    groupLabel: 'Опасность: обезвредьте маркер',
+    useLabel: 'Обезвредить и продолжить',
+    supported: true,
+  },
+  unknown: {
+    label: 'Особая клетка',
+    markerColor: 'rgba(173, 190, 198, 0.95)',
+    markerOutline: '#0b131a',
+    markerShape: 'unknown',
+    title: 'Особая клетка',
+    groupLabel: 'Особая клетка',
+    useLabel: 'Активировать эффект',
+    supported: false,
+  },
+};
+
+function specialKindVisual(kind) {
+  const key = String(kind || '').toLowerCase();
+  return {
+    ...(SPECIAL_KIND_VISUALS[key] || SPECIAL_KIND_VISUALS.unknown),
+    ...(SPECIAL_MARKER_VISUALS[key] || SPECIAL_MARKER_VISUALS.unknown),
+  };
+}
+
+function offerKind(specialOffer) {
+  // Existing server offers have no kind yet; fall back to the proven spark
+  // contract so this slice never invents or fakes a new field.
+  return specialOffer?.kind ? String(specialOffer.kind).toLowerCase() : 'spark';
+}
+
+function sparkTargetBounds(target) {
+  const bounds = target?.bounds || {};
+  const minX = Number(bounds.min_x);
+  const minY = Number(bounds.min_y);
+  const maxX = Number(bounds.max_x);
+  const maxY = Number(bounds.max_y);
+  if (![minX, minY, maxX, maxY].every(Number.isFinite)) return null;
+  return {
+    minX, minY, maxX, maxY,
+    width: Math.max(0, maxX - minX + 1),
+    height: Math.max(0, maxY - minY + 1),
+  };
+}
+
+function SparkTargetPreview({ target, optionId }) {
+  const bounds = sparkTargetBounds(target);
+  const estimated = Number(target?.estimated_cells);
+  if (!bounds || !Number.isFinite(estimated)) return null;
+  return (
+    <span
+      className="progressive-grid-spark-target-preview"
+      data-spark-target-preview
+      data-spark-target-option={optionId}
+      data-spark-bounds={`${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}`}
+      data-spark-estimated-cells={String(estimated)}
+    >
+      <span className="progressive-grid-spark-target-map" aria-hidden="true">
+        <span style={{ width: `${Math.min(100, Math.max(12, bounds.width / 12 * 100))}%`, height: `${Math.min(100, Math.max(12, bounds.height / 12 * 100))}%` }} />
+      </span>
+      <span className="progressive-grid-spark-target-copy">
+        <b>Target {String(optionId).toUpperCase()}</b>
+        <small>x:{bounds.minX}–{bounds.maxX} · y:{bounds.minY}–{bounds.maxY}</small>
+        <small>{bounds.width}×{bounds.height} window · {estimated} cells</small>
+      </span>
+    </span>
+  );
+}
+
+const BOMB_CENTER_NUDGE_LIMIT = 6;
+
+function findSpecialCellCenter(client, specialId) {
+  if (!client) return null;
+  for (const tile of client.cache.values()) {
+    const special = (tile.specials || []).find((candidate) => candidate.id === specialId);
+    if (!special) continue;
+    return {
+      x: tile.offsetX + (special.localIndex % tile.width),
+      y: tile.offsetY + Math.floor(special.localIndex / tile.width),
+    };
+  }
+  return null;
+}
+
+function BombOfferPanel({
+  specialOffer,
+  onSpecialAction,
+  cameraRef,
+  sizeRef,
+  defaultCenter = null,
+}) {
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const cameraCenter = guidanceCameraCenter(cameraRef.current, sizeRef.current, CELL_SIZE);
+  const baseCenter = defaultCenter || cameraCenter;
+  const center = {
+    x: Math.round(baseCenter.x + offset.x),
+    y: Math.round(baseCenter.y + offset.y),
+  };
+  const nudge = (dx, dy) => setOffset((current) => {
+    const next = {
+      x: clamp(current.x + dx, -BOMB_CENTER_NUDGE_LIMIT, BOMB_CENTER_NUDGE_LIMIT),
+      y: clamp(current.y + dy, -BOMB_CENTER_NUDGE_LIMIT, BOMB_CENTER_NUDGE_LIMIT),
+    };
+    // The server clamps use_bomb centers to the special's 6-cell
+    // neighbourhood; keep the explicit control inside that valid radius.
+    if (Math.hypot(next.x, next.y) > BOMB_CENTER_NUDGE_LIMIT) return current;
+    return next;
+  });
+  const radius = Number(specialOffer.radius) || 3;
+  return (
+    <div
+      className="progressive-grid-special-offer progressive-grid-bomb-offer"
+      role="group"
+      aria-label="Бомба: выбрать точку применения"
+      data-special-kind="bomb"
+      data-special-supported="true"
+      data-bomb-center-x={center.x}
+      data-bomb-center-y={center.y}
+    >
+      <span className="progressive-grid-special-title">Бомба: точка · радиус {radius}</span>
+      <span className="progressive-grid-special-kind" aria-hidden="true">Бомба</span>
+      <div className="progressive-grid-bomb-center" aria-label="Центр бомбы">
+        <span data-bomb-center-label>Центр: {center.x}, {center.y}</span>
+        <div className="progressive-grid-bomb-nudge" role="group" aria-label="Сдвинуть центр">
+          <button
+            type="button"
+            data-bomb-center-direction="up"
+            aria-label="Центр выше"
+            title="Центр выше"
+            onClick={() => nudge(0, -1)}
+          >
+            <ArrowUp size={14} />
+          </button>
+          <button
+            type="button"
+            data-bomb-center-direction="left"
+            aria-label="Центр левее"
+            title="Центр левее"
+            onClick={() => nudge(-1, 0)}
+          >
+            <ArrowLeft size={14} />
+          </button>
+          <button
+            type="button"
+            data-bomb-center-direction="reset"
+            aria-label="По центру экрана"
+            title="По центру экрана"
+            onClick={() => setOffset({ x: 0, y: 0 })}
+          >
+            <Crosshair size={14} />
+          </button>
+          <button
+            type="button"
+            data-bomb-center-direction="right"
+            aria-label="Центр правее"
+            title="Центр правее"
+            onClick={() => nudge(1, 0)}
+          >
+            <ArrowRight size={14} />
+          </button>
+          <button
+            type="button"
+            data-bomb-center-direction="down"
+            aria-label="Центр ниже"
+            title="Центр ниже"
+            onClick={() => nudge(0, 1)}
+          >
+            <ArrowDown size={14} />
+          </button>
+        </div>
+      </div>
+      <button
+        type="button"
+        data-special-action="use"
+        data-bomb-use
+        onClick={() => onSpecialAction?.({
+          type: 'use_bomb',
+          special_id: specialOffer.special_id,
+          offer_token: specialOffer.offer_token,
+          center_x: center.x,
+          center_y: center.y,
+          experiment_group: 'treatment',
+        })}
+      >
+        Использовать здесь
+      </button>
+    </div>
+  );
+}
+
+function SpecialOfferPanel({ specialOffer, onSpecialAction, cameraRef, sizeRef, clientRef }) {
+  const kind = offerKind(specialOffer);
+  const visual = specialKindVisual(kind);
+  if (kind === 'bomb') {
+    return (
+      <BombOfferPanel
+            specialOffer={specialOffer}
+            onSpecialAction={onSpecialAction}
+            cameraRef={cameraRef}
+            sizeRef={sizeRef}
+            defaultCenter={
+              Number.isFinite(Number(specialOffer.center_x))
+                && Number.isFinite(Number(specialOffer.center_y))
+                ? { x: Number(specialOffer.center_x), y: Number(specialOffer.center_y) }
+                : findSpecialCellCenter(clientRef.current, specialOffer.special_id)
+            }
+      />
+    );
+  }
+  if (kind === 'fuse' && Array.isArray(specialOffer.steps)) {
+    const remainingCells = specialOffer.steps.reduce((sum, step) => sum + Number(step.cells || 0), 0);
+    const totalCells = Number(specialOffer.chain_cells?.length) || remainingCells;
+    const lastStep = specialOffer.steps.length <= 1;
+    return (
+      <div
+        className="progressive-grid-special-offer progressive-grid-fuse-offer"
+        role="group"
+        aria-label="Фитиль: обезвредить цепочку"
+        data-special-kind="fuse"
+        data-special-supported="true"
+        data-fuse-steps-remaining={specialOffer.steps.length}
+      >
+        <button
+          type="button"
+          className="progressive-grid-special-skip"
+          data-fuse-skip
+          onClick={() => onSpecialAction?.({
+            type: 'skip_fuse',
+            special_id: specialOffer.special_id,
+            offer_token: specialOffer.offer_token,
+            experiment_group: 'treatment',
+          })}
+        >Leave it and continue</button>
+        <span className="progressive-grid-special-title">Фитиль: короткая цепочка</span>
+        <span className="progressive-grid-special-kind" aria-hidden="true">Фитиль</span>
+        <span className="progressive-grid-special-detail" data-fuse-chain-detail>
+          Осталось звеньев: {specialOffer.steps.length}, клеток: {remainingCells} из {totalCells}
+        </span>
+        <button
+          type="button"
+          data-special-action="disarm"
+          data-fuse-disarm
+          data-fuse-step-distance={specialOffer.steps[0]?.distance}
+          data-fuse-steps-remaining={specialOffer.steps.length}
+          onClick={() => onSpecialAction?.({
+            type: 'disarm_fuse',
+            special_id: specialOffer.special_id,
+            offer_token: specialOffer.offer_token,
+            experiment_group: 'treatment',
+          })}
+        >
+          {lastStep ? 'Обезвредить и продолжить' : `Обезвредить звено ${specialOffer.steps[0]?.distance}`}
+        </button>
+      </div>
+    );
+  }
+  if (kind === 'hazard') {
+    return (
+      <div
+        className="progressive-grid-special-offer progressive-grid-hazard-offer"
+        role="group"
+        aria-label="Опасность: обезвредьте маркер"
+        data-special-kind="hazard"
+        data-special-supported="true"
+      >
+        <button
+          type="button"
+          className="progressive-grid-special-skip"
+          data-hazard-skip
+          onClick={() => onSpecialAction?.({
+            type: 'skip_hazard',
+            special_id: specialOffer.special_id,
+            offer_token: specialOffer.offer_token,
+            experiment_group: 'treatment',
+          })}
+        >Пропустить (маленькая пауза)</button>
+        <span className="progressive-grid-special-title">Опасность: обезвредьте маркер</span>
+        <span className="progressive-grid-special-kind" aria-hidden="true">Опасность</span>
+        <span className="progressive-grid-special-detail" data-hazard-reward>
+          До {specialOffer.reward_cap || 16} клеток, прогресс не удаляется
+        </span>
+        <button
+          type="button"
+          data-special-action="disarm"
+          data-hazard-disarm
+          onClick={() => onSpecialAction?.({
+            type: 'disarm_hazard',
+            special_id: specialOffer.special_id,
+            offer_token: specialOffer.offer_token,
+            experiment_group: 'treatment',
+          })}
+        >
+          Обезвредить и продолжить
+        </button>
+      </div>
+    );
+  }
+  if (kind === 'choice' && Array.isArray(specialOffer.choice_options)) {
+    return (
+      <div
+        className="progressive-grid-special-offer progressive-grid-choice-offer"
+        role="group"
+        aria-label="Выбор действия"
+        data-special-kind="choice"
+        data-special-supported="true"
+      >
+        <span className="progressive-grid-special-title">Выберите способ продолжить</span>
+        <span className="progressive-grid-special-kind" aria-hidden="true">Выбор</span>
+        {specialOffer.choice_options.slice(0, 2).map((option) => (
+          <button
+            key={option.option_id}
+            type="button"
+            data-special-option={option.option_id}
+            data-special-action="use"
+            onClick={() => onSpecialAction?.({
+              type: 'use_choice',
+              special_id: specialOffer.special_id,
+              offer_token: specialOffer.offer_token,
+              option_id: option.option_id,
+              camera_center: guidanceCameraCenter(cameraRef.current, sizeRef.current, CELL_SIZE),
+              experiment_group: 'treatment',
+            })}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+  if (!Array.isArray(specialOffer.target_options)) return null;
+  const supported = visual.supported;
+  const unsupportedHint = 'Этот эффект ещё недоступен';
+  const targetOptions = specialOffer.target_options.slice(0, 2);
+  return (
+    <div
+      className="progressive-grid-special-offer progressive-grid-spark-offer"
+      role="group"
+      aria-label={visual.groupLabel}
+      data-special-kind={kind}
+      data-special-supported={supported ? 'true' : 'false'}
+    >
+      <span className="progressive-grid-special-title">{visual.title}</span>
+      <span className="progressive-grid-special-kind" aria-hidden="true">{visual.label}</span>
+      <span className="progressive-grid-special-detail progressive-grid-spark-contract" data-spark-target-contract>
+        Server-selected 12×12 Smart target · exact bounds · up to 144 cells
+      </span>
+      {targetOptions.map((option, index) => {
+        const optionId = option.option_id || (index === 0 ? 'a' : 'b');
+        return (
+          <button
+            key={optionId}
+            className="progressive-grid-spark-target-option"
+            type="button"
+            data-special-option={optionId}
+            data-special-action="use"
+            disabled={!supported}
+            title={supported ? visual.useLabel : unsupportedHint}
+            onClick={supported ? () => onSpecialAction?.({
+              type: 'use_spark',
+              special_id: specialOffer.special_id,
+              offer_token: specialOffer.offer_token,
+              option_id: optionId,
+              camera_center: guidanceCameraCenter(cameraRef.current, sizeRef.current, CELL_SIZE),
+              experiment_group: 'treatment',
+            }) : undefined}
+          >
+            <SparkTargetPreview target={option} optionId={optionId} />
+            <span className="progressive-grid-spark-target-cta">Use target {String(optionId).toUpperCase()}</span>
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        className="progressive-grid-special-skip"
+        data-special-action="skip"
+        disabled={!supported}
+        title={supported ? 'Пропустить' : unsupportedHint}
+        onClick={supported ? () => onSpecialAction?.({
+          type: 'skip_spark',
+          special_id: specialOffer.special_id,
+          offer_token: specialOffer.offer_token,
+          experiment_group: 'treatment',
+        }) : undefined}
+      >
+        Пропустить
+      </button>
+    </div>
+  );
+}
+
 export default function ProgressiveColoringSession({
   template,
   progress,
   selectedColor,
   onSelectColor,
   onStrokeCommitted,
+  onSpecialAction,
+  specialOffer = null,
+  specialApplied = null,
+  specialDiscovered = null,
+  reconciledChanges = [],
+  onVisibleSpecialKinds,
   onFirstPaint,
   onWrongCell,
   interactionMode = 'classic',
@@ -91,7 +571,7 @@ export default function ProgressiveColoringSession({
   const canvasRef = useRef(null);
   const previewImageRef = useRef(null);
   const clientRef = useRef(null);
-  const cameraRef = useRef({ x: 0, y: 0, zoom: 0.3 });
+  const cameraRef = useRef({ x: 0, y: 0, zoom: MIN_ZOOM });
   const pointerRef = useRef(null);
   const panRef = useRef(null);
   const minimapCanvasRef = useRef(null);
@@ -113,12 +593,16 @@ export default function ProgressiveColoringSession({
   const sizeRef = useRef(size);
   sizeRef.current = size;
   const [camera, setCamera] = useState(cameraRef.current);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const lodModeRef = useRef(GRID_LOD_MODE.OVERVIEW);
+  const [lodMode, setLodMode] = useState(GRID_LOD_MODE.OVERVIEW);
+  const viewportLoadTimerRef = useRef(null);
   const [status, setStatus] = useState(PROGRESSIVE_GRID_STATUS.IDLE);
   const [error, setError] = useState(null);
   const [manifestReady, setManifestReady] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
   const [inputNotice, setInputNotice] = useState(null);
-  const [, redraw] = useState(0);
+  const [drawRevision, redraw] = useState(0);
   const [keyboardCell, setKeyboardCell] = useState(null);
   const [liveText, setLiveText] = useState('');
   const [guide, setGuide] = useState(null);
@@ -127,8 +611,19 @@ export default function ProgressiveColoringSession({
   const [successNotice, setSuccessNotice] = useState(null);
   const [errorNotice, setErrorNotice] = useState(null);
   const [navigationMode, setNavigationMode] = useState(false);
+  const [sparkWave, setSparkWave] = useState(null);
+  const markerPhaseRef = useRef(0);
   const smartStateRef = useRef('idle');
   const smartPlanRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, []);
   const guidanceTokenRef = useRef(0);
   const guidanceIndexRetryRef = useRef(0);
   const guidanceIndexRetryTimerRef = useRef(null);
@@ -139,6 +634,7 @@ export default function ProgressiveColoringSession({
   const committedRevisionRef = useRef(0);
   const selectedColorRef = useRef(selectedColor);
   const guidanceBootstrappedRef = useRef(false);
+  const previousSpecialOfferRef = useRef(null);
   const wrongNoticeTimerRef = useRef(null);
   const successNoticeTimerRef = useRef(null);
   const keyboardCellRef = useRef(null);
@@ -153,6 +649,184 @@ export default function ProgressiveColoringSession({
     announcerRef.current = createBoundedAnnouncer({ onAnnounce: setLiveText });
   }
   const minimapZones = useMemo(() => buildZoneRects(template.width, template.height), [template.width, template.height]);
+  const specialTreatment = SPECIAL_CELLS_ENABLED
+    && progress?.specials_experiment_group === 'treatment';
+  const specialDiagnostics = progress?.special_diagnostics || null;
+  const artifactProgress = progress?.artifact_progress || null;
+
+  useEffect(() => {
+    if (!specialTreatment || lodMode !== GRID_LOD_MODE.WORK || reducedMotion) return undefined;
+    let frame = 0;
+    let last = 0;
+    const tick = (time) => {
+      if (time - last > 55) {
+        markerPhaseRef.current = time / 650;
+        redraw((value) => value + 1);
+        last = time;
+      }
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [lodMode, reducedMotion, specialTreatment]);
+
+  useEffect(() => {
+    if (!onVisibleSpecialKinds) return;
+    if (!specialTreatment) {
+      onVisibleSpecialKinds([]);
+      return;
+    }
+    if (!manifestReady || !size.width || !size.height || lodMode === GRID_LOD_MODE.OVERVIEW) {
+      onVisibleSpecialKinds([]);
+      return;
+    }
+    const client = clientRef.current;
+    const manifest = client?.getSnapshot().manifest;
+    if (!manifest) {
+      onVisibleSpecialKinds([]);
+      return;
+    }
+    const plan = selectViewportTiles({
+      grid: manifest.grid,
+      camera,
+      viewportWidth: size.width,
+      viewportHeight: size.height,
+      cellSize: CELL_SIZE,
+      overscanCells: 1,
+      overscanTiles: 0,
+    });
+    const visibleKeys = new Set((plan.visible || []).map((tile) => tile.key));
+    const kinds = [];
+    for (const tile of client.cache.values()) {
+      if (!visibleKeys.has(tile.key)) continue;
+      for (const special of tile.specials || []) {
+        if (special.state !== 'unseen' || tile.filled[special.localIndex] !== -1) continue;
+        if (special.kind && !kinds.includes(special.kind)) kinds.push(special.kind);
+      }
+    }
+    onVisibleSpecialKinds(kinds);
+    // The tiled client/cache is stable for this mounted session; the camera
+    // and load status are the visible-relevance signals.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camera, lodMode, manifestReady, onVisibleSpecialKinds, progress?.revision, reconciledChanges, size.height, size.width, specialApplied, specialTreatment, status]);
+  const specialCellsDiagnosticsEnabled = isSpecialCellsDiagnosticsEnabled(import.meta.env);
+  const specialCellsSnapshot = specialCellsDiagnosticsEnabled
+    ? buildSpecialCellsDiagnosticsSnapshot({
+      template,
+      progress,
+      visibleSpecials: clientRef.current ? [...clientRef.current.cache.values()] : [],
+      offer: specialOffer,
+      discovered: specialDiscovered,
+      target: smartPlanRef.current?.target || null,
+      plan: smartPlanRef.current || null,
+      targetActive: smartStateRef.current !== 'freeExploration',
+      recentTargets: recentTargetsRef.current,
+      userId: DEV_USER_ID,
+      lastError: errorNotice || error || getSpecialCellsLastError(),
+    })
+    : null;
+
+  // The special-cell snapshot is QA-only and reads live refs, so it must
+  // refresh whenever those refs change instead of going stale.
+  const [, forceSpecialDiagnosticsRender] = useState(0);
+  useEffect(() => {
+    if (!specialCellsDiagnosticsEnabled) return undefined;
+    const interval = window.setInterval(
+      () => forceSpecialDiagnosticsRender((value) => value + 1),
+      750,
+    );
+    return () => window.clearInterval(interval);
+  }, [specialCellsDiagnosticsEnabled]);
+
+  useEffect(() => {
+    if (!specialOffer) return;
+    // An offer is a short-lived decision state, not a modal route. Stop any
+    // already scheduled Smart Engine advance and invalidate an in-flight
+    // guidance response so it cannot move the camera underneath the HUD.
+    cancelAutoAdvance();
+    guidanceTokenRef.current += 1;
+  }, [specialOffer]);
+
+  useEffect(() => {
+    const applied = specialApplied;
+    const client = clientRef.current;
+    if (!specialTreatment || !client || !applied?.changes?.length) return;
+    const changedTiles = new Set();
+    for (const change of applied.changes) {
+      const x = Number(change.index) % template.width;
+      const y = Math.floor(Number(change.index) / template.width);
+      if (client.updateFilled(x, y, Number(change.color))) changedTiles.add(`${Math.floor(x / 32)}:${Math.floor(y / 32)}`);
+    }
+    if (applied.specialId) {
+      for (const tile of client.cache.values()) {
+        for (const special of tile.specials || []) {
+          if (special.id === applied.specialId) special.state = 'consumed';
+        }
+      }
+    }
+    for (const key of changedTiles) {
+      const tile = client.cache.peek(key);
+      if (tile) guideIndexRef.current?.refreshTile(tile);
+    }
+    redraw((value) => value + 1);
+    scheduleMinimapRebuild();
+    // The client/cache helpers are stable for the mounted tiled session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [specialApplied, specialTreatment, template.width]);
+
+  useEffect(() => {
+    if (!specialApplied || specialApplied.kind !== 'spark' || !specialApplied.changes?.length) return undefined;
+    setSparkWave({ revision: specialApplied.revision, cells: specialApplied.changes.length });
+    const timer = window.setTimeout(() => setSparkWave(null), reducedMotion ? 700 : 1500);
+    return () => window.clearTimeout(timer);
+  }, [reducedMotion, specialApplied]);
+
+  useEffect(() => {
+    const wasOpen = Boolean(previousSpecialOfferRef.current);
+    previousSpecialOfferRef.current = specialOffer;
+    if (!wasOpen || specialOffer || !manifestReady || !size.width || !size.height) return undefined;
+
+    // Resolution is committed before the offer disappears. Resume through
+    // the existing guidance route after the cache/progress effects above have
+    // observed that commit; no special-cell work enters pointermove.
+    const resumeTimer = window.setTimeout(() => {
+      if (specialOffer) return;
+      void fetchAndApplyGuidance({
+        reason: smartPlanRef.current ? GUIDANCE_REASON.SAME_COLOR_NEXT : GUIDANCE_REASON.INITIAL_TARGET,
+        color: smartPlanRef.current?.selectedColor ?? selectedColorRef.current,
+        recent: recentTargetsRef.current,
+        immediate: true,
+      });
+    }, 0);
+    return () => window.clearTimeout(resumeTimer);
+    // The mounted tiled session owns these callbacks/refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [specialOffer, manifestReady, size.width, size.height]);
+
+  useEffect(() => {
+    const client = clientRef.current;
+    if (!client || !Array.isArray(reconciledChanges) || !reconciledChanges.length) return;
+    const changedTiles = new Set();
+    for (const change of reconciledChanges) {
+      const index = Number(change.index);
+      const color = Number(change.color);
+      if (!Number.isInteger(index) || !Number.isInteger(color)) continue;
+      const x = index % template.width;
+      const y = Math.floor(index / template.width);
+      if (client.updateFilled(x, y, color)) changedTiles.add(`${Math.floor(x / 32)}:${Math.floor(y / 32)}`);
+    }
+    for (const key of changedTiles) {
+      const tile = client.cache.peek(key);
+      if (tile) guideIndexRef.current?.refreshTile(tile);
+    }
+    if (changedTiles.size) {
+      redraw((value) => value + 1);
+      scheduleMinimapRebuild();
+    }
+    // Replay reconciliation is post-commit work; it is deliberately absent
+    // from the Stroke Engine V2 pointermove hot path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reconciledChanges, template.width]);
 
   useEffect(() => {
     const metrics = {
@@ -234,6 +908,11 @@ export default function ProgressiveColoringSession({
   }, [minimapZones, template]);
 
   const updateCamera = useCallback((next) => {
+    const nextMode = resolveGridLodMode(CELL_SIZE * next.zoom, lodModeRef.current);
+    if (nextMode !== lodModeRef.current) {
+      lodModeRef.current = nextMode;
+      setLodMode(nextMode);
+    }
     cameraRef.current = next;
     setCamera(next);
     scheduleCameraSave(next);
@@ -305,7 +984,10 @@ export default function ProgressiveColoringSession({
       onComplete?.();
       return;
     }
-    if (immediate) {
+    if (immediate || reducedMotion) {
+      const nextMode = resolveGridLodMode(CELL_SIZE * targetCamera.zoom, lodModeRef.current);
+      lodModeRef.current = nextMode;
+      setLodMode(nextMode);
       cameraRef.current = targetCamera;
       setCamera(targetCamera);
       onComplete?.();
@@ -317,6 +999,11 @@ export default function ProgressiveColoringSession({
       targetCamera,
       360,
       (frame) => {
+        const nextMode = resolveGridLodMode(CELL_SIZE * frame.zoom, lodModeRef.current);
+        if (nextMode !== lodModeRef.current) {
+          lodModeRef.current = nextMode;
+          setLodMode(nextMode);
+        }
         cameraRef.current = frame;
         setCamera(frame);
       },
@@ -343,7 +1030,7 @@ export default function ProgressiveColoringSession({
   }
 
   async function applyGuidancePlan(plan, { immediate = false } = {}) {
-    if (!plan) return false;
+    if (!plan || specialOffer) return false;
     if (isStaleGuidance(plan, committedRevisionRef.current)) {
       window.setTimeout(() => {
         void fetchAndApplyGuidance({
@@ -381,7 +1068,7 @@ export default function ProgressiveColoringSession({
       if (plan.nextColor != null && isTargetActionable(plan)) {
         cancelAutoAdvance();
         autoAdvanceTimerRef.current = window.setTimeout(() => {
-          if (smartStateRef.current !== 'colorComplete') return;
+          if (specialOffer || smartStateRef.current !== 'colorComplete') return;
           if (plan.nextColor !== selectedColorRef.current) {
             selectedColorRef.current = plan.nextColor;
             onSelectColor(plan.nextColor);
@@ -480,6 +1167,10 @@ export default function ProgressiveColoringSession({
     recent = null,
     immediate = false,
   } = {}) {
+    if (specialOffer) {
+      cancelAutoAdvance();
+      return;
+    }
     const client = clientRef.current;
     const manifest = client?.getSnapshot().manifest;
     if (!client || !manifest || !sizeRef.current.width || !sizeRef.current.height) return;
@@ -494,6 +1185,7 @@ export default function ProgressiveColoringSession({
         recent: recent ?? recentTargetsRef.current,
         tileX,
         tileY,
+        sparkTreatment: specialTreatment,
       });
       if (token !== guidanceTokenRef.current) return;
       if (isStaleGuidance(plan, committedRevisionRef.current)) {
@@ -509,6 +1201,7 @@ export default function ProgressiveColoringSession({
       }
     } catch (error) {
       if (isAbortError(error)) return;
+      if (error?.status === 409 && error?.data?.code === 'SPECIAL_ACTIVE_OFFER') return;
       // A failed bootstrap must not leave the user staring at an inert
       // overview as if everything worked.
       if (!smartPlanRef.current && smartStateRef.current !== 'errorRetryable') {
@@ -530,9 +1223,10 @@ export default function ProgressiveColoringSession({
   }
 
   function scheduleAutoAdvance() {
+    if (specialOffer) return;
     cancelAutoAdvance();
     autoAdvanceTimerRef.current = window.setTimeout(() => {
-      if (smartStateRef.current !== 'ready' || !smartPlanRef.current) return;
+      if (specialOffer || smartStateRef.current !== 'ready' || !smartPlanRef.current) return;
       void fetchAndApplyGuidance({
         reason: GUIDANCE_REASON.SAME_COLOR_NEXT,
         color: smartPlanRef.current.selectedColor,
@@ -776,6 +1470,10 @@ export default function ProgressiveColoringSession({
         clearTimeout(minimapTimerRef.current);
         minimapTimerRef.current = null;
       }
+      if (viewportLoadTimerRef.current != null) {
+        clearTimeout(viewportLoadTimerRef.current);
+        viewportLoadTimerRef.current = null;
+      }
       cancelCameraAnimation();
       cancelAutoAdvance();
       clearGuidanceIndexRetry();
@@ -800,12 +1498,15 @@ export default function ProgressiveColoringSession({
     recentTargetsRef.current = [];
     targetRemainingRef.current = null;
     committedRevisionRef.current = 0;
+    lodModeRef.current = GRID_LOD_MODE.OVERVIEW;
+    setLodMode(GRID_LOD_MODE.OVERVIEW);
     guidanceTokenRef.current += 1;
     clearGuidanceIndexRetry();
     setErrorNotice(null);
     setInputNotice(null);
     cancelAutoAdvance();
     cancelCameraAnimation();
+    previousSpecialOfferRef.current = null;
     setManifestReady(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template.id]);
@@ -888,31 +1589,66 @@ export default function ProgressiveColoringSession({
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const client = clientRef.current;
-    if (!client || !manifestReady || !size.width || !size.height) return undefined;
-    const controller = new AbortController();
-    client.loadViewport({
+  const viewportPlanKey = useMemo(() => {
+    if (!manifestReady || !size.width || !size.height) return null;
+    if (lodMode === GRID_LOD_MODE.OVERVIEW) return GRID_LOD_MODE.OVERVIEW;
+    const manifest = clientRef.current?.getSnapshot().manifest;
+    if (!manifest) return null;
+    const plan = selectViewportTiles({
+      grid: manifest.grid,
       camera,
       viewportWidth: size.width,
       viewportHeight: size.height,
       cellSize: CELL_SIZE,
       overscanCells: 1,
       overscanTiles: 1,
-      maxPrefetchTiles: 8,
-      signal: controller.signal,
-    }).then((result) => {
-      if (controller.signal.aborted) return;
-      markFirstTile();
-      for (const tile of [...result.visible, ...result.prefetched]) {
-        guideIndexRef.current?.addTile(tile);
+    });
+    return `${GRID_LOD_MODE.WORK}:${plan.all.map((tile) => tile.key).join(',')}`;
+  }, [camera, lodMode, manifestReady, size.height, size.width]);
+
+  useEffect(() => {
+    const client = clientRef.current;
+    if (!client || !viewportPlanKey) return undefined;
+    if (viewportLoadTimerRef.current != null) {
+      clearTimeout(viewportLoadTimerRef.current);
+      viewportLoadTimerRef.current = null;
+    }
+    const controller = new AbortController();
+    const start = () => {
+      viewportLoadTimerRef.current = null;
+      client.loadViewport({
+        camera,
+        viewportWidth: size.width,
+        viewportHeight: size.height,
+        cellSize: CELL_SIZE,
+        mode: lodMode,
+        overscanCells: 1,
+        overscanTiles: 1,
+        maxPrefetchTiles: 8,
+        signal: controller.signal,
+      }).then((result) => {
+        if (controller.signal.aborted) return;
+        if (result.visible.length || result.prefetched.length) markFirstTile();
+        for (const tile of [...result.visible, ...result.prefetched]) {
+          guideIndexRef.current?.addTile(tile);
+        }
+        rebuildMinimapBase();
+        drawMinimap();
+      }).catch(() => {});
+    };
+    // Camera frames within one tile plan are coalesced by the key above. A
+    // short settle window handles the remaining rapid pinch/animation frames
+    // without delaying the overview path or direct painting requests.
+    viewportLoadTimerRef.current = window.setTimeout(start, lodMode === GRID_LOD_MODE.WORK ? 80 : 0);
+    return () => {
+      if (viewportLoadTimerRef.current != null) {
+        clearTimeout(viewportLoadTimerRef.current);
+        viewportLoadTimerRef.current = null;
       }
-      rebuildMinimapBase();
-      drawMinimap();
-    }).catch(() => {});
-    return () => controller.abort();
+      controller.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camera, manifestReady, size.width, size.height]);
+  }, [lodMode, viewportPlanKey]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const draw = useCallback(() => {
@@ -933,8 +1669,15 @@ export default function ProgressiveColoringSession({
     ctx.fillRect(0, 0, bitmapWidth, bitmapHeight);
     ctx.setTransform(dpr * camera.zoom, 0, 0, dpr * camera.zoom, dpr * camera.x, dpr * camera.y);
     const cellPixels = CELL_SIZE * camera.zoom;
-    const detailedCells = cellPixels >= DETAILED_CELL_PIXELS;
+    const overviewMode = lodMode === GRID_LOD_MODE.OVERVIEW;
+    const detailedCells = !overviewMode && cellPixels >= DETAILED_CELL_PIXELS;
     const previewImage = previewImageRef.current;
+    if (!previewReady || !previewImage?.naturalWidth) {
+      // Missing preview is a single uniform fallback, never a cache-shaped
+      // mosaic. Filled cells from resident tiles are painted over it below.
+      ctx.fillStyle = '#172735';
+      ctx.fillRect(0, 0, template.width * CELL_SIZE, template.height * CELL_SIZE);
+    }
     if (previewReady && previewImage?.naturalWidth) {
       ctx.save();
       const previewAlpha = detailedCells ? (client.cache.size ? 0.2 : 0.58) : 0.9;
@@ -949,7 +1692,7 @@ export default function ProgressiveColoringSession({
     ctx.textBaseline = 'middle';
     ctx.font = '13px Outfit, sans-serif';
     const manifest = client.getSnapshot().manifest;
-    const visiblePlan = manifest ? selectViewportTiles({
+    const visiblePlan = manifest && !overviewMode ? selectViewportTiles({
       grid: manifest.grid,
       camera,
       viewportWidth: size.width,
@@ -958,16 +1701,11 @@ export default function ProgressiveColoringSession({
       overscanCells: 1,
       overscanTiles: 0,
     }) : null;
-    const visibleKeys = new Set((visiblePlan?.visible || []).map((tile) => tile.key));
+    const visibleKeys = overviewMode ? null : new Set((visiblePlan?.visible || []).map((tile) => tile.key));
     const cellBounds = visiblePlan?.cellBounds || null;
-    const emptyTileStyle = previewReady ? null : '#172735';
     for (const tile of client.cache.values()) {
-      if (!visibleKeys.has(tile.key)) continue;
+      if (!overviewMode && !visibleKeys.has(tile.key)) continue;
       if (!detailedCells) {
-        if (emptyTileStyle) {
-          ctx.fillStyle = emptyTileStyle;
-          ctx.fillRect(tile.offsetX * CELL_SIZE, tile.offsetY * CELL_SIZE, tile.width * CELL_SIZE, tile.height * CELL_SIZE);
-        }
         for (let localY = 0; localY < tile.height; localY += 1) {
           for (let localX = 0; localX < tile.width; localX += 1) {
             const localIndex = localY * tile.width + localX;
@@ -1014,6 +1752,24 @@ export default function ProgressiveColoringSession({
         }
       }
     }
+    if (specialTreatment && !overviewMode) {
+      for (const tile of client.cache.values()) {
+        if (!visibleKeys.has(tile.key)) continue;
+        for (const special of tile.specials || []) {
+          if (special.state !== 'unseen' || tile.filled[special.localIndex] !== -1) continue;
+          const localX = special.localIndex % tile.width;
+          const localY = Math.floor(special.localIndex / tile.width);
+          const centerX = (tile.offsetX + localX) * CELL_SIZE + CELL_SIZE / 2;
+          const centerY = (tile.offsetY + localY) * CELL_SIZE + CELL_SIZE / 2;
+          const screenRadius = specialMarkerScreenRadius(cellPixels);
+          drawSpecialMarker(ctx, special, centerX, centerY, screenRadius, camera.zoom, {
+            state: special.id === smartPlanRef.current?.specialId ? 'active' : 'idle',
+            phase: markerPhaseRef.current,
+            reducedMotion,
+          });
+        }
+      }
+    }
     if (keyboardCell != null) {
       const cursorX = (keyboardCell % template.width) * CELL_SIZE;
       const cursorY = Math.floor(keyboardCell / template.width) * CELL_SIZE;
@@ -1026,9 +1782,9 @@ export default function ProgressiveColoringSession({
     }
     drawMinimap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camera, hideNumbers, hintMode, interactionMode, keyboardCell, previewReady, selectedColor, size.height, size.width, template.height, template.palette, template.width]);
+  }, [camera, hideNumbers, hintMode, interactionMode, keyboardCell, lodMode, previewReady, selectedColor, size.height, size.width, template.height, template.palette, template.width]);
 
-  useLayoutEffect(() => { draw(); }, [draw, status, progress]);
+  useLayoutEffect(() => { draw(); }, [draw, drawRevision, status, progress]);
 
   function mapCell(event) {
     const client = clientRef.current;
@@ -1185,6 +1941,24 @@ export default function ProgressiveColoringSession({
    * application-level stroke and one canonical redraw.
    */
   function commitChanges(changes, { announce = false, wrongDetected = false, wrongCell = null, unloaded = [] } = {}) {
+    if (specialOffer) {
+      // A stroke must never be queued behind an unresolved offer. This guard
+      // is a defensive boundary for a stroke that began just before the
+      // offer response arrived; normal pointerdown is blocked below too.
+      for (const change of changes) {
+        const tile = clientRef.current?.cache.peek(change.tileKey);
+        if (!tile) continue;
+        const x = Number(change.index) % template.width;
+        const y = Math.floor(Number(change.index) / template.width);
+        const localX = x - tile.offsetX;
+        const localY = y - tile.offsetY;
+        const localIndex = localY * tile.width + localX;
+        if (localIndex >= 0 && localIndex < tile.filled.length) tile.filled[localIndex] = -1;
+      }
+      cancelAutoAdvance();
+      setInputNotice('Сначала завершите особое событие');
+      return;
+    }
     const client = clientRef.current;
     const changedTiles = new Set();
     for (const change of changes) changedTiles.add(change.tileKey);
@@ -1201,12 +1975,27 @@ export default function ProgressiveColoringSession({
         commitMetrics.lastCommitAt = performance.now();
       }
       const normalized = changes.map(({ index, to }) => ({ index, from: -1, to }));
+      const special = specialTreatment
+        ? changes.map((change) => client?.cache.peek(change.tileKey)?.specials || [])
+          .flat()
+          .find((candidate) => ['spark', 'bomb', 'fuse', 'choice', 'artifact', 'hazard'].includes(candidate.kind)
+            && candidate.state === 'unseen'
+            && changes.some((change) => change.index === candidate.cellIndex
+              && change.to === client.cache.peek(`${Math.floor((candidate.cellIndex % template.width) / 32)}:${Math.floor(Math.floor(candidate.cellIndex / template.width) / 32)}`)?.cells[candidate.localIndex]))
+        : null;
+      const specialAction = special ? {
+        type: `claim_${special.kind}`,
+        special_id: special.id,
+        cell_index: special.cellIndex,
+        camera_center: guidanceCameraCenter(cameraRef.current, sizeRef.current, CELL_SIZE),
+        experiment_group: 'treatment',
+      } : null;
       onStrokeCommitted?.(normalized, {
         type: 'stroke',
         timestamp: Date.now(),
         changes: normalized,
         color: normalized[0].to,
-      });
+      }, specialAction);
       try {
         window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
       } catch {
@@ -1372,6 +2161,12 @@ export default function ProgressiveColoringSession({
     // own click handlers run; capturing their pointer here prevents zone and
     // zoom navigation in touch WebViews.
     if (event.target instanceof Element && event.target.closest('button')) return;
+    if (specialOffer) {
+      event.preventDefault();
+      cancelAutoAdvance();
+      setInputNotice('Сначала завершите особое событие');
+      return;
+    }
     if (event.pointerType === 'touch') {
       touchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -1672,6 +2467,7 @@ export default function ProgressiveColoringSession({
   const centerCellY = (size.height / 2 - camera.y) / Math.max(camera.zoom, MIN_ZOOM) / CELL_SIZE;
   const activeZone = minimapZones.find((zone) => centerCellX >= zone.x && centerCellX < zone.x + zone.width && centerCellY >= zone.y && centerCellY < zone.y + zone.height)?.id;
   const hasLoadedTiles = Boolean(clientRef.current?.cache.size);
+  const tileErrorCount = Object.keys(clientRef.current?.getSnapshot().tileErrors || {}).length;
 
   const retry = () => {
     const client = clientRef.current;
@@ -1682,11 +2478,21 @@ export default function ProgressiveColoringSession({
     }).catch(() => {});
   };
 
+  const retryTileErrors = () => {
+    const client = clientRef.current;
+    if (!client || !tileErrorCount) return;
+    setInputNotice('Повторяем недоступные фрагменты…');
+    client.retryFailedTiles()
+      .finally(() => setInputNotice(null));
+  };
+
   return (
     <div
       className="progressive-coloring-session"
       data-grid-width={template.width}
       data-grid-height={template.height}
+      data-lod-mode={lodMode}
+      data-tile-error-count={tileErrorCount}
       data-smart-state={smartState}
       data-smart-color={smartPlanRef.current?.selectedColor == null ? '' : smartPlanRef.current.selectedColor}
       data-smart-target-tile={smartPlanRef.current?.target == null
@@ -1694,6 +2500,31 @@ export default function ProgressiveColoringSession({
         : `${smartPlanRef.current.target.tile_x}:${smartPlanRef.current.target.tile_y}`}
       data-smart-target-x={smartPlanRef.current?.target?.anchor_x == null ? '' : smartPlanRef.current.target.anchor_x}
       data-smart-target-y={smartPlanRef.current?.target?.anchor_y == null ? '' : smartPlanRef.current.target.anchor_y}
+      data-special-treatment={specialTreatment ? 'treatment' : 'control'}
+      data-special-generation-version={specialDiagnostics?.generation_version ?? ''}
+      data-special-count={specialDiagnostics?.special_count ?? ''}
+      data-special-active={specialCellsSnapshot?.active_special?.present ? 'true' : ''}
+      data-special-cohort-override={specialCellsSnapshot?.override ? 'true' : ''}
+      data-special-counts-by-kind={specialCellsSnapshot?.by_type?.server
+        ? Object.entries(specialCellsSnapshot.by_type.server)
+          .filter(([, count]) => Number(count || 0) > 0)
+          .map(([kind, count]) => `${kind}:${count}`)
+          .join(',')
+        : ''}
+      data-special-visible-count={specialCellsSnapshot?.visible?.length ?? ''}
+      data-special-last-error-code={specialCellsSnapshot?.last_error?.code ?? ''}
+      data-special-pity-due={specialDiagnostics?.pity_due == null ? '' : String(Boolean(specialDiagnostics.pity_due))}
+      data-special-cells-to-pity={specialDiagnostics?.cells_to_next_pity_boundary ?? ''}
+      data-special-unseen={specialDiagnostics?.counts_by_status?.unseen ?? ''}
+      data-special-offered={specialDiagnostics?.counts_by_status?.offered ?? ''}
+      data-special-consumed={specialDiagnostics?.counts_by_status?.consumed ?? ''}
+      data-special-skipped={specialDiagnostics?.counts_by_status?.skipped ?? ''}
+      data-special-offer-kind={specialOffer?.kind || ''}
+      data-special-offer-supported={specialOffer
+        ? (specialOffer.kind
+          ? String(Boolean(specialKindVisual(specialOffer.kind).supported))
+          : 'true')
+        : ''}
       data-smart-target-min-x={smartPlanRef.current?.target?.bounds?.min_x == null ? '' : smartPlanRef.current.target.bounds.min_x}
       data-smart-target-min-y={smartPlanRef.current?.target?.bounds?.min_y == null ? '' : smartPlanRef.current.target.bounds.min_y}
       data-smart-target-max-x={smartPlanRef.current?.target?.bounds?.max_x == null ? '' : smartPlanRef.current.target.bounds.max_x}
@@ -1702,9 +2533,10 @@ export default function ProgressiveColoringSession({
       <div
         className="player-canvas-area progressive-grid-area"
         ref={viewportRef}
-        data-camera-x={camera.x}
-        data-camera-y={camera.y}
-        data-camera-zoom={camera.zoom}
+      data-camera-x={camera.x}
+      data-camera-y={camera.y}
+      data-camera-zoom={camera.zoom}
+      data-reduced-motion={reducedMotion ? 'true' : 'false'}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -1717,7 +2549,6 @@ export default function ProgressiveColoringSession({
           if (touchPointersRef.current.size === 0) gestureRef.current = { active: false, midpoint: null, distance: 0 };
         }}
         onWheel={(event) => { event.preventDefault(); zoomAt(event.deltaY < 0 ? 1.1 : 0.91); }}
-        style={{ touchAction: 'none' }}
       >
         <canvas
           ref={canvasRef}
@@ -1737,9 +2568,13 @@ export default function ProgressiveColoringSession({
         </span>
         <span id={liveId} role="status" aria-live="polite" className="sr-only">{liveText}</span>
         {(status === PROGRESSIVE_GRID_STATUS.LOADING_MANIFEST || (status === PROGRESSIVE_GRID_STATUS.LOADING_TILES && !clientRef.current?.cache.size)) && <div className="progressive-grid-status" role="status"><LoaderCircle className="spin" size={18} /> Загружаем фрагмент поля…</div>}
-        {(status === PROGRESSIVE_GRID_STATUS.OFFLINE || status === PROGRESSIVE_GRID_STATUS.ERROR) && <div className="progressive-grid-status progressive-grid-error"><span>{error?.message || 'Фрагмент пока недоступен'}</span><button type="button" onClick={retry}><RotateCw size={15} /> Повторить</button></div>}
-        {previewReady && !hasLoadedTiles && <div className="progressive-grid-preview" aria-live="polite">
-          <img src={previewImageRef.current?.src} alt="Предварительный обзор изображения" />
+        {(status === PROGRESSIVE_GRID_STATUS.OFFLINE || status === PROGRESSIVE_GRID_STATUS.ERROR) && !manifestReady && <div className="progressive-grid-status progressive-grid-error"><span>{error?.message || 'Фрагмент пока недоступен'}</span><button type="button" onClick={retry}><RotateCw size={15} /> Повторить</button></div>}
+        {manifestReady && lodMode === GRID_LOD_MODE.WORK && tileErrorCount > 0 && <div className="progressive-grid-tile-warning" role="status" aria-live="polite">
+          <span>{tileErrorCount} фрагм. временно недоступно</span>
+          <button type="button" onClick={retryTileErrors}><RotateCw size={14} /> Повторить</button>
+        </div>}
+        {previewReady && !hasLoadedTiles && lodMode === GRID_LOD_MODE.WORK && <div className="progressive-grid-preview" aria-live="polite">
+          <img src={previewImageRef.current?.src} alt="Предварительный обзор изображения" draggable={false} />
           <span>Обзор карты · фрагменты поля загружаются для раскрашивания</span>
         </div>}
         {inputNotice && <div className="progressive-grid-input-notice" role="status" aria-live="polite">{inputNotice}</div>}
@@ -1749,6 +2584,62 @@ export default function ProgressiveColoringSession({
             <span>{errorNotice}</span>
             <button type="button" onClick={retrySmartGuidance}><RotateCw size={15} /> Повторить</button>
             <button type="button" onClick={() => { setErrorNotice(null); setInputNotice(null); markFreeExploration(); }}>Свободный просмотр</button>
+          </div>
+        )}
+        {specialTreatment && specialOffer && (
+          <SpecialOfferPanel
+            key={specialOffer.special_id || specialOffer.offer_token || 'special-offer'}
+            specialOffer={specialOffer}
+            onSpecialAction={onSpecialAction}
+            cameraRef={cameraRef}
+            sizeRef={sizeRef}
+            clientRef={clientRef}
+          />
+        )}
+        {sparkWave && (
+          <div
+            className="progressive-grid-special-wave"
+            role="status"
+            data-special-wave
+            data-special-wave-kind="spark"
+            data-special-wave-cells={String(sparkWave.cells)}
+          >
+            <span className="progressive-grid-special-wave-ring" aria-hidden="true" />
+            <span>
+              <b>Spark wave</b>
+              <small>{sparkWave.cells} cells filled by the selected target</small>
+            </span>
+          </div>
+        )}
+        {specialTreatment && specialDiscovered && !specialOffer && (
+          <div
+            className="progressive-grid-special-discovered"
+            role="status"
+            data-special-discovered
+            data-artifact-progress={specialDiscovered.kind === 'artifact' ? '' : undefined}
+            data-artifact-fragments={specialDiscovered.kind === 'artifact' ? String(specialDiscovered.artifact_fragments || 1) : undefined}
+            data-artifact-total={specialDiscovered.kind === 'artifact' ? '3' : undefined}
+          >
+            {specialDiscovered.kind === 'artifact'
+              ? `Артефакт: фрагмент ${specialDiscovered.artifact_fragments || 1}/3`
+              : specialDiscovered.kind === 'hazard' && specialDiscovered.missed
+                ? 'Опасность пропущена: небольшая локальная пауза'
+                : `${specialDiscovered.kind || 'Spark'} найден`}
+          </div>
+        )}
+        {specialTreatment && artifactProgress && artifactProgress.fragments > 0
+          && !specialOffer && !specialDiscovered && (
+          <div
+            className="progressive-grid-special-discovered"
+            role="status"
+            data-artifact-progress
+            data-special-discovered=""
+            data-artifact-fragments={String(artifactProgress.fragments)}
+            data-artifact-total={String(artifactProgress.total || 3)}
+          >
+            {artifactProgress.complete
+              ? `Артефакт собран`
+              : `Артефакт: фрагмент ${artifactProgress.fragments}/${artifactProgress.total || 3}`}
           </div>
         )}
         {DIAGNOSTICS_ENABLED && diagnostics && (
@@ -1782,8 +2673,17 @@ export default function ProgressiveColoringSession({
             <div><b style={{ color: '#aaa' }}>heap:</b> {diagnostics.heapBytes == null
               ? '-'
               : `${(diagnostics.heapBytes / 1024 / 1024).toFixed(1)}MB`} · commits {diagnostics.commits}</div>
+            <div data-diagnostic-specials><b style={{ color: '#fff' }}>specials:</b> {specialTreatment ? 'T' : 'C'}
+              {' '}v{specialDiagnostics?.generation_version ?? '-'} · {specialDiagnostics?.special_count ?? 0}</div>
+            <div><b style={{ color: '#aaa' }}>state:</b> u{specialDiagnostics?.counts_by_status?.unseen ?? 0}
+              {' '}o{specialDiagnostics?.counts_by_status?.offered ?? 0}
+              {' '}c{specialDiagnostics?.counts_by_status?.consumed ?? 0}
+              {' '}s{specialDiagnostics?.counts_by_status?.skipped ?? 0}</div>
+            <div><b style={{ color: '#aaa' }}>active:</b> {specialCellsSnapshot?.active_special?.present ? 'yes' : '-'}
+              {' '}· pity {specialDiagnostics?.pity_due ? 'due' : (specialDiagnostics?.cells_to_next_pity_boundary ?? '-')}</div>
           </div>
         )}
+        {specialCellsSnapshot && <SpecialCellsDevHud snapshot={specialCellsSnapshot} />}
         {guide && (
           <div
             className="progressive-grid-guide"

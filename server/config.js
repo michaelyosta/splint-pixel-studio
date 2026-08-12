@@ -50,6 +50,8 @@ export function validateProductionConfiguration(env = process.env) {
   const paymentsMode = getPaymentsMode(env);
 
   if (env.ALLOW_DEV_AUTH === 'true') throw new Error('ALLOW_DEV_AUTH cannot be enabled in production');
+  if (env.SPECIAL_CELLS_QA_OVERRIDE === 'true') throw new Error('SPECIAL_CELLS_QA_OVERRIDE cannot be enabled in production');
+  if (env.SPECIAL_CELLS_DIAGNOSTICS === 'true') throw new Error('SPECIAL_CELLS_DIAGNOSTICS cannot be enabled in production');
   if (!env.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required in production');
   if (env.SEED_DEMO_DATA === 'true') throw new Error('SEED_DEMO_DATA cannot be enabled in production');
 

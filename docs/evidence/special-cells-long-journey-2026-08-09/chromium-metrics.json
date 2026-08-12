@@ -1,0 +1,40 @@
+{
+  "capturedAt": "2026-08-09T18:15:23.453Z",
+  "project": "chromium",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "fixture": {
+    "template_id": "color_e47ec435-63db-419a-af95-53694dfc2c4b",
+    "grid": "160x160"
+  },
+  "available_specials": 40,
+  "resolved": [
+    {
+      "kind": "spark",
+      "special_id": "sc_fe50a65bb0d7feb4",
+      "cell_index": 2313
+    },
+    {
+      "kind": "bomb",
+      "special_id": "sc_968cdbeefbfa5c00",
+      "cell_index": 1716
+    },
+    {
+      "kind": "fuse",
+      "special_id": "sc_1c42384f7fe89f03",
+      "cell_index": 777
+    },
+    {
+      "kind": "choice",
+      "special_id": "sc_b5a0aed06c0e2ea7",
+      "cell_index": 4668
+    },
+    {
+      "kind": "artifact",
+      "special_id": "sc_2bde84ee3e1a2f70",
+      "cell_index": 14770
+    }
+  ]
+}

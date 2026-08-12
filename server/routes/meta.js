@@ -8,18 +8,24 @@ import { getDailyChallengeStatus, getUserProgression, getWeeklyChallengeStatus }
 import { assertCollectionAccessible } from '../services/unlock-service.js';
 
 const router = Router();
+// Only events actually emitted by the client are accepted here. Keep this in
+// sync with src/* metaApi.track/onTrack call sites.
 const ANALYTICS_EVENTS = new Set([
   'open_level', 'first_pixel', 'zone_complete',
   'camera_activate_target', 'camera_next_cluster', 'coloring_manual_color_change',
   'coloring_stroke_commit', 'coloring_color_complete',
-  'publish', 'share_native',
-  'download_result', 'create_coloring', 'like', 'comment',
+  'publish', 'share_native', 'share_telegram',
+  'download_result', 'create_coloring', 'create_manual_coloring', 'like', 'comment',
   'app_open', 'primary_action_seen', 'primary_action_started',
-  'first_success', 'goal_completed', 'goal_abandoned',
-  'artwork_completed', 'reward_shown', 'reward_claimed_or_viewed',
-  'unlock_preview_seen', 'unlock_completed',
+  'first_success', 'goal_completed',
+  'artwork_completed', 'reward_shown',
+  'unlock_preview_seen', 'unlock_locked_view',
   'choice_window_seen', 'choice_selected', 'recommendation_opened',
-  'session_natural_exit', 'session_interrupt_exit', 'next_session_started',
+  'session_natural_exit', 'next_session_started',
+  'special_cell_claimed', 'special_targets_presented', 'special_applied', 'special_target_selected',
+  'special_cell_discovered', 'powerup_received', 'powerup_used', 'special_action_selected',
+  'session_continued_after_special',
+  'special_help_hint_shown', 'special_help_opened',
 ]);
 
 function todayKey(date = new Date()) {

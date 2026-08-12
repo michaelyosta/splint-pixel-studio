@@ -103,10 +103,31 @@ Do not set `NODE_ENV` in `.env.local`. Vite selects development mode for
 `VITE_*` variables are bundled into the client at build time. They must
 never contain secrets or tokens.
 
+## Special Cells QA Override
+
+For manual treatment/control QA, use a disposable frontend dev identity and
+set these together in `.env.local`/server env:
+
+- `ALLOW_DEV_AUTH=true`
+- `NODE_ENV=development` (or `test`; a missing/typoed value is inert)
+- `SPECIAL_CELLS_QA_OVERRIDE=true`
+- `SPECIAL_CELLS_QA_USER_ID=<same id as VITE_DEV_USER_ID>`
+- `SPECIAL_CELLS_COHORT=SPECIALS_TREATMENT` or `SPECIALS_CONTROL` (legacy
+  aliases `SPARK_TREATMENT`/`SPARK_CONTROL` are accepted)
+- `SPECIAL_CELLS_DIAGNOSTICS=true` only when the server diagnostics payload is
+  needed
+
+The override applies only to the allowlisted dev user; every other dev/test
+user and production always use the deterministic assignment. The server
+diagnostics contract is documented in
+[docs/SPECIAL_CELLS_DIAGNOSTICS.md](docs/SPECIAL_CELLS_DIAGNOSTICS.md).
+
 ## Production Safety
 
 The server (`server/index.js`) enforces:
 - `ALLOW_DEV_AUTH` cannot be `true` in production
+- `SPECIAL_CELLS_QA_OVERRIDE` and `SPECIAL_CELLS_DIAGNOSTICS` cannot be `true`
+  in production
 - `SEED_DEMO_DATA` cannot be `true` in production
 - `TELEGRAM_BOT_TOKEN` is required in production
 

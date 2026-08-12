@@ -298,6 +298,11 @@ function App() {
         onFillAt={session.handleFillAt}
         onStrokeCommitted={session.handleStrokeCommitted}
         onTiledStrokeCommitted={session.handleTiledStrokeCommitted}
+        onTiledSpecialAction={session.queueTiledSpecialAction}
+        tiledSpecialOffer={session.tiledSpecialOffer}
+        tiledSpecialApplied={session.tiledSpecialApplied}
+        tiledSpecialDiscovered={session.tiledSpecialDiscovered}
+        tiledReconciledChanges={session.tiledReconciledChanges}
         onResetProgress={session.resetProgress}
         onShareResult={session.shareResult}
         onDownloadResult={session.downloadResult}

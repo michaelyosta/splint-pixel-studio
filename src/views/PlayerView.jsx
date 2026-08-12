@@ -2,12 +2,25 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ArrowRight, ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Star, Target, X } from 'lucide-react';
 import ColoringSession from '../features/coloring/ColoringSession';
 import ProgressiveColoringSession from '../features/coloring/large-grid/ProgressiveColoringSession.jsx';
+import SpecialHelpSheet from '../features/coloring/SpecialHelpSheet';
 import LegacyPixelCanvas from '../components/LegacyPixelCanvas';
 import SessionGoalCard from '../features/goals/SessionGoalCard';
 import { useSessionGoals } from '../features/goals/useSessionGoals';
+import { useTelegramSwipeProtection } from '../hooks/useTelegramSwipeProtection';
 import { getContextGoal } from '../lib/playLoop';
 import { isProgressComplete } from '../lib/pixelColoring';
 import { renderNumberedPreview } from '../lib/imageCrop';
+import {
+  hasSpecialsInProgress,
+  markSpecialIntroSeen,
+  markSpecialHelpRead,
+  markSpecialKindSeen,
+  normalizeSpecialKind,
+  readSpecialHelpState,
+  shouldShowSpecialKindHint,
+  specialHelpItem,
+  writeSpecialHelpState,
+} from '../lib/specialHelp';
 import { isLargeGridTemplate } from '../lib/tileGrid';
 import { bindTelegramBackButton } from '../lib/telegram';
 
@@ -150,6 +163,11 @@ export default function PlayerView({
   onFillAt,
   onStrokeCommitted,
   onTiledStrokeCommitted,
+  onTiledSpecialAction,
+  tiledSpecialOffer,
+  tiledSpecialApplied,
+  tiledSpecialDiscovered,
+  tiledReconciledChanges = [],
   onResetProgress,
   onShareResult,
   onDownloadResult,
@@ -166,13 +184,40 @@ export default function PlayerView({
   const completionDialogRef = useRef(null);
   const bottomSheetRef = useRef(null);
   const onboardingCardRef = useRef(null);
+  const [specialHelpOpen, setSpecialHelpOpen] = useState(false);
+  const [specialHintKind, setSpecialHintKind] = useState(null);
+  const specialHelpReturnFocusRef = useRef(null);
+  const specialHelpStorage = typeof window !== 'undefined' ? window.localStorage : null;
+  const [specialHelpState, setSpecialHelpState] = useState(() => readSpecialHelpState(
+    typeof window !== 'undefined' ? window.localStorage : null,
+  ));
+  const specialHelpStateRef = useRef(specialHelpState);
+  const visibleSpecialKindsRef = useRef([]);
+  const onboardingRef = useRef(onboarding);
+  const specialHelpOpenRef = useRef(specialHelpOpen);
+  useEffect(() => {
+    setSpecialHelpOpen(false);
+    setSpecialHintKind(null);
+    visibleSpecialKindsRef.current = [];
+  }, [template?.id]);
+  onboardingRef.current = onboarding;
+  specialHelpOpenRef.current = specialHelpOpen;
 
   // Нативная кнопка «назад» Telegram ведёт в каталог, пока открыт плеер.
   useEffect(() => bindTelegramBackButton(() => setView('catalog')), [setView]);
+  useTelegramSwipeProtection();
 
   useFocusTrap(bottomSheetRef, menuOpen);
   useFocusTrap(onboardingCardRef, onboarding !== null);
   useFocusTrap(completionDialogRef, completionOpen);
+
+  useEffect(() => {
+    if (menuOpen) bottomSheetRef.current?.focus();
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (onboarding !== null) onboardingCardRef.current?.focus();
+  }, [onboarding]);
 
   const sessionGoals = useSessionGoals({
     template,
@@ -210,6 +255,55 @@ export default function PlayerView({
   const closeCompletion = useCallback(() => setCompletionOpen(false), [setCompletionOpen]);
   const menuSwipe = useSwipeDown(closeMenu);
   const completionSwipe = useSwipeDown(closeCompletion);
+
+  const commitSpecialHelpState = useCallback((nextState) => {
+    specialHelpStateRef.current = nextState;
+    setSpecialHelpState(nextState);
+    writeSpecialHelpState(specialHelpStorage, nextState);
+  }, [specialHelpStorage]);
+
+  const showNextVisibleHint = useCallback(() => {
+    if (onboardingRef.current !== null || specialHelpOpenRef.current) return;
+    if (progress?.specials_experiment_group !== 'treatment') return;
+    const current = specialHelpStateRef.current;
+    const kind = visibleSpecialKindsRef.current
+      .find((candidate) => shouldShowSpecialKindHint(current, candidate));
+    if (!kind) return;
+    setSpecialHintKind(kind);
+    commitSpecialHelpState(markSpecialKindSeen(current, kind));
+    onTrack?.('special_help_hint_shown', { kind, id: template?.id });
+  }, [commitSpecialHelpState, onTrack, progress?.specials_experiment_group, template?.id]);
+
+  const handleVisibleSpecialKinds = useCallback((kinds) => {
+    const normalized = [...new Set((kinds || [])
+      .map(normalizeSpecialKind)
+      .filter(Boolean))];
+    visibleSpecialKindsRef.current = normalized;
+    showNextVisibleHint();
+  }, [showNextVisibleHint]);
+
+  const openSpecialHelp = useCallback((source = 'menu') => {
+    const activeElement = typeof document !== 'undefined' ? document.activeElement : null;
+    specialHelpReturnFocusRef.current = source === 'menu'
+      ? document.querySelector('.player-menu-btn')
+      : activeElement && activeElement !== document.body
+        ? activeElement
+        : document.querySelector('.player-menu-btn');
+    setSpecialHintKind(null);
+    setSpecialHelpOpen(true);
+    commitSpecialHelpState(markSpecialHelpRead(specialHelpStateRef.current));
+    onTrack?.('special_help_opened', { source, id: template?.id });
+  }, [commitSpecialHelpState, onTrack, template?.id]);
+
+  const closeSpecialHelp = useCallback(() => {
+    setSpecialHelpOpen(false);
+    requestAnimationFrame(() => showNextVisibleHint());
+  }, [showNextVisibleHint]);
+
+  const dismissSpecialHint = useCallback(() => {
+    setSpecialHintKind(null);
+    showNextVisibleHint();
+  }, [showNextVisibleHint]);
 
   useEffect(() => {
     return () => {
@@ -252,6 +346,16 @@ export default function PlayerView({
   const isComplete = isProgressComplete(gameProgress);
   const totalXp = progression?.xp_total ?? 0;
   const level = progression?.level ?? 1;
+  const hasSpecials = hasSpecialsInProgress(progress);
+  const specialTreatment = progress?.specials_experiment_group === 'treatment';
+  const showSpecialOnboardingStep = specialTreatment && hasSpecials && !specialHelpState.introSeen;
+  const onboardingStepCount = showSpecialOnboardingStep ? 4 : 3;
+  const showSpecialHint = onboarding === null && specialHintKind !== null && !specialHelpOpen;
+  const onboardingCopy = [
+    'Начнём с этого участка. Закрась выделенные клетки.',
+    `Используй цвет №${selectedColor + 1}. Проведи по клеткам, чтобы закрасить сразу несколько.`,
+    'После завершения мы покажем следующий участок.',
+  ];
   const saveLabel = !isOnline || saveState === 'offline'
     ? 'Сохранено локально'
     : saveState === 'pending'
@@ -269,6 +373,14 @@ export default function PlayerView({
     ? 'Публикуем…'
     : 'Опубликовать в ленту';
   const publishDisabled = saving || !progress?.artwork_id || publishing;
+
+  const finishOnboarding = () => {
+    if (showSpecialOnboardingStep && onboarding === onboardingStepCount - 1) {
+      commitSpecialHelpState(markSpecialIntroSeen(specialHelpStateRef.current));
+    }
+    onDismissOnboarding();
+    requestAnimationFrame(() => showNextVisibleHint());
+  };
 
   return (
     <section className="page player-page">
@@ -292,6 +404,24 @@ export default function PlayerView({
       <div className={`player-hint ${hudHidden ? 'faded' : ''}`} onClick={showHud}>
         <span className="player-hint-target"><Target size={14} /> {contextGoal}</span>
       </div>
+
+      {showSpecialHint && specialHintKind && (
+        <div className="special-help-hint" role="status" data-special-help-hint data-special-help-kind={specialHintKind}>
+          <i className="special-help-mark" data-special-help-kind={specialHintKind} aria-hidden="true" />
+          <span className="special-help-hint-copy">
+            <b>{specialHelpItem(specialHintKind)?.label}</b> — {specialHelpItem(specialHintKind)?.short}
+          </span>
+          <button type="button" onClick={() => openSpecialHelp('hint')}>Памятка</button>
+          <button
+            type="button"
+            className="special-help-hint-close"
+            onClick={dismissSpecialHint}
+            aria-label="Скрыть подсказку"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       <SessionGoalCard
         goal={sessionGoals.view}
@@ -325,6 +455,12 @@ export default function PlayerView({
           selectedColor={selectedColor}
           onSelectColor={onSelectColor}
           onStrokeCommitted={onTiledStrokeCommitted}
+          onSpecialAction={onTiledSpecialAction}
+          specialOffer={tiledSpecialOffer}
+          specialApplied={tiledSpecialApplied}
+          specialDiscovered={tiledSpecialDiscovered}
+          reconciledChanges={tiledReconciledChanges}
+          onVisibleSpecialKinds={handleVisibleSpecialKinds}
           onFirstPaint={handleFirstPaint}
           onWrongCell={onWrongCell}
           interactionMode={playMode}
@@ -338,9 +474,9 @@ export default function PlayerView({
           progress={progress}
           selectedColor={selectedColor}
           onSelectColor={onSelectColor}
-          onSaveProgress={(nextFilled, operation) => {
+          onSaveProgress={(nextFilled, operation, specialAction) => {
             declutter();
-            onStrokeCommitted(nextFilled, operation);
+            onStrokeCommitted(nextFilled, operation, specialAction);
           }}
           onFirstPaint={handleFirstPaint}
           onWrongCell={onWrongCell}
@@ -357,6 +493,12 @@ export default function PlayerView({
           onFillAt={fillMode ? onFillAt : undefined}
           onOpenMenu={() => setMenuOpen(true)}
           onTrack={onTrack}
+          specialCells={progress.specials || []}
+          specialCohort={progress.specials_experiment_group || 'control'}
+          specialOffer={tiledSpecialOffer}
+          specialDiscovered={tiledSpecialDiscovered}
+          onVisibleSpecialKinds={handleVisibleSpecialKinds}
+          onSpecialAction={onTiledSpecialAction}
         />
       ) : (
         <>
@@ -400,6 +542,7 @@ export default function PlayerView({
       {menuOpen && <div className="bottom-sheet-overlay" role="presentation" onClick={() => setMenuOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
         <section
           className="bottom-sheet"
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-label="Меню игры"
@@ -429,6 +572,9 @@ export default function PlayerView({
             </>}
             <hr />
             <button onClick={() => { setOnboarding(0); setMenuOpen(false); }}>Показать обучение снова</button>
+            {specialTreatment && (
+              <button onClick={() => { setMenuOpen(false); openSpecialHelp('menu'); }}>Особые клетки</button>
+            )}
             <button onClick={() => { onUndo(); setMenuOpen(false); }} disabled={isTiled || !history.length}>Отмена</button>
             <button onClick={() => { onRedo(); setMenuOpen(false); }} disabled={isTiled || !future.length}>Повтор</button>
             <button disabled={isTiled} onClick={() => { if (window.confirm('Сбросить весь прогресс?')) { onResetProgress(); setMenuOpen(false); } }}>Сбросить</button>
@@ -436,20 +582,31 @@ export default function PlayerView({
         </section>
       </div>}
 
-      {onboarding !== null && <div className="onboarding-overlay" role="dialog" aria-label="Обучение">
-        <div className="onboarding-card" ref={onboardingCardRef}>
-          <b>{[
-            'Начнём с этого участка. Закрась выделенные клетки.',
-            `Используй цвет №${selectedColor + 1}. Проведи по клеткам, чтобы закрасить сразу несколько.`,
-            'После завершения мы покажем следующий участок.',
-          ][onboarding]}</b>
-          <div className="onboarding-dots">{['', '', ''].map((_, i) => <span key={i} className={i === onboarding ? 'active' : ''} />)}</div>
+      {onboarding !== null && <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="Обучение">
+        <div className="onboarding-card" ref={onboardingCardRef} tabIndex={-1}>
+          {onboarding === 3 && showSpecialOnboardingStep ? (
+            <div className="special-help-onboarding" data-special-help-intro>
+              <b>В этой картине есть особые клетки.</b>
+              <p>Встретив маркер, следуйте короткой подсказке над полем.</p>
+            </div>
+          ) : (
+            <b>{onboardingCopy[onboarding]}</b>
+          )}
+          <div className="onboarding-dots">{Array.from({ length: onboardingStepCount }, (_, i) => <span key={i} className={i === onboarding ? 'active' : ''} />)}</div>
           <div className="onboarding-actions">
-            {onboarding < 2 ? <button className="primary-button" onClick={() => setOnboarding(onboarding + 1)}>Далее</button> : <button className="primary-button" onClick={onDismissOnboarding}>Понятно</button>}
+            {onboarding < onboardingStepCount - 1
+              ? <button className="primary-button" onClick={() => setOnboarding(onboarding + 1)}>Далее</button>
+              : <button className="primary-button" onClick={finishOnboarding}>Понятно</button>}
             <button className="secondary-button" onClick={onDismissOnboarding}>Пропустить обучение</button>
           </div>
         </div>
       </div>}
+
+      <SpecialHelpSheet
+        open={specialHelpOpen}
+        onClose={closeSpecialHelp}
+        returnFocusRef={specialHelpReturnFocusRef}
+      />
 
       {isComplete && completionOpen && <div className="completion-overlay" role="presentation">
         <section

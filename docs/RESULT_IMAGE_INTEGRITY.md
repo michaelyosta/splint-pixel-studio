@@ -1,5 +1,7 @@
 # Целостность итогового изображения раскраски
 
+> Статус: исторический разбор от 01.08.2026. Главный вывод «client `resultDataUrl` записывается в artwork» устарел: сервер строит canonical PNG/thumbnail, `resultDataUrl` не является источником истины и не сохраняется как artwork; durable retry — `render_outbox` (migration 019). Актуальный контракт: `server/services/canonical-renderer.js`, `server/services/render-outbox.js`, [remediation/RENDER_OUTBOX_CHECKPOINT.md](remediation/RENDER_OUTBOX_CHECKPOINT.md).
+
 Дата проверки: 01.08.2026  
 Основная ветка: `main`  
 Базовый commit: `782110afe05bb98936afd64a96c74171f658b306`  

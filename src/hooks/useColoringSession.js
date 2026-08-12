@@ -3,11 +3,12 @@ import { api, catalogApi, downloadColoringResult, metaApi, DEV_USER_ID, parseUnl
 import { floodFillRegion } from '../lib/floodFill';
 import { findRewardingColor, getProgress, isProgressComplete, renderCompletedImage } from '../lib/pixelColoring';
 import { isLargeGridTemplate } from '../lib/tileGrid';
-import { createSaveQueue } from '../lib/progressSaveQueue';
+import { createSaveQueue, isIdempotentReplay, isTerminalSpecialError, offerFromProgress } from '../lib/progressSaveQueue';
 import { createProgressJournal } from '../lib/progressJournal';
 import { createHistoryOperation } from '../features/coloring/engine/historyOperations.js';
 import { buildColoringDeepLink, shareViaTelegram } from '../lib/telegram';
 import { takePrefetchedColoring } from '../lib/coloringPrefetch';
+import { recordSpecialCellsError } from '../lib/specialCellsDiagnostics';
 
 export function useColoringSession({
   view,
@@ -45,15 +46,27 @@ export function useColoringSession({
   const [combo, setCombo] = useState(0);
   const [zoneReward, setZoneReward] = useState(null);
   const [tiledResultUrl, setTiledResultUrl] = useState(null);
+  const [tiledSpecialOffer, setTiledSpecialOffer] = useState(null);
+  const [tiledSpecialApplied, setTiledSpecialApplied] = useState(null);
+  const [tiledSpecialDiscovered, setTiledSpecialDiscovered] = useState(null);
+  const [tiledReconciledChanges, setTiledReconciledChanges] = useState([]);
 
   const sessionStartRef = useRef(0);
+  const sessionIdRef = useRef(null);
+  const specialGroupRef = useRef(null);
   const screenContentRef = useRef(null);
   const catalogScrollRef = useRef(0);
   const unlockRefreshedRef = useRef(new Set());
   const saveQueueRef = useRef(null);
   const tiledQueueRef = useRef([]);
+  const tiledSpecialOfferRef = useRef(null);
   const tiledRevisionRef = useRef(0);
+  const legacyRevisionRef = useRef(0);
+  const legacyAuthoritativeFilledRef = useRef([]);
+  const legacyAuthoritativeProgressRef = useRef(null);
   const tiledFlushPromiseRef = useRef(null);
+  const specialClaimedAtRef = useRef(null);
+  const specialContinuationPendingRef = useRef(false);
   const lastPaintRef = useRef(0);
   const comboRef = useRef(0);
   const milestoneRef = useRef(new Set());
@@ -62,6 +75,13 @@ export function useColoringSession({
   const completedTemplateRef = useRef(null);
   const filledRef = useRef([]);
   const zoneIndicesRef = useRef({});
+
+  tiledSpecialOfferRef.current = tiledSpecialOffer;
+
+  function beginAnalyticsSession() {
+    sessionIdRef.current = globalThis.crypto?.randomUUID?.()
+      || `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
 
   useEffect(() => {
     const handleOffline = () => {
@@ -124,38 +144,265 @@ export function useColoringSession({
     }
   }
 
+  function createLegacySaveQueue(templateForQueue) {
+    return createSaveQueue({
+      putProgress: async ({ filled, revision, clientBatchId, specialAction = null }) => {
+        const changes = filled.flatMap((color, index) => (
+          color === legacyAuthoritativeFilledRef.current[index] ? [] : [{ index, color }]
+        ));
+        if (!changes.length) return legacyAuthoritativeProgressRef.current;
+        let saved = legacyAuthoritativeProgressRef.current;
+        let nextRevision = revision;
+        for (let offset = 0; offset < changes.length; offset += 64) {
+          const batch = changes.slice(offset, offset + 64);
+          const batchSpecialAction = specialAction
+            && (specialAction.cell_index == null
+              || batch.some((change) => change.index === specialAction.cell_index))
+            ? Object.fromEntries(Object.entries(specialAction).filter(([key]) => key !== 'cell_index' && key !== 'experiment_group'))
+            : null;
+          saved = await api(`/colorings/${templateForQueue.id}/progress/actions`, {
+            method: 'POST',
+            body: {
+              changes: batch,
+              ...(batchSpecialAction ? { special_action: batchSpecialAction } : {}),
+              revision: nextRevision,
+              clientBatchId: `${clientBatchId}:${Math.floor(offset / 64)}`,
+            },
+          });
+          legacyAuthoritativeFilledRef.current = [...saved.filled];
+          legacyAuthoritativeProgressRef.current = saved;
+          nextRevision = saved.revision;
+          legacyRevisionRef.current = saved.revision;
+          if (saved.special_discovered) setTiledSpecialDiscovered(saved.special_discovered);
+          if (saved.special_offer) {
+            setTiledSpecialOffer(saved.special_offer);
+            if (!isIdempotentReplay(saved)) specialClaimedAtRef.current = Date.now();
+          }
+          trackCanonicalSpecialEvents({
+            saved,
+            specialAction,
+            templateId: templateForQueue.id,
+            replay: isIdempotentReplay(saved),
+          });
+        }
+        return saved;
+      },
+      getResultDataUrl: (filled) => {
+        return filled.every((color, index) => color === templateForQueue.cells[index])
+          ? renderCompletedImage(templateForQueue, filled)
+          : null;
+      },
+      onProgress: (saved) => {
+        setProgress(saved);
+        onRewards(saved, templateForQueue.id);
+        if (saved.percent === 100) setServerCompletedTemplateId(templateForQueue.id);
+      },
+      onNotice: (message, type) => {
+        if (type === 'error') setSaveState(isOnline ? 'pending' : 'offline');
+        showNotice(message, type);
+      },
+      onSpecialRejected: (error) => {
+        recordSpecialCellsError(error);
+        setTiledSpecialOffer(null);
+        setTiledSpecialDiscovered(null);
+        showNotice(error.message || 'Spark больше недоступен', 'info');
+      },
+      onSaving: (value) => {
+        setSaving(value);
+        if (value) setSaveState(isOnline ? 'syncing' : 'offline');
+        else if (isOnline) setSaveState('saved');
+      },
+      journal: createProgressJournal({ scope: `${DEV_USER_ID}:${templateForQueue.id}` }),
+      templateId: templateForQueue.id,
+      userScope: DEV_USER_ID,
+    });
+  }
+
+  function trackCanonicalSpecialEvents({ saved, specialAction, templateId, replay = false } = {}) {
+    if (!specialAction || replay) return;
+    const actionType = String(specialAction.type || '');
+    const inferredKind = actionType.replace(/^(claim_|use_|skip_|disarm_)/, '') || null;
+    const kind = saved?.special_discovered?.kind || saved?.special_offer?.kind || inferredKind;
+    const base = {
+      template_id: templateId,
+      session_id: sessionIdRef.current,
+      special_id: saved?.special_discovered?.special_id
+        || saved?.special_offer?.special_id
+        || specialAction.special_id,
+      kind,
+      action: actionType,
+      revision: saved?.revision ?? null,
+      experiment_group: specialAction.experiment_group || null,
+    };
+    if (saved?.special_discovered) metaApi.track('special_cell_discovered', base).catch(() => {});
+    if (saved?.special_offer) metaApi.track('powerup_received', base).catch(() => {});
+    if (/^(use_|skip_|disarm_)/.test(actionType)) {
+      metaApi.track('special_action_selected', base).catch(() => {});
+    }
+    if (Array.isArray(saved?.special_applied_changes) && saved.special_applied_changes.length) {
+      metaApi.track('powerup_used', {
+        ...base,
+        cells: saved.special_applied_changes.length,
+      }).catch(() => {});
+    }
+  }
+
   async function flushTiledQueue() {
     if (tiledFlushPromiseRef.current) return tiledFlushPromiseRef.current;
     if (!template?.id || !isLargeGridTemplate(template) || !isOnline) return undefined;
     const flush = (async () => {
       while (tiledQueueRef.current.length) {
-        const entry = tiledQueueRef.current[0];
-        for (let offset = 0; offset < entry.changes.length; offset += 64) {
-          const batch = entry.changes.slice(offset, offset + 64);
-          const clientBatchId = `${entry.clientBatchId}:${Math.floor(offset / 64)}`;
-          let saved;
-          for (let attempt = 0; attempt < 2; attempt += 1) {
-            try {
-              saved = await api(`/colorings/${template.id}/progress/actions`, {
-                method: 'POST',
-                body: {
-                  changes: batch,
-                  revision: tiledRevisionRef.current,
-                  clientBatchId,
-                },
+        const activeOffer = tiledSpecialOfferRef.current;
+        let entry = tiledQueueRef.current[0];
+        if (activeOffer) {
+          // Once an offer is visible, ordinary journal entries must not race
+          // it. If the matching resolution action is already journaled behind
+          // an older ordinary entry (for example after reload), move only that
+          // action to the front. No new endpoint or second queue is needed.
+          const actionIndex = tiledQueueRef.current.findIndex((candidate) => (
+            candidate.specialAction?.special_id
+            && String(candidate.specialAction.special_id) === String(activeOffer.special_id)
+          ));
+          if (actionIndex < 0) {
+            setSaveState('pending');
+            return;
+          }
+          if (actionIndex > 0) {
+            const [action] = tiledQueueRef.current.splice(actionIndex, 1);
+            tiledQueueRef.current.unshift(action);
+            entry = action;
+          }
+        }
+        try {
+          const batches = entry.changes.length
+            ? Array.from({ length: Math.ceil(entry.changes.length / 64) }, (_, index) => ({
+              changes: entry.changes.slice(index * 64, index * 64 + 64),
+              offset: index * 64,
+            }))
+            : [{ changes: [], offset: 0 }];
+          for (const { changes: batch, offset } of batches) {
+            const clientBatchId = `${entry.clientBatchId}:${Math.floor(offset / 64)}`;
+            const specialAction = entry.specialAction
+              && (entry.specialAction.cell_index == null
+                || batch.some((change) => change.index === entry.specialAction.cell_index))
+              ? Object.fromEntries(Object.entries(entry.specialAction).filter(([key]) => key !== 'cell_index'))
+              : null;
+            let saved;
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+              try {
+                saved = await api(`/colorings/${template.id}/progress/actions`, {
+                  method: 'POST',
+                  body: {
+                    changes: batch,
+                    ...(specialAction ? { special_action: specialAction } : {}),
+                    revision: tiledRevisionRef.current,
+                    clientBatchId,
+                  },
+                });
+                break;
+              } catch (error) {
+                // Terminal special rejections can never succeed on retry.
+                if (isTerminalSpecialError(error)) throw error;
+                // Another device may have committed a batch while this queue
+                // was offline. Adopt its revision and replay our idempotent
+                // batch once instead of trapping the queue in a permanent 409.
+                if (error.status !== 409 || !error.data?.progress || attempt > 0) throw error;
+                tiledRevisionRef.current = Number(error.data.progress.revision || tiledRevisionRef.current);
+              }
+            }
+            tiledRevisionRef.current = saved.revision;
+            // A reload can fetch a tile before a fresh durable journal replay
+            // finishes. Publish only a newly applied batch so the mounted
+            // tiled renderer can reconcile its resident cache without
+            // re-fetching (and without adding work to pointermove). An
+            // idempotent replay is deliberately not written into the cache:
+            // its request is not authoritative evidence that those historical
+            // cell values still win over a later device update.
+            if (!isIdempotentReplay(saved) && batch.length) {
+              setTiledReconciledChanges([...batch]);
+            }
+            setProgress(saved);
+            onRewards(saved, template.id);
+            if (entry.specialAction && specialAction) {
+              const replay = isIdempotentReplay(saved);
+              const nextOffer = offerFromProgress(saved);
+              tiledSpecialOfferRef.current = nextOffer;
+              setTiledSpecialOffer(nextOffer);
+              if (saved.special_discovered) setTiledSpecialDiscovered(saved.special_discovered);
+              if (!replay && saved.special_offer) {
+                specialClaimedAtRef.current = Date.now();
+                metaApi.track('special_cell_claimed', {
+                  template_id: template.id,
+                  special_id: saved.special_offer.special_id,
+                  revision: saved.revision,
+                  experiment_group: entry.specialAction.experiment_group || null,
+                }).catch(() => {});
+                metaApi.track('special_targets_presented', {
+                  template_id: template.id,
+                  special_id: saved.special_offer.special_id,
+                  option_count: saved.special_offer.target_options?.length || 0,
+                  revision: saved.revision,
+                  experiment_group: entry.specialAction.experiment_group || null,
+                }).catch(() => {});
+              }
+              if (Array.isArray(saved.special_applied_changes) && saved.special_applied_changes.length) {
+                setTiledSpecialApplied({
+                  revision: saved.revision,
+                  specialId: entry.specialAction.special_id,
+                  kind: entry.specialAction.type === 'use_spark' ? 'spark' : null,
+                  changes: saved.special_applied_changes,
+                });
+                if (!replay) {
+                  metaApi.track('special_applied', {
+                    template_id: template.id,
+                    special_id: entry.specialAction.special_id,
+                    cells: saved.special_applied_changes.length,
+                    revision: saved.revision,
+                    time_to_use_ms: specialClaimedAtRef.current
+                      ? Math.max(0, Date.now() - specialClaimedAtRef.current)
+                      : null,
+                    experiment_group: entry.specialAction.experiment_group || null,
+                  }).catch(() => {});
+                  specialContinuationPendingRef.current = true;
+                }
+              }
+              trackCanonicalSpecialEvents({
+                saved,
+                specialAction: entry.specialAction,
+                templateId: template.id,
+                replay,
               });
-              break;
-            } catch (error) {
-              // Another device may have committed a batch while this queue
-              // was offline. Adopt its revision and replay our idempotent
-              // batch once instead of trapping the queue in a permanent 409.
-              if (error.status !== 409 || !error.data?.progress || attempt > 0) throw error;
-              tiledRevisionRef.current = Number(error.data.progress.revision || tiledRevisionRef.current);
             }
           }
-          tiledRevisionRef.current = saved.revision;
-          setProgress(saved);
-          onRewards(saved, template.id);
+        } catch (error) {
+          recordSpecialCellsError(error);
+          if (!isTerminalSpecialError(error)) throw error;
+          let serverProgress = error.data?.progress || null;
+          // Special validation errors are raised inside the transaction and
+          // the route may therefore omit the normal response payload. Do not
+          // infer that the offer disappeared from an absent field: recover
+          // through the existing progress endpoint, which reconstructs the
+          // persisted token from the idempotent claim journal.
+          if (!serverProgress || !Object.prototype.hasOwnProperty.call(serverProgress, 'special_offer')) {
+            try {
+              serverProgress = await api(`/colorings/${template.id}/progress`);
+            } catch {
+              // Keep the offer and journal entry intact; a later online retry
+              // must be able to resolve the same action.
+              throw error;
+            }
+          }
+          if (serverProgress) {
+            tiledRevisionRef.current = Number(serverProgress.revision || tiledRevisionRef.current);
+            setProgress(serverProgress);
+            onRewards(serverProgress, template.id);
+          }
+          const recoveredOffer = offerFromProgress(serverProgress);
+          tiledSpecialOfferRef.current = recoveredOffer;
+          setTiledSpecialOffer(recoveredOffer);
+          const recoveredDiscovery = serverProgress?.special_discovered || null;
+          setTiledSpecialDiscovered(recoveredDiscovery);
+          showNotice(error.message || 'Spark больше недоступен', 'info');
         }
         tiledQueueRef.current.shift();
         writeTiledJournal(template.id);
@@ -180,6 +427,8 @@ export function useColoringSession({
         : await Promise.all([api(`/colorings/${id}`), api(`/colorings/${id}/progress`), catalogApi.zones(id)]);
       setTemplate(nextTemplate);
       setProgress(nextProgress);
+      beginAnalyticsSession();
+      specialGroupRef.current = nextProgress.specials_experiment_group || null;
       setSaveState('saved');
       setLatestReward(Number(nextProgress.completion_reward_xp || 0) > 0
         ? { amount: Number(nextProgress.completion_reward_xp), idempotent: true }
@@ -197,55 +446,18 @@ export function useColoringSession({
       }
       tiledQueueRef.current = isLargeGridTemplate(nextTemplate) ? readTiledJournal(nextTemplate.id) : [];
       tiledRevisionRef.current = Number(nextProgress.revision || 0);
+      legacyRevisionRef.current = Number(nextProgress.revision || 0);
+      legacyAuthoritativeFilledRef.current = [...(nextProgress.filled || [])];
+      legacyAuthoritativeProgressRef.current = nextProgress;
+      tiledSpecialOfferRef.current = offerFromProgress(nextProgress);
+      setTiledSpecialOffer(tiledSpecialOfferRef.current);
+      setTiledSpecialApplied(null);
+      setTiledSpecialDiscovered(null);
+      setTiledReconciledChanges([]);
+      specialClaimedAtRef.current = null;
+      specialContinuationPendingRef.current = false;
       if (!isLargeGridTemplate(nextTemplate)) {
-        let lastAuthoritativeFilled = [...nextProgress.filled];
-        let lastAuthoritativeProgress = nextProgress;
-        saveQueueRef.current = createSaveQueue({
-          putProgress: async ({ filled, revision, clientBatchId }) => {
-            const changes = filled.flatMap((color, index) => (
-              color === lastAuthoritativeFilled[index] ? [] : [{ index, color }]
-            ));
-            if (!changes.length) return lastAuthoritativeProgress;
-            let saved = lastAuthoritativeProgress;
-            let nextRevision = revision;
-            for (let offset = 0; offset < changes.length; offset += 64) {
-              const batch = changes.slice(offset, offset + 64);
-              saved = await api(`/colorings/${nextTemplate.id}/progress/actions`, {
-                method: 'POST',
-                body: {
-                  changes: batch,
-                  revision: nextRevision,
-                  clientBatchId: `${clientBatchId}:${Math.floor(offset / 64)}`,
-                },
-              });
-              lastAuthoritativeFilled = [...saved.filled];
-              lastAuthoritativeProgress = saved;
-              nextRevision = saved.revision;
-            }
-            return saved;
-          },
-          getResultDataUrl: (filled) => {
-            return filled.every((color, index) => color === nextTemplate.cells[index])
-              ? renderCompletedImage(nextTemplate, filled)
-              : null;
-          },
-          onProgress: (saved) => {
-            setProgress(saved);
-            onRewards(saved, nextTemplate.id);
-          },
-          onNotice: (message, type) => {
-            if (type === 'error') setSaveState(isOnline ? 'pending' : 'offline');
-            showNotice(message, type);
-          },
-          onSaving: (value) => {
-            setSaving(value);
-            if (value) setSaveState(isOnline ? 'syncing' : 'offline');
-            else if (isOnline) setSaveState('saved');
-          },
-          journal: createProgressJournal({ scope: `${DEV_USER_ID}:${nextTemplate.id}` }),
-          templateId: nextTemplate.id,
-          userScope: DEV_USER_ID,
-        });
+        saveQueueRef.current = createLegacySaveQueue(nextTemplate);
         saveQueueRef.current.reset(nextProgress.revision);
         saveQueueRef.current.recover({ templateId: nextTemplate.id, serverRevision: nextProgress.revision }).catch(() => {});
       }
@@ -280,15 +492,16 @@ export function useColoringSession({
     }
   }
 
-  function queueSave(nextFilled) {
-    if (saveQueueRef.current) saveQueueRef.current.queueSave(nextFilled);
-  }
-
-  function handleTiledStrokeCommitted(changes, operation) {
+  function handleTiledStrokeCommitted(changes, operation, specialAction = null) {
     if (!isLargeGridTemplate(template) || !Array.isArray(changes) || !changes.length) return;
+    if (tiledSpecialOfferRef.current) {
+      showNotice('Сначала завершите особое событие', 'info');
+      return;
+    }
     const entry = {
       clientBatchId: `tiled-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       changes: changes.map((change) => ({ index: change.index, color: change.to })),
+      specialAction,
     };
     tiledQueueRef.current.push(entry);
     writeTiledJournal(template.id);
@@ -303,6 +516,119 @@ export function useColoringSession({
       setFuture([]);
     }
     handleFirstPaint();
+    if (!specialAction) setTiledSpecialDiscovered(null);
+    if (!specialAction && specialContinuationPendingRef.current) {
+      specialContinuationPendingRef.current = false;
+      metaApi.track('session_continued_after_special', {
+        template_id: template.id,
+        session_id: sessionIdRef.current,
+        experiment_group: specialGroupRef.current || 'treatment',
+      }).catch(() => {});
+    }
+    setSaveState(isOnline ? 'syncing' : 'offline');
+    flushTiledQueue().then(() => setSaveState('saved')).catch(() => setSaveState('pending'));
+  }
+
+  async function queueTiledSpecialAction(specialAction) {
+    if (!template || !specialAction) return;
+    const activeOffer = tiledSpecialOfferRef.current;
+    if (activeOffer && String(activeOffer.special_id) !== String(specialAction.special_id)) {
+      showNotice('Сначала завершите текущее особое событие', 'info');
+      return;
+    }
+    // Special actions stay on the shared server-authoritative contract.
+    // Unsupported kinds remain visible with disabled buttons and stray calls
+    // are rejected instead of faking an effect.
+    const supportedSpecialActions = new Set([
+      'use_spark',
+      'skip_spark',
+      'use_bomb',
+      'disarm_fuse',
+      'skip_fuse',
+      'use_choice',
+      'disarm_hazard',
+      'skip_hazard',
+    ]);
+    if (!supportedSpecialActions.has(specialAction.type)) {
+      showNotice('Этот эффект ещё недоступен', 'info');
+      return;
+    }
+    if (!isLargeGridTemplate(template)) {
+      setSaveState(isOnline ? 'syncing' : 'offline');
+      try {
+        if (!isOnline) throw new Error('Special action requires connection');
+        await saveQueueRef.current?.flush();
+        const saved = await api(`/colorings/${template.id}/progress/actions`, {
+          method: 'POST',
+          body: {
+            changes: [],
+            special_action: Object.fromEntries(Object.entries(specialAction).filter(([key]) => key !== 'experiment_group')),
+            revision: legacyRevisionRef.current,
+            clientBatchId: `legacy-special-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          },
+        });
+        legacyRevisionRef.current = Number(saved.revision || legacyRevisionRef.current);
+        legacyAuthoritativeFilledRef.current = [...(saved.filled || legacyAuthoritativeFilledRef.current)];
+        legacyAuthoritativeProgressRef.current = saved;
+        saveQueueRef.current?.reset(saved.revision);
+        filledRef.current = saved.filled || filledRef.current;
+        setProgress(saved);
+        const nextOffer = offerFromProgress(saved);
+        tiledSpecialOfferRef.current = nextOffer;
+        setTiledSpecialOffer(nextOffer);
+        if (saved.special_discovered) setTiledSpecialDiscovered(saved.special_discovered);
+        else setTiledSpecialDiscovered(null);
+        if (Array.isArray(saved.special_applied_changes) && saved.special_applied_changes.length) {
+          setTiledSpecialApplied({ revision: saved.revision, changes: saved.special_applied_changes });
+        }
+        trackCanonicalSpecialEvents({
+          saved,
+          specialAction,
+          templateId: template.id,
+          replay: isIdempotentReplay(saved),
+        });
+        onRewards(saved, template.id);
+        if (saved.percent === 100) setServerCompletedTemplateId(template.id);
+        setSaveState('saved');
+      } catch (error) {
+        recordSpecialCellsError(error);
+        if (isTerminalSpecialError(error)) {
+          tiledSpecialOfferRef.current = null;
+          setTiledSpecialOffer(null);
+          setTiledSpecialDiscovered(null);
+          setSaveState(isOnline ? 'saved' : 'offline');
+          showNotice(error.message || 'Spark больше недоступен', 'info');
+        } else {
+          setSaveState(isOnline ? 'pending' : 'offline');
+          showNotice(error.message || 'Не удалось применить Spark', 'error');
+        }
+      }
+      return;
+    }
+    tiledQueueRef.current.push({
+      clientBatchId: `tiled-special-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      changes: [],
+      specialAction,
+    });
+    writeTiledJournal(template.id);
+    if (specialAction.type === 'use_spark'
+      || specialAction.type === 'use_bomb'
+      || specialAction.type === 'skip_spark'
+      || specialAction.type === 'disarm_fuse'
+      || specialAction.type === 'skip_fuse'
+      || specialAction.type === 'use_choice'
+      || specialAction.type === 'disarm_hazard'
+      || specialAction.type === 'skip_hazard') {
+      metaApi.track('special_target_selected', {
+        template_id: template.id,
+        special_id: specialAction.special_id,
+        kind: String(specialAction.type).replace(/^(use_|skip_|disarm_)/, ''),
+        option_id: specialAction.option_id || null,
+        skipped: specialAction.type === 'skip_spark' || specialAction.type === 'skip_hazard',
+        center_x: specialAction.center_x == null ? null : specialAction.center_x,
+        center_y: specialAction.center_y == null ? null : specialAction.center_y,
+      }).catch(() => {});
+    }
     setSaveState(isOnline ? 'syncing' : 'offline');
     flushTiledQueue().then(() => setSaveState('saved')).catch(() => setSaveState('pending'));
   }
@@ -340,21 +666,27 @@ export function useColoringSession({
     }
   }
 
-  function applyFilled(nextFilled, change) {
+  function applyFilled(nextFilled, change, specialAction = null) {
     filledRef.current = nextFilled;
     setProgress((current) => ({ ...current, filled: nextFilled, ...getProgress(template.cells, nextFilled) }));
     if (change) {
       setHistory((current) => [...current.slice(-99), change]);
       setFuture([]);
     }
-    queueSave(nextFilled);
+    if (saveQueueRef.current) {
+      saveQueueRef.current.queueSave(nextFilled, {
+        baseFilled: legacyAuthoritativeFilledRef.current,
+        specialAction,
+      });
+      if (specialAction) saveQueueRef.current.flush().catch(() => setSaveState(isOnline ? 'pending' : 'offline'));
+    }
   }
 
   function handleFirstPaint() {
     if (paintedRef.current) return;
     paintedRef.current = true;
     const timeToAction = Date.now() - sessionStartRef.current;
-    metaApi.track('first_pixel', { id: template?.id, time_to_first_action_ms: timeToAction });
+    metaApi.track('first_pixel', { id: template?.id, time_to_first_action_ms: timeToAction }).catch(() => {});
   }
 
   function refreshZones(nextFilled) {
@@ -376,11 +708,11 @@ export function useColoringSession({
     setZoneReward(`Фрагмент «${completedZone.title}» раскрыт`);
     window.setTimeout(() => setZoneReward(null), 2200);
     window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
-    metaApi.track('zone_complete', { id: template.id, zone: completedZone.id });
+    metaApi.track('zone_complete', { id: template.id, zone: completedZone.id }).catch(() => {});
     return true;
   }
 
-  function handleStrokeCommitted(nextFilled, operation) {
+  function handleStrokeCommitted(nextFilled, operation, specialAction = null) {
     handleFirstPaint();
     const now = Date.now();
     const strokeCount = operation?.changes?.length || 1;
@@ -388,7 +720,7 @@ export function useColoringSession({
     lastPaintRef.current = now;
     comboRef.current = nextCombo;
     setCombo(nextCombo);
-    applyFilled(nextFilled, operation);
+    applyFilled(nextFilled, operation, specialAction);
     const nextProgress = getProgress(template.cells, nextFilled);
     [25, 50, 75, 100].forEach((value) => {
       if (nextProgress.percent >= value && !milestoneRef.current.has(value)) {
@@ -599,17 +931,51 @@ export function useColoringSession({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, template?.id, template?.storage_mode, template?.width, template?.height, isOnline]);
 
+  // Ordinary SPA unmount/navigation disposes the legacy queue after flushing.
+  // Pagehide itself must not dispose: mobile bfcache freezes the page and
+  // then resumes it without re-running this cleanup.
   useEffect(() => {
-    const flushOnHide = () => { saveQueueRef.current?.flushAndDispose(); };
-    window.addEventListener('pagehide', flushOnHide);
     return () => {
-      window.removeEventListener('pagehide', flushOnHide);
       if (saveQueueRef.current) {
         saveQueueRef.current.flushAndDispose();
         saveQueueRef.current = null;
       }
     };
   }, []);
+
+  useEffect(() => {
+    const handlePageHide = () => {
+      const queue = saveQueueRef.current;
+      if (queue && !queue.isDisposed()) {
+        queue.suspend().catch(() => setSaveState('pending'));
+      }
+      if (isLargeGridTemplate(template) && isOnline) {
+        flushTiledQueue().catch(() => setSaveState('pending'));
+      }
+    };
+    const handlePageShow = (event) => {
+      if (!event.persisted) return;
+      if (isLargeGridTemplate(template)) {
+        if (isOnline) flushTiledQueue().catch(() => setSaveState('pending'));
+        return;
+      }
+      const queue = saveQueueRef.current;
+      if (!queue || queue.isDisposed()) {
+        if (!template?.id) return;
+        saveQueueRef.current = createLegacySaveQueue(template);
+        saveQueueRef.current.reset(progress?.revision || 0);
+      }
+      saveQueueRef.current.resume({ serverRevision: progress?.revision })
+        .catch(() => setSaveState('pending'));
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('pageshow', handlePageShow);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, progress?.revision, template?.id, view]);
 
   useEffect(() => {
     if (view !== 'catalog') return;
@@ -658,6 +1024,11 @@ export function useColoringSession({
     openColoring,
     retryPendingSave,
     handleTiledStrokeCommitted,
+    queueTiledSpecialAction,
+    tiledSpecialOffer,
+    tiledSpecialApplied,
+    tiledSpecialDiscovered,
+    tiledReconciledChanges,
     undo,
     redo,
     handleFirstPaint,

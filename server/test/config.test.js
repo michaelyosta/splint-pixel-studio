@@ -52,6 +52,17 @@ test('invalid payment mode is rejected', () => {
   );
 });
 
+test('production rejects QA diagnostics and cohort override flags', () => {
+  assert.throws(
+    () => validateProductionConfiguration({ ...validProduction, SPECIAL_CELLS_QA_OVERRIDE: 'true' }),
+    /SPECIAL_CELLS_QA_OVERRIDE cannot be enabled in production/,
+  );
+  assert.throws(
+    () => validateProductionConfiguration({ ...validProduction, SPECIAL_CELLS_DIAGNOSTICS: 'true' }),
+    /SPECIAL_CELLS_DIAGNOSTICS cannot be enabled in production/,
+  );
+});
+
 for (const [name, mutate, expected] of [
   ['DATABASE_URL', (env) => { delete env.DATABASE_URL; }, /DATABASE_URL/],
   ['S3 config', (env) => { delete env.S3_BUCKET; }, /S3_BUCKET/],

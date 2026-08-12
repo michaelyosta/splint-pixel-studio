@@ -4,7 +4,9 @@ import { performance } from 'node:perf_hooks';
 import {
   createGridDescriptor,
   getTileBounds,
+  GRID_LOD_MODE,
   mapPointerToCell,
+  resolveGridLodMode,
   selectViewportTiles,
 } from '../src/features/coloring/large-grid/gridMath.js';
 import { LruTileCache, normalizeTilePayload } from '../src/features/coloring/large-grid/tileCache.js';
@@ -87,7 +89,7 @@ test('manifest loader keeps a 1200x1200 manifest metadata-only', async () => {
   assert.equal(manifest.grid.tileSize, TILE_SIZE);
 });
 
-test('overview zoom never floods the server: the visible set is capped to the cache bound', async () => {
+test('overview zoom uses the preview contract and does not request detail tiles', async () => {
   const calls = [];
   const client = createProgressiveGridClient({
     templateId: 'synthetic-1200',
@@ -108,15 +110,25 @@ test('overview zoom never floods the server: the visible set is capped to the ca
     viewportWidth: 390,
     viewportHeight: 800,
     cellSize: TILE_SIZE,
+    mode: GRID_LOD_MODE.OVERVIEW,
     overscanTiles: 0,
     maxPrefetchTiles: 4,
   });
 
   const tileCalls = calls.filter((url) => url.includes('/tiles/'));
-  assert.ok(tileCalls.length < 38 * 38, `overview must not request the whole grid (requested ${tileCalls.length})`);
-  assert.ok(tileCalls.length <= 16, `overview requests are bounded by the cache (requested ${tileCalls.length})`);
+  assert.equal(tileCalls.length, 0, 'overview must not request detail tiles');
+  assert.equal(result.mode, GRID_LOD_MODE.OVERVIEW);
+  assert.equal(result.visible.length, 0);
   assert.equal(result.errors.length, 0);
-  assert.ok(result.cache.tiles <= 12, 'cache stays bounded');
+  assert.equal(result.cache.tiles, 0, 'overview does not populate the detail cache');
+  assert.equal(client.getNetworkStats().overviewPlans, 1);
+});
+
+test('LOD hysteresis keeps pinch near the renderer boundary in one mode', () => {
+  assert.equal(resolveGridLodMode(3.9, GRID_LOD_MODE.OVERVIEW), GRID_LOD_MODE.OVERVIEW);
+  assert.equal(resolveGridLodMode(6, GRID_LOD_MODE.OVERVIEW), GRID_LOD_MODE.WORK);
+  assert.equal(resolveGridLodMode(5, GRID_LOD_MODE.WORK), GRID_LOD_MODE.WORK);
+  assert.equal(resolveGridLodMode(3.99, GRID_LOD_MODE.WORK), GRID_LOD_MODE.OVERVIEW);
 });
 
 test('synthetic 1200x1200 viewport loads visible and overscan tiles into typed bounded storage', async () => {
@@ -169,6 +181,28 @@ test('synthetic 1200x1200 viewport loads visible and overscan tiles into typed b
     + `cachedTiles=${result.cache.tiles}/${result.cache.maxTiles} `
     + `typedBytes=${result.cache.bytes} elapsedMs=${elapsedMs.toFixed(2)}`,
   );
+  client.destroy();
+});
+
+test('resident tile cache can reconcile acknowledged journal changes after reload', async () => {
+  const client = createProgressiveGridClient({
+    templateId: 'synthetic-1200',
+    maxTiles: 4,
+    fetchImpl: async (url) => {
+      if (String(url).endsWith('/manifest')) return jsonResponse(manifestPayload());
+      const coordinates = tileCoordinates(url);
+      return jsonResponse(tilePayload(...coordinates));
+    },
+  });
+
+  await client.loadManifest();
+  await client.fetchTile(0, 0);
+  assert.equal(client.getCell(3, 2).filled, -1);
+
+  // This is the post-reload path: the server has acknowledged a durable
+  // journal batch, but the renderer already has the pre-replay tile resident.
+  assert.equal(client.updateFilled(3, 2, 1), true);
+  assert.equal(client.getCell(3, 2).filled, 1);
   client.destroy();
 });
 
@@ -251,6 +285,72 @@ test('concurrent tile requests are deduplicated and one aborted consumer does no
   assert.equal(tile.key, '0:0');
   assert.equal(tileCalls, 1, 'the second consumer reused the first request');
   assert.equal(client.getCell(0, 0).loaded, true);
+  client.destroy();
+});
+
+test('one tile HTTP 502 stays recoverable and retry restores only that tile', async () => {
+  let tileAttempts = 0;
+  const client = createProgressiveGridClient({
+    templateId: 'synthetic-1200',
+    fetchImpl: async (url) => {
+      if (String(url).endsWith('/manifest')) return jsonResponse(manifestPayload());
+      tileAttempts += 1;
+      if (tileAttempts === 1) return jsonResponse({ error: 'temporary tile failure' }, { ok: false, status: 502 });
+      return jsonResponse(tilePayload(0, 0));
+    },
+  });
+
+  const failed = await client.loadViewport({
+    camera: { x: 0, y: 0, zoom: 1 },
+    viewportWidth: 32,
+    viewportHeight: 32,
+    cellSize: TILE_SIZE,
+    overscanTiles: 0,
+    maxPrefetchTiles: 0,
+  });
+  assert.equal(failed.errors.length, 1);
+  assert.equal(client.getSnapshot().status, 'ready');
+  assert.equal(client.getSnapshot().tileErrors['0:0'].status, 502);
+
+  const tile = await client.retryTile(0, 0);
+  assert.equal(tile.key, '0:0');
+  assert.equal(client.getSnapshot().tileErrors['0:0'], undefined);
+  assert.equal(client.getSnapshot().status, 'ready');
+  client.destroy();
+});
+
+test('offline detail failure preserves a resident tile and never becomes global offline', async () => {
+  let tileAttempts = 0;
+  const client = createProgressiveGridClient({
+    templateId: 'synthetic-1200',
+    fetchImpl: async (url) => {
+      if (String(url).endsWith('/manifest')) return jsonResponse(manifestPayload());
+      tileAttempts += 1;
+      if (tileAttempts === 1) return jsonResponse(tilePayload(0, 0));
+      throw new TypeError('Failed to fetch');
+    },
+  });
+
+  await client.loadViewport({
+    camera: { x: 0, y: 0, zoom: 1 },
+    viewportWidth: 32,
+    viewportHeight: 32,
+    cellSize: TILE_SIZE,
+    overscanTiles: 0,
+    maxPrefetchTiles: 0,
+  });
+  const result = await client.loadViewport({
+    camera: { x: -(TILE_SIZE * TILE_SIZE), y: 0, zoom: 1 },
+    viewportWidth: 32,
+    viewportHeight: 32,
+    cellSize: TILE_SIZE,
+    overscanTiles: 0,
+    maxPrefetchTiles: 0,
+  });
+  assert.equal(result.errors.length, 1);
+  assert.equal(client.cache.has('0:0'), true);
+  assert.equal(client.getSnapshot().status, 'ready');
+  assert.equal(client.getSnapshot().tileErrors['1:0'].kind, 'offline');
   client.destroy();
 });
 

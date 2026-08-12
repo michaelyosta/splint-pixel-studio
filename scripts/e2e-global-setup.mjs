@@ -62,6 +62,8 @@ export default async function globalSetup() {
     ...process.env,
     E2E_WEB_PORT: String(webPort),
     E2E_API_PORT: String(apiPort),
+    NODE_ENV: 'test',
+    SPECIAL_CELLS_DIAGNOSTICS: 'true',
   };
 
   try {

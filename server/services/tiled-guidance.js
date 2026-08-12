@@ -13,7 +13,11 @@ import {
   DEFAULT_TILE_SIZE,
   getTileGrid,
 } from './coloring-chunks.js';
-import { readTiledTile } from './tiled-coloring.js';
+import {
+  SPARK_PITY_INTERVAL_CELLS,
+  isSparkTreatmentUser,
+} from './tiled-specials.js';
+import { ensureTiledSpecialCells, readTiledTile } from './tiled-coloring.js';
 
 export const GUIDANCE_SCHEMA_VERSION = 1;
 export const ACTIONABLE_WINDOW_SIZE = 12;
@@ -25,6 +29,7 @@ export const GUIDANCE_REASON = Object.freeze({
   COLOR_COMPLETE: 'COLOR_COMPLETE',
   MANUAL_COLOR: 'MANUAL_COLOR',
   RETURN_TO_TARGET: 'RETURN_TO_TARGET',
+  SPECIAL_TARGETS: 'SPECIAL_TARGETS',
   ARTWORK_COMPLETE: 'ARTWORK_COMPLETE',
   NO_ACTIONABLE_CELLS: 'NO_ACTIONABLE_CELLS',
 });
@@ -259,7 +264,7 @@ async function runChunkedUpsert(db, {
  *                                         there is no work left.
  */
 export async function ensureStaticGuidanceIndex(db, template) {
-  const meta = await db.get(
+  const meta = await db.get?.(
     'SELECT template_id, colors, tiles FROM coloring_template_guidance_index_meta WHERE template_id=?',
     [template.id],
   );
@@ -507,6 +512,94 @@ async function targetForTile(db, {
   return windowTarget;
 }
 
+function targetForSpark(tile, special) {
+  const localX = Number(special.local_index) % tile.bounds.width;
+  const localY = Math.floor(Number(special.local_index) / tile.bounds.width);
+  const minLocalX = Math.max(0, localX - 6);
+  const minLocalY = Math.max(0, localY - 6);
+  const maxLocalX = Math.min(tile.bounds.width - 1, minLocalX + 11);
+  const maxLocalY = Math.min(tile.bounds.height - 1, minLocalY + 11);
+  const color = Number(tile.cells[special.local_index]);
+  let estimatedCells = 0;
+  for (let y = minLocalY; y <= maxLocalY; y += 1) {
+    for (let x = minLocalX; x <= maxLocalX; x += 1) {
+      const index = y * tile.bounds.width + x;
+      if (tile.filled[index] === -1 && tile.cells[index] === color) estimatedCells += 1;
+    }
+  }
+  return {
+    tile_x: tile.bounds.tile_x,
+    tile_y: tile.bounds.tile_y,
+    color,
+    anchor_x: tile.bounds.offset_x + localX,
+    anchor_y: tile.bounds.offset_y + localY,
+    bounds: {
+      min_x: tile.bounds.offset_x + minLocalX,
+      min_y: tile.bounds.offset_y + minLocalY,
+      max_x: tile.bounds.offset_x + maxLocalX,
+      max_y: tile.bounds.offset_y + maxLocalY,
+      width: maxLocalX - minLocalX + 1,
+      height: maxLocalY - minLocalY + 1,
+    },
+    estimated_cells: estimatedCells,
+  };
+}
+
+async function findPitySpark(db, {
+  userId,
+  template,
+  progress,
+  earlyEligible = false,
+} = {}) {
+  const completedCells = Number(progress?.completed_cells || 0);
+  const events = await db.get(
+    `SELECT COUNT(*) AS count,
+            SUM(CASE WHEN status='offered' THEN 1 ELSE 0 END) AS offered_count
+       FROM coloring_special_progress p
+       JOIN coloring_special_cells c
+         ON c.template_id=p.template_id AND c.special_id=p.special_id
+      WHERE p.user_id=? AND p.template_id=? AND c.kind='spark'
+        AND p.status IN ('offered','consumed','skipped')`,
+    [userId, template.id],
+  );
+  const offeredCount = Number(events?.offered_count || 0);
+  const eventCount = Math.max(0, Number(events?.count || 0) - offeredCount);
+  // Keep the first-event guarantee across reloads and sessions where the
+  // player painted elsewhere before reaching the deterministic early Spark.
+  // Filled and already handled candidates are filtered below, so this does
+  // not resurrect a consumed event or point at an already-painted cell.
+  const earlyDue = earlyEligible && eventCount === 0 && offeredCount === 0 && !progress?.completed_at;
+  const intervalDue = completedCells >= (eventCount + 1) * SPARK_PITY_INTERVAL_CELLS;
+  if (offeredCount > 0 || (!earlyDue && !intervalDue)) return null;
+
+  const candidates = await db.all(`
+    SELECT c.*
+      FROM coloring_special_cells c
+      LEFT JOIN coloring_special_progress p
+        ON p.user_id=? AND p.template_id=c.template_id AND p.special_id=c.special_id
+     WHERE c.template_id=? AND c.kind='spark'
+       AND (p.status IS NULL OR p.status='unseen')
+     ORDER BY CASE WHEN c.special_id LIKE 'sc_early_%' THEN 0 ELSE 1 END,
+              c.cell_index`,
+  [userId, template.id]);
+  for (const special of candidates) {
+    const tile = await readTiledTile(db, {
+      template,
+      userId,
+      tileX: Number(special.tile_x),
+      tileY: Number(special.tile_y),
+    });
+    if (tile.filled[Number(special.local_index)] !== -1) continue;
+    const target = targetForSpark(tile, special);
+    if (target.estimated_cells <= 0) continue;
+    return {
+      specialId: String(special.special_id),
+      target,
+    };
+  }
+  return null;
+}
+
 async function resolveTarget(db, {
   userId,
   template,
@@ -546,6 +639,33 @@ async function resolveTarget(db, {
   return null;
 }
 
+async function resolveTargets(db, options) {
+  const {
+    userId, template, colorIndex, cameraCenter, recentKeys, progress,
+  } = options;
+  const candidates = await findTileCandidates(db, { userId, template, colorIndex, recentKeys });
+  const ranked = scoreCandidates(candidates, cameraCenter, null, template.tile_size);
+  const targets = [];
+  const seenTiles = new Set();
+  for (const candidate of ranked) {
+    if (seenTiles.has(candidate.key)) continue;
+    const target = await targetForTile(db, {
+      userId,
+      template,
+      colorIndex,
+      tileX: candidate.tileX,
+      tileY: candidate.tileY,
+      cameraCenter,
+      progress,
+    });
+    if (!target) continue;
+    seenTiles.add(candidate.key);
+    targets.push({ ...target, color: colorIndex });
+    if (targets.length >= 2) break;
+  }
+  return targets;
+}
+
 export function guidanceErrorPayload(error) {
   return {
     error: error.message,
@@ -563,6 +683,8 @@ export async function buildGuidancePlan({
   recentKeys = [],
   preferredTileKey = null,
   targetColor = null,
+  specialId = null,
+  sparkTreatment = null,
 } = {}) {
   if (!db || !template) {
     throw new TiledGuidanceError('Guidance requires a database and template', 'INVALID_GUIDANCE_INPUT', 500);
@@ -576,6 +698,33 @@ export async function buildGuidancePlan({
     'SELECT * FROM coloring_tiled_progress WHERE user_id=? AND template_id=?',
     [userId, template.id],
   );
+  // Materialize deterministic special rows before pity/INITIAL_TARGET lookup.
+  // Existing tiled templates created before the special-cell migration have
+  // zero rows and must not depend on a later tile GET to lazily generate them.
+  await ensureTiledSpecialCells(db, template);
+  // An offered special event owns the next player decision. Claim/use routes
+  // already enforce this invariant, but guidance must enforce it too or a
+  // stale auto-advance can issue an ordinary target while Bomb/Fuse/Choice is
+  // waiting in the HUD. The only permitted guidance request is the
+  // special-target lookup for that same offer.
+  const activeSpecialOffer = await db.get(
+    `SELECT p.special_id, c.kind
+       FROM coloring_special_progress p
+       JOIN coloring_special_cells c
+         ON c.template_id=p.template_id AND c.special_id=p.special_id
+      WHERE p.user_id=? AND p.template_id=? AND p.status='offered'
+      LIMIT 1`,
+    [userId, template.id],
+  );
+  if (activeSpecialOffer
+    && (reason !== GUIDANCE_REASON.SPECIAL_TARGETS
+      || String(specialId || '') !== String(activeSpecialOffer.special_id))) {
+    throw new TiledGuidanceError(
+      'Resolve the current special event first',
+      'SPECIAL_ACTIVE_OFFER',
+      409,
+    );
+  }
   const progressRevision = Number(progress?.revision || 0);
   const center = cameraCenter
     || { x: grid.width / 2, y: grid.height / 2 };
@@ -631,6 +780,39 @@ export async function buildGuidancePlan({
     colorIndex = requestedColor;
   }
 
+  const isTreatment = sparkTreatment == null
+    ? isSparkTreatmentUser(userId, template.id)
+    : Boolean(sparkTreatment);
+  const pityAllowed = isTreatment
+    && reason !== GUIDANCE_REASON.SPECIAL_TARGETS
+    && reason !== GUIDANCE_REASON.MANUAL_COLOR
+    && reason !== GUIDANCE_REASON.RETURN_TO_TARGET;
+  if (pityAllowed) {
+    const pity = await findPitySpark(db, {
+      userId,
+      template,
+      progress,
+      earlyEligible: reason === GUIDANCE_REASON.INITIAL_TARGET,
+    });
+    if (pity) {
+      return {
+        schema_version: GUIDANCE_SCHEMA_VERSION,
+        template_id: template.id,
+        progress_revision: progressRevision,
+        mode: 'auto',
+        reason,
+        special_id: pity.specialId,
+        special_pity: true,
+        selected_color: pity.target.color,
+        global_remaining_for_color: totals.get(pity.target.color) || 0,
+        next_color: nextColor,
+        color_complete: false,
+        artwork_complete: false,
+        target: pity.target,
+      };
+    }
+  }
+
   const resolved = await resolveTarget(db, {
     userId,
     template,
@@ -653,6 +835,36 @@ export async function buildGuidancePlan({
       color_complete: false,
       artwork_complete: false,
       target: null,
+    };
+  }
+
+  if (reason === GUIDANCE_REASON.SPECIAL_TARGETS) {
+    const targetOptions = await resolveTargets(db, {
+      userId,
+      template,
+      colorIndex,
+      cameraCenter: center,
+      recentKeys,
+      progress,
+      specialId,
+    });
+    return {
+      schema_version: GUIDANCE_SCHEMA_VERSION,
+      template_id: template.id,
+      progress_revision: progressRevision,
+      mode: 'auto',
+      reason,
+      special_id: specialId,
+      selected_color: colorIndex,
+      global_remaining_for_color: totals.get(colorIndex) || 0,
+      next_color: nextColor,
+      color_complete: colorComplete,
+      artwork_complete: false,
+      target: targetOptions[0] || null,
+      target_options: targetOptions.map((target, index) => ({
+        ...target,
+        option_id: index === 0 ? 'a' : 'b',
+      })),
     };
   }
 

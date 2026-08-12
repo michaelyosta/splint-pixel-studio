@@ -96,7 +96,9 @@ When `TELEGRAM_BOT_TOKEN` is configured, the server validates `X-Telegram-Init-D
 
 В production-режиме авторизацию через заголовок `X-User-Id` нужно заменить проверкой Telegram Mini Apps `initData`.
 
-## Public-alpha release-candidate posture (2026-08-02)
+## Public-alpha release-candidate posture (2026-08-02, historical snapshot)
+
+> Snapshot from 2026-08-02; the current implementation state on `codex/tiled-player-1200` is recorded in [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md), [docs/AUDIT_FINDINGS.md](docs/AUDIT_FINDINGS.md), and [docs/SECURITY_FOLLOWUPS.md](docs/SECURITY_FOLLOWUPS.md).
 
 This repository is a local public-alpha release candidate without real payments. Production defaults to `PAYMENTS_MODE=disabled`; internal credits are not Telegram Stars. Completion is server-authoritative, canonical feed media is thumbnail-based, and new canonical artwork rows do not store base64 images.
 
