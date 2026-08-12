@@ -12,7 +12,6 @@ import {
   SPARK_DENSITY_CELLS,
   SPARK_PITY_INTERVAL_CELLS,
   SPARK_TARGET_MAX_CELLS,
-  SPECIAL_MAX_DERIVED_CHANGES,
   generateSparkCells,
   generateSpecialCells,
   specialDensityForGrid,

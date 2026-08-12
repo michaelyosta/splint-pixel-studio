@@ -137,10 +137,14 @@ and mobile-emulation E2E runs. Physical Telegram Android/iOS
 treatment/control runs remain pending; browser automation is not presented as
 proof of physical WebView behavior.
 
-The 1200 manual CONTROL issue was a lazy zero-row materialization ordering
-problem, not a balance change. Zero-row shared generation/backfill is now
-centralized and idempotent before tile/guidance reads; control still receives
-no special tile metadata, offer, or derived changes.
+The real 1024 and 1200 owner templates received different deterministic
+assignments: 1024 was treatment and 1200 was control. The missing event in
+the manual 1200 session was therefore correct control behavior, not a density
+failure. A separate visual defect then hid a treatment target at row zero
+under the in-canvas guide HUD; Smart camera framing now keeps edge targets
+between 58px top/bottom safe insets. The earlier zero-row materialization gap
+was also fixed and remains covered, but it was not the root cause of this
+specific owner observation.
 
 QA override activation requires the exact dev/test environment plus an
 explicit allowlisted `SPECIAL_CELLS_QA_USER_ID`; server diagnostics are

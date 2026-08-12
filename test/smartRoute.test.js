@@ -115,6 +115,32 @@ test('guidance camera plans a paintable working zoom centered on the anchor', ()
   assert.ok(anchorScreenY >= 0 && anchorScreenY <= 700, 'anchor must stay visible');
 });
 
+test('guidance camera keeps edge targets outside the in-canvas HUD safe area', () => {
+  const viewport = { width: 390, height: 700 };
+  const template = { width: 1200, height: 1200 };
+  const edgePlan = (minY, maxY, anchorY) => normalizeGuidancePayload(planFixture({
+    target: {
+      ...planFixture().target,
+      tile_y: Math.floor(minY / 32),
+      anchor_y: anchorY,
+      bounds: {
+        ...planFixture().target.bounds,
+        min_y: minY,
+        max_y: maxY,
+        height: maxY - minY + 1,
+      },
+    },
+  }));
+  const screenY = (worldY, camera) => worldY * 32 * camera.zoom + camera.y;
+
+  const top = planGuidanceCamera(edgePlan(0, 11, 5), viewport, template, 32);
+  assert.ok(screenY(0, top) >= 58 - 0.01, 'top target must stay below the guide HUD');
+
+  const bottom = planGuidanceCamera(edgePlan(1188, 1199, 1194), viewport, template, 32);
+  assert.ok(screenY(1200, bottom) <= viewport.height - 58 + 0.01,
+    'bottom target must stay above the action dock');
+});
+
 test('target completion only counts painted cells inside the active window', () => {
   const plan = normalizeGuidancePayload(planFixture());
   const changes = [

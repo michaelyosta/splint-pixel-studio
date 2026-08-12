@@ -9,7 +9,7 @@
 
 ## Current implementation facts
 
-The active production path is mixed-kind v3 for newly-created tiled maps:
+The active production path is mixed-kind v4 for newly-created tiled maps:
 
 - tiny maps up to 8,192 cells: one deterministic candidate;
 - small tiled maps: one candidate per 600 cells;
@@ -51,7 +51,7 @@ the current mixed-kind implementation specification.
 → игрок правильно закрашивает Spark Cell
 → сервер возвращает два допустимых Smart Engine target
 → игрок выбирает один или пропускает
-→ сервер применяет максимум 32 правильные клетки
+→ сервер применяет весь persisted Smart target (max 12x12 / 144)
 → обычная раскраска продолжается
 ```
 
@@ -62,7 +62,7 @@ the current mixed-kind implementation specification.
 - one deterministic early Spark is inside the first treatment Smart Engine target;
 - server pity may route the next Spark target at each 6000 completed-cell boundary;
 - максимум 2 target options;
-- максимум 32 server-derived changes за use;
+- complete persisted Smart target, max 12x12 / 144 server-derived changes per use;
 - 0 inventory;
 - 0 trap;
 - 0 Choice Cell;
@@ -108,7 +108,7 @@ the current mixed-kind implementation specification.
 - deterministic placement;
 - valid tile/local/global coordinates;
 - max two options;
-- max 32 derived cells;
+- full selected target, max 12x12 / 144 derived cells;
 - token/status transitions;
 - special lookup не находится в pointermove hot path.
 

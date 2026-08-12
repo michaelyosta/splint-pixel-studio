@@ -66,13 +66,13 @@ Three-seed aggregate at the selected production tiers:
 
 | size | first event | p95 target gap | assisted ratio | event mix |
 |---:|---:|---:|---:|---|
-| 160 | 1 | 31 | 2.7% | all six roles, Hazard separate |
-| 500 | 1 | 4 | 10.6% | Spark/Bomb/Fuse/Choice/Artifact + Hazard |
-| 1200 | 1 | 4 | 8.7% | Spark/Bomb/Fuse/Choice/Artifact + Hazard |
+| 160 | 1 | 24 | 5.4% | all six roles, Hazard separate |
+| 500 | 1 | 4 | 13.5% | Spark/Bomb/Fuse/Choice/Artifact + Hazard |
+| 1200 | 1 | 4 | 10.9% | Spark/Bomb/Fuse/Choice/Artifact + Hazard |
 
 The selected medium/large rows meet the approximate p95 <=4 target in this
 three-seed simulator run; assisted progress remains below 15%. Their
-event/target averages are 0.605 and 0.555, so the route sees a meaningful
+event/target averages are 0.623 and 0.567, so the route sees a meaningful
 event roughly every 1.6–1.8 targets in the approximation. Candidate count and
 event presentation remain separate: the director/active-offer barrier still
 determines what the player must resolve.
@@ -139,16 +139,20 @@ delivery, initial target, special discovery, claim/use, bounded effect, Smart
 Engine resume, reload/offline journal recovery, and final-cell completion.
 This is not physical Telegram evidence.
 
-### Actual 1200 manual CONTROL root cause
+### Actual 1200 manual root causes
 
-A 1200 manual CONTROL check that appeared to need an override was traced to
-the pre-existing placement path: zero-row templates are materialized lazily,
-so a first open could trigger shared-cell generation/backfill before the
-control payload strips metadata. The control cohort still receives no special
-tile metadata, no offer, and no derived changes; forged actions remain
-rejected with `SPECIAL_COHORT_CONTROL`. The fix centralizes ensure/backfill so
-zero-row materialization is idempotent, transactional, and applied before
-tile/guidance reads.
+The live owner templates were on different deterministic paths: 1024 was
+treatment, while 1200 was control. The 1200 manual session therefore had no
+Special UI by design. A fail-closed `qa:specials` preflight now requires the
+allowlisted dev/test treatment override and verifies non-zero persisted
+candidates before manual feature QA begins.
+
+After treatment was forced, a second concrete visual defect appeared: the
+early Spark target started at row zero and its glyph was hidden behind the
+in-canvas guide HUD. The Smart camera planner now reserves 58px above and
+below the working channel; browser evidence shows the same target visible
+after framing. The earlier zero-row shared-generation fix remains valid and
+covered, but was not the cause of this real owner/template mismatch.
 
 ### QA override and diagnostics gates
 
@@ -168,10 +172,11 @@ only, never through diagnostics.
 
 ### Balance and effects
 
-No balance constant or derived effect changed for this checkpoint: densities,
-pity, per-tile metadata cap, event family, Spark/Bomb/Fuse/Choice/Artifact
-behavior, and Hazard behavior remain as recorded in the balance document.
-All derived effects remain server-capped and server-authoritative.
+Candidate density, pity, per-tile metadata cap, and event family did not change
+for the delivery fix. Spark subsequently changed by explicit product decision:
+it now consumes the complete persisted Smart target (max 12x12 / 144), while
+Bomb/Fuse/Choice remain capped at 32 and Hazard at 16. All effects remain
+server-derived and server-authoritative.
 
 ### Verification counts
 

@@ -57,8 +57,8 @@ QA-only fields may be added later, but existing fields are stable.
 {
   "cohort": "treatment",
   "cohort_override": false,
-  "generation_version": 3,
-  "placement_version": 3,
+  "generation_version": 4,
+  "placement_version": 4,
   "template_id": "template-id",
   "template_width": 160,
   "template_height": 160,

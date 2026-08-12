@@ -1,10 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  collectVisibleSpecialKinds,
   SPECIAL_MARKER_VISUALS,
   specialMarkerScreenRadius,
   specialMarkerVisual,
 } from '../src/features/coloring/specialMarker.js';
+
+test('visible kind collection starts animation only for unpainted markers in visible tiles', () => {
+  const tiles = [
+    {
+      key: '0:0',
+      filled: [-1, 0, -1],
+      specials: [
+        { kind: 'spark', state: 'unseen', localIndex: 0 },
+        { kind: 'bomb', state: 'unseen', localIndex: 1 },
+        { kind: 'fuse', state: 'consumed', localIndex: 2 },
+      ],
+    },
+    {
+      key: '1:0',
+      filled: [-1],
+      specials: [{ kind: 'choice', state: 'unseen', localIndex: 0 }],
+    },
+  ];
+  assert.deepEqual(collectVisibleSpecialKinds(tiles, new Set(['0:0'])), ['spark']);
+  assert.deepEqual(collectVisibleSpecialKinds(tiles, new Set(['1:0'])), ['choice']);
+  assert.deepEqual(collectVisibleSpecialKinds(tiles, new Set()), []);
+});
 
 test('screen radius clamps to bounded screen-space pixels', () => {
   assert.equal(specialMarkerScreenRadius(32), 10);

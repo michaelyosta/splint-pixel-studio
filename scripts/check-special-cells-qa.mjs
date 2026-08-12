@@ -43,10 +43,19 @@ export function parseArgs(argv = []) {
   for (let index = 0; index < argv.length; index += 1) {
     const key = argv[index];
     const value = argv[index + 1];
-    if (key === '--api' && value) parsed.api = value, index += 1;
-    else if (key === '--template' && value) parsed.template = value, index += 1;
-    else if (key === '--expect' && value) parsed.expectedCohort = value.toLowerCase(), index += 1;
-    else if (key === '--user' && value) parsed.user = value, index += 1;
+    if (key === '--api' && value) {
+      parsed.api = value;
+      index += 1;
+    } else if (key === '--template' && value) {
+      parsed.template = value;
+      index += 1;
+    } else if (key === '--expect' && value) {
+      parsed.expectedCohort = value.toLowerCase();
+      index += 1;
+    } else if (key === '--user' && value) {
+      parsed.user = value;
+      index += 1;
+    }
   }
   return parsed;
 }

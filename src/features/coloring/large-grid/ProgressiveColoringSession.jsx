@@ -29,7 +29,12 @@ import {
 import { TileGuideIndex } from './guide.js';
 import { LruTileCache } from './tileCache.js';
 import { createCameraAnimation } from '../camera/cameraAnimation.js';
-import { drawSpecialMarker, specialMarkerScreenRadius, SPECIAL_MARKER_VISUALS } from '../specialMarker.js';
+import {
+  collectVisibleSpecialKinds,
+  drawSpecialMarker,
+  specialMarkerScreenRadius,
+  SPECIAL_MARKER_VISUALS,
+} from '../specialMarker.js';
 import {
   GUIDANCE_REASON,
   countPaintedCellsInTarget,
@@ -612,6 +617,7 @@ export default function ProgressiveColoringSession({
   const [errorNotice, setErrorNotice] = useState(null);
   const [navigationMode, setNavigationMode] = useState(false);
   const [sparkWave, setSparkWave] = useState(null);
+  const [hasVisibleSpecialMarker, setHasVisibleSpecialMarker] = useState(false);
   const markerPhaseRef = useRef(0);
   const smartStateRef = useRef('idle');
   const smartPlanRef = useRef(null);
@@ -655,7 +661,8 @@ export default function ProgressiveColoringSession({
   const artifactProgress = progress?.artifact_progress || null;
 
   useEffect(() => {
-    if (!specialTreatment || lodMode !== GRID_LOD_MODE.WORK || reducedMotion) return undefined;
+    if (!specialTreatment || !hasVisibleSpecialMarker
+      || lodMode !== GRID_LOD_MODE.WORK || reducedMotion) return undefined;
     let frame = 0;
     let last = 0;
     const tick = (time) => {
@@ -668,22 +675,24 @@ export default function ProgressiveColoringSession({
     };
     frame = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frame);
-  }, [lodMode, reducedMotion, specialTreatment]);
+  }, [hasVisibleSpecialMarker, lodMode, reducedMotion, specialTreatment]);
 
   useEffect(() => {
-    if (!onVisibleSpecialKinds) return;
     if (!specialTreatment) {
-      onVisibleSpecialKinds([]);
+      setHasVisibleSpecialMarker(false);
+      onVisibleSpecialKinds?.([]);
       return;
     }
     if (!manifestReady || !size.width || !size.height || lodMode === GRID_LOD_MODE.OVERVIEW) {
-      onVisibleSpecialKinds([]);
+      setHasVisibleSpecialMarker(false);
+      onVisibleSpecialKinds?.([]);
       return;
     }
     const client = clientRef.current;
     const manifest = client?.getSnapshot().manifest;
     if (!manifest) {
-      onVisibleSpecialKinds([]);
+      setHasVisibleSpecialMarker(false);
+      onVisibleSpecialKinds?.([]);
       return;
     }
     const plan = selectViewportTiles({
@@ -696,15 +705,9 @@ export default function ProgressiveColoringSession({
       overscanTiles: 0,
     });
     const visibleKeys = new Set((plan.visible || []).map((tile) => tile.key));
-    const kinds = [];
-    for (const tile of client.cache.values()) {
-      if (!visibleKeys.has(tile.key)) continue;
-      for (const special of tile.specials || []) {
-        if (special.state !== 'unseen' || tile.filled[special.localIndex] !== -1) continue;
-        if (special.kind && !kinds.includes(special.kind)) kinds.push(special.kind);
-      }
-    }
-    onVisibleSpecialKinds(kinds);
+    const kinds = collectVisibleSpecialKinds(client.cache.values(), visibleKeys);
+    setHasVisibleSpecialMarker(kinds.length > 0);
+    onVisibleSpecialKinds?.(kinds);
     // The tiled client/cache is stable for this mounted session; the camera
     // and load status are the visible-relevance signals.
     // eslint-disable-next-line react-hooks/exhaustive-deps

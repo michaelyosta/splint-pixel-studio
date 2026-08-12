@@ -339,7 +339,9 @@ actionable-window calculation. Новый planner не создаётся.
 - response содержит одноразовый `offer_token` и два server-generated options;
 - use request содержит только `offer_token` и `option_id`, не список клеток;
 - server повторно проверяет revision, token, target и exact colors;
-- derived changes ограничены 32 cells и проходят existing tiled/legacy apply;
+- Spark derives the complete persisted Smart target up to 12x12 / 144 cells;
+  the other effects retain their narrower caps and all pass through existing
+  tiled/legacy apply;
 - оба request используют `clientBatchId`; replay не повторяет grant или paint.
 
 **Visual representation:** мягкий геометрический `⚡`/zigzag pattern,
@@ -591,9 +593,9 @@ early route diagnostic reports one target before the first Spark and zero
 targets in the early route without a Spark. Control requests explicitly send
 `spark_treatment=0`; they keep ordinary guidance and do not render Spark.
 
-This is a pacing/discoverability change only. Spark still requires the normal
-correct-color stroke, still offers at most two Smart Engine targets, and still
-applies at most 32 server-derived changes.
+This section records the historical Spark v2 pacing pass. At that checkpoint
+Spark still applied at most 32 cells; the current product contract supersedes
+that cap with the complete persisted Smart target, bounded to 12x12 / 144.
 
 Генерация выполняется сервером один раз при создании template из immutable
 `template_id + content_revision + generation_version`. Результат сохраняется;
@@ -613,7 +615,9 @@ will normally trigger in one sitting: a candidate only becomes an event when
 the user reaches and correctly paints it. Pity uses server `completed_cells`,
 not client time or a client-painted counter.
 
-Spark effect cap: максимум 32 newly correct cells, один option, один use.
+Current Spark effect: all remaining correct-color cells in the selected
+persisted Smart target, max 12x12 / 144, one option per use (normally selected
+from two; one is valid when it is the only actionable target near completion).
 Если option потерял eligible cells из-за второго устройства, server не
 пытается «дотянуть» эффект другим глобальным участком без нового выбора.
 

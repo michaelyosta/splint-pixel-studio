@@ -66,6 +66,21 @@ export function specialMarkerVisual(kind) {
   return SPECIAL_MARKER_VISUALS[String(kind || '').toLowerCase()] || SPECIAL_MARKER_VISUALS.unknown;
 }
 
+export function collectVisibleSpecialKinds(tiles, visibleKeys) {
+  if (!tiles || !visibleKeys?.size) return [];
+  const kinds = [];
+  for (const tile of tiles) {
+    if (!visibleKeys.has(tile?.key)) continue;
+    for (const special of tile.specials || []) {
+      const localIndex = Number(special.localIndex);
+      if (special.state !== 'unseen' || !Number.isSafeInteger(localIndex)
+        || tile.filled?.[localIndex] !== -1) continue;
+      if (special.kind && !kinds.includes(special.kind)) kinds.push(special.kind);
+    }
+  }
+  return kinds;
+}
+
 export function specialMarkerScreenRadius(cellPixels, { min = 4, max = 10, fraction = 0.32 } = {}) {
   const pixels = Number(cellPixels);
   if (!Number.isFinite(pixels) || pixels <= 0) return min;
