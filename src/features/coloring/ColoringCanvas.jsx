@@ -133,19 +133,39 @@ function drawGrid(ctx, template, targetCells, filled, selectedColor, calmMode, h
   }
 }
 
-function drawStrokePreviewCells(ctx, template, targetCells, indices, camera, renderScale) {
+function drawStrokePreviewCells(ctx, template, targetCells, indices, camera, renderScale, strokeStyle = 'current') {
   if (!ctx || !indices.length) return;
   applyCameraTransform(ctx, camera, renderScale);
   ctx.save();
-  ctx.globalAlpha = 0.72;
+  ctx.globalAlpha = strokeStyle === 'soft' ? 0.82 : strokeStyle === 'current' ? 0.72 : 0.94;
   for (const index of indices) {
     const x = (index % template.width) * BASE_CELL;
     const y = Math.floor(index / template.width) * BASE_CELL;
     ctx.fillStyle = template.palette[targetCells[index]];
-    ctx.fillRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
-    ctx.strokeStyle = '#7fe7ff';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
+    if (strokeStyle === 'current') {
+      ctx.fillRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
+      ctx.strokeStyle = '#7fe7ff';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, y + 1, BASE_CELL - 2, BASE_CELL - 2);
+    } else {
+      // Full-cell preview joins adjacent pixels into one authored gesture.
+      // It performs O(new cells) work only and adds no React state to pointermove.
+      ctx.fillRect(x, y, BASE_CELL, BASE_CELL);
+      if (strokeStyle === 'luminous') {
+        // Keep the expressive option allocation-free in pointermove: two
+        // restrained highlights are enough to suggest a luminous material.
+        ctx.fillStyle = 'rgba(255,255,255,0.30)';
+        ctx.fillRect(x, y, BASE_CELL, 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(x, y + 2, 2, BASE_CELL - 2);
+      } else if (strokeStyle === 'crisp') {
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(x + 2, y + 2, BASE_CELL - 4, 2);
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.10)';
+        ctx.fillRect(x + 3, y + 3, BASE_CELL - 6, BASE_CELL - 6);
+      }
+    }
   }
   ctx.restore();
 }
@@ -178,6 +198,8 @@ export default function ColoringCanvas({
   onResetView,
   specialCells = [],
   onVisibleSpecialKinds,
+  coreFeelVariant = null,
+  revealBeat = null,
 }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -187,6 +209,7 @@ export default function ColoringCanvas({
   const [flash, setFlash] = useState({ cells: [], alpha: 0 });
   const [keyboardCell, setKeyboardCell] = useState(null);
   const [liveText, setLiveText] = useState('');
+  const [revealPhase, setRevealPhase] = useState(null);
   const keyboardCellRef = useRef(null);
   const instructionsId = useId();
   const liveId = useId();
@@ -221,6 +244,22 @@ export default function ColoringCanvas({
       announcerRef.current?.destroy();
     };
   }, []);
+
+  useEffect(() => {
+    if (!revealBeat?.id || !coreFeelVariant?.enhanced) {
+      setRevealPhase(null);
+      return undefined;
+    }
+    const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    setRevealPhase(reduceMotion ? 'resolved' : 'settling');
+    if (reduceMotion) return undefined;
+    const settleTimer = window.setTimeout(() => setRevealPhase('resolved'), 420);
+    const clearTimer = window.setTimeout(() => setRevealPhase(null), 1500);
+    return () => {
+      window.clearTimeout(settleTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [coreFeelVariant, revealBeat?.id, revealBeat?.token]);
 
   const redraw = useCallback(() => {
     const ctx = canvasRef.current?.getContext('2d');
@@ -309,17 +348,24 @@ export default function ColoringCanvas({
     // On large grids the committed fill itself is the feedback. Avoid three
     // additional full-canvas redraws for a decorative flash.
     if (isLargeGrid) return;
-    setFlash({ cells: committedIndices, alpha: 0.3 });
+    const settle = coreFeelVariant?.enhanced
+      ? coreFeelVariant.strokeStyle === 'crisp'
+        ? { alpha: 0.16, fadeAlpha: 0.05, fadeAt: 90, clearAt: 190 }
+        : coreFeelVariant.strokeStyle === 'luminous'
+          ? { alpha: 0.28, fadeAlpha: 0.08, fadeAt: 150, clearAt: 380 }
+          : { alpha: 0.21, fadeAlpha: 0.07, fadeAt: 170, clearAt: 430 }
+      : { alpha: 0.3, fadeAlpha: 0.12, fadeAt: 130, clearAt: 300 };
+    setFlash({ cells: committedIndices, alpha: settle.alpha });
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
     if (flashFadeTimerRef.current) clearTimeout(flashFadeTimerRef.current);
     flashFadeTimerRef.current = setTimeout(() => {
       flashFadeTimerRef.current = null;
-      setFlash({ cells: committedIndices, alpha: 0.12 });
-    }, 130);
+      setFlash({ cells: committedIndices, alpha: settle.fadeAlpha });
+    }, settle.fadeAt);
     flashTimerRef.current = setTimeout(() => {
       flashTimerRef.current = null;
       setFlash({ cells: [], alpha: 0 });
-    }, 300);
+    }, settle.clearAt);
   }
 
   function handlePointerDown(event) {
@@ -359,7 +405,7 @@ export default function ColoringCanvas({
         lastCell: index,
       };
       lastCellRef.current = index;
-      drawStrokePreviewCells(canvasRef.current?.getContext('2d'), template, targetCells, [index], camera, renderScale);
+      drawStrokePreviewCells(canvasRef.current?.getContext('2d'), template, targetCells, [index], camera, renderScale, coreFeelVariant?.strokeStyle);
     } else if (activePointers.current.size === 2 && !transformRef.current) {
       cancelStroke();
       drawingRef.current = false;
@@ -416,7 +462,7 @@ export default function ColoringCanvas({
       stroke.indices.push(ci);
       addedCells.push(ci);
     }
-    drawStrokePreviewCells(canvasRef.current?.getContext('2d'), template, targetCells, addedCells, camera, renderScale);
+    drawStrokePreviewCells(canvasRef.current?.getContext('2d'), template, targetCells, addedCells, camera, renderScale, coreFeelVariant?.strokeStyle);
   }
 
   function handlePointerUp(event) {
@@ -647,6 +693,20 @@ export default function ColoringCanvas({
       <span id={instructionsId} className="sr-only">
         Стрелки перемещают курсор, Enter или пробел закрашивают клетку, плюс и минус меняют масштаб, 0 показывает обзор.
       </span>
+      {revealPhase && revealBeat?.bounds && (
+        <div
+          className={`core-feel-reveal-mark core-feel-reveal-mark--${coreFeelVariant.revealStyle} is-${revealPhase}`}
+          data-core-feel-reveal={revealBeat.id}
+          aria-hidden="true"
+          style={{
+            left: camera.x + revealBeat.bounds.minX * BASE_CELL * camera.zoom,
+            top: camera.y + revealBeat.bounds.minY * BASE_CELL * camera.zoom,
+            width: revealBeat.bounds.width * BASE_CELL * camera.zoom,
+            height: revealBeat.bounds.height * BASE_CELL * camera.zoom,
+            '--reveal-color': revealBeat.color || '#7fe7ff',
+          }}
+        />
+      )}
       <span id={liveId} role="status" aria-live="polite" className="sr-only">{liveText}</span>
     </div>
   );

@@ -14,6 +14,12 @@ import {
   isTargetConsideredDone, normalizeSafeArea, resolveColorTransition, resolveNextOutcome,
 } from './engine/routeTargeting.js';
 import { createBoundedAnnouncer } from '../../lib/accessibility.js';
+import {
+  getCoreFeelFragmentForColor,
+  getNextCoreFeelFragment,
+  isCoreFeelReference,
+} from '../coreFeel/coreFeelExperiment.js';
+import { playCoreFeelFeedback } from '../coreFeel/coreFeelFeedback.js';
 import './coloring.css';
 
 const LARGE_ROUTE_DIMENSION = 160;
@@ -36,6 +42,21 @@ function safeAreasEqual(first, second) {
     && first.right === second.right
     && first.bottom === second.bottom
     && first.left === second.left;
+}
+
+function candidateForCells(cells, templateWidth, zoom = 1) {
+  const minX = Math.min(...cells.map((index) => index % templateWidth));
+  const maxX = Math.max(...cells.map((index) => index % templateWidth));
+  const minY = Math.min(...cells.map((index) => Math.floor(index / templateWidth)));
+  const maxY = Math.max(...cells.map((index) => Math.floor(index / templateWidth)));
+  return {
+    cells,
+    centerX: (minX + maxX + 1) / 2,
+    centerY: (minY + maxY + 1) / 2,
+    zoom,
+    cellCount: cells.length,
+    bounds: { minX, maxX, minY, maxY, width: maxX - minX + 1, height: maxY - minY + 1 },
+  };
 }
 
 export default function ColoringSession({
@@ -65,12 +86,18 @@ export default function ColoringSession({
   specialDiscovered = null,
   onSpecialAction,
   onVisibleSpecialKinds,
+  coreFeelExperiment = null,
+  onCoreFeelStop,
 }) {
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const containerRef = useRef(null);
   const filledRef = useRef(progress?.filled || []);
   const [localFilled, setLocalFilled] = useState(progress?.filled || []);
   const [peekColor, setPeekColor] = useState(null);
+  const [coreFeelBeat, setCoreFeelBeat] = useState(null);
+  const [coreFeelHintVisible, setCoreFeelHintVisible] = useState(true);
+  const firstCoreFeelStrokeAtRef = useRef(null);
+  const activeCoreFeelFragmentRef = useRef(null);
   const windowsRef = useRef([]);
   const visitedTargetsRef = useRef(new Set());
   const routeStateRef = useRef(createRouteState());
@@ -88,6 +115,8 @@ export default function ColoringSession({
   const announcedTargetKeyRef = useRef('');
   const claimedSpecialsRef = useRef(new Set());
   const specialTreatment = specialCohort === 'treatment';
+  const coreFeelActive = isCoreFeelReference(coreFeelExperiment, template);
+  const enhancedCoreFeel = coreFeelActive && coreFeelExperiment.variant?.enhanced;
   const artifactProgress = progress?.artifact_progress || null;
   const activeSpecial = specialOffer
     ? specialCells.find((special) => special.id === specialOffer.special_id)
@@ -149,6 +178,10 @@ export default function ColoringSession({
 
   useEffect(() => {
     claimedSpecialsRef.current = new Set();
+    setCoreFeelBeat(null);
+    setCoreFeelHintVisible(true);
+    firstCoreFeelStrokeAtRef.current = null;
+    activeCoreFeelFragmentRef.current = null;
   }, [template?.id]);
 
   const windowsGenerationRef = useRef(0);
@@ -158,6 +191,13 @@ export default function ColoringSession({
 
   const computeWorkingWindows = useCallback((filled, color) => {
     if (!template || !filled?.length) return [];
+    if (enhancedCoreFeel && color != null) {
+      const authored = getCoreFeelFragmentForColor(template, filled, color);
+      if (authored?.cells.length) {
+        activeCoreFeelFragmentRef.current = authored;
+        return [candidateForCells(authored.cells, template.width, 1)];
+      }
+    }
     // Large maps must not enter the whole-image BFS route. Route by bounded
     // 32×32 windows and let the renderer load only the actionable region.
     if (template.width > LARGE_ROUTE_DIMENSION || template.height > LARGE_ROUTE_DIMENSION) {
@@ -214,7 +254,7 @@ export default function ColoringSession({
       allWindows.push(...wins);
     }
     return allWindows;
-  }, [template, containerSize.width, containerSize.height, safeAreaState]);
+  }, [template, containerSize.width, containerSize.height, safeAreaState, enhancedCoreFeel]);
 
   const workingWindows = useMemo(
     () => {
@@ -283,21 +323,6 @@ export default function ColoringSession({
     }, 1500);
   }
 
-  function candidateForCells(cells, zoom = 1) {
-    const minX = Math.min(...cells.map((index) => index % template.width));
-    const maxX = Math.max(...cells.map((index) => index % template.width));
-    const minY = Math.min(...cells.map((index) => Math.floor(index / template.width)));
-    const maxY = Math.max(...cells.map((index) => Math.floor(index / template.width)));
-    return {
-      cells,
-      centerX: (minX + maxX + 1) / 2,
-      centerY: (minY + maxY + 1) / 2,
-      zoom,
-      cellCount: cells.length,
-      bounds: { minX, maxX, minY, maxY, width: maxX - minX + 1, height: maxY - minY + 1 },
-    };
-  }
-
   function prepareTarget(candidate, options = {}) {
     const {
       immediate = false,
@@ -326,7 +351,7 @@ export default function ColoringSession({
 
     if (!readiness.actionable && readiness.reason === 'partial_target_visibility') {
       const smaller = activation.target.workCells
-        .map((cell) => candidateForCells([cell], focusCandidate.zoom))
+        .map((cell) => candidateForCells([cell], template.width, focusCandidate.zoom))
         .find((single) => {
           const singleActivation = createActiveTarget(template, single, targetColor, filled, {
             width: containerSize.width,
@@ -425,7 +450,7 @@ export default function ColoringSession({
             reason: `${reason}:${actualReadiness.reason}`,
           };
       syncRouteDisplay();
-      if (actualReadiness.actionable && onTrack) onTrack('camera_activate_target', {
+      if (actualReadiness.actionable && onTrack && !coreFeelActive) onTrack('camera_activate_target', {
         templateId: template?.id,
         targetId,
         reason,
@@ -457,7 +482,7 @@ export default function ColoringSession({
   function refocusExistingTarget(current, reason) {
     const target = current?.target;
     if (!target?.workCells?.length) return { ok: false, reason: 'no_active_target' };
-    const candidate = candidateForCells(target.workCells);
+    const candidate = candidateForCells(target.workCells, template.width);
     const cameraTransition = prepareFocusOnWindow(candidate, false);
     if (!cameraTransition) return { ok: false, reason: 'invalid_camera_plan' };
     const plannedReadiness = ensureActionableViewport({
@@ -617,6 +642,34 @@ export default function ColoringSession({
   }
 
   function handleNextCluster() {
+    if (enhancedCoreFeel && coreFeelBeat?.status === 'revealed') {
+      const next = getNextCoreFeelFragment(template, filledRef.current, coreFeelBeat.fragment.id);
+      if (!next) {
+        setCoreFeelBeat({ ...coreFeelBeat, status: 'complete' });
+        return;
+      }
+      onSelectColor(next.color);
+      visitedTargetsRef.current = new Set();
+      windowsGenerationRef.current += 1;
+      setWindowsGeneration(windowsGenerationRef.current);
+      const result = activateTarget(candidateForCells(next.cells, template.width, 1), {
+        immediate: false,
+        force: true,
+        reason: 'core-feel:player-next',
+        markVisited: true,
+        targetColor: next.color,
+      });
+      if (result.ok) {
+        activeCoreFeelFragmentRef.current = next;
+        setCoreFeelBeat(null);
+        onTrack?.('core_feel_next_beat_selected', {
+          id: template.id,
+          variant: coreFeelExperiment.variantId,
+          fragment: next.id,
+        });
+      }
+      return;
+    }
     resumeAuto();
     const result = applyNextOutcome(buildNextOutcome(), 'manual-next', true);
     if (result.ok && onTrack) onTrack('camera_next_cluster', { templateId: template?.id });
@@ -820,6 +873,7 @@ export default function ColoringSession({
     );
 
     if (!targetDone) return;
+    if (enhancedCoreFeel) return;
     applyNextOutcome(buildNextOutcome(rs.targetId), 'auto-advance', false);
   }
 
@@ -869,11 +923,21 @@ export default function ColoringSession({
     } : null;
     if (special) claimedSpecialsRef.current.add(special.id);
     if (onSaveProgress) onSaveProgress(nextFilled, operation, specialAction);
-    if (onTrack) onTrack('coloring_stroke_commit', { templateId: template.id, color: stroke.color, cells: stroke.indices.length });
-    try {
-      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
-    } catch {
-      // Haptics are optional.
+    // The PARB experiment intentionally measures authored outcomes instead of
+    // emitting one generic analytics event for every tap/stroke.
+    if (onTrack && !coreFeelActive) {
+      onTrack('coloring_stroke_commit', { templateId: template.id, color: stroke.color, cells: stroke.indices.length });
+    }
+    // A single-cell tap already has direct visual feedback. Reserve the calm
+    // stroke cue for a continuous gesture so tap-heavy play does not buzz.
+    if (enhancedCoreFeel) {
+      if (stroke.indices.length >= 2) playCoreFeelFeedback('stroke', coreFeelExperiment);
+    } else {
+      try {
+        window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
+      } catch {
+        // Haptics are optional.
+      }
     }
     if (interactionMode !== 'reveal') {
       const remainingForColor = template.cells.reduce((count, target, ci) =>
@@ -890,7 +954,9 @@ export default function ColoringSession({
       }
     }
     const rs = routeStateRef.current;
-    if (rs.target && autoState === AUTO_STATE.ACTIVE) {
+    // Manual camera exploration must not make the authored fragment lose its
+    // reveal. Outside the experiment, preserve the existing AUTO-only route.
+    if (rs.target && (autoState === AUTO_STATE.ACTIVE || enhancedCoreFeel)) {
       const visRem = computeVisibleUnfilledCount(
         rs.target, camera, template, nextFilled,
         containerSize.width, containerSize.height, safeArea.current,
@@ -902,10 +968,42 @@ export default function ColoringSession({
         targetRemaining: tgtRem,
       };
       syncRouteDisplay();
+      if (enhancedCoreFeel && tgtRem === 0 && coreFeelBeat?.targetId !== rs.targetId) {
+        const fragment = activeCoreFeelFragmentRef.current;
+        const finishedFragment = fragment || {
+              id: `target-${rs.targetId}`,
+              label: 'Фрагмент',
+              prompt: 'Продолжить раскрытие',
+              color: rs.target.color,
+              cells: rs.target.workCells,
+            };
+        const nextFragment = getNextCoreFeelFragment(template, nextFilled, finishedFragment.id);
+        setCoreFeelHintVisible(false);
+        setCoreFeelBeat({
+          id: `${finishedFragment.id}:${Date.now()}`,
+          status: 'revealed',
+          targetId: rs.targetId,
+          fragment: finishedFragment,
+          nextFragment,
+          revealedAt: Date.now(),
+        });
+        playCoreFeelFeedback('fragment', coreFeelExperiment);
+        onTrack?.('core_feel_manual_fragment_reveal', {
+          id: template.id,
+          variant: coreFeelExperiment.variantId,
+          fragment: finishedFragment.id,
+          cells: rs.target.workCells.length,
+          time_to_reveal_ms: firstCoreFeelStrokeAtRef.current
+            ? Date.now() - firstCoreFeelStrokeAtRef.current
+            : Date.now() - stroke.startedAt,
+          assisted_cells: 0,
+        });
+        liveStatusRef.current?.announce(`${finishedFragment.label} раскрыт. Можно продолжить к следующему фрагменту или остановиться.`);
+      }
       if (visRem === 0 && tgtRem > 0) {
       }
     }
-  }, [template, onSaveProgress, onSelectColor, interactionMode, onTrack, autoState, camera, containerSize, specialCells, specialTreatment]);
+  }, [template, onSaveProgress, onSelectColor, interactionMode, onTrack, autoState, camera, containerSize, specialCells, specialTreatment, coreFeelActive, enhancedCoreFeel, coreFeelExperiment, coreFeelBeat]);
 
   const handleWrongCell = useCallback(() => {
     liveStatusRef.current?.announce('Неправильный цвет для этой клетки');
@@ -913,8 +1011,12 @@ export default function ColoringSession({
   }, [onWrongCell]);
 
   const handleFirstPaint = useCallback(() => {
+    if (coreFeelActive) {
+      setCoreFeelHintVisible(false);
+      firstCoreFeelStrokeAtRef.current ||= Date.now();
+    }
     if (onFirstPaint) onFirstPaint();
-  }, [onFirstPaint]);
+  }, [onFirstPaint, coreFeelActive]);
 
   function enterFreeExploration() {
     const current = routeStateRef.current;
@@ -949,7 +1051,7 @@ export default function ColoringSession({
     if (!current.target) return;
     const cells = current.target.workCells;
     resumeAuto();
-    const candidate = candidateForCells(cells);
+    const candidate = candidateForCells(cells, template.width);
     const result = activateTarget(candidate, {
       immediate: false,
       force: true,
@@ -989,7 +1091,7 @@ export default function ColoringSession({
 
   return (
     <div
-      className="coloring-session"
+      className={`coloring-session${coreFeelBeat?.status === 'revealed' ? ' core-feel-reveal-active' : ''}`}
       data-route-status={routeDisplay.status}
       data-target-id={routeDisplay.targetId || ''}
       data-target-color={routeDisplay.target?.color ?? ''}
@@ -999,6 +1101,8 @@ export default function ColoringSession({
       data-safe-bottom={safeAreaState.bottom}
       data-safe-left={safeAreaState.left}
       data-special-cohort={specialCohort}
+      data-core-feel-variant={coreFeelActive ? coreFeelExperiment.variantId : ''}
+      data-core-feel-camera={coreFeelActive ? coreFeelExperiment.variant.cameraStyle : ''}
     >
       <div className="coloring-canvas-container" ref={containerRef} style={ambilight ? { '--ambilight': ambilight } : undefined}>
         {['ready', 'freeExploration'].includes(routeDisplay.status) && routeDisplay.target && (
@@ -1037,11 +1141,18 @@ export default function ColoringSession({
             activeWorkCells={routeDisplay.target?.workCells || []}
             activeTargetColor={routeDisplay.target?.color ?? null}
             onManualExplore={enterFreeExploration}
-            interactionDisabled={routeDisplay.status === 'focusingTarget'}
+            interactionDisabled={routeDisplay.status === 'focusingTarget' || coreFeelBeat?.status === 'revealed'}
             peekColor={peekColor}
             onResetView={handleCanvasResetView}
             specialCells={specialTreatment ? specialCells : []}
             onVisibleSpecialKinds={onVisibleSpecialKinds}
+            coreFeelVariant={enhancedCoreFeel ? coreFeelExperiment.variant : null}
+            revealBeat={coreFeelBeat?.status === 'revealed' ? {
+              id: coreFeelBeat.fragment.id,
+              token: coreFeelBeat.id,
+              bounds: candidateForCells(coreFeelBeat.fragment.cells, template.width).bounds,
+              color: template.palette[coreFeelBeat.fragment.color],
+            } : null}
           />
         )}
         {!showCanvas && (
@@ -1071,7 +1182,7 @@ export default function ColoringSession({
           specialRecentTargets={[...visitedTargetsRef.current]}
           specialTargetActive={routeDisplay.status !== 'freeExploration'}
         />
-        <ColoringHud
+        {!enhancedCoreFeel && <ColoringHud
           routeState={routeDisplay}
           onReturnToTarget={returnToTarget}
           onNextCluster={handleNextCluster}
@@ -1079,7 +1190,33 @@ export default function ColoringSession({
           combo={combo}
           isPainting={false}
           onResize={handleHudResize}
-        />
+        />}
+        {enhancedCoreFeel && coreFeelHintVisible && routeDisplay.status === 'ready' && !coreFeelBeat && (
+          <div className="core-feel-context-hint" role="status" data-core-feel-hint>
+            {getCoreFeelFragmentForColor(template, localFilled, routeDisplay.target?.color)?.prompt || 'Проведи по подсвеченному фрагменту'}
+          </div>
+        )}
+        {enhancedCoreFeel && coreFeelBeat?.status === 'revealed' && (
+          <div className="core-feel-ownership-pause" data-core-feel-ownership-pause data-reveal-variant={coreFeelExperiment.variant.revealStyle}>
+            <span className="core-feel-beat-kicker">Ты раскрыл</span>
+            <b>{coreFeelBeat.fragment.label}</b>
+            {coreFeelBeat.nextFragment ? (
+              <>
+                <button type="button" onClick={handleNextCluster} data-core-feel-next>
+                  <span>Следующий фрагмент</span>
+                  <small>{coreFeelBeat.nextFragment.label}</small>
+                </button>
+                <button type="button" className="core-feel-stop-button" onClick={onCoreFeelStop} data-core-feel-stop>
+                  Остановиться здесь
+                </button>
+              </>
+            ) : (
+              <button type="button" className="core-feel-stop-button" onClick={onCoreFeelStop} data-core-feel-stop>
+                Остановиться здесь
+              </button>
+            )}
+          </div>
+        )}
         {specialTreatment && specialOffer?.kind === 'bomb' && (
           <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" data-special-kind="bomb">
             <span className="progressive-grid-special-title">Бомба: применить вокруг клетки</span>
@@ -1237,16 +1374,20 @@ export default function ColoringSession({
           </div>
         )}
       </div>
-      <div className={`coloring-task-summary${showTaskSummary ? '' : ' coloring-task-summary--empty'}`}>
+      <div className={`coloring-task-summary${showTaskSummary ? '' : ' coloring-task-summary--empty'}${enhancedCoreFeel ? ' coloring-task-summary--core-feel' : ''}`}>
         {showTaskSummary && (
           <>
           <span className="task-color-dot" style={{ background: template.palette[routeDisplay.target.color] }} aria-hidden="true" />
-          {`Цвет ${routeDisplay.target.color + 1} · Осталось ${routeDisplay.targetRemaining} клеток`}
+          {enhancedCoreFeel
+            ? routeDisplay.targetRemaining > 0
+              ? `${getCoreFeelFragmentForColor(template, localFilled, routeDisplay.target.color)?.label || 'Фрагмент'} · Осталось ${routeDisplay.targetRemaining}`
+              : 'Фрагмент раскрыт'
+            : `Цвет ${routeDisplay.target.color + 1} · Осталось ${routeDisplay.targetRemaining} клеток`}
           </>
         )}
       </div>
       <span id={liveStatusId} role="status" aria-live="polite" className="sr-only">{liveStatus}</span>
-      {interactionMode !== 'reveal' && (
+      {interactionMode !== 'reveal' && !enhancedCoreFeel && (
         <div className="coloring-dock">
           <ColoringPalette
             template={template}

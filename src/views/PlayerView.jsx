@@ -177,7 +177,9 @@ export default function PlayerView({
   formatDifficulty,
   completedPreview,
   zoneIndices,
+  coreFeelExperiment,
 }) {
+  const coreFeelActive = Boolean(coreFeelExperiment?.enabled && template?.id === coreFeelExperiment.referenceTemplateId);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hudHidden, setHudHidden] = useState(false);
   const startPaintTimerRef = useRef(null);
@@ -227,6 +229,7 @@ export default function PlayerView({
     isOnline,
     storage: typeof window !== 'undefined' ? window.localStorage : null,
     onTrack,
+    enabled: !coreFeelActive,
   });
 
   useEffect(() => {
@@ -247,7 +250,7 @@ export default function PlayerView({
   }, [sessionGoals.celebration, template?.id, onTrack]);
 
   const handleFirstPaint = () => {
-    sessionGoals.markFirstPaint();
+    if (!coreFeelActive) sessionGoals.markFirstPaint();
     onFirstPaint?.();
   };
 
@@ -325,6 +328,16 @@ export default function PlayerView({
   };
   const showHud = () => { setHudHidden(false); declutter(); };
 
+  const leaveCoreFeelSession = () => {
+    onTrack?.('core_feel_session_stop', {
+      id: template?.id,
+      variant: coreFeelExperiment?.variantId,
+      reason: 'player_exit',
+      percent: gameProgress?.percent ?? 0,
+    });
+    setView('home');
+  };
+
   // «До» для слайдера сравнения: пронумерованная сетка этой же раскраски.
   const isTiled = isLargeGridTemplate(template);
   const complete = gameProgress ? (isTiled
@@ -347,7 +360,7 @@ export default function PlayerView({
   const totalXp = progression?.xp_total ?? 0;
   const level = progression?.level ?? 1;
   const hasSpecials = hasSpecialsInProgress(progress);
-  const specialTreatment = progress?.specials_experiment_group === 'treatment';
+  const specialTreatment = !coreFeelActive && progress?.specials_experiment_group === 'treatment';
   const showSpecialOnboardingStep = specialTreatment && hasSpecials && !specialHelpState.introSeen;
   const onboardingStepCount = showSpecialOnboardingStep ? 4 : 3;
   const showSpecialHint = onboarding === null && specialHintKind !== null && !specialHelpOpen;
@@ -384,26 +397,26 @@ export default function PlayerView({
 
   return (
     <section className="page player-page">
-      <div className="player-topbar">
-        <button className="back-button" onClick={() => setView('catalog')}><ChevronLeft size={18} /></button>
+      <div className={`player-topbar${coreFeelActive ? ' player-topbar--core-feel' : ''}`}>
+        <button className="back-button" onClick={() => coreFeelActive ? leaveCoreFeelSession() : setView('catalog')} aria-label={coreFeelActive ? 'Завершить тест' : 'Назад'}><ChevronLeft size={18} /></button>
         <span className="player-topbar-title">{template.title}</span>
         <span className={`save-status${saving || saveState === 'syncing' ? ' saving' : ''}${!isOnline || saveState === 'offline' ? ' offline' : ''}`} role="status" aria-live="polite">
           <span className="save-dot" aria-hidden="true" />{saveLabel}
         </span>
         {(saveState === 'pending' || saveState === 'offline') && <button className="save-retry" type="button" onClick={onRetrySave} disabled={!isOnline}>Повторить</button>}
-        <span className="player-progress" title={`Прогресс: ${gameProgress.percent}%`} aria-hidden="true">
+        {!coreFeelActive && <span className="player-progress" title={`Прогресс: ${gameProgress.percent}%`} aria-hidden="true">
           <svg viewBox="0 0 38 38">
             <circle className="player-progress-track" cx="19" cy="19" r="15" />
             <circle className="player-progress-fill" cx="19" cy="19" r="15" style={{ strokeDasharray: `${(gameProgress.percent / 100) * 94.25} 94.25` }} />
           </svg>
           <b>{gameProgress.percent}</b>
-        </span>
-        <button className="player-menu-btn" onClick={() => setMenuOpen(true)} aria-label="Меню игры"><span>•••</span></button>
+        </span>}
+        {!coreFeelActive && <button className="player-menu-btn" onClick={() => setMenuOpen(true)} aria-label="Меню игры"><span>•••</span></button>}
       </div>
 
-      <div className={`player-hint ${hudHidden ? 'faded' : ''}`} onClick={showHud}>
+      {!coreFeelActive && <div className={`player-hint ${hudHidden ? 'faded' : ''}`} onClick={showHud}>
         <span className="player-hint-target"><Target size={14} /> {contextGoal}</span>
-      </div>
+      </div>}
 
       {showSpecialHint && specialHintKind && (
         <div className="special-help-hint" role="status" data-special-help-hint data-special-help-kind={specialHintKind}>
@@ -423,7 +436,7 @@ export default function PlayerView({
         </div>
       )}
 
-      <SessionGoalCard
+      {!coreFeelActive && <SessionGoalCard
         goal={sessionGoals.view}
         reward={latestReward?.amount ? { amount: latestReward.amount } : null}
         streak={streak?.current_streak}
@@ -442,9 +455,9 @@ export default function PlayerView({
             sessionGoals.dismissCelebration();
           }
         }}
-      />
+      />}
 
-      {zoneReward && <div className="milestone zone"><Target size={17} /> {zoneReward}</div>}
+      {!coreFeelActive && zoneReward && <div className="milestone zone"><Target size={17} /> {zoneReward}</div>}
 
       {import.meta.env.DEV && import.meta.env.VITE_SHOW_ENGINE_BADGE === 'true' && <div className={`engine-badge ${USE_NEW_COLORING_ENGINE ? 'smart' : 'legacy'}`}>{USE_NEW_COLORING_ENGINE ? 'Engine: Smart' : 'Engine: Legacy'}</div>}
 
@@ -494,11 +507,13 @@ export default function PlayerView({
           onOpenMenu={() => setMenuOpen(true)}
           onTrack={onTrack}
           specialCells={progress.specials || []}
-          specialCohort={progress.specials_experiment_group || 'control'}
-          specialOffer={tiledSpecialOffer}
-          specialDiscovered={tiledSpecialDiscovered}
-          onVisibleSpecialKinds={handleVisibleSpecialKinds}
-          onSpecialAction={onTiledSpecialAction}
+          specialCohort={coreFeelActive ? 'control' : progress.specials_experiment_group || 'control'}
+          specialOffer={coreFeelActive ? null : tiledSpecialOffer}
+          specialDiscovered={coreFeelActive ? null : tiledSpecialDiscovered}
+          onVisibleSpecialKinds={coreFeelActive ? undefined : handleVisibleSpecialKinds}
+          onSpecialAction={coreFeelActive ? undefined : onTiledSpecialAction}
+          coreFeelExperiment={coreFeelActive ? coreFeelExperiment : null}
+          onCoreFeelStop={coreFeelActive ? leaveCoreFeelSession : undefined}
         />
       ) : (
         <>
@@ -539,7 +554,7 @@ export default function PlayerView({
         </>
       )}
 
-      {menuOpen && <div className="bottom-sheet-overlay" role="presentation" onClick={() => setMenuOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
+      {!coreFeelActive && menuOpen && <div className="bottom-sheet-overlay" role="presentation" onClick={() => setMenuOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
         <section
           className="bottom-sheet"
           tabIndex={-1}
@@ -582,7 +597,7 @@ export default function PlayerView({
         </section>
       </div>}
 
-      {onboarding !== null && <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="Обучение">
+      {!coreFeelActive && onboarding !== null && <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="Обучение">
         <div className="onboarding-card" ref={onboardingCardRef} tabIndex={-1}>
           {onboarding === 3 && showSpecialOnboardingStep ? (
             <div className="special-help-onboarding" data-special-help-intro>
@@ -602,11 +617,11 @@ export default function PlayerView({
         </div>
       </div>}
 
-      <SpecialHelpSheet
+      {!coreFeelActive && <SpecialHelpSheet
         open={specialHelpOpen}
         onClose={closeSpecialHelp}
         returnFocusRef={specialHelpReturnFocusRef}
-      />
+      />}
 
       {isComplete && completionOpen && <div className="completion-overlay" role="presentation">
         <section

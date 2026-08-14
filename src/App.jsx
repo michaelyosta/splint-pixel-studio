@@ -25,16 +25,19 @@ import { useColoringSession } from './hooks/useColoringSession';
 import { useDirectorData } from './hooks/useDirectorData';
 import { formatDifficulty } from './lib/catalogMeta';
 import { getRequestedColoringId, hapticSelection } from './lib/telegram';
+import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
 import './App.css';
 import './features/unlocks/unlocks.css';
 
 function App() {
-  const [view, setView] = useState('home');
+  const coreFeelExperiment = useMemo(() => resolveCoreFeelExperiment(), []);
+  const [view, setView] = useState(() => coreFeelExperiment.enabled ? 'play' : 'home');
   const [notice, setNotice] = useState(null);
   const [unlockRefreshKey, setUnlockRefreshKey] = useState(0);
   const noticeTimerRef = useRef(null);
   const deepLinkHandledRef = useRef(false);
-  const unlockData = useUnlockData({ enabled: true, refreshKey: unlockRefreshKey });
+  const coreFeelHandledRef = useRef(false);
+  const unlockData = useUnlockData({ enabled: !coreFeelExperiment.enabled, refreshKey: unlockRefreshKey });
 
   const showNotice = useCallback((text, type = 'info') => {
     window.clearTimeout(noticeTimerRef.current);
@@ -71,14 +74,16 @@ function App() {
     setLatestReward: product.setLatestReward,
     setServerCompletedTemplateId: product.setServerCompletedTemplateId,
     serverCompletedTemplateId: product.serverCompletedTemplateId,
+    coreFeelExperiment,
   });
   const director = useDirectorData({
-    enabled: true,
+    enabled: !coreFeelExperiment.enabled,
     refreshKey: unlockRefreshKey,
     exclude: view === 'play' && session?.template?.id ? session.template.id : null,
   });
 
   useEffect(() => {
+    if (coreFeelExperiment.enabled) return;
     catalog.loadCatalog();
     home.loadToday();
     home.loadStreak();
@@ -88,21 +93,28 @@ function App() {
     catalog.loadMine();
     product.loadProductProfile();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog.loadCatalog, catalog.loadMine, home.loadAchievements, home.loadCollections, home.loadStreak, home.loadToday, product.loadProductProfile, profile.loadProfile]);
+  }, [catalog.loadCatalog, catalog.loadMine, coreFeelExperiment.enabled, home.loadAchievements, home.loadCollections, home.loadStreak, home.loadToday, product.loadProductProfile, profile.loadProfile]);
 
   useEffect(() => {
-    metaApi.track('app_open').catch(() => {});
-  }, []);
+    if (!coreFeelExperiment.enabled) metaApi.track('app_open').catch(() => {});
+  }, [coreFeelExperiment.enabled]);
+
+  useEffect(() => {
+    if (!coreFeelExperiment.enabled || coreFeelHandledRef.current) return;
+    coreFeelHandledRef.current = true;
+    session.openColoring(coreFeelExperiment.referenceTemplateId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coreFeelExperiment.enabled, coreFeelExperiment.referenceTemplateId]);
 
   // Deep link (?coloring=<id> или Telegram start_param) — открыть раскраску сразу.
   useEffect(() => {
-    if (deepLinkHandledRef.current || catalog.loading) return;
+    if (coreFeelExperiment.enabled || deepLinkHandledRef.current || catalog.loading) return;
     const requestedId = getRequestedColoringId();
     if (!requestedId) return;
     deepLinkHandledRef.current = true;
     session.openColoring(requestedId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog.loading, session.openColoring]);
+  }, [catalog.loading, coreFeelExperiment.enabled, session.openColoring]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (view === 'gallery' || view === 'home') catalog.loadMine(); }, [view, catalog.loadMine]);
@@ -312,7 +324,20 @@ function App() {
         formatDifficulty={formatDifficulty}
         completedPreview={session.completedPreview}
         zoneIndices={session.zoneIndicesRef.current}
+        coreFeelExperiment={coreFeelExperiment}
       />
+    );
+  } else if (view === 'home' && coreFeelExperiment.enabled) {
+    content = (
+      <section className="core-feel-stop-page" data-core-feel-stop-page>
+        <img src="/assets/catalog/astro-whale-pixel.png" alt="Космический кит" />
+        <p className="eyebrow">Сессия сохранена</p>
+        <h1>Хорошая точка остановки.</h1>
+        <p>Контур останется на месте. Вернись, когда захочется раскрыть следующий фрагмент.</p>
+        <button type="button" className="primary-button" onClick={() => session.openColoring(coreFeelExperiment.referenceTemplateId)}>
+          Продолжить кита
+        </button>
+      </section>
     );
   } else if (view === 'home') {
     content = <HomeView
@@ -433,7 +458,7 @@ function App() {
     />;
   }
 
-  return <main className="telegram-frame"><div className="app-container">{view !== 'play' && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('home')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
+  return <main className="telegram-frame"><div className="app-container">{view !== 'play' && !coreFeelExperiment.enabled && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('home')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
 }
 
 export default App;

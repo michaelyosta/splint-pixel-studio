@@ -37,8 +37,9 @@ export function useSessionGoals({
   zoneIndices,
   isOnline = true,
   storage,
+  enabled: enabledOverride = true,
 }) {
-  const enabled = Boolean(template?.id && progress && Number(template.width) > 0);
+  const enabled = Boolean(enabledOverride && template?.id && progress && Number(template.width) > 0);
   const storageKey = useMemo(
     () => (enabled ? `splint:session-goals:${DEV_USER_ID}:${template.id}` : null),
     [enabled, template?.id],

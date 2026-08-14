@@ -9,6 +9,7 @@ import { createHistoryOperation } from '../features/coloring/engine/historyOpera
 import { buildColoringDeepLink, shareViaTelegram } from '../lib/telegram';
 import { takePrefetchedColoring } from '../lib/coloringPrefetch';
 import { recordSpecialCellsError } from '../lib/specialCellsDiagnostics';
+import { getNextCoreFeelFragment, isCoreFeelReference } from '../features/coreFeel/coreFeelExperiment.js';
 
 export function useColoringSession({
   view,
@@ -22,6 +23,7 @@ export function useColoringSession({
   setLatestReward,
   setServerCompletedTemplateId,
   serverCompletedTemplateId,
+  coreFeelExperiment,
 }) {
   const [template, setTemplate] = useState(null);
   const [progress, setProgress] = useState(null);
@@ -72,6 +74,7 @@ export function useColoringSession({
   const milestoneRef = useRef(new Set());
   const zoneMilestoneRef = useRef(new Set());
   const paintedRef = useRef(false);
+  const coreFeelResumeRef = useRef(false);
   const completedTemplateRef = useRef(null);
   const filledRef = useRef([]);
   const zoneIndicesRef = useRef({});
@@ -194,7 +197,7 @@ export function useColoringSession({
       },
       onProgress: (saved) => {
         setProgress(saved);
-        onRewards(saved, templateForQueue.id);
+        if (!isCoreFeelReference(coreFeelExperiment, templateForQueue)) onRewards(saved, templateForQueue.id);
         if (saved.percent === 100) setServerCompletedTemplateId(templateForQueue.id);
       },
       onNotice: (message, type) => {
@@ -461,7 +464,6 @@ export function useColoringSession({
         saveQueueRef.current.reset(nextProgress.revision);
         saveQueueRef.current.recover({ templateId: nextTemplate.id, serverRevision: nextProgress.revision }).catch(() => {});
       }
-      setSelectedColor(isLargeGridTemplate(nextTemplate) ? 0 : findRewardingColor(nextTemplate, nextProgress.filled) ?? 0);
       setPlayMode('classic');
       setFillMode(false);
       setHistory([]);
@@ -471,13 +473,30 @@ export function useColoringSession({
       milestoneRef.current = new Set([25, 50, 75, 100].filter((value) => nextProgress.percent >= value));
       zoneMilestoneRef.current = new Set((nextZones.zones || []).filter((z) => z.percent >= 100).map((z) => z.id));
       paintedRef.current = false;
+      const coreFeelActive = isCoreFeelReference(coreFeelExperiment, nextTemplate);
+      const firstCoreFeelFragment = coreFeelActive
+        ? getNextCoreFeelFragment(nextTemplate, nextProgress.filled || [])
+        : null;
+      setSelectedColor(isLargeGridTemplate(nextTemplate)
+        ? 0
+        : firstCoreFeelFragment?.color ?? findRewardingColor(nextTemplate, nextProgress.filled) ?? 0);
+      coreFeelResumeRef.current = coreFeelActive
+        && (nextProgress.filled || []).some((value) => value !== -1);
       sessionStartRef.current = Date.now();
       onNavigate('play');
       if (nextTemplate.unlock_granted || nextTemplate.unlock_state === 'owned') {
         unlockRefreshedRef.current.add(nextTemplate.id);
         onUnlockRefresh();
       }
-      metaApi.track('open_level', { id });
+      if (!coreFeelActive) metaApi.track('open_level', { id });
+      if (coreFeelActive) {
+        metaApi.track('core_feel_experiment_open', {
+          id,
+          variant: coreFeelExperiment.variantId,
+          resumed: coreFeelResumeRef.current,
+          first_fragment: firstCoreFeelFragment?.id || null,
+        }).catch(() => {});
+      }
     } catch (error) {
       const unlock = parseUnlockLockedError(error);
       if (unlock) {
@@ -686,7 +705,17 @@ export function useColoringSession({
     if (paintedRef.current) return;
     paintedRef.current = true;
     const timeToAction = Date.now() - sessionStartRef.current;
-    metaApi.track('first_pixel', { id: template?.id, time_to_first_action_ms: timeToAction }).catch(() => {});
+    const coreFeelActive = isCoreFeelReference(coreFeelExperiment, template);
+    if (!coreFeelActive) {
+      metaApi.track('first_pixel', { id: template?.id, time_to_first_action_ms: timeToAction }).catch(() => {});
+    } else {
+      metaApi.track(coreFeelResumeRef.current ? 'core_feel_resume_action' : 'core_feel_first_handmade_action', {
+        id: template.id,
+        variant: coreFeelExperiment.variantId,
+        time_to_action_ms: timeToAction,
+        source: 'manual',
+      }).catch(() => {});
+    }
   }
 
   function refreshZones(nextFilled) {
@@ -705,6 +734,9 @@ export function useColoringSession({
     const completedZone = nextZones?.find((zone) => zone.percent === 100 && !zoneMilestoneRef.current.has(zone.id));
     if (!completedZone) return false;
     zoneMilestoneRef.current.add(completedZone.id);
+    // The Phase 0/1 slice has one reward hierarchy: authored fragment reveal.
+    // Keep server zone state intact, but do not compete with it in the test.
+    if (isCoreFeelReference(coreFeelExperiment, template)) return false;
     setZoneReward(`Фрагмент «${completedZone.title}» раскрыт`);
     window.setTimeout(() => setZoneReward(null), 2200);
     window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
@@ -722,12 +754,14 @@ export function useColoringSession({
     setCombo(nextCombo);
     applyFilled(nextFilled, operation, specialAction);
     const nextProgress = getProgress(template.cells, nextFilled);
-    [25, 50, 75, 100].forEach((value) => {
-      if (nextProgress.percent >= value && !milestoneRef.current.has(value)) {
-        milestoneRef.current.add(value);
-        metaApi.track(`reach_${value}`, { id: template.id }).catch(() => {});
-      }
-    });
+    if (!isCoreFeelReference(coreFeelExperiment, template)) {
+      [25, 50, 75, 100].forEach((value) => {
+        if (nextProgress.percent >= value && !milestoneRef.current.has(value)) {
+          milestoneRef.current.add(value);
+          metaApi.track(`reach_${value}`, { id: template.id }).catch(() => {});
+        }
+      });
+    }
     const nextZones = refreshZones(nextFilled);
     return celebrateCompletedZone(nextZones);
   }
@@ -919,10 +953,11 @@ export function useColoringSession({
   }, [artworkComplete, onUnlockRefresh, serverCompletedTemplateId, template, view]);
 
   useEffect(() => {
+    if (isCoreFeelReference(coreFeelExperiment, template)) return;
     if (view === 'play' && template && onboarding === null && localStorage.getItem('splint_onboarding_version') !== '2') {
       setOnboarding(0);
     }
-  }, [view, template, onboarding]);
+  }, [view, template, onboarding, coreFeelExperiment]);
 
   useEffect(() => {
     if (view === 'play' && isLargeGridTemplate(template) && isOnline && tiledQueueRef.current.length) {

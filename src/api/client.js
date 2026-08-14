@@ -1,6 +1,10 @@
+import { getCoreFeelDevSubject } from '../features/coreFeel/coreFeelExperiment.js';
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-export const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID || 'user_pixelhunter';
+export const DEV_USER_ID = getCoreFeelDevSubject()
+  || import.meta.env.VITE_DEV_USER_ID
+  || 'user_pixelhunter';
 
 function authHeaders(userId = DEV_USER_ID) {
   const telegramInitData = window.Telegram?.WebApp?.initData?.trim();

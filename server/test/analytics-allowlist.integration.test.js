@@ -28,7 +28,7 @@ async function request(path, { userId, method = 'GET', body } = {}) {
   return { response, json };
 }
 
-test('analytics allowlist accepts special help onboarding events', async (t) => {
+test('analytics allowlist accepts special help and core-feel experiment events', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'splint-analytics-allowlist-'));
   const server = spawn('node', ['index.js'], {
     cwd: serverDir,
@@ -76,10 +76,29 @@ test('analytics allowlist accepts special help onboarding events', async (t) => 
   assert.equal(opened.response.status, 200);
   assert.equal(opened.json.success, true);
 
+  for (const event of [
+    'core_feel_experiment_open',
+    'core_feel_first_handmade_action',
+    'core_feel_resume_action',
+    'core_feel_manual_fragment_reveal',
+    'core_feel_next_beat_selected',
+    'core_feel_session_stop',
+  ]) {
+    const tracked = await request('/meta/analytics', {
+      userId,
+      method: 'POST',
+      body: { event, payload: { id: 'color_astro-whale', variant: 'b' } },
+    });
+    assert.equal(tracked.response.status, 200, `${event} must remain accepted`);
+    assert.equal(tracked.json.success, true);
+  }
+
   const summary = await request('/meta/analytics/summary', { userId });
   assert.equal(summary.response.status, 200);
   assert.equal(summary.json.special_help_hint_shown, 1);
   assert.equal(summary.json.special_help_opened, 1);
+  assert.equal(summary.json.core_feel_experiment_open, 1);
+  assert.equal(summary.json.core_feel_manual_fragment_reveal, 1);
 
   const unknown = await request('/meta/analytics', {
     userId,
