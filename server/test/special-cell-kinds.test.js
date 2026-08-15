@@ -299,16 +299,16 @@ test('generateSpecialCells mix is deterministic, seeded, and quota-bounded', () 
     assert.ok(SPECIAL_KINDS.includes(cell.kind), `unexpected kind ${cell.kind}`);
     counts.set(cell.kind, (counts.get(cell.kind) || 0) + 1);
   }
-  const sharedKinds = SPECIAL_KINDS.filter((kind) => kind !== HAZARD_KIND);
+  const sharedKinds = SPECIAL_KINDS.filter((kind) => kind !== HAZARD_KIND && kind !== CHOICE_KIND);
   for (const kind of sharedKinds) {
     assert.ok(counts.has(kind), `large mix does not contain ${kind}`);
   }
   assert.equal(counts.has(HAZARD_KIND), false, 'shared mixed cells do not contain hazard');
+  assert.equal(counts.has(CHOICE_KIND), false, 'new production generation omits ceremonial generic Choice');
   const sparkShare = counts.get(SPARK_KIND) / first.length;
   assert.ok(sparkShare >= 0.15 && sparkShare <= 0.2,
     `full-target Spark stays within the 15-20% assisted-progress mix band, got ${sparkShare}`);
   assert.ok(counts.get(BOMB_KIND) > counts.get(SPARK_KIND), 'Bomb carries the calm common-event baseline');
-  assert.ok(counts.get(BOMB_KIND) > counts.get(CHOICE_KIND), 'Bomb remains more common than Choice');
   assert.ok(counts.get(ARTIFACT_KIND) / first.length <= 0.1, 'Artifact stays rare');
 
   const variants = ['alpha', 'beta', 'gamma', 'delta', 'epsilon']
@@ -360,7 +360,7 @@ test('density and effect cap constants remain unchanged and cohort assignment st
   assert.equal(SPARK_DENSITY_CELLS, 6000);
   assert.equal(SPARK_MAX_CELLS, 512);
   assert.equal(SPECIAL_MAX_DERIVED_CHANGES, 32);
-  assert.equal(SPECIAL_GAMEPLAY_GENERATION_VERSION, 4);
+  assert.equal(SPECIAL_GAMEPLAY_GENERATION_VERSION, 5);
 
   const first = getSparkExperimentGroup('user-special-kinds', 'template-special-kinds');
   const second = getSparkExperimentGroup('user-special-kinds', 'template-special-kinds');

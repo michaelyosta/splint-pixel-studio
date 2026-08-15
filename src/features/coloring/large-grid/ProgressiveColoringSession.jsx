@@ -20,6 +20,7 @@ import {
   isSpecialCellsDiagnosticsEnabled,
 } from '../../../lib/specialCellsDiagnostics.js';
 import { createBoundedAnnouncer, formatPaletteState, moveKeyboardCursor } from '../../../lib/accessibility.js';
+import { autoSparkActionForOffer } from '../../../lib/specialCellsGameplay.js';
 import SpecialCellsDevHud from '../SpecialCellsDevHud.jsx';
 import {
   GRID_LOD_MODE,
@@ -188,44 +189,6 @@ function offerKind(specialOffer) {
   // Existing server offers have no kind yet; fall back to the proven spark
   // contract so this slice never invents or fakes a new field.
   return specialOffer?.kind ? String(specialOffer.kind).toLowerCase() : 'spark';
-}
-
-function sparkTargetBounds(target) {
-  const bounds = target?.bounds || {};
-  const minX = Number(bounds.min_x);
-  const minY = Number(bounds.min_y);
-  const maxX = Number(bounds.max_x);
-  const maxY = Number(bounds.max_y);
-  if (![minX, minY, maxX, maxY].every(Number.isFinite)) return null;
-  return {
-    minX, minY, maxX, maxY,
-    width: Math.max(0, maxX - minX + 1),
-    height: Math.max(0, maxY - minY + 1),
-  };
-}
-
-function SparkTargetPreview({ target, optionId }) {
-  const bounds = sparkTargetBounds(target);
-  const estimated = Number(target?.estimated_cells);
-  if (!bounds || !Number.isFinite(estimated)) return null;
-  return (
-    <span
-      className="progressive-grid-spark-target-preview"
-      data-spark-target-preview
-      data-spark-target-option={optionId}
-      data-spark-bounds={`${bounds.minX},${bounds.minY},${bounds.maxX},${bounds.maxY}`}
-      data-spark-estimated-cells={String(estimated)}
-    >
-      <span className="progressive-grid-spark-target-map" aria-hidden="true">
-        <span style={{ width: `${Math.min(100, Math.max(12, bounds.width / 12 * 100))}%`, height: `${Math.min(100, Math.max(12, bounds.height / 12 * 100))}%` }} />
-      </span>
-      <span className="progressive-grid-spark-target-copy">
-        <b>Target {String(optionId).toUpperCase()}</b>
-        <small>x:{bounds.minX}–{bounds.maxX} · y:{bounds.minY}–{bounds.maxY}</small>
-        <small>{bounds.width}×{bounds.height} window · {estimated} cells</small>
-      </span>
-    </span>
-  );
 }
 
 const BOMB_CENTER_NUDGE_LIMIT = 6;
@@ -489,62 +452,26 @@ function SpecialOfferPanel({ specialOffer, onSpecialAction, cameraRef, sizeRef, 
     );
   }
   if (!Array.isArray(specialOffer.target_options)) return null;
-  const supported = visual.supported;
-  const unsupportedHint = 'Этот эффект ещё недоступен';
-  const targetOptions = specialOffer.target_options.slice(0, 2);
+  const target = specialOffer.target_options.find((option) => (
+    option.option_id === specialOffer.default_option_id
+  )) || specialOffer.target_options[0];
+  const estimated = Math.max(0, Number(target?.estimated_cells) || 0);
   return (
     <div
       className="progressive-grid-special-offer progressive-grid-spark-offer"
-      role="group"
-      aria-label={visual.groupLabel}
+      role="status"
+      aria-live="polite"
+      aria-label="Искра применяется автоматически"
       data-special-kind={kind}
-      data-special-supported={supported ? 'true' : 'false'}
+      data-special-supported="true"
+      data-special-auto-apply="true"
+      data-special-interaction-cost="0"
     >
-      <span className="progressive-grid-special-title">{visual.title}</span>
+      <span className="progressive-grid-special-title">Искра заряжается…</span>
       <span className="progressive-grid-special-kind" aria-hidden="true">{visual.label}</span>
       <span className="progressive-grid-special-detail progressive-grid-spark-contract" data-spark-target-contract>
-        Server-selected 12×12 Smart target · exact bounds · up to 144 cells
+        Сервер выбрал трудоёмкий участок · {estimated} клеток
       </span>
-      {targetOptions.map((option, index) => {
-        const optionId = option.option_id || (index === 0 ? 'a' : 'b');
-        return (
-          <button
-            key={optionId}
-            className="progressive-grid-spark-target-option"
-            type="button"
-            data-special-option={optionId}
-            data-special-action="use"
-            disabled={!supported}
-            title={supported ? visual.useLabel : unsupportedHint}
-            onClick={supported ? () => onSpecialAction?.({
-              type: 'use_spark',
-              special_id: specialOffer.special_id,
-              offer_token: specialOffer.offer_token,
-              option_id: optionId,
-              camera_center: guidanceCameraCenter(cameraRef.current, sizeRef.current, CELL_SIZE),
-              experiment_group: 'treatment',
-            }) : undefined}
-          >
-            <SparkTargetPreview target={option} optionId={optionId} />
-            <span className="progressive-grid-spark-target-cta">Use target {String(optionId).toUpperCase()}</span>
-          </button>
-        );
-      })}
-      <button
-        type="button"
-        className="progressive-grid-special-skip"
-        data-special-action="skip"
-        disabled={!supported}
-        title={supported ? 'Пропустить' : unsupportedHint}
-        onClick={supported ? () => onSpecialAction?.({
-          type: 'skip_spark',
-          special_id: specialOffer.special_id,
-          offer_token: specialOffer.offer_token,
-          experiment_group: 'treatment',
-        }) : undefined}
-      >
-        Пропустить
-      </button>
     </div>
   );
 }
@@ -643,9 +570,22 @@ export default function ProgressiveColoringSession({
   const selectedColorRef = useRef(selectedColor);
   const guidanceBootstrappedRef = useRef(false);
   const previousSpecialOfferRef = useRef(null);
+  const autoSparkOfferKeyRef = useRef('');
   const wrongNoticeTimerRef = useRef(null);
   const successNoticeTimerRef = useRef(null);
   const keyboardCellRef = useRef(null);
+
+  useEffect(() => {
+    const action = autoSparkActionForOffer(specialOffer);
+    if (!action || typeof onSpecialAction !== 'function') {
+      if (!specialOffer) autoSparkOfferKeyRef.current = '';
+      return;
+    }
+    const key = `${action.special_id}:${action.offer_token}:${action.option_id}`;
+    if (autoSparkOfferKeyRef.current === key) return;
+    autoSparkOfferKeyRef.current = key;
+    void onSpecialAction(action);
+  }, [specialOffer, onSpecialAction]);
   const diagnosticsRef = useRef(null);
   const [diagnostics, setDiagnostics] = useState(null);
   const instructionsId = useId();

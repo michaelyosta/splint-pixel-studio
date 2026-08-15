@@ -92,6 +92,7 @@ async function startServer(t, cohort) {
       SPECIAL_CELLS_QA_OVERRIDE: 'true',
       SPECIAL_CELLS_QA_USER_ID: 'user_choice_concurrent_offer,user_choice_concurrent_replay,user_special_offer_barrier,user_choice_stale_revision,user_artifact_idempotency,user_artifact_completion,user_choice_completion,user_control_choice_artifact',
       SPECIAL_CELLS_DIAGNOSTICS: 'true',
+      SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE: 'true',
       RATE_LIMIT_MAX: '10000',
       RENDER_OUTBOX_ENABLED: 'false',
     },

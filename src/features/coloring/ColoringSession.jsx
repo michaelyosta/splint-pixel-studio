@@ -14,6 +14,7 @@ import {
   isTargetConsideredDone, normalizeSafeArea, resolveColorTransition, resolveNextOutcome,
 } from './engine/routeTargeting.js';
 import { createBoundedAnnouncer } from '../../lib/accessibility.js';
+import { autoSparkActionForOffer } from '../../lib/specialCellsGameplay.js';
 import {
   getCoreFeelFragmentForColor,
   getNextCoreFeelFragment,
@@ -118,6 +119,7 @@ export default function ColoringSession({
   const claimedSpecialsRef = useRef(new Set());
   const resumedTargetRef = useRef(resumeSnapshot?.smartTarget || null);
   const persistedTargetIdRef = useRef(null);
+  const autoSparkOfferKeyRef = useRef('');
   const specialTreatment = specialCohort === 'treatment';
   const coreFeelActive = isCoreFeelReference(coreFeelExperiment, template);
   const enhancedCoreFeel = coreFeelActive && coreFeelExperiment.variant?.enhanced;
@@ -125,6 +127,18 @@ export default function ColoringSession({
   const activeSpecial = specialOffer
     ? specialCells.find((special) => special.id === specialOffer.special_id)
     : null;
+
+  useEffect(() => {
+    const action = autoSparkActionForOffer(specialOffer);
+    if (!action || typeof onSpecialAction !== 'function') {
+      if (!specialOffer) autoSparkOfferKeyRef.current = '';
+      return;
+    }
+    const key = `${action.special_id}:${action.offer_token}:${action.option_id}`;
+    if (autoSparkOfferKeyRef.current === key) return;
+    autoSparkOfferKeyRef.current = key;
+    void onSpecialAction(action);
+  }, [specialOffer, onSpecialAction]);
 
   const safeArea = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
   const [safeAreaState, setSafeAreaState] = useState(safeArea.current);
@@ -1369,35 +1383,20 @@ export default function ColoringSession({
             ))}
           </div>
         )}
-        {specialTreatment && specialOffer && !specialOffer.kind && Array.isArray(specialOffer.target_options) && (
-          <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" aria-label="Выберите участок для Spark">
-            <span className="progressive-grid-special-title">Искра: выбрать участок</span>
-            {specialOffer.target_options.slice(0, 2).map((option, index) => (
-              <button
-                key={option.option_id || index}
-                type="button"
-                data-special-option={option.option_id || (index === 0 ? 'a' : 'b')}
-                onClick={() => onSpecialAction?.({
-                  type: 'use_spark',
-                  special_id: specialOffer.special_id,
-                  offer_token: specialOffer.offer_token,
-                  option_id: option.option_id || (index === 0 ? 'a' : 'b'),
-                  experiment_group: 'treatment',
-                })}
-              >
-                Участок {index === 0 ? 'A' : 'B'} · {option.estimated_cells} клеток
-              </button>
-            ))}
-            <button
-              type="button"
-              className="progressive-grid-special-skip"
-              onClick={() => onSpecialAction?.({
-                type: 'skip_spark',
-                special_id: specialOffer.special_id,
-                offer_token: specialOffer.offer_token,
-                experiment_group: 'treatment',
-              })}
-            >Пропустить</button>
+        {specialTreatment && autoSparkActionForOffer(specialOffer) && (
+          <div
+            className="progressive-grid-special-offer legacy-grid-special-offer"
+            role="status"
+            aria-live="polite"
+            aria-label="Искра применяется автоматически"
+            data-special-kind="spark"
+            data-special-auto-apply="true"
+            data-special-interaction-cost="0"
+          >
+            <span className="progressive-grid-special-title">Искра заряжается…</span>
+            <span className="progressive-grid-special-detail">
+              Сервер выбрал трудоёмкий участок · {specialOffer.target_options?.[0]?.estimated_cells || 0} клеток
+            </span>
           </div>
         )}
         {specialTreatment && specialDiscovered && !specialOffer && (
