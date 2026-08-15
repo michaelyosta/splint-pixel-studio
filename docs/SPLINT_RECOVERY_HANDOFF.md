@@ -67,7 +67,7 @@ The creator now offers on-demand actual converter previews for 192, 512, 1024, a
 
 Exact-save Chromium evidence decodes the real preview PNG, samples pixels against the submitted palette/cells, and compares the stored tile. Resolution race protection and 192 tiled save/open pass. Mobile 390/430 visual screenshots are under `docs/evidence/creator-preview-recovery/`.
 
-Focused preview/worker tests: 23/23 before integration and 39/39 combined pixel/preview/evaluator after repair. Targeted creator E2E (`6a`, `6b`, `6c`): 3/3. A broader creator suite was 24/25; the one failure is an unrelated legacy completion-flow navigation expectation (`.player-page` after gallery click), retained as an open regression rather than hidden.
+Focused preview/worker tests: 23/23 before integration and 39/39 combined pixel/preview/evaluator after repair. Targeted creator E2E (`6a`, `6b`, `6c`): 3/3. The full creator Chromium suite is now 23/23, including explicit opening of a completed artwork from Gallery into the completion overlay.
 
 Preview is kernel/style configurable and does not claim a paintable artistic winner. A paintable request above 512 must be surfaced as unavailable/limited; classic remains the high-resolution fallback.
 
@@ -103,11 +103,11 @@ Stars payments, ledger/payment endpoints, and future business architecture were 
 
 ## Files, branches, and commits
 
-Integrated branch: `codex/splint-recovery-quality`, current commit `c5a2e49`, based on `5d21fd6`; `bf4a83a` is the final code integration immediately before this handoff document.
+Integrated branch: `codex/splint-recovery-quality`, current commit `c814856`, based on `5d21fd6`; `c814856` closes the explicit completed-artwork Gallery route regression found during final audit.
 
 Recovery commits in order:
 
-`4034dfa`, `9790e10`, `9a6d384`, `110f136`, `8dc0399`, `5b0df5a`, `f24c047`, `6041393`, `a03d27f`, `3e8facc`, `af4a631`, `568e468`, `d73c40a`, `bf4a83a`.
+`4034dfa`, `9790e10`, `9a6d384`, `110f136`, `8dc0399`, `5b0df5a`, `f24c047`, `6041393`, `a03d27f`, `3e8facc`, `af4a631`, `568e468`, `d73c40a`, `bf4a83a`, `c814856`.
 
 Supporting worktrees remain available and were not pushed:
 
@@ -127,6 +127,7 @@ The original dirty worktree `C:\Users\misa\Desktop\Splint-Gemini` on `codex/conc
 - Pixel/preview/evaluator focused: **39/39 PASS**.
 - Specials focused: **62/62 PASS**; browser: **5/5 PASS**.
 - Creator exact-path E2E: **3/3 PASS**; mobile visual checks were 2/2 in the preview worktree.
+- Full creator Chromium E2E: **23/23 PASS**.
 - Build: PASS; main bundle warning remains (`>500 KB`).
 - Lint: PASS within existing warning budget (`97/100` at final integration); no recovery claim treats warnings as zero.
 - `git diff --check`: PASS.
@@ -134,7 +135,7 @@ The original dirty worktree `C:\Users\misa\Desktop\Splint-Gemini` on `codex/conc
 
 ## GitHub checkpoint / PR plan
 
-`origin` is `https://github.com/michaelyosta/splint-pixel-studio.git`. The recovery branch is local-only, has no upstream tracking, is 42 commits ahead of `origin/main` and 1 commit behind it at this checkpoint. Do not merge `main` automatically and do not push this branch without owner approval.
+`origin` is `https://github.com/michaelyosta/splint-pixel-studio.git`. The recovery branch is local-only, has no upstream tracking, is 45 commits ahead of `origin/main` and 1 commit behind it at this checkpoint. Do not merge `main` automatically and do not push this branch without owner approval.
 
 Recommended checkpoint:
 
@@ -150,6 +151,6 @@ Recommended checkpoint:
 - Should classic remain the production default while paintable stays an opt-in experiment?
 - Does automatic Spark create enough spectacle/relief to justify the zero-decision flow?
 - Does Safari standalone restore the exact artwork/camera after backgrounding, BFCache return, and process eviction?
-- Is the unrelated legacy completion-flow E2E/navigation failure a recovery blocker for the next PR?
+- Is the completed-artwork completion overlay behavior acceptable on the owner’s device, in addition to the now-passing Chromium regression proof?
 
 No PRODUCT-PHASE-2 work was started. After owner review, this recovery thread should stop and hand decisions back to the main Product chat.
