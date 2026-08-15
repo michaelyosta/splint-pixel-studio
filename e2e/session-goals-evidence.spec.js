@@ -26,8 +26,9 @@ async function dismissOnboarding(page) {
   if (await skip.isVisible().catch(() => false)) await skip.click({ force: true });
 }
 
-async function openFirstCatalogPlayer(page) {
-  await page.goto('/');
+async function openFirstCatalogPlayer(page, search = '') {
+  const query = String(search).replace(/^\?/, '');
+  await page.goto(query ? `/?${query}` : '/');
   const card = page.locator('.home-featured-card, .home-continue-card, .home-art-card').first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();
@@ -134,7 +135,7 @@ test.describe('Session goals visual evidence', () => {
       await page.context().setExtraHTTPHeaders({ 'X-User-Id': `e2e_goals_evidence_${viewport.width}` });
       await primeLocalStorage(page);
       await page.setViewportSize(viewport);
-      await openFirstCatalogPlayer(page);
+      await openFirstCatalogPlayer(page, 'sessionGoals=control');
 
       const card = page.locator('.session-goal-card');
       await expect(card).toBeVisible({ timeout: 5000 });

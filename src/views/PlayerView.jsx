@@ -23,6 +23,10 @@ import {
 } from '../lib/specialHelp';
 import { isLargeGridTemplate } from '../lib/tileGrid';
 import { bindTelegramBackButton } from '../lib/telegram';
+import {
+  resolveSessionGoalsExperiment,
+  SESSION_GOALS_MODES,
+} from '../features/goals/sessionGoalsExperiment';
 
 const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE !== 'false';
 
@@ -182,6 +186,8 @@ export default function PlayerView({
   coreFeelExperiment,
 }) {
   const coreFeelActive = Boolean(coreFeelExperiment?.enabled && template?.id === coreFeelExperiment.referenceTemplateId);
+  const sessionGoalsExperiment = useMemo(() => resolveSessionGoalsExperiment(), []);
+  const showSessionGoals = sessionGoalsExperiment.mode === SESSION_GOALS_MODES.CONTROL;
   const [menuOpen, setMenuOpen] = useState(false);
   const [hudHidden, setHudHidden] = useState(false);
   const startPaintTimerRef = useRef(null);
@@ -231,7 +237,7 @@ export default function PlayerView({
     isOnline,
     storage: typeof window !== 'undefined' ? window.localStorage : null,
     onTrack,
-    enabled: !coreFeelActive,
+    enabled: showSessionGoals,
   });
 
   useEffect(() => {
@@ -252,7 +258,7 @@ export default function PlayerView({
   }, [sessionGoals.celebration, template?.id, onTrack]);
 
   const handleFirstPaint = () => {
-    if (!coreFeelActive) sessionGoals.markFirstPaint();
+    if (showSessionGoals) sessionGoals.markFirstPaint();
     onFirstPaint?.();
   };
 
@@ -398,7 +404,7 @@ export default function PlayerView({
   };
 
   return (
-    <section className="page player-page">
+    <section className="page player-page" data-session-goals-mode={sessionGoalsExperiment.mode}>
       <div className={`player-topbar${coreFeelActive ? ' player-topbar--core-feel' : ''}`}>
         <button className="back-button" onClick={() => coreFeelActive ? leaveCoreFeelSession() : setView('catalog')} aria-label={coreFeelActive ? 'Завершить тест' : 'Назад'}><ChevronLeft size={18} /></button>
         <span className="player-topbar-title">{template.title}</span>
@@ -438,7 +444,7 @@ export default function PlayerView({
         </div>
       )}
 
-      {!coreFeelActive && <SessionGoalCard
+      {showSessionGoals && <SessionGoalCard
         goal={sessionGoals.view}
         reward={latestReward?.amount ? { amount: latestReward.amount } : null}
         streak={streak?.current_streak}

@@ -17,12 +17,11 @@ async function dismissOnboarding(page) {
   await expect(page.locator('.onboarding-overlay')).toHaveCount(0).catch(() => {});
 }
 
-async function openPlayer(page, coloringId = null) {
-  if (coloringId) {
-    await page.goto(`/?coloring=${encodeURIComponent(coloringId)}`);
-  } else {
-    await page.goto('/');
-  }
+async function openPlayer(page, coloringId = null, search = '') {
+  const params = new URLSearchParams(String(search).replace(/^\?/, ''));
+  if (coloringId) params.set('coloring', coloringId);
+  const target = params.toString() ? `/?${params.toString()}` : '/';
+  await page.goto(target);
   if (!coloringId) {
     const card = page.locator('.home-featured-card, .home-continue-card, .home-art-card').first();
     await expect(card).toBeVisible({ timeout: 15000 });
@@ -32,8 +31,9 @@ async function openPlayer(page, coloringId = null) {
   await dismissOnboarding(page);
 }
 
-async function openFirstCatalogPlayer(page) {
-  await page.goto('/');
+async function openFirstCatalogPlayer(page, search = '') {
+  const query = String(search).replace(/^\?/, '');
+  await page.goto(query ? `/?${query}` : '/');
   const card = page.locator('.home-featured-card, .home-continue-card, .home-art-card').first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();
@@ -130,7 +130,7 @@ test.describe('Session goals', () => {
   });
 
   test('goal is visible before paint, timer starts on first paint, and progress updates', async ({ page }) => {
-    await openFirstCatalogPlayer(page);
+    await openFirstCatalogPlayer(page, 'sessionGoals=control');
 
     const card = page.locator('.session-goal-card');
     await expect(card).toBeVisible({ timeout: 5000 });
@@ -149,7 +149,7 @@ test.describe('Session goals', () => {
   });
 
   test('offline pause freezes elapsed time and reload/reopen reconstructs the same goal without rewards', async ({ page }) => {
-    await openFirstCatalogPlayer(page);
+    await openFirstCatalogPlayer(page, 'sessionGoals=control');
 
     const card = page.locator('.session-goal-card');
     await expect(card).toBeVisible({ timeout: 5000 });
@@ -178,7 +178,7 @@ test.describe('Session goals', () => {
     const templateId = stored.key.split(':').at(-1);
     expect(templateId).toBeTruthy();
 
-    await openPlayer(page, templateId);
+    await openPlayer(page, templateId, 'sessionGoals=control');
     await expect(card).toHaveAttribute('data-goal-id', 'first-progress');
     await expect(card).toHaveAttribute('data-painted', 'true');
     await expect(card).toHaveAttribute('data-goal-status', 'paused');
@@ -200,7 +200,7 @@ test.describe('Session goals', () => {
 
   test('completing the first goal shows a server-backed celebration and the next goal without a completion modal', async ({ page }) => {
     const coloringId = await createSmallColoring(page);
-    await openPlayer(page, coloringId);
+    await openPlayer(page, coloringId, 'sessionGoals=control');
 
     let serverXp = null;
     page.on('response', async (response) => {
@@ -234,5 +234,45 @@ test.describe('Session goals', () => {
 
     await page.locator('.session-goal-next').click();
     await expect(card).toHaveAttribute('data-celebration', '');
+  });
+
+  test('default recovery treatment hides goals but preserves painting save and server revision', async ({ page }) => {
+    const coloringId = await createSmallColoring(page);
+    await openPlayer(page, coloringId);
+
+    await expect(page.locator('.player-page')).toHaveAttribute('data-session-goals-mode', 'hidden');
+    await expect(page.locator('.session-goal-card')).toHaveCount(0);
+    await expect(page.locator('.coloring-task-summary')).toBeVisible();
+    await expect(page.locator('.coloring-canvas')).toBeVisible();
+    await expect(page.locator('.coloring-dock')).toBeVisible();
+    await expect(page.locator('.save-status')).toBeVisible();
+    expect(await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('splint:session-goals:')))).toEqual([]);
+
+    const saveResponsePromise = page.waitForResponse((response) => (
+      response.url().includes('/progress/actions')
+      && response.request().method() === 'POST'
+      && response.status() === 200
+    ), { timeout: 10000 });
+    await tapActiveWorkCell(page);
+    const saveResponse = await saveResponsePromise;
+    const saved = await saveResponse.json();
+
+    expect(Number(saved.revision)).toBeGreaterThan(0);
+    expect(Array.isArray(saved.filled)).toBe(true);
+    expect(saved.filled.some((value) => Number(value) !== -1)).toBe(true);
+    expect(saved).toHaveProperty('rewards');
+    await expect(page.locator('.session-goal-card')).toHaveCount(0);
+    expect(await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('splint:session-goals:')))).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
+  test('explicit hidden treatment is deterministic and keeps the Canvas target surface', async ({ page }) => {
+    const coloringId = await createSmallColoring(page);
+    await openPlayer(page, coloringId, 'sessionGoals=hidden');
+
+    await expect(page.locator('.player-page')).toHaveAttribute('data-session-goals-mode', 'hidden');
+    await expect(page.locator('.session-goal-card')).toHaveCount(0);
+    await expect(page.locator('.coloring-task-summary')).toBeVisible();
+    await expect(page.locator('.coloring-canvas')).toBeVisible();
   });
 });
