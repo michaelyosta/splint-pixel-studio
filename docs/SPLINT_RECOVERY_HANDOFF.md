@@ -135,7 +135,7 @@ The original dirty worktree `C:\Users\misa\Desktop\Splint-Gemini` on `codex/conc
 
 ## GitHub checkpoint / PR plan
 
-`origin` is `https://github.com/michaelyosta/splint-pixel-studio.git`. The recovery branch is local-only, has no upstream tracking, is 45 commits ahead of `origin/main` and 1 commit behind it at this checkpoint. Do not merge `main` automatically and do not push this branch without owner approval.
+`origin` is `https://github.com/michaelyosta/splint-pixel-studio.git`. The recovery branch is local-only, has no upstream tracking, and is diverged from `origin/main` with one origin commit not replayed; the ahead count must be refreshed immediately before any push because handoff-only commits are intentionally added after the code checkpoint. Do not merge `main` automatically and do not push this branch without owner approval.
 
 Recommended checkpoint:
 
