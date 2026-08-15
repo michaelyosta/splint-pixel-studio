@@ -196,6 +196,7 @@ test('legacy skip_spark consumes the offer and blocks re-claim', async (t) => {
   const progress = await request(`/colorings/${id}/progress`);
   const spark = progress.json.specials[0];
   const { claimed } = await claimSpark(request, id, spark, 0, 'legacy-skip-claim-001');
+  assert.ok(claimed.json.updated_at);
 
   const skipBody = {
     revision: claimed.json.revision,
@@ -211,6 +212,7 @@ test('legacy skip_spark consumes the offer and blocks re-claim', async (t) => {
   assert.equal(skipped.response.status, 200);
   assert.equal(skipped.json.special_discovered, null);
   assert.equal(skipped.json.revision, claimed.json.revision);
+  assert.equal(skipped.json.updated_at, claimed.json.updated_at);
 
   const skipReplay = await request(`/colorings/${id}/progress/actions`, { method: 'POST', body: skipBody });
   assert.equal(skipReplay.response.status, 200);

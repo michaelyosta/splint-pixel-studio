@@ -32,7 +32,8 @@ async function loadUnfinishedTemplates(db, userId) {
     SELECT t.id, t.title, t.preview_url, t.width, t.height, t.est_minutes,
            t.difficulty, t.theme, t.collection_id, t.storage_mode,
            p.filled_json,
-           tp.completed_cells
+           tp.completed_cells,
+           CASE WHEN t.storage_mode='tiled' THEN tp.updated_at ELSE p.updated_at END AS last_activity_at
     FROM coloring_templates t
     LEFT JOIN coloring_progress p ON p.template_id=t.id AND p.user_id=?
     LEFT JOIN coloring_tiled_progress tp ON tp.template_id=t.id AND tp.user_id=?
@@ -44,16 +45,19 @@ async function loadUnfinishedTemplates(db, userId) {
   const unfinished = [];
   for (const row of rows) {
     let percent = 0;
+    let completedCells = 0;
+    const totalCells = Math.max(1, toNumber(row.width, 1) * toNumber(row.height, 1));
     if (row.storage_mode === 'tiled') {
-      const total = Math.max(1, toNumber(row.width, 1) * toNumber(row.height, 1));
-      percent = clampPercent((toNumber(row.completed_cells, 0) / total) * 100);
+      completedCells = Math.max(0, toNumber(row.completed_cells, 0));
+      percent = clampPercent((completedCells / totalCells) * 100);
     } else {
       const filled = parseFilled(row.filled_json);
-      const total = Math.max(1, toNumber(row.width, 1) * toNumber(row.height, 1));
-      const done = filled.filter((color) => toNumber(color, -1) !== -1).length;
-      percent = clampPercent((done / total) * 100);
+      completedCells = filled.filter((color) => toNumber(color, -1) !== -1).length;
+      percent = clampPercent((completedCells / totalCells) * 100);
     }
-    if (percent <= 0 || percent >= 100) continue;
+    // Do not use rounded percent for eligibility: one committed cell in a
+    // 1200x1200 artwork legitimately rounds to 0%, but is still resumable.
+    if (completedCells <= 0 || completedCells >= totalCells) continue;
     unfinished.push({
       id: row.id,
       title: row.title,
@@ -66,9 +70,15 @@ async function loadUnfinishedTemplates(db, userId) {
       collection_id: row.collection_id || null,
       storage_mode: row.storage_mode || 'legacy',
       percent,
+      last_activity_at: row.last_activity_at || null,
     });
   }
-  return unfinished.sort((first, second) => second.percent - first.percent);
+  return unfinished.sort((first, second) => {
+    const firstTime = Date.parse(first.last_activity_at || '') || 0;
+    const secondTime = Date.parse(second.last_activity_at || '') || 0;
+    if (secondTime !== firstTime) return secondTime - firstTime;
+    return String(first.id).localeCompare(String(second.id));
+  });
 }
 
 function templateAction(template, type, reason, reward = null) {
@@ -85,6 +95,7 @@ function templateAction(template, type, reason, reward = null) {
       : 'Первая раскрытая картина'),
     difficulty: template.difficulty || 'easy',
     progress_percent: template.percent || 0,
+    last_activity_at: template.last_activity_at || null,
   };
 }
 

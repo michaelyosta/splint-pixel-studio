@@ -337,6 +337,7 @@ export function tiledProgressPayload(template, row, artworkId = null) {
     total_cells: totalCells,
     percent: Math.round((completedCells / totalCells) * 100),
     completed_at: row?.completed_at || null,
+    updated_at: row?.updated_at || null,
     artwork_id: artworkId,
   };
 }

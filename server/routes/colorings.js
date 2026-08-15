@@ -385,6 +385,7 @@ function progressPayload(template, row, artworkId = null) {
     completed_cells: completedCount,
     total_cells: template.cells.length,
     percent: Math.round((completedCount / template.cells.length) * 100),
+    updated_at: compatible ? (row?.updated_at ?? null) : null,
     artwork_id: artworkId,
   };
 }
@@ -2009,9 +2010,16 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
         filled[change.index] = change.color;
       }
       const completed = isComplete(template, filled);
+      const isNonProgressSpecialSkip = ['skip_spark', 'skip_fuse', 'skip_hazard'].includes(specialAction?.type);
       const nextRevision = specialAction?.type === 'skip_spark'
         || specialAction?.type === 'skip_hazard' ? clientRevision : clientRevision + 1;
       const completedAt = completed ? (existing?.completed_at || now) : null;
+      // Skipping an offered special is a session decision, not meaningful
+      // painting activity. Keep the previous progress timestamp so Continue
+      // remains anchored to the last accepted paint/reveal commit.
+      const activityAt = isNonProgressSpecialSkip && existing?.updated_at
+        ? existing.updated_at
+        : now;
       let artworkId = null;
       let renderArtifact = null;
       let renderStatus = null;
@@ -2019,7 +2027,7 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
       if (existing) {
         const updateResult = await tx.run(
           'UPDATE coloring_progress SET filled_json=?, revision=?, completed_at=?, updated_at=? WHERE user_id=? AND template_id=? AND revision=?',
-          [JSON.stringify(filled), nextRevision, completedAt, now, req.userId, template.id, clientRevision],
+          [JSON.stringify(filled), nextRevision, completedAt, activityAt, req.userId, template.id, clientRevision],
         );
 
         if (updateResult.changes === 0) {

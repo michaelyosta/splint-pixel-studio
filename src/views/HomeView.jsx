@@ -33,6 +33,17 @@ function browseAction() {
   };
 }
 
+function hasUnfinishedProgress(item) {
+  const progress = item?.progress;
+  if (!progress) return false;
+  const completed = Number(progress.completed_cells);
+  const total = Number(progress.total_cells);
+  if (Number.isFinite(completed) && Number.isFinite(total) && total > 0) {
+    return completed > 0 && completed < total;
+  }
+  return progress.percent > 0 && progress.percent < 100;
+}
+
 function dailyFallback(dailyChallenge) {
   if (!dailyChallenge?.template_id) return null;
   const target = Math.max(1, Number(dailyChallenge.target_cells) || 1);
@@ -65,8 +76,13 @@ export default function HomeView({
   onTrack,
 }) {
   const continueItem = mine
-    .filter((item) => item.progress?.percent > 0 && item.progress.percent < 100)
-    .sort((first, second) => second.progress.percent - first.progress.percent)[0];
+    .filter(hasUnfinishedProgress)
+    .sort((first, second) => {
+      const firstActivity = Date.parse(first.progress?.updated_at || '') || 0;
+      const secondActivity = Date.parse(second.progress?.updated_at || '') || 0;
+      if (secondActivity !== firstActivity) return secondActivity - firstActivity;
+      return String(first.id).localeCompare(String(second.id));
+    })[0];
   const featured = today?.for_you || templates[0];
   const directorPrimary = director?.nextAction?.primary_action || null;
   const primary = directorPrimary
