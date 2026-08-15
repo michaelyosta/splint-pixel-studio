@@ -430,7 +430,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.getByRole('button', { name: 'Профиль', exact: true }).click();
     await page.getByRole('button', { name: 'Смотреть все' }).click();
     await expect(page.locator('.gallery-list')).toBeVisible({ timeout: 10000 });
-    await page.locator('.gallery-row').first().click();
+    await page.locator('.gallery-row').filter({ hasText: 'Completion flow fixture' }).click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
 
     // Completion overlay should appear with all buttons

@@ -470,9 +470,10 @@ export function useColoringSession({
       })
         ? persistedResume
         : persistedResume?.artworkId === nextTemplate.id ? persistedResume : null;
+      const resumeHome = Boolean(usePersistedResume && requestedResume?.route === 'home');
       const nextResume = mergeResumeSnapshot(compatibleResume, {
         artworkId: nextTemplate.id,
-        route: nextProgress.percent >= 100 && usePersistedResume ? 'home' : 'play',
+        route: resumeHome ? 'home' : 'play',
         progressRevision: nextProgress.revision,
         pendingSave: Boolean(compatibleResume?.pendingSave),
         // A Smart target from a different server revision is not trusted. The
@@ -547,7 +548,7 @@ export function useColoringSession({
       coreFeelResumeRef.current = coreFeelActive
         && (nextProgress.filled || []).some((value) => value !== -1);
       sessionStartRef.current = Date.now();
-      onNavigate(nextProgress.percent >= 100 && usePersistedResume ? 'home' : 'play');
+      onNavigate(resumeHome ? 'home' : 'play');
       if (nextTemplate.unlock_granted || nextTemplate.unlock_state === 'owned') {
         unlockRefreshedRef.current.add(nextTemplate.id);
         onUnlockRefresh();
