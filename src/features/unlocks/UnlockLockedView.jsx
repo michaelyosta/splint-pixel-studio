@@ -21,7 +21,7 @@ export default function UnlockLockedView({
   const readyNow = unlock.state === UNLOCK_STATES.AVAILABLE || unlock.unlockable_now;
 
   return (
-    <section className="page unlock-locked-page" data-unlock-locked="true" data-locked-state={unlock.state} data-locked-reason={unlock.reason_code}>
+    <section className="page unlock-locked-page" data-unlock-locked="true" data-locked-state={unlock.state} data-locked-reason={unlock.reason_code} data-locked-requirement-count={requirements.length}>
       <div className="player-topbar unlock-locked-topbar">
         <button className="back-button" type="button" onClick={onBack} aria-label="Назад в каталог">
           <ChevronLeft size={18} aria-hidden="true" />
@@ -41,37 +41,39 @@ export default function UnlockLockedView({
       </div>
 
       <div className="unlock-locked-requirements">
-        <h2>{premium ? 'Сейчас недоступно' : 'Что нужно, чтобы открыть'}</h2>
-        {requirements.length ? requirements.map((requirement, index) => {
-          const formatted = formatRequirement(requirement);
-          if (!formatted) return null;
-          return (
-            <div
-              className={`unlock-requirement${formatted.satisfied ? ' is-satisfied' : ''}`}
-              key={`${formatted.rule_type}-${formatted.target_value}-${index}`}
-              data-requirement-type={formatted.rule_type}
-              data-satisfied={formatted.satisfied ? 'true' : 'false'}
-            >
-              <div className="unlock-requirement-head">
-                <span><b>{formatted.label}</b><small>{formatted.progressText}</small></span>
-                <strong>{formatted.percent}%</strong>
-              </div>
-              <span
-                className="unlock-requirement-track"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={formatted.percent}
-                aria-label={`${formatted.label}: ${formatted.percent}%`}
+        {premium ? <p className="unlock-locked-static-status">Этот контент сейчас недоступен.</p> : <>
+          <h2>Что нужно, чтобы открыть</h2>
+          {requirements.length ? requirements.map((requirement, index) => {
+            const formatted = formatRequirement(requirement);
+            if (!formatted) return null;
+            return (
+              <div
+                className={`unlock-requirement${formatted.satisfied ? ' is-satisfied' : ''}`}
+                key={`${formatted.rule_type}-${formatted.target_value}-${index}`}
+                data-requirement-type={formatted.rule_type}
+                data-satisfied={formatted.satisfied ? 'true' : 'false'}
               >
-                <i style={{ width: `${formatted.percent}%` }} />
-              </span>
-              <p className="unlock-requirement-action">{formatted.nextAction}</p>
-            </div>
-          );
-        }) : (
-          <p className="unlock-locked-empty">Условия появятся после первого прогресса.</p>
-        )}
+                <div className="unlock-requirement-head">
+                  <span><b>{formatted.label}</b><small>{formatted.progressText}</small></span>
+                  <strong>{formatted.percent}%</strong>
+                </div>
+                <span
+                  className="unlock-requirement-track"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={formatted.percent}
+                  aria-label={`${formatted.label}: ${formatted.percent}%`}
+                >
+                  <i style={{ width: `${formatted.percent}%` }} />
+                </span>
+                <p className="unlock-requirement-action">{formatted.nextAction}</p>
+              </div>
+            );
+          }) : (
+            <p className="unlock-locked-empty">Условия появятся после первого прогресса.</p>
+          )}
+        </>}
       </div>
 
       <div className="unlock-locked-actions">

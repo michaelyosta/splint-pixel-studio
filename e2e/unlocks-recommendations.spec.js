@@ -164,13 +164,38 @@ test.describe('Unlocks and recommendations', () => {
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
   });
 
+  test('normal collection navigation hides premium entries from collection surfaces', async ({ page }) => {
+    await openHome(page);
+    const rawCollectionsResponse = await page.request.get('/api/meta/collections');
+    expect(rawCollectionsResponse.ok()).toBe(true);
+    const rawCollections = await rawCollectionsResponse.json();
+    expect(rawCollections.some((collection) => collection.pack_type === 'premium')).toBe(true);
+    const freeCollections = rawCollections.filter((collection) => collection.pack_type !== 'premium');
+
+    await page.locator('.home-explore-row').getByRole('button', { name: 'Коллекции', exact: true }).click();
+    await expect(page.locator('.collection-list')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.collection-card')).toHaveCount(freeCollections.length);
+    await expect(page.locator('.collection-list')).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
+
+    await page.getByRole('button', { name: 'Профиль', exact: true }).first().click();
+    await expect(page.locator('.profile-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.profile-collection-list')).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
+
+    await page.getByRole('button', { name: 'Каталог', exact: true }).first().click();
+    await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.catalog-chips')).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
+  });
+
   test('premium direct ID shows a neutral unavailable state without payment CTA', async ({ page }) => {
     await openDirectId(page, 'color_premium_whale');
     const locked = page.locator('[data-unlock-locked="true"]');
     await expect(locked).toBeVisible({ timeout: 10000 });
     await expect(locked).toHaveAttribute('data-locked-state', 'premium_locked');
     await expect(locked).toHaveAttribute('data-locked-reason', 'PREMIUM_REQUIRED');
-    await expect(locked.locator('[data-requirement-type="premium"]')).toBeVisible();
+    await expect(locked.locator('[data-requirement-type="premium"]')).toHaveCount(0);
+    await expect(locked).toHaveAttribute('data-locked-requirement-count', '1');
+    await expect(locked.locator('[role="progressbar"]')).toHaveCount(0);
+    await expect(locked).not.toContainText(/\d+%/);
     await expect(locked).toContainText('Контент сейчас недоступен');
     await expect(locked).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
     await expect(locked.getByRole('button', { name: /Как купить Premium/i })).toHaveCount(0);
