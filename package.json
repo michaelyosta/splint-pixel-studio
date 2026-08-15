@@ -8,6 +8,7 @@
     "dev:api": "npm --prefix server run dev:local",
     "build": "vite build",
     "catalog:build": "python server/scripts/build-catalog-assets.py",
+    "benchmark:pixelization": "node scripts/pixelization-corpus-benchmark.mjs",
     "lint": "node scripts/lint-warning-budget.mjs",
     "lint:raw": "oxlint",
     "test": "node --test \"test/*.test.js\" \"src/lib/*.test.js\"",
