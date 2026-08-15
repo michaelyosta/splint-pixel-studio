@@ -64,6 +64,8 @@ export default function ColoringSession({
   progress,
   selectedColor,
   onSelectColor,
+  resumeSnapshot = null,
+  onResumeStateChange,
   onSaveProgress,
   onFirstPaint,
   onWrongCell,
@@ -114,6 +116,8 @@ export default function ColoringSession({
   }
   const announcedTargetKeyRef = useRef('');
   const claimedSpecialsRef = useRef(new Set());
+  const resumedTargetRef = useRef(resumeSnapshot?.smartTarget || null);
+  const persistedTargetIdRef = useRef(null);
   const specialTreatment = specialCohort === 'treatment';
   const coreFeelActive = isCoreFeelReference(coreFeelExperiment, template);
   const enhancedCoreFeel = coreFeelActive && coreFeelExperiment.variant?.enhanced;
@@ -135,7 +139,13 @@ export default function ColoringSession({
     pauseAuto, resumeAuto, focusOverview, prepareFocusOnWindow, commitFocusOnWindow,
     cancelAnimation, beginInteraction, endInteraction, setSafeArea,
     lastCenterRef, prevCenterRef,
-  } = useSmartCamera(template, containerSize.width, containerSize.height);
+  } = useSmartCamera(
+    template,
+    containerSize.width,
+    containerSize.height,
+    resumeSnapshot?.camera,
+    (nextCamera) => onResumeStateChange?.({ camera: nextCamera }),
+  );
 
   const hudSizeRef = useRef({ width: 0, height: 0 });
 
@@ -292,6 +302,11 @@ export default function ColoringSession({
     setWindowsGeneration(windowsGenerationRef.current);
   }, [progress?.filled, cancelAnimation]);
 
+  useEffect(() => {
+    resumedTargetRef.current = resumeSnapshot?.smartTarget || null;
+    persistedTargetIdRef.current = null;
+  }, [resumeSnapshot?.smartTarget, template.id]);
+
   function hasUnfilledCells() {
     if (!template) return false;
     return filledRef.current.some((color) => color === -1);
@@ -299,6 +314,24 @@ export default function ColoringSession({
 
   function syncRouteDisplay() {
     setRouteDisplay({ ...routeStateRef.current });
+    const target = routeStateRef.current.target;
+    if (target && target.id !== persistedTargetIdRef.current) {
+      persistedTargetIdRef.current = target.id;
+      onResumeStateChange?.({
+        smartTargetRevision: progress?.revision,
+        smartTarget: {
+          kind: 'legacy',
+          targetId: target.id,
+          color: target.color,
+          // Avoid persisting a truncated target: the resume validator must
+          // either revalidate the complete region or request fresh guidance.
+          workCells: Array.isArray(target.workCells) && target.workCells.length <= 4096
+            ? target.workCells
+            : null,
+          templateVersion: target.templateVersion,
+        },
+      });
+    }
   }
 
   function clearFocusWatchdog() {
@@ -804,9 +837,24 @@ export default function ColoringSession({
     safeArea.current = sa;
     setSafeArea(sa);
     visitedTargetsRef.current = new Set();
-    const best = findBestInitialTarget(wins);
+    const savedTarget = resumedTargetRef.current;
+    const canRestoreTarget = savedTarget?.kind === 'legacy'
+      && Array.isArray(savedTarget.workCells)
+      && savedTarget.workCells.length
+      && Number(resumeSnapshot?.smartTargetRevision) === Number(progress?.revision)
+      && savedTarget.color != null;
+    const best = canRestoreTarget
+      ? candidateForCells(savedTarget.workCells, template.width)
+      : findBestInitialTarget(wins);
     if (best) {
-      const result = activateTarget(best, { immediate: true, force: false, reason: 'initial', markVisited: true });
+      const result = activateTarget(best, {
+        immediate: true,
+        force: false,
+        reason: canRestoreTarget ? 'resume' : 'initial',
+        markVisited: true,
+        targetColor: canRestoreTarget ? savedTarget.color : undefined,
+      });
+      resumedTargetRef.current = null;
       if (!result.ok) {
         routeStateRef.current = { ...routeStateRef.current, status: 'error', reason: `initial:${result.reason}` };
         syncRouteDisplay();
@@ -1003,6 +1051,9 @@ export default function ColoringSession({
       if (visRem === 0 && tgtRem > 0) {
       }
     }
+  // Route persistence is a mutable session side effect; keeping the callback
+  // stable would require moving the whole route machine into a reducer.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template, onSaveProgress, onSelectColor, interactionMode, onTrack, autoState, camera, containerSize, specialCells, specialTreatment, coreFeelActive, enhancedCoreFeel, coreFeelExperiment, coreFeelBeat]);
 
   const handleWrongCell = useCallback(() => {
@@ -1092,6 +1143,7 @@ export default function ColoringSession({
   return (
     <div
       className={`coloring-session${coreFeelBeat?.status === 'revealed' ? ' core-feel-reveal-active' : ''}`}
+      data-artwork-id={template.id}
       data-route-status={routeDisplay.status}
       data-target-id={routeDisplay.targetId || ''}
       data-target-color={routeDisplay.target?.color ?? ''}

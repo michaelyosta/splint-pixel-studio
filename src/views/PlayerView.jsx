@@ -130,6 +130,8 @@ export default function PlayerView({
   onCompletionChoice,
   selectedColor,
   onSelectColor,
+  resumeSnapshot = null,
+  onResumeStateChange,
   zones,
   zoneReward,
   combo,
@@ -467,6 +469,8 @@ export default function PlayerView({
           progress={progress}
           selectedColor={selectedColor}
           onSelectColor={onSelectColor}
+          resumeSnapshot={resumeSnapshot}
+          onResumeStateChange={onResumeStateChange}
           onStrokeCommitted={onTiledStrokeCommitted}
           onSpecialAction={onTiledSpecialAction}
           specialOffer={tiledSpecialOffer}
@@ -487,6 +491,8 @@ export default function PlayerView({
           progress={progress}
           selectedColor={selectedColor}
           onSelectColor={onSelectColor}
+          resumeSnapshot={resumeSnapshot}
+          onResumeStateChange={onResumeStateChange}
           onSaveProgress={(nextFilled, operation, specialAction) => {
             declutter();
             onStrokeCommitted(nextFilled, operation, specialAction);

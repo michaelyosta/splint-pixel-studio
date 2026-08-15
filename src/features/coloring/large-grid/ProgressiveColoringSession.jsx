@@ -554,6 +554,8 @@ export default function ProgressiveColoringSession({
   progress,
   selectedColor,
   onSelectColor,
+  resumeSnapshot = null,
+  onResumeStateChange,
   onStrokeCommitted,
   onSpecialAction,
   specialOffer = null,
@@ -588,6 +590,12 @@ export default function ProgressiveColoringSession({
   const touchPointersRef = useRef(new Map());
   const gestureRef = useRef({ active: false, midpoint: null, distance: 0 });
   const initialCameraRef = useRef(false);
+  const resumeCameraRef = useRef(null);
+  const resumeCameraAppliedRef = useRef(false);
+  const resumeTargetRef = useRef(null);
+  const resumeChangeRef = useRef(onResumeStateChange);
+  resumeChangeRef.current = onResumeStateChange;
+  const pendingCameraSaveRef = useRef(null);
   const cameraSaveTimerRef = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const sizeRef = useRef(size);
@@ -645,6 +653,7 @@ export default function ProgressiveColoringSession({
   const announcerRef = useRef(null);
   const guideIndexRef = useRef(null);
   selectedColorRef.current = selectedColor;
+  resumeTargetRef.current = resumeSnapshot?.smartTarget || null;
   if (announcerRef.current === null) {
     announcerRef.current = createBoundedAnnouncer({ onAnnounce: setLiveText });
   }
@@ -923,6 +932,27 @@ export default function ProgressiveColoringSession({
     return `splint:tiled-camera:${template.id}`;
   }
 
+  function flushCameraSave() {
+    const pending = pendingCameraSaveRef.current;
+    if (!pending) return;
+    pendingCameraSaveRef.current = null;
+    if (cameraSaveTimerRef.current) {
+      clearTimeout(cameraSaveTimerRef.current);
+      cameraSaveTimerRef.current = null;
+    }
+    try {
+      window.localStorage.setItem(cameraStorageKey(), JSON.stringify({
+        centerX: pending.centerX,
+        centerY: pending.centerY,
+        zoom: pending.zoom,
+        savedAt: Date.now(),
+      }));
+    } catch {
+      // Storage may be unavailable.
+    }
+    resumeChangeRef.current?.({ camera: pending.camera });
+  }
+
   function scheduleCameraSave(cameraValue) {
     if (typeof window === 'undefined' || !template.id) return;
     const viewport = sizeRef.current;
@@ -930,20 +960,60 @@ export default function ProgressiveColoringSession({
     const zoom = Math.max(Number(cameraValue.zoom) || MIN_ZOOM, MIN_ZOOM);
     const centerX = (viewport.width / 2 - cameraValue.x) / zoom / CELL_SIZE;
     const centerY = (viewport.height / 2 - cameraValue.y) / zoom / CELL_SIZE;
+    pendingCameraSaveRef.current = {
+      camera: {
+        x: Number(cameraValue.x) || 0,
+        y: Number(cameraValue.y) || 0,
+        zoom,
+      },
+      centerX,
+      centerY,
+      zoom,
+    };
     if (cameraSaveTimerRef.current) clearTimeout(cameraSaveTimerRef.current);
-    cameraSaveTimerRef.current = setTimeout(() => {
-      cameraSaveTimerRef.current = null;
-      try {
-        window.localStorage.setItem(cameraStorageKey(), JSON.stringify({
-          centerX,
-          centerY,
+    cameraSaveTimerRef.current = setTimeout(flushCameraSave, 350);
+  }
+
+  function restoreStoredCamera() {
+    const saved = resumeSnapshot?.artworkId === template.id ? resumeSnapshot.camera : null;
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) && Number.isFinite(saved.zoom) && saved.zoom > 0) {
+      return { x: saved.x, y: saved.y, zoom: Math.max(MIN_ZOOM, saved.zoom) };
+    }
+    try {
+      const legacy = JSON.parse(window.localStorage.getItem(cameraStorageKey()) || 'null');
+      if (legacy && Number.isFinite(Number(legacy.centerX)) && Number.isFinite(Number(legacy.centerY)) && Number(legacy.zoom) > 0) {
+        const zoom = Math.max(MIN_ZOOM, Number(legacy.zoom));
+        return {
+          x: size.width / 2 - Number(legacy.centerX) * CELL_SIZE * zoom,
+          y: size.height / 2 - Number(legacy.centerY) * CELL_SIZE * zoom,
           zoom,
-          savedAt: Date.now(),
-        }));
-      } catch {
-        // Storage may be unavailable.
+        };
       }
-    }, 350);
+    } catch {
+      // A malformed legacy camera must fall back to the bounded overview.
+    }
+    return null;
+  }
+
+  function persistSmartTarget(plan) {
+    if (!plan?.target || !resumeChangeRef.current) return;
+    resumeChangeRef.current({
+      selectedColor: plan.selectedColor,
+      smartTargetRevision: plan.progressRevision,
+      smartTarget: {
+        kind: 'tiled',
+        tileKey: `${plan.target.tile_x}:${plan.target.tile_y}`,
+        color: plan.target.color ?? plan.selectedColor,
+        anchorX: plan.target.anchor_x,
+        anchorY: plan.target.anchor_y,
+        bounds: {
+          minX: plan.target.bounds?.min_x,
+          minY: plan.target.bounds?.min_y,
+          maxX: plan.target.bounds?.max_x,
+          maxY: plan.target.bounds?.max_y,
+        },
+      },
+    });
   }
 
   function markFirstTile() {
@@ -990,6 +1060,7 @@ export default function ProgressiveColoringSession({
       setLodMode(nextMode);
       cameraRef.current = targetCamera;
       setCamera(targetCamera);
+      scheduleCameraSave(targetCamera);
       onComplete?.();
       return;
     }
@@ -1009,6 +1080,7 @@ export default function ProgressiveColoringSession({
       },
       () => {
         cameraAnimRef.current = null;
+        scheduleCameraSave(cameraRef.current);
         onComplete?.();
       },
     );
@@ -1114,6 +1186,7 @@ export default function ProgressiveColoringSession({
 
     clearGuidanceIndexRetry();
     smartPlanRef.current = plan;
+    persistSmartTarget(plan);
     targetRemainingRef.current = plan.target.estimated_cells;
     const tileKey = `${plan.target.tile_x}:${plan.target.tile_y}`;
     recentTargetsRef.current = [...recentTargetsRef.current.filter((key) => key !== tileKey), tileKey].slice(-4);
@@ -1145,7 +1218,10 @@ export default function ProgressiveColoringSession({
       onSelectColor(plan.selectedColor);
     }
     setSmartStateValue('focusing');
-    const cameraTarget = planGuidanceCamera(plan, sizeRef.current, template, CELL_SIZE);
+    const cameraTarget = resumeCameraAppliedRef.current
+      ? resumeCameraRef.current
+      : planGuidanceCamera(plan, sizeRef.current, template, CELL_SIZE);
+    resumeCameraAppliedRef.current = false;
     if (cameraTarget) {
       animateCameraTo(cameraTarget, {
         immediate,
@@ -1480,17 +1556,36 @@ export default function ProgressiveColoringSession({
       guidanceTokenRef.current += 1;
       if (wrongNoticeTimerRef.current) clearTimeout(wrongNoticeTimerRef.current);
       if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
-      if (cameraSaveTimerRef.current) {
-        clearTimeout(cameraSaveTimerRef.current);
-        cameraSaveTimerRef.current = null;
-      }
+      scheduleCameraSave(cameraRef.current);
+      flushCameraSave();
       announcerRef.current?.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template.id, updateCamera]);
 
   useEffect(() => {
+    const persistCameraBeforeHide = () => {
+      scheduleCameraSave(cameraRef.current);
+      flushCameraSave();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') persistCameraBeforeHide();
+    };
+    window.addEventListener('pagehide', persistCameraBeforeHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('pagehide', persistCameraBeforeHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+    // The pending payload lives in refs; the listener is scoped to this artwork.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template.id]);
+
+  useEffect(() => {
     initialCameraRef.current = false;
+    resumeCameraRef.current = null;
+    resumeCameraAppliedRef.current = false;
+    resumeTargetRef.current = resumeSnapshot?.smartTarget || null;
     guidanceBootstrappedRef.current = false;
     smartPlanRef.current = null;
     smartStateRef.current = 'idle';
@@ -1549,11 +1644,18 @@ export default function ProgressiveColoringSession({
       (size.height * 0.66) / (manifest.grid.height * CELL_SIZE),
     );
     initialCameraRef.current = true;
-    updateCamera({
-      x: (size.width - manifest.grid.width * CELL_SIZE * Math.max(MIN_ZOOM, zoom)) / 2,
-      y: (size.height - manifest.grid.height * CELL_SIZE * Math.max(MIN_ZOOM, zoom)) / 2,
-      zoom: Math.max(MIN_ZOOM, zoom),
-    });
+    const storedCamera = restoreStoredCamera();
+    if (storedCamera) {
+      resumeCameraRef.current = storedCamera;
+      resumeCameraAppliedRef.current = true;
+      updateCamera(storedCamera);
+    } else {
+      updateCamera({
+        x: (size.width - manifest.grid.width * CELL_SIZE * Math.max(MIN_ZOOM, zoom)) / 2,
+        y: (size.height - manifest.grid.height * CELL_SIZE * Math.max(MIN_ZOOM, zoom)) / 2,
+        zoom: Math.max(MIN_ZOOM, zoom),
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manifestReady, size.height, size.width, updateCamera]);
 
@@ -1562,8 +1664,16 @@ export default function ProgressiveColoringSession({
     const manifest = clientRef.current?.getSnapshot().manifest;
     if (!manifest) return;
     guidanceBootstrappedRef.current = true;
+    const savedTarget = resumeTargetRef.current;
+    const savedTargetRevision = Number(resumeSnapshot?.smartTargetRevision);
+    const currentRevision = Number(progress?.revision);
+    const canRevalidateSavedTarget = savedTarget?.tileKey
+      && Number.isSafeInteger(savedTargetRevision)
+      && savedTargetRevision === currentRevision;
     void fetchAndApplyGuidance({
-      reason: GUIDANCE_REASON.INITIAL_TARGET,
+      reason: canRevalidateSavedTarget ? GUIDANCE_REASON.RETURN_TO_TARGET : GUIDANCE_REASON.INITIAL_TARGET,
+      color: canRevalidateSavedTarget ? savedTarget.color ?? resumeSnapshot?.selectedColor : undefined,
+      tileKey: canRevalidateSavedTarget ? savedTarget.tileKey : null,
       immediate: true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2489,6 +2599,7 @@ export default function ProgressiveColoringSession({
   return (
     <div
       className="progressive-coloring-session"
+      data-artwork-id={template.id}
       data-grid-width={template.width}
       data-grid-height={template.height}
       data-lod-mode={lodMode}

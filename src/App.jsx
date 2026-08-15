@@ -25,17 +25,23 @@ import { useColoringSession } from './hooks/useColoringSession';
 import { useDirectorData } from './hooks/useDirectorData';
 import { formatDifficulty } from './lib/catalogMeta';
 import { getRequestedColoringId, hapticSelection } from './lib/telegram';
+import { readCurrentResumeSnapshot } from './lib/resumeState.js';
 import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
 import './App.css';
 import './features/unlocks/unlocks.css';
 
 function App() {
   const coreFeelExperiment = useMemo(() => resolveCoreFeelExperiment(), []);
-  const [view, setView] = useState(() => coreFeelExperiment.enabled ? 'play' : 'home');
+  const initialResume = useMemo(() => readCurrentResumeSnapshot(), []);
+  const initialRequestedId = useMemo(() => getRequestedColoringId(), []);
+  const [view, setView] = useState(() => {
+    if (coreFeelExperiment.enabled || initialRequestedId || initialResume?.route === 'play') return 'play';
+    return initialResume?.route || 'home';
+  });
   const [notice, setNotice] = useState(null);
   const [unlockRefreshKey, setUnlockRefreshKey] = useState(0);
   const noticeTimerRef = useRef(null);
-  const deepLinkHandledRef = useRef(false);
+  const resumeHandledRef = useRef(false);
   const coreFeelHandledRef = useRef(false);
   const unlockData = useUnlockData({ enabled: !coreFeelExperiment.enabled, refreshKey: unlockRefreshKey });
 
@@ -106,15 +112,25 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coreFeelExperiment.enabled, coreFeelExperiment.referenceTemplateId]);
 
-  // Deep link (?coloring=<id> или Telegram start_param) — открыть раскраску сразу.
+  // Explicit deep link wins over the local resume pointer. A cold standalone
+  // launch without a query reopens the last artwork that was actually active.
   useEffect(() => {
-    if (coreFeelExperiment.enabled || deepLinkHandledRef.current || catalog.loading) return;
+    if (coreFeelExperiment.enabled || resumeHandledRef.current) return;
     const requestedId = getRequestedColoringId();
-    if (!requestedId) return;
-    deepLinkHandledRef.current = true;
-    session.openColoring(requestedId);
+    const persisted = requestedId ? null : readCurrentResumeSnapshot();
+    const persistedPlay = persisted?.route === 'play' ? persisted : null;
+    const id = requestedId || persistedPlay?.artworkId;
+    if (!id) {
+      resumeHandledRef.current = true;
+      return;
+    }
+    resumeHandledRef.current = true;
+    session.openColoring(id, {
+      resumeSnapshot: persistedPlay,
+      usePersistedResume: !requestedId,
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog.loading, coreFeelExperiment.enabled, session.openColoring]);
+  }, [coreFeelExperiment.enabled, session.openColoring]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (view === 'gallery' || view === 'home') catalog.loadMine(); }, [view, catalog.loadMine]);
@@ -277,6 +293,8 @@ function App() {
         onCompletionChoice={handleCompletionChoice}
         selectedColor={session.selectedColor}
         onSelectColor={session.setSelectedColor}
+        resumeSnapshot={session.resumeSnapshot}
+        onResumeStateChange={session.persistResumeState}
         zones={session.zones}
         zoneReward={session.zoneReward}
         combo={session.combo}

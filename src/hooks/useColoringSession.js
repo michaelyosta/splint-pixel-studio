@@ -9,6 +9,12 @@ import { createHistoryOperation } from '../features/coloring/engine/historyOpera
 import { buildColoringDeepLink, shareViaTelegram } from '../lib/telegram';
 import { takePrefetchedColoring } from '../lib/coloringPrefetch';
 import { recordSpecialCellsError } from '../lib/specialCellsDiagnostics';
+import {
+  isResumeCompatible,
+  mergeResumeSnapshot,
+  readResumeSnapshot,
+  writeResumeSnapshot,
+} from '../lib/resumeState.js';
 import { getNextCoreFeelFragment, isCoreFeelReference } from '../features/coreFeel/coreFeelExperiment.js';
 
 export function useColoringSession({
@@ -52,6 +58,7 @@ export function useColoringSession({
   const [tiledSpecialApplied, setTiledSpecialApplied] = useState(null);
   const [tiledSpecialDiscovered, setTiledSpecialDiscovered] = useState(null);
   const [tiledReconciledChanges, setTiledReconciledChanges] = useState([]);
+  const [resumeSnapshot, setResumeSnapshot] = useState(null);
 
   const sessionStartRef = useRef(0);
   const sessionIdRef = useRef(null);
@@ -78,8 +85,34 @@ export function useColoringSession({
   const completedTemplateRef = useRef(null);
   const filledRef = useRef([]);
   const zoneIndicesRef = useRef({});
+  const resumeSnapshotRef = useRef(null);
 
   tiledSpecialOfferRef.current = tiledSpecialOffer;
+
+  function persistResumeState(patch = {}) {
+    if (!template?.id) return null;
+    const completed = Number(progress?.percent) >= 100;
+    const meaningful = Number(progress?.completed_cells) > 0
+      || Number(progress?.percent) > 0
+      || (Array.isArray(progress?.filled) && progress.filled.some((value) => value !== -1));
+    const next = mergeResumeSnapshot(resumeSnapshotRef.current, {
+      artworkId: template.id,
+      ...patch,
+      // A completed artwork is no longer a resumable Continue candidate. Keep
+      // its per-artwork camera/history hint, but move the cold-start pointer
+      // back to Home until the player explicitly opens another unfinished work.
+      route: completed ? 'home' : view,
+      progressRevision: progress?.revision ?? resumeSnapshotRef.current?.progressRevision ?? 0,
+      selectedColor,
+      pendingSave: saveState !== 'saved',
+      lastInteractionAt: new Date().toISOString(),
+    });
+    if (!next) return null;
+    resumeSnapshotRef.current = next;
+    setResumeSnapshot(next);
+    writeResumeSnapshot(next, { updateCurrent: completed || meaningful });
+    return next;
+  }
 
   function beginAnalyticsSession() {
     sessionIdRef.current = globalThis.crypto?.randomUUID?.()
@@ -419,20 +452,44 @@ export function useColoringSession({
     }
   }
 
-  async function openColoring(id) {
+  async function openColoring(id, { resumeSnapshot: requestedResume = null, usePersistedResume = true } = {}) {
     catalogScrollRef.current = screenContentRef.current?.scrollTop ?? 0;
     setLockedUnlock(null);
     setLoading(true);
     try {
+      const persistedResume = requestedResume || (usePersistedResume ? readResumeSnapshot(id) : null);
       const prefetched = takePrefetchedColoring(id);
       const [nextTemplate, nextProgress, nextZones] = prefetched
         ? await prefetched
         : await Promise.all([api(`/colorings/${id}`), api(`/colorings/${id}/progress`), catalogApi.zones(id)]);
       setTemplate(nextTemplate);
       setProgress(nextProgress);
+      const compatibleResume = isResumeCompatible(persistedResume, {
+        artworkId: nextTemplate.id,
+        revision: nextProgress.revision,
+      })
+        ? persistedResume
+        : persistedResume?.artworkId === nextTemplate.id ? persistedResume : null;
+      const nextResume = mergeResumeSnapshot(compatibleResume, {
+        artworkId: nextTemplate.id,
+        route: nextProgress.percent >= 100 && usePersistedResume ? 'home' : 'play',
+        progressRevision: nextProgress.revision,
+        pendingSave: Boolean(compatibleResume?.pendingSave),
+        // A Smart target from a different server revision is not trusted. The
+        // renderer will request a fresh target while retaining camera/color.
+        smartTarget: isResumeCompatible(persistedResume, {
+          artworkId: nextTemplate.id,
+          revision: nextProgress.revision,
+        }) ? persistedResume?.smartTarget : null,
+        smartTargetRevision: isResumeCompatible(persistedResume, {
+          artworkId: nextTemplate.id,
+          revision: nextProgress.revision,
+        }) ? persistedResume?.smartTargetRevision : null,
+      });
+      resumeSnapshotRef.current = nextResume;
+      setResumeSnapshot(nextResume);
       beginAnalyticsSession();
       specialGroupRef.current = nextProgress.specials_experiment_group || null;
-      setSaveState('saved');
       setLatestReward(Number(nextProgress.completion_reward_xp || 0) > 0
         ? { amount: Number(nextProgress.completion_reward_xp), idempotent: true }
         : null);
@@ -448,6 +505,7 @@ export function useColoringSession({
         setSaving(false);
       }
       tiledQueueRef.current = isLargeGridTemplate(nextTemplate) ? readTiledJournal(nextTemplate.id) : [];
+      setSaveState(nextResume?.pendingSave || tiledQueueRef.current.length ? 'pending' : 'saved');
       tiledRevisionRef.current = Number(nextProgress.revision || 0);
       legacyRevisionRef.current = Number(nextProgress.revision || 0);
       legacyAuthoritativeFilledRef.current = [...(nextProgress.filled || [])];
@@ -477,13 +535,19 @@ export function useColoringSession({
       const firstCoreFeelFragment = coreFeelActive
         ? getNextCoreFeelFragment(nextTemplate, nextProgress.filled || [])
         : null;
-      setSelectedColor(isLargeGridTemplate(nextTemplate)
-        ? 0
-        : firstCoreFeelFragment?.color ?? findRewardingColor(nextTemplate, nextProgress.filled) ?? 0);
+      const savedColor = nextResume?.selectedColor;
+      const hasSavedColor = Number.isInteger(savedColor)
+        && savedColor >= 0
+        && savedColor < (Array.isArray(nextTemplate.palette) ? nextTemplate.palette.length : 0);
+      setSelectedColor(hasSavedColor
+        ? savedColor
+        : isLargeGridTemplate(nextTemplate)
+          ? 0
+          : firstCoreFeelFragment?.color ?? findRewardingColor(nextTemplate, nextProgress.filled) ?? 0);
       coreFeelResumeRef.current = coreFeelActive
         && (nextProgress.filled || []).some((value) => value !== -1);
       sessionStartRef.current = Date.now();
-      onNavigate('play');
+      onNavigate(nextProgress.percent >= 100 && usePersistedResume ? 'home' : 'play');
       if (nextTemplate.unlock_granted || nextTemplate.unlock_state === 'owned') {
         unlockRefreshedRef.current.add(nextTemplate.id);
         onUnlockRefresh();
@@ -966,6 +1030,21 @@ export function useColoringSession({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, template?.id, template?.storage_mode, template?.width, template?.height, isOnline]);
 
+  // Keep navigation and lightweight player preferences resumable. Progress
+  // itself remains server-authoritative; this snapshot is only a hint for the
+  // next boot and is validated against the freshly fetched revision.
+  useEffect(() => {
+    if (!template?.id || !progress) return;
+    persistResumeState({
+      route: view,
+      progressRevision: progress.revision,
+      selectedColor,
+      pendingSave: saveState !== 'saved'
+        || (isLargeGridTemplate(template) && tiledQueueRef.current.length > 0),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progress?.revision, saveState, selectedColor, template?.id, view]);
+
   // Ordinary SPA unmount/navigation disposes the legacy queue after flushing.
   // Pagehide itself must not dispose: mobile bfcache freezes the page and
   // then resumes it without re-running this cleanup.
@@ -979,7 +1058,18 @@ export function useColoringSession({
   }, []);
 
   useEffect(() => {
+    const persistBeforeHide = () => {
+      persistResumeState({
+        route: view,
+        pendingSave: saveState !== 'saved'
+          || (isLargeGridTemplate(template) && tiledQueueRef.current.length > 0),
+      });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') persistBeforeHide();
+    };
     const handlePageHide = () => {
+      persistBeforeHide();
       const queue = saveQueueRef.current;
       if (queue && !queue.isDisposed()) {
         queue.suspend().catch(() => setSaveState('pending'));
@@ -1005,9 +1095,11 @@ export function useColoringSession({
     };
     window.addEventListener('pagehide', handlePageHide);
     window.addEventListener('pageshow', handlePageShow);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       window.removeEventListener('pagehide', handlePageHide);
       window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline, progress?.revision, template?.id, view]);
@@ -1057,6 +1149,8 @@ export function useColoringSession({
     zoneIndicesRef,
     screenContentRef,
     openColoring,
+    resumeSnapshot,
+    persistResumeState,
     retryPendingSave,
     handleTiledStrokeCommitted,
     queueTiledSpecialAction,
