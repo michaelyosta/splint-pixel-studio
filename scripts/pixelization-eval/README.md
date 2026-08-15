@@ -22,6 +22,8 @@ Run an identical paired comparison after a candidate commit is present:
 node scripts/pixelization-eval/run.mjs --manifest=scripts/pixelization-eval/corpus/representative-corpus.json --adapters=classic,paintable --output-dir=docs/evidence/pixelization/representative-candidate-comparison
 ```
 
+Use `corpus/representative-candidate-corpus.json` for the recovery acceptance matrix. It adds 1024/1200 probes for portrait, landscape and simple illustration. A bounded candidate that deliberately rejects those logical sizes must remain a recorded adapter warning/unavailable pair; do not silently upscale a 512 result and score it as 1200.
+
 The runner starts a local Vite page, invokes the browser/Canvas adapter, computes source means with the same fit/crop dimensions, writes `summary.json`, `summary.csv`, a run README, and PNG panels under `docs/evidence/pixelization/current-baseline/`. Use `--skip-panels` for a fast metric-only run. `--adapter=path/to/adapter.mjs` runs a candidate without changing this harness.
 
 The default app-asset corpus is local and deterministic. The separately maintained `corpus/representative-corpus.json` adds real photographic portrait, animal, landscape, object, gradient and strong-silhouette cases plus a simple non-pixel illustration. Its evaluation-only derivatives have explicit Public Domain/CC0 provenance in `corpus/SOURCES.md`. Before browser startup the runner rejects a path outside the repository, recomputes every source SHA-256, and fails if a pinned hash differs. Exact per-run crop/options, source hashes, output hashes and runtimes are recorded in the generated README and summary.

@@ -19,6 +19,7 @@ export async function runStylePreset({ page, sourceUrl, options }, stylePreset) 
         stylePreset: output.stylePreset || style,
         pipelineVersion: output.pipelineVersion || null,
         resultFingerprint: output.resultFingerprint || null,
+        previewPixelFingerprint: output.previewPixelFingerprint || null,
         producerMetrics: output.metrics || null,
       },
     };

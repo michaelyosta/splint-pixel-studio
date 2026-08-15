@@ -215,11 +215,11 @@ function csvEscape(value) {
 
 function buildCsv(rows) {
   const columns = [
-    'adapter', 'stylePreset', 'pipelineVersion', 'resultFingerprint', 'image', 'category', 'license', 'sourcePage', 'sourceSha256', 'width', 'height', 'colors', 'runtimeMs', 'evaluationRuntimeMs', 'sourceSamplingMs', 'outputHash',
+    'adapter', 'stylePreset', 'pipelineVersion', 'resultFingerprint', 'previewPixelFingerprint', 'image', 'category', 'license', 'sourcePage', 'sourceSha256', 'width', 'height', 'colors', 'runtimeMs', 'evaluationRuntimeMs', 'sourceSamplingMs', 'outputHash',
     'regions4', 'regions8', 'regionDensity4Per10k', 'regionDensity8Per10k', 'singletonCount', 'singletonAreaRatio',
     'tinyAreaRatio', 'highContrastTinyCount', 'lowContrastTinyCount', 'transitionRatio', 'compactnessMean', 'compactnessP90',
     'paletteUsed', 'paletteEntropyBits', 'meanDeltaE', 'edgePrecision', 'edgeRecall', 'idealRegionTaps', 'classicLowerBound',
-    'conservativeManualTapLowerBound', 'previewCellPixels', 'readableCellRatio', 'labelsPotentiallyLegible', 'panel',
+    'conservativeManualTapLowerBound', 'producerRegionCount', 'producerRegionDelta', 'producerTinyAreaRatio', 'producerTinyAreaDelta', 'producerEffortLowerBound', 'producerMetricsMatch', 'previewCellPixels', 'readableCellRatio', 'labelsPotentiallyLegible', 'panel',
   ];
   const lines = [columns.join(',')];
   for (const row of rows) lines.push(columns.map((column) => csvEscape(row[column])).join(','));
@@ -346,7 +346,7 @@ function generatedReadme({ manifest, adapters, options, outputDir, gitCommit, ro
     + `- Output directory: ${path.relative(REPO_ROOT, outputDir).replaceAll('\\', '/')}\n`
     + `- Metric rows: ${rows.length}; paired comparisons: ${comparisons.length}; warnings: ${warnings.length}\n\n`
     + `This is a reproducible measurement and visual-comparison snapshot. It deliberately does not declare a winner. Human review is required for artistic quality, number readability, and paint feel.\n\n`
-    + `Each row records a stable output hash, conversion runtime, 4/8-connected region statistics, normalized densities, tiny/high-contrast region signals, fragmentation, palette coherence, source comparison (when available), effort lower bounds, and number-readability proxies.\n\n`
+    + `Each row records a stable output hash, conversion runtime, 4/8-connected region statistics, normalized densities, tiny/high-contrast region signals, fragmentation, palette coherence, source comparison (when available), effort lower bounds, and number-readability proxies. Candidate producer metrics are audited against the independently recomputed final-cell region/tiny-area/effort values; null means the adapter did not expose them.\n\n`
     + `Comparison flags use explicit guardrails, not a composite score: effort >5% and >5 taps, transitions >1 percentage point, tiny area >0.5 percentage points, edge precision/recall down >3 points, mean DeltaE up >0.75, or runtime >3x and >500ms. Improvements use symmetric structural thresholds where applicable. Flags identify review cases; they are not a beauty ranking.\n`;
 }
 
@@ -411,12 +411,32 @@ async function main() {
           const outputHash = stableOutputHash(output);
           const flat = flattenMetricRow(metrics);
           const metadata = output.outputMetadata || {};
+          const producerMetrics = metadata.producerMetrics || null;
+          const producerRegionCount = Number.isFinite(producerMetrics?.regionCount) ? producerMetrics.regionCount : null;
+          const producerTinyAreaRatio = Number.isFinite(producerMetrics?.tinyRegionRatio) ? producerMetrics.tinyRegionRatio : null;
+          const producerEffortLowerBound = Number.isFinite(producerMetrics?.effortLowerBound?.minimumManualStrokes)
+            ? producerMetrics.effortLowerBound.minimumManualStrokes
+            : null;
+          const producerRegionDelta = producerRegionCount === null ? null : producerRegionCount - flat.regions4;
+          const producerTinyAreaDelta = producerTinyAreaRatio === null ? null : producerTinyAreaRatio - flat.tinyAreaRatio;
+          const producerMetricsMatch = producerRegionCount === null || producerTinyAreaRatio === null || producerEffortLowerBound === null
+            ? null
+            : producerRegionDelta === 0
+              && Math.abs(producerTinyAreaDelta) < 1e-12
+              && producerEffortLowerBound === flat.idealRegionTaps;
           const row = {
             adapter: adapter.id,
             stylePreset: metadata.stylePreset || adapter.id,
             pipelineVersion: metadata.pipelineVersion || null,
             resultFingerprint: metadata.resultFingerprint || null,
-            producerMetrics: metadata.producerMetrics || null,
+            previewPixelFingerprint: metadata.previewPixelFingerprint || null,
+            producerMetrics,
+            producerRegionCount,
+            producerRegionDelta,
+            producerTinyAreaRatio,
+            producerTinyAreaDelta,
+            producerEffortLowerBound,
+            producerMetricsMatch,
             image: image.id,
             category: image.category,
             tags: image.tags || [],

@@ -249,8 +249,8 @@ export async function renderComparisonPanel({ page, sourceUrl, baseline, candida
     context.fillStyle = '#ffffff';
     context.font = '700 19px system-ui, sans-serif';
     context.fillText('Independent comparison', 1208, 520);
-    context.font = '15px ui-monospace, SFMono-Regular, Menlo, monospace';
-    const lines = [
+    context.font = '14px ui-monospace, SFMono-Regular, Menlo, monospace';
+    const metricLines = [
       `metric                 ${base.label.padEnd(10)} ${next.label.padEnd(10)} delta`,
       `regions4               ${String(base.metrics.regions4.count).padEnd(10)} ${String(next.metrics.regions4.count).padEnd(10)} ${delta.deltas.regions4 >= 0 ? '+' : ''}${delta.deltas.regions4}`,
       `effort lower bound     ${String(base.metrics.predictedEffort.classicLowerBound).padEnd(10)} ${String(next.metrics.predictedEffort.classicLowerBound).padEnd(10)} ${format(delta.deltas.classicLowerBoundRelative * 100, 1)}%`,
@@ -260,11 +260,17 @@ export async function renderComparisonPanel({ page, sourceUrl, baseline, candida
       `edge precision         ${format(base.metrics.sourceComparison.edgePrecision, 3).padEnd(10)} ${format(next.metrics.sourceComparison.edgePrecision, 3).padEnd(10)} ${format(delta.deltas.edgePrecision, 3)}`,
       `edge recall            ${format(base.metrics.sourceComparison.edgeRecall, 3).padEnd(10)} ${format(next.metrics.sourceComparison.edgeRecall, 3).padEnd(10)} ${format(delta.deltas.edgeRecall, 3)}`,
       `number cell pixels     ${format(baseGrid.cellPixels, 3).padEnd(10)} ${format(nextGrid.cellPixels, 3).padEnd(10)} labels ${baseGrid.labels ? 'on' : 'off'}/${nextGrid.labels ? 'on' : 'off'}`,
-      `regression flags: ${delta.regressions.length ? delta.regressions.join(', ') : 'none'}`,
-      `improvement flags: ${delta.improvements.length ? delta.improvements.join(', ') : 'none'}`,
-      `unavailable: ${delta.unavailableMetrics.length ? delta.unavailableMetrics.join(', ') : 'none'}`,
     ];
-    lines.forEach((line, index) => context.fillText(line, 1208, 560 + index * 30));
+    const flagLines = (label, values) => values.length
+      ? [`${label}:`, ...values.map((value) => `  ${value}`)]
+      : [`${label}: none`];
+    const lines = [
+      ...metricLines,
+      ...flagLines('regression flags', delta.regressions),
+      ...flagLines('improvement flags', delta.improvements),
+      ...flagLines('unavailable', delta.unavailableMetrics),
+    ];
+    lines.forEach((line, index) => context.fillText(line, 1208, 560 + index * 26));
     context.fillStyle = '#cbd5e1';
     context.font = '15px system-ui, sans-serif';
     const notes = [
@@ -272,7 +278,8 @@ export async function renderComparisonPanel({ page, sourceUrl, baseline, candida
       'No subjective beauty winner is declared.',
       'Number readability and paint feel remain human gates.',
     ];
-    notes.forEach((line, index) => context.fillText(line, 1208, 1000 + index * 28));
+    const notesY = Math.max(1080, 590 + lines.length * 26);
+    notes.forEach((line, index) => context.fillText(line, 1208, notesY + index * 28));
     return canvas.toDataURL('image/png');
   }, { sourceUrl, baseline, candidate, comparison, title });
 }

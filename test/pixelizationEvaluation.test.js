@@ -135,3 +135,20 @@ test('representative corpus is local, explicitly licensed, and hash pinned', asy
     assert.equal(actualHash, image.source.sha256, `${image.id}: local derivative changed without a manifest update`);
   }
 });
+
+test('candidate comparison reuses the exact representative sources and bounds high-resolution probes', async () => {
+  const repoRoot = path.resolve(import.meta.dirname, '..');
+  const baseline = JSON.parse(await readFile(path.join(repoRoot, 'scripts/pixelization-eval/corpus/representative-corpus.json'), 'utf8'));
+  const comparison = JSON.parse(await readFile(path.join(repoRoot, 'scripts/pixelization-eval/corpus/representative-candidate-corpus.json'), 'utf8'));
+  const expectedHashes = new Map(baseline.images.map((image) => [image.id, image.source.sha256]));
+  assert.equal(comparison.images.length, baseline.images.length);
+  for (const image of comparison.images) assert.equal(image.source.sha256, expectedHashes.get(image.id), `${image.id}: comparison source differs from baseline`);
+  const highResolution = comparison.images.filter((image) => image.sizes?.includes(1200));
+  assert.deepEqual(highResolution.map((image) => image.id), [
+    'portrait-jessica-meir',
+    'landscape-utah-dunes',
+    'illustration-paint-brush',
+  ]);
+  assert.ok(comparison.images.every((image) => (image.sizes || comparison.defaults.sizes).includes(192)));
+  assert.ok(comparison.images.every((image) => (image.sizes || comparison.defaults.sizes).includes(512)));
+});

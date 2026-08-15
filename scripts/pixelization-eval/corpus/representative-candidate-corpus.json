@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "pixelization-corpus.v1",
+  "name": "independent-real-and-non-pixel-candidate-comparison",
+  "description": "Paired classic/paintable comparison on the independent real/non-pixel corpus. All strata run at 192/512; portrait, landscape and simple illustration also probe 1024/1200 so an explicit candidate resolution cap is recorded rather than hidden.",
+  "defaults": {
+    "colors": 10,
+    "sizes": [192, 512],
+    "crop": null,
+    "yieldEvery": 96,
+    "previewWidth": 320,
+    "previewHeight": 320
+  },
+  "images": [
+    {
+      "id": "portrait-jessica-meir",
+      "path": "scripts/pixelization-eval/corpus/assets/portrait-jessica-meir.jpg",
+      "category": "portrait",
+      "tags": ["photograph", "portrait", "high-detail", "grayscale", "face", "high-resolution-probe"],
+      "sizes": [192, 512, 1024, 1200],
+      "source": {
+        "page": "https://commons.wikimedia.org/wiki/File:Jessica_Meir_official_portrait_in_an_EMU_(B%26W).jpg",
+        "license": "Public domain",
+        "upstreamSha1": "06799b57f5d7b1bc1d6670655c234db7e1cb91e2",
+        "sha256": "53f00ccbe889a745c4a085dde02732065fbec59f2bca1f9dfaae211b0251effe"
+      }
+    },
+    {
+      "id": "animal-iguana-venezuela",
+      "path": "scripts/pixelization-eval/corpus/assets/animal-iguana-venezuela.jpg",
+      "category": "animal",
+      "tags": ["photograph", "animal", "organic-texture", "high-detail", "strong-silhouette"],
+      "source": {
+        "page": "https://commons.wikimedia.org/wiki/File:Iguana_de_Venezuela.jpg",
+        "license": "CC0 1.0",
+        "upstreamSha1": "b91553c0281669f1f05f7c596ef243d44e5679a9",
+        "sha256": "f68277b68f18d89806ba0a9ead1e9408c9e0fb64db6b220ba34f6ee8a30b9016"
+      }
+    },
+    {
+      "id": "landscape-utah-dunes",
+      "path": "scripts/pixelization-eval/corpus/assets/landscape-utah-dunes.jpg",
+      "category": "landscape",
+      "tags": ["photograph", "landscape", "gradient", "layered-depth", "fine-texture", "high-resolution-probe"],
+      "sizes": [192, 512, 1024, 1200],
+      "source": {
+        "page": "https://commons.wikimedia.org/wiki/File:Utah_Dunes_Landscape_-_West_Desert_District.jpg",
+        "license": "Public domain",
+        "upstreamSha1": "74ab899dd443dd19c0ffb31dd618be3debf05694",
+        "sha256": "cefccb9b95f999a2444bb72cde06d5384b0144c6b67afe8bdff80b60146ba6bc"
+      }
+    },
+    {
+      "id": "object-palm-wine-cup",
+      "path": "scripts/pixelization-eval/corpus/assets/object-palm-wine-cup.jpg",
+      "category": "object",
+      "tags": ["photograph", "object", "isolated-subject", "neutral-background", "material-texture"],
+      "source": {
+        "page": "https://commons.wikimedia.org/wiki/File:Palm_Wine_Cup,_Br%C3%BCcke-Museum_Berlin,_65048,_view_a.jpg",
+        "license": "CC0 1.0",
+        "upstreamSha1": "994e5010cf2794913d2a9bc7958ca14dd53ce297",
+        "sha256": "589da43e6f7f86e2ae3b41d33e4cb06f8c2560b54e358818203accefb02f40f6"
+      }
+    },
+    {
+      "id": "gradient-golden-gate-fog",
+      "path": "scripts/pixelization-eval/corpus/assets/gradient-golden-gate-fog.jpg",
+      "category": "gradient",
+      "tags": ["photograph", "gradient", "fog", "low-contrast", "strong-linear-edge"],
+      "source": {
+        "page": "https://commons.wikimedia.org/wiki/File:Golden_Gate_Fog_-_Flickr_-_romainguy.jpg",
+        "license": "CC0 1.0",
+        "upstreamSha1": "4e30a1c5edb568e0ba219a8e0068a1013310e80d",
+        "sha256": "ec1465fe61156a5859b2b43764ed9173ff7a6debee4840b7dcd59bab211f71e3"
+      }
+    },
+    {
+      "id": "illustration-paint-brush",
+      "path": "scripts/pixelization-eval/corpus/assets/illustration-paint-brush.jpg",
+      "category": "simple-illustration",
+      "tags": ["non-pixel-illustration", "simple-shapes", "flat-background", "hard-edge", "small-palette", "high-resolution-probe"],
+      "sizes": [192, 512, 1024, 1200],
+      "source": {
+        "page": "https://commons.wikimedia.org/wiki/File:Leanne_Walker-_Paint_Brush_Illustration_-_FREE_(50225393663).jpg",
+        "license": "CC0 1.0",
+        "upstreamSha1": "8627a3885bf18e9d5c86ef4b13bc8f247e959217",
+        "sha256": "3870deb1637fa9d05fabe6332cbc4ec3c49d5128ab1c2f9b9ebb30f68b34c4c0"
+      }
+    },
+    {
+      "id": "silhouette-rat",
+      "path": "scripts/pixelization-eval/corpus/assets/silhouette-rat.jpg",
+      "category": "strong-silhouette",
+      "tags": ["photograph", "animal", "strong-silhouette", "high-contrast", "textured-background"],
+      "source": {
+        "page": "https://commons.wikimedia.org/wiki/File:Rat_silhouette_(27072964899).jpg",
+        "license": "CC0 1.0",
+        "upstreamSha1": "9e474f2cf50202ee7766fc9520fb3efadaa73557",
+        "sha256": "6d453ff9a55de6503f08ad80315f8e8a09afffc28d209c806b5870aa8c4dba43"
+      }
+    }
+  ]
+}
