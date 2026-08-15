@@ -205,8 +205,10 @@ test('browser pipeline fingerprints the same cells used by preview and supports 
     toDataURL() { return 'data:image/png;base64,AA=='; }
   };
   globalThis.createImageBitmap = async () => ({ width: 4, height: 4, close() {} });
+  let originalReads = 0;
   globalThis.FileReader = class MockFileReader {
     readAsDataURL() {
+      originalReads += 1;
       this.result = 'data:image/png;base64,AA==';
       this.onload?.();
     }
@@ -222,8 +224,20 @@ test('browser pipeline fingerprints the same cells used by preview and supports 
       onProgress: (event) => progress.push(event.stage),
     });
     assert.equal(result.pipelineVersion, PIXELIZATION_PIPELINES.paintable);
-    assert.equal(result.previewFingerprint, result.resultFingerprint);
+    assert.equal(typeof result.resultFingerprint, 'string');
     assert.ok(progress.includes('complete'));
+    assert.equal(originalReads, 1);
+
+    const previewOnly = await buildColoringFromImage(new Blob(['source']), {
+      width: 4,
+      height: 4,
+      colors: 2,
+      stylePreset: 'paintable',
+      includeOriginalDataUrl: false,
+    });
+    assert.equal(previewOnly.originalDataUrl, null);
+    assert.equal(previewOnly.resultFingerprint, result.resultFingerprint);
+    assert.equal(originalReads, 1, 'preview mode does not encode a second copy of the source image');
 
     let checks = 0;
     await assert.rejects(

@@ -1013,6 +1013,7 @@ export async function buildColoringFromImage(file, options = {}) {
   } = options;
   const stylePreset = normalizeStylePreset(options.stylePreset);
   const pipelineVersion = stylePreset === 'classic' ? PIXELIZATION_PIPELINES.classic : PIXELIZATION_PIPELINES.paintable;
+  const includeOriginalDataUrl = options.includeOriginalDataUrl !== false;
   const pipelineContext = createPipelineContext(options);
   pipelineContext.checkCancelled();
   const bitmap = await createImageBitmap(file);
@@ -1046,12 +1047,14 @@ export async function buildColoringFromImage(file, options = {}) {
     );
     pipelineContext.checkCancelled();
     const palette = candidate.palette;
-    const originalDataUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error('Не удалось прочитать изображение'));
-      reader.onload = () => resolve(reader.result);
-      reader.readAsDataURL(file);
-    });
+    const originalDataUrl = includeOriginalDataUrl
+      ? await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Не удалось прочитать изображение'));
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      })
+      : null;
     const result = {
       width,
       height,
@@ -1112,12 +1115,14 @@ export async function buildColoringFromImage(file, options = {}) {
     : cleanUpSmallRegions(smoothCells(cells, width, height, paletteRgb), width, height, paletteRgb);
   const palette = paletteRgb.map(([red, green, blue]) => normalizeHex(red, green, blue));
   pipelineContext.checkCancelled();
-  const originalDataUrl = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Не удалось прочитать изображение'));
-    reader.onload = () => resolve(reader.result);
-    reader.readAsDataURL(file);
-  });
+  const originalDataUrl = includeOriginalDataUrl
+    ? await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Не удалось прочитать изображение'));
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    })
+    : null;
   const result = {
     width,
     height,

@@ -25,6 +25,16 @@ self.onmessage = async (event) => {
       },
     });
     if (requestGeneration !== activeGeneration) return;
+    if (options.mode === 'preview') {
+      const { originalDataUrl: _originalDataUrl, ...previewData } = data;
+      self.postMessage({
+        id,
+        generation: requestGeneration,
+        type: 'result',
+        data: previewData,
+      });
+      return;
+    }
     if (data.width > 160 || data.height > 160) {
       // Keep the 1.44M-cell -> tile conversion off the UI thread as well.
       // The main thread only needs tile records for the upload payload.

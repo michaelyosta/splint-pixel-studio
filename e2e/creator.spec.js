@@ -28,6 +28,47 @@ async function gotoFeed(page) {
 
 const API_HEADERS = { 'Content-Type': 'application/json' };
 
+function normalizeHexColor(value) {
+  const match = /^#([0-9a-f]{6})$/i.exec(value || '');
+  if (!match) throw new Error(`Expected six-digit palette color, got ${value}`);
+  return [0, 2, 4].map((offset) => Number.parseInt(match[1].slice(offset, offset + 2), 16));
+}
+
+async function assertPreviewPixelsMatchSubmittedTiles(page, payload) {
+  const samplePixels = [[47, 53], [131, 97], [255, 255], [379, 301], [463, 447]];
+  const decoded = await page.evaluate(async ({ dataUrl, samples }) => {
+    const image = new Image();
+    image.src = dataUrl;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0);
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      pixels: samples.map(([x, y]) => [...context.getImageData(x, y, 1, 1).data.slice(0, 3)]),
+    };
+  }, { dataUrl: payload.previewDataUrl, samples: samplePixels });
+  expect(decoded.width).toBe(512);
+  expect(decoded.height).toBe(512);
+
+  const tileSize = payload.tileSize;
+  samplePixels.forEach(([previewX, previewY], index) => {
+    const sourceX = Math.min(payload.width - 1, Math.floor(((previewX + 0.5) * payload.width) / decoded.width));
+    const sourceY = Math.min(payload.height - 1, Math.floor(((previewY + 0.5) * payload.height) / decoded.height));
+    const tile = payload.tiles.find((candidate) => candidate.x === Math.floor(sourceX / tileSize)
+      && candidate.y === Math.floor(sourceY / tileSize));
+    expect(tile).toBeTruthy();
+    const localX = sourceX % tileSize;
+    const localY = sourceY % tileSize;
+    const colorIndex = tile.cells[(localY * tile.width) + localX];
+    const expectedRgb = normalizeHexColor(payload.palette[colorIndex]);
+    expect(decoded.pixels[index]).toEqual(expectedRgb);
+  });
+}
+
 async function applyProgressChanges(page, id, changes, revision, resultDataUrl = null) {
   let saved;
   let nextRevision = revision;
@@ -74,7 +115,8 @@ async function uploadAndCompute(page) {
   await page.goto('/');
   await openImageCreator(page);
   await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
-  await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('.creator-preview-option[data-resolution="192"]')).toHaveAttribute('data-status', 'ready', { timeout: 30000 });
+  await expect(page.locator('.creator-previews')).toBeVisible();
 }
 
 // Helper: save the coloring and return its id
@@ -135,7 +177,8 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
-    await expect(page.locator('.creator-grid-options')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.creator-resolution-options')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.creator-preview-option')).toHaveCount(4);
     await expect(page.locator('.creator-crop-section')).toBeVisible();
     await expect(page.locator('.creator-colors-section')).toBeVisible();
     await expect(page.locator('.file-field')).toContainText('test-image.png');
@@ -155,11 +198,11 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
-    await page.getByRole('button', { name: 'Сетка 32×32' }).click();
-    await expect(page.locator('.creator-grid-options .selected')).toContainText('32');
-    await page.getByRole('button', { name: 'Сетка 160×160' }).click();
-    await expect(page.locator('.creator-grid-options .selected')).toContainText('160');
-    await expect(page.locator('.creator-grid-hint')).toContainText('Максимум текущего renderer');
+    await page.getByRole('button', { name: 'Сетка 512 на 512' }).click();
+    await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-resolution', '512');
+    await page.getByRole('button', { name: 'Сетка 1200 на 1200' }).click();
+    await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-resolution', '1200');
+    await expect(page.locator('.creator-resolution-note')).toContainText('не автоматический');
     const colorSlider = page.locator('.creator-colors-section input[type="range"]');
     await colorSlider.fill('12');
     await expect(page.locator('.creator-colors-badge')).toHaveText('12');
@@ -169,39 +212,54 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
-    await page.getByText('Обновить превью').click();
+    await page.getByText('Пересчитать выбранный вариант').click();
     await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.creator-preview-item')).toHaveCount(3);
     await expect(page.locator('.creator-quality')).toBeVisible({ timeout: 15000 });
   });
 
-  test('6b. Maximum 160×160 grid computes, saves, and opens', async ({ page }) => {
+  test('6a. Resolution race cannot replace the latest selected preview', async ({ page }) => {
     await page.goto('/');
     await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
-    await page.getByRole('button', { name: 'Сетка 160×160' }).click();
-    // The grid selection state updates asynchronously; wait for it to stick
-    // before recomputing, otherwise the previews/save can use the previous
-    // grid (flaky width mismatch on slow emulators).
-    await expect(page.locator('.creator-grid-options .selected')).toContainText('160');
-    await page.getByText('Обновить превью').click();
-    // The save button renders as soon as ANY previous result exists, so it
-    // can be clicked while the 160×160 recompute is still running — posting
-    // the stale 32×32 result. Wait for the recompute to actually finish: the
-    // compute button (first .create-button) re-enables only after it settles.
-    await expect(page.locator('button.create-button').first()).toBeEnabled({ timeout: 60000 });
+    await page.getByRole('button', { name: 'Сетка 1200 на 1200' }).click();
+    await page.getByRole('button', { name: 'Сетка 192 на 192' }).click();
+    const selected = page.locator('.creator-preview-option.selected');
+    await expect(selected).toHaveAttribute('data-resolution', '192');
+    await expect(selected).toHaveAttribute('data-status', 'ready', { timeout: 60000 });
+    const fingerprint = await selected.getAttribute('data-result-fingerprint');
+    await expect(page.locator('.creator-selected-evidence')).toHaveAttribute('data-selected-resolution', '192');
+    await expect(page.locator('.creator-selected-evidence')).toHaveAttribute('data-result-fingerprint', fingerprint);
+    await expect(page.locator('.creator-preview-option[data-resolution="1200"]')).not.toHaveAttribute('data-status', 'ready');
+  });
+
+  test('6b. Selected 192×192 exact preview computes, saves, and opens', async ({ page }) => {
+    await page.goto('/');
+    await openImageCreator(page);
+    await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
+    await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-resolution', '192');
+    await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-status', 'ready', { timeout: 60000 });
     await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 20000 });
+    const selectedFingerprint = await page.locator('.creator-preview-option.selected').getAttribute('data-result-fingerprint');
+    let createPayload = null;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/colorings/create')) createPayload = request.postDataJSON();
+    });
     const id = await saveColoring(page);
+    expect(createPayload.resultFingerprint).toBe(selectedFingerprint);
+    expect(createPayload).not.toHaveProperty('previewFingerprint');
+    if (createPayload.previewPixelFingerprint) expect(typeof createPayload.previewPixelFingerprint).toBe('string');
+    await assertPreviewPixelsMatchSubmittedTiles(page, createPayload);
     const response = await page.request.get(`/api/colorings/${id}`, { headers: API_HEADERS });
     const template = await response.json();
-    expect(template.width).toBe(160);
-    expect(template.height).toBe(160);
-    const coloringCanvas = page.locator('canvas.coloring-canvas');
-    await expect(coloringCanvas).toHaveAttribute('data-template-width', '160');
+    expect(template.width).toBe(192);
+    expect(template.height).toBe(192);
+    const savedFirstTile = await (await page.request.get(`/api/colorings/${id}/tiles/0/0`, { headers: API_HEADERS })).json();
+    expect(savedFirstTile.cells).toEqual(createPayload.tiles[0].cells);
+    await expect(page.locator('.progressive-coloring-session')).toBeVisible({ timeout: 15000 });
+    const coloringCanvas = page.locator('.progressive-grid-area canvas').first();
+    await expect(coloringCanvas).toBeVisible();
     expect(await coloringCanvas.evaluate((element) => element.width)).toBeLessThan(2_000);
-    const onboardingSkip = page.locator('.onboarding-card .secondary-button');
-    await page.locator('.onboarding-card').waitFor({ state: 'visible', timeout: 3_000 }).then(() => onboardingSkip.click({ force: true })).catch(() => {});
-    await clickActiveWorkCell(page);
   });
 
   test('6c. 1200x1200 creator path uploads tiled storage and opens bounded player', async ({ page }, testInfo) => {
@@ -217,13 +275,24 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
-    await page.locator('.grid-detail-range').fill('18');
-    // The create button stays disabled until the client-side image pipeline
-    // finishes; on mobile WebKit emulation that can take well over a minute.
-    await expect(page.locator('button.create-button').first()).toBeEnabled({ timeout: 120_000 });
-    await page.locator('button.create-button').first().click();
+    await page.locator('.grid-detail-range').fill('3');
+    const selectedCard = page.locator('.creator-preview-option.selected');
+    await expect(selectedCard).toHaveAttribute('data-resolution', '1200');
+    await expect(selectedCard).toHaveAttribute('data-status', 'ready', { timeout: 120_000 });
     await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 45000 });
+    const selectedFingerprint = await selectedCard.getAttribute('data-result-fingerprint');
+    let createPayload = null;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/colorings/create')) {
+        createPayload = request.postDataJSON();
+      }
+    });
     const id = await saveColoring(page);
+    expect(createPayload.width).toBe(1200);
+    expect(createPayload.resultFingerprint).toBe(selectedFingerprint);
+    expect(createPayload).not.toHaveProperty('previewFingerprint');
+    if (createPayload.previewPixelFingerprint) expect(typeof createPayload.previewPixelFingerprint).toBe('string');
+    await assertPreviewPixelsMatchSubmittedTiles(page, createPayload);
     const response = await page.request.get(`/api/colorings/${id}`, { headers: API_HEADERS });
     expect(response.ok()).toBe(true);
     const template = await response.json();
@@ -231,6 +300,8 @@ test.describe('Creator 2.0 — full E2E', () => {
     expect(template.tile_size).toBe(32);
     expect(template.cells).toEqual([]);
     expect(template.preview_url).toMatch(/^data:image\/png;base64,/);
+    const firstTile = await (await page.request.get(`/api/colorings/${id}/tiles/0/0`, { headers: API_HEADERS })).json();
+    expect(firstTile.cells).toEqual(createPayload.tiles[0].cells);
     await expect(page.locator('.progressive-coloring-session')).toBeVisible({ timeout: 15000 });
 
     // A visible 1200×1200 tile must be actionable, not just rendered.
@@ -315,17 +386,34 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('9. Completion flow: 100% → overlay → Escape → buttons', async ({ page }) => {
-    // Save a coloring
-    await uploadAndCompute(page);
-    const id = await saveColoring(page);
+    // Completion behavior is independent of the recovery creator's tiled-only
+    // detail choices. Keep this pre-existing regression bounded with a small
+    // legacy template instead of posting 36,864 completion actions.
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const createResponse = await page.request.post('/api/colorings/create', {
+      headers: API_HEADERS,
+      data: {
+        title: 'Completion flow fixture',
+        width: 8,
+        height: 8,
+        palette: ['#0b1522', '#2bd9fe'],
+        cells: Array.from({ length: 64 }, (_, index) => index % 2),
+        previewDataUrl: png,
+      },
+    });
+    expect(createResponse.status()).toBe(201);
+    const id = (await createResponse.json()).id;
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Профиль', exact: true }).click();
+    await page.getByRole('button', { name: 'Смотреть все' }).click();
+    await page.locator('.gallery-row').filter({ hasText: 'Completion flow fixture' }).click();
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
 
-    // Get template cells
     const tplResp = await page.request.get(`/api/colorings/${id}`, { headers: API_HEADERS });
     expect(tplResp.ok()).toBe(true);
     const tpl = await tplResp.json();
 
     // Complete through bounded server-authoritative actions.
-    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
     const progData = await applyProgressChanges(page, id, tpl.cells.map((color, index) => ({ index, color })), 0, png);
     expect(progData.percent).toBe(100);
     expect(progData.artwork_id).toBeTruthy();
