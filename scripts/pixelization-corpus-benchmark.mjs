@@ -70,32 +70,59 @@ for (const item of corpus) {
       for (const stylePreset of styles) {
         const result = await page.evaluate(async ({ asset, width: targetWidth, colors: requestedColors, style }) => {
           const module = await import('/src/lib/pixelColoring.js');
-          const response = await fetch(asset);
-          const blob = await response.blob();
-          const file = new File([blob], asset.split('/').pop() || 'corpus-image', { type: blob.type });
-          const data = await module.buildColoringFromImage(file, {
-            width: targetWidth,
-            height: targetWidth,
-            colors: requestedColors,
-            stylePreset: style,
-            yieldEvery: 16,
-          });
-          return {
-            width: data.width,
-            height: data.height,
-            palette: data.palette,
-            cells: data.cells,
-            previewDataUrl: data.previewDataUrl,
-            originalDataUrl: data.originalDataUrl,
-            pipelineVersion: data.pipelineVersion,
-            stylePreset: data.stylePreset,
-            resultFingerprint: data.resultFingerprint,
-            previewFingerprint: data.previewFingerprint,
-            metrics: data.metrics || null,
-          };
+          try {
+            const response = await fetch(asset);
+            const blob = await response.blob();
+            const file = new File([blob], asset.split('/').pop() || 'corpus-image', { type: blob.type });
+            const data = await module.buildColoringFromImage(file, {
+              width: targetWidth,
+              height: targetWidth,
+              colors: requestedColors,
+              stylePreset: style,
+              yieldEvery: 16,
+            });
+            return {
+              width: data.width,
+              height: data.height,
+              palette: data.palette,
+              cells: data.cells,
+              previewDataUrl: data.previewDataUrl,
+              originalDataUrl: data.originalDataUrl,
+              pipelineVersion: data.pipelineVersion,
+              stylePreset: data.stylePreset,
+              resultFingerprint: data.resultFingerprint,
+              previewPixelFingerprint: data.previewPixelFingerprint,
+              metrics: data.metrics || null,
+            };
+          } catch (error) {
+            return {
+              error: {
+                name: error?.name || 'Error',
+                code: error?.code || null,
+                message: error?.message || String(error),
+              },
+            };
+          }
         }, { asset: item.asset, width, colors, style: stylePreset });
 
         const prefix = safeName(`${item.id}-${width}-${colors}-${stylePreset}`);
+        if (result.error) {
+          const summary = {
+            corpusId: item.id,
+            type: item.type,
+            asset: item.asset,
+            requestedWidth: width,
+            requestedHeight: width,
+            requestedColors: colors,
+            requestedStylePreset: stylePreset,
+            status: result.error.code === 'PAINTABLE_RESOLUTION_LIMIT' ? 'explicitly-limited' : 'failed',
+            error: result.error,
+          };
+          await writeFile(resolve(outputDir, `${prefix}.json`), `${JSON.stringify(summary, null, 2)}\n`);
+          manifest.results.push(summary);
+          console.log(`${prefix}: ${summary.status} (${result.error.code || result.error.name})`);
+          continue;
+        }
         await writeDataUrl(resolve(outputDir, `${prefix}-original.png`), result.originalDataUrl);
         await writeDataUrl(resolve(outputDir, `${prefix}-preview.png`), result.previewDataUrl);
         const summary = {
@@ -108,7 +135,7 @@ for (const item of corpus) {
           pipelineVersion: result.pipelineVersion,
           stylePreset: result.stylePreset,
           resultFingerprint: result.resultFingerprint,
-          previewFingerprint: result.previewFingerprint,
+          previewPixelFingerprint: result.previewPixelFingerprint,
           metrics: result.metrics,
         };
         if (includeCells) summary.cells = result.cells;

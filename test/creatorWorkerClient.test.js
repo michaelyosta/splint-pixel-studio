@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCreatorWorkerClient } from '../src/lib/creatorWorkerClient.js';
 
-test('creator worker client forwards progress and terminates stale workers on cancellation', { concurrency: false }, async () => {
+test('creator worker client forwards progress and terminates stale workers on supersede and cancel', { concurrency: false }, async () => {
   const previousWorker = globalThis.Worker;
   class FakeWorker {
     static instances = [];
@@ -24,19 +24,22 @@ test('creator worker client forwards progress and terminates stale workers on ca
     const progress = [];
     const first = client.run('file', { stylePreset: 'paintable' }, { onProgress: (event) => progress.push(event) });
     firstWorker.onmessage({ data: { id: 1, type: 'progress', progress: { stage: 'sampling', progress: 0.2 } } });
-    firstWorker.onmessage({ data: { id: 1, type: 'result', data: { resultFingerprint: 'one' } } });
-    assert.deepEqual(await first, { resultFingerprint: 'one' });
     assert.deepEqual(progress, [{ stage: 'sampling', progress: 0.2 }]);
 
     const second = client.run('file', { stylePreset: 'paintable' });
-    const secondWorker = firstWorker;
-    assert.equal(firstWorker.terminated, false);
+    const secondWorker = FakeWorker.instances[1];
+    assert.equal(firstWorker.terminated, true);
+    await assert.rejects(first, { name: 'AbortError' });
+    secondWorker.onmessage({ data: { id: 2, type: 'result', data: { resultFingerprint: 'two' } } });
+    assert.deepEqual(await second, { resultFingerprint: 'two' });
+
+    const third = client.run('file', { stylePreset: 'paintable' });
     client.cancel();
     assert.equal(secondWorker.terminated, true);
-    await assert.rejects(second, { name: 'AbortError' });
-    assert.equal(FakeWorker.instances.length, 2, 'cancel keeps the client reusable with a fresh worker');
+    await assert.rejects(third, { name: 'AbortError' });
+    assert.equal(FakeWorker.instances.length, 3, 'cancel keeps the client reusable with a fresh worker');
     client.dispose();
-    assert.equal(FakeWorker.instances[1].terminated, true);
+    assert.equal(FakeWorker.instances[2].terminated, true);
   } finally {
     globalThis.Worker = previousWorker;
   }

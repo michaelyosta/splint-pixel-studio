@@ -35,7 +35,7 @@ export function renderCompletedImage(template, filled, pixelSize = 16) {
   return canvas.toDataURL('image/png');
 }
 
-function rgbToLab([red, green, blue]) {
+function rgbChannelsToLab(red, green, blue) {
   const linear = [red, green, blue].map((channel) => {
     const value = channel / 255;
     return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
@@ -48,6 +48,10 @@ function rgbToLab([red, green, blue]) {
   const fy = pivot(y);
   const fz = pivot(z);
   return [(116 * fy) - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+function rgbToLab([red, green, blue]) {
+  return rgbChannelsToLab(red, green, blue);
 }
 
 function labDistance(first, second) {
@@ -64,9 +68,27 @@ export const PIXELIZATION_PIPELINES = Object.freeze({
   paintableDither: 'paintable-v1',
 });
 
+export const PAINTABLE_LIMITS = Object.freeze({
+  maxWidth: 512,
+  maxHeight: 512,
+  maxCells: 512 * 512,
+});
+
 function normalizeStylePreset(stylePreset) {
   if (stylePreset === 'paintable' || stylePreset === 'paintable-dither') return stylePreset;
   return 'classic';
+}
+
+function assertPaintableResolution(width, height) {
+  if (width <= PAINTABLE_LIMITS.maxWidth
+    && height <= PAINTABLE_LIMITS.maxHeight
+    && width * height <= PAINTABLE_LIMITS.maxCells) return;
+  const error = new RangeError(
+    `paintable-v1 supports at most ${PAINTABLE_LIMITS.maxWidth}x${PAINTABLE_LIMITS.maxHeight} logical cells; use classic for larger grids`,
+  );
+  error.code = 'PAINTABLE_RESOLUTION_LIMIT';
+  error.limit = PAINTABLE_LIMITS;
+  throw error;
 }
 
 function createAbortError(message = 'Pixelization cancelled') {
@@ -440,7 +462,7 @@ export function sampleGridColorsRobust(imageData, imageWidth, imageHeight, gridW
 
 async function sampleGridColorsRobustAsync(imageData, imageWidth, imageHeight, gridWidth, gridHeight, context, yieldEvery = 24) {
   const yieldChunk = createChunkedYielder(yieldEvery, context.checkCancelled);
-  const colors = [];
+  const colors = new Float32Array(gridWidth * gridHeight * 3);
   for (let gridY = 0; gridY < gridHeight; gridY += 1) {
     context.checkCancelled();
     if (yieldChunk) await yieldChunk();
@@ -449,41 +471,90 @@ async function sampleGridColorsRobustAsync(imageData, imageWidth, imageHeight, g
     for (let gridX = 0; gridX < gridWidth; gridX += 1) {
       const left = Math.floor((gridX * imageWidth) / gridWidth);
       const right = Math.max(left + 1, Math.floor(((gridX + 1) * imageWidth) / gridWidth));
-      colors.push(sampleRobustCell(imageData, imageWidth, left, top, right, bottom));
+      const color = sampleRobustCell(imageData, imageWidth, left, top, right, bottom);
+      const offset = ((gridY * gridWidth) + gridX) * 3;
+      colors[offset] = color[0];
+      colors[offset + 1] = color[1];
+      colors[offset + 2] = color[2];
     }
     if (gridY % 8 === 0) context.progress('sampling', 0.18 * ((gridY + 1) / gridHeight));
   }
   return colors;
 }
 
+function isFlatRgbBuffer(colors) {
+  return ArrayBuffer.isView(colors) && colors.length % 3 === 0;
+}
+
+function sourcePixelCount(colors) {
+  return isFlatRgbBuffer(colors) ? colors.length / 3 : colors.length;
+}
+
+function sourceRgbAt(colors, index) {
+  if (!isFlatRgbBuffer(colors)) return colors[index];
+  const offset = index * 3;
+  return [colors[offset], colors[offset + 1], colors[offset + 2]];
+}
+
+function sourceLabsBuffer(colors) {
+  const count = sourcePixelCount(colors);
+  const labs = new Float32Array(count * 3);
+  for (let index = 0; index < count; index += 1) {
+    const sourceOffset = index * 3;
+    const rgb = isFlatRgbBuffer(colors) ? null : colors[index];
+    const lab = rgbChannelsToLab(
+      rgb ? rgb[0] : colors[sourceOffset],
+      rgb ? rgb[1] : colors[sourceOffset + 1],
+      rgb ? rgb[2] : colors[sourceOffset + 2],
+    );
+    const offset = index * 3;
+    labs[offset] = lab[0];
+    labs[offset + 1] = lab[1];
+    labs[offset + 2] = lab[2];
+  }
+  return labs;
+}
+
+function labBufferDistance(labs, firstIndex, secondIndex) {
+  const first = firstIndex * 3;
+  const second = secondIndex * 3;
+  return Math.hypot(
+    labs[first] - labs[second],
+    labs[first + 1] - labs[second + 1],
+    labs[first + 2] - labs[second + 2],
+  );
+}
+
+function labBufferToColorDistance(labs, index, color) {
+  const offset = index * 3;
+  return Math.hypot(labs[offset] - color[0], labs[offset + 1] - color[1], labs[offset + 2] - color[2]);
+}
+
 function downsampleCellColors(colors, width, height, maxSamples = 12_000) {
   const step = Math.max(1, Math.ceil(Math.sqrt((width * height) / maxSamples)));
   const samples = [];
   for (let y = 0; y < height; y += step) {
-    for (let x = 0; x < width; x += step) samples.push(colors[(y * width) + x]);
+    for (let x = 0; x < width; x += step) samples.push(sourceRgbAt(colors, (y * width) + x));
   }
   return samples;
 }
 
-function mapRgbColorsToPalette(sourcePixels, paletteRgb) {
-  const paletteLab = paletteRgb.map(rgbToLab);
-  return sourcePixels.map((rgb) => {
-    const lab = rgbToLab(rgb);
-    return nearestPaletteIndex(lab, paletteLab);
-  });
-}
-
-function nearestPaletteIndex(lab, paletteLab) {
-  let closestIndex = 0;
-  let closestDistance = Infinity;
-  paletteLab.forEach((color, paletteIndex) => {
-    const distance = labDistance(lab, color);
-    if (distance < closestDistance) {
-      closestDistance = distance;
-      closestIndex = paletteIndex;
-    }
-  });
-  return closestIndex;
+function mapLabsToPalette(sourceLabs, paletteLab) {
+  const count = sourceLabs.length / 3;
+  const labels = new Uint8Array(count);
+  for (let index = 0; index < count; index += 1) {
+    let closestIndex = 0;
+    let closestDistance = Infinity;
+    paletteLab.forEach((color, paletteIndex) => {
+      const distance = labBufferToColorDistance(sourceLabs, index, color);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = paletteIndex;
+      }
+    });
+    labels[index] = closestIndex;
+  }
+  return labels;
 }
 
 function getPaintableOptions(width, height, options = {}) {
@@ -508,9 +579,9 @@ function addCandidateId(candidateIds, count, value) {
 }
 
 function scorePaintableCandidate(index, candidate, labels, sourceLabs, paletteLabs, width, height, settings) {
-  let score = labDistance(sourceLabs[index], paletteLabs[candidate]);
+  let score = labBufferToColorDistance(sourceLabs, index, paletteLabs[candidate]);
   forEachNeighbour(index, width, height, (neighbour) => {
-    const edge = labDistance(sourceLabs[index], sourceLabs[neighbour]);
+    const edge = labBufferDistance(sourceLabs, index, neighbour);
     if (edge < settings.strongEdgeThreshold && candidate !== labels[neighbour]) {
       score += settings.spatialWeight * (1 - (edge / settings.strongEdgeThreshold));
     }
@@ -519,9 +590,9 @@ function scorePaintableCandidate(index, candidate, labels, sourceLabs, paletteLa
 }
 
 function regularizePaintableLabels(sourcePixels, width, height, paletteRgb, settings, checkCancelled = () => {}) {
-  const sourceLabs = sourcePixels.map(rgbToLab);
+  const sourceLabs = sourceLabsBuffer(sourcePixels);
   const paletteLabs = paletteRgb.map(rgbToLab);
-  const labels = mapRgbColorsToPalette(sourcePixels, paletteRgb);
+  const labels = mapLabsToPalette(sourceLabs, paletteLabs);
   const candidateIds = new Int16Array(Math.max(8, paletteRgb.length + 4));
 
   for (let iteration = 0; iteration < settings.regularizationIterations; iteration += 1) {
@@ -555,9 +626,9 @@ function regularizePaintableLabels(sourcePixels, width, height, paletteRgb, sett
 }
 
 async function regularizePaintableLabelsAsync(sourcePixels, width, height, paletteRgb, settings, context, yieldEvery = 24) {
-  const sourceLabs = sourcePixels.map(rgbToLab);
+  const sourceLabs = sourceLabsBuffer(sourcePixels);
   const paletteLabs = paletteRgb.map(rgbToLab);
-  const labels = mapRgbColorsToPalette(sourcePixels, paletteRgb);
+  const labels = mapLabsToPalette(sourceLabs, paletteLabs);
   const candidateIds = new Int16Array(Math.max(8, paletteRgb.length + 4));
   const yieldChunk = createChunkedYielder(yieldEvery, context.checkCancelled);
 
@@ -647,24 +718,14 @@ function chooseBoundaryCandidate(boundary, globalCounts) {
   return best;
 }
 
-function mostCommonPaletteColor(counts) {
-  let best = 0;
-  for (let index = 1; index < counts.length; index += 1) {
-    if (counts[index] > counts[best]) best = index;
-  }
-  return best;
-}
-
 function mergePaintableRegions(cells, width, height, paletteRgb, sourceLabs, settings, checkCancelled = () => {}) {
-  let result = [...cells];
+  let result = Uint8Array.from(cells);
   const paletteLabs = paletteRgb.map(rgbToLab);
-  const globalCounts = new Int32Array(paletteRgb.length);
-  result.forEach((color) => { globalCounts[color] += 1; });
-  let finalMap = null;
 
   for (let pass = 0; pass < settings.maxMergePasses; pass += 1) {
+    const globalCounts = new Int32Array(paletteRgb.length);
+    result.forEach((color) => { globalCounts[color] += 1; });
     const map = collectRegionMap(result, width, height, checkCancelled);
-    finalMap = map;
     const replacements = new Int16Array(map.sizes.length);
     replacements.fill(-1);
     const handled = new Uint8Array(map.sizes.length);
@@ -707,7 +768,7 @@ function mergePaintableRegions(cells, width, height, paletteRgb, sourceLabs, set
           const candidate = result[neighbour];
           const entry = boundary.get(candidate) || { shared: 0, strong: 0, maxSupport: 0, distance: labDistance(paletteLabs[color], paletteLabs[candidate]) };
           entry.shared += 1;
-          if (labDistance(sourceLabs[index], sourceLabs[neighbour]) >= settings.strongEdgeThreshold) entry.strong += 1;
+          if (labBufferDistance(sourceLabs, index, neighbour) >= settings.strongEdgeThreshold) entry.strong += 1;
           entry.maxSupport = Math.max(entry.maxSupport, map.sizes[map.regionIds[neighbour]]);
           boundary.set(candidate, entry);
         });
@@ -721,14 +782,12 @@ function mergePaintableRegions(cells, width, height, paletteRgb, sourceLabs, set
       const candidates = [...boundary.values()];
       const allNeighboursSmall = candidates.every((entry) => entry.maxSupport <= settings.minRegionSize);
       const noiseLike = members.length <= 2 && allNeighboursSmall && candidates.some((entry) => entry.shared >= members.length);
-      const bestCandidate = noiseLike ? mostCommonPaletteColor(globalCounts) : chooseBoundaryCandidate(boundary, globalCounts);
-      const bestEntry = boundary.get(bestCandidate) || {
-        shared: 0,
-        strong: 0,
-        maxSupport: 0,
-        distance: labDistance(paletteLabs[color], paletteLabs[bestCandidate]),
-      };
+      const bestCandidate = chooseBoundaryCandidate(boundary, globalCounts);
+      const bestEntry = boundary.get(bestCandidate);
       if (!bestEntry) continue;
+      if (noiseLike
+        && (globalCounts[bestCandidate] < globalCounts[color]
+          || (globalCounts[bestCandidate] === globalCounts[color] && bestCandidate > color))) continue;
       const strongRatio = bestEntry.strong / Math.max(1, bestEntry.shared);
       const supportedAccent = members.length === 1
         && boundary.size === 1
@@ -736,9 +795,9 @@ function mergePaintableRegions(cells, width, height, paletteRgb, sourceLabs, set
         && strongRatio >= 0.65;
       const protectedStrongBoundary = bestEntry.maxSupport >= settings.minRegionSize * 2 && strongRatio >= 0.65;
 
-      // A single coherent high-contrast accent survives. Checker/noise cells do
-      // not: their neighbouring regions are themselves tiny, so the canonical
-      // boundary colour wins deterministically instead of inverting in pairs.
+      // A coherent high-contrast accent survives. Noise-like regions may only
+      // merge into a boundary colour that already has stronger global support;
+      // this breaks checkerboard inversion without teleporting a third colour.
       if (supportedAccent || (!noiseLike && protectedStrongBoundary)) continue;
       if (bestCandidate !== color) {
         replacements[regionId] = bestCandidate;
@@ -747,11 +806,14 @@ function mergePaintableRegions(cells, width, height, paletteRgb, sourceLabs, set
     }
 
     if (!replacementCount) break;
-    result = result.map((color, index) => {
+    const next = new Uint8Array(result.length);
+    result.forEach((color, index) => {
       const replacement = replacements[map.regionIds[index]];
-      return replacement >= 0 ? replacement : color;
+      next[index] = replacement >= 0 ? replacement : color;
     });
+    result = next;
   }
+  const finalMap = collectRegionMap(result, width, height, checkCancelled);
   return { cells: result, regionMap: finalMap };
 }
 
@@ -767,26 +829,28 @@ async function mergePaintableRegionsAsync(cells, width, height, paletteRgb, sour
 function applyBoundedOrderedDither(cells, sourceLabs, paletteLabs, width, height, settings, checkCancelled = () => {}) {
   if (settings.ditherMode !== 'ordered') return cells;
   const matrix = [0, 2, 3, 1];
-  const result = [...cells];
+  const result = Uint8Array.from(cells);
   for (let index = 0; index < result.length; index += 1) {
     if ((index & 0x1fff) === 0) checkCancelled();
     const current = result[index];
     let second = current;
     let secondDistance = Infinity;
-    const source = sourceLabs[index];
     paletteLabs.forEach((palette, paletteIndex) => {
       if (paletteIndex === current) return;
-      const distance = labDistance(source, palette);
+      const distance = labBufferToColorDistance(sourceLabs, index, palette);
       if (distance < secondDistance) {
         secondDistance = distance;
         second = paletteIndex;
       }
     });
-    const currentDistance = labDistance(source, paletteLabs[current]);
+    const currentDistance = labBufferToColorDistance(sourceLabs, index, paletteLabs[current]);
     if (second === current || secondDistance - currentDistance > 7) continue;
     const x = index % width;
     const y = Math.floor(index / width);
-    const localEdge = Math.max(...[...neighbouringIndices(index, width, height)].map((neighbour) => labDistance(sourceLabs[index], sourceLabs[neighbour])));
+    let localEdge = 0;
+    forEachNeighbour(index, width, height, (neighbour) => {
+      localEdge = Math.max(localEdge, labBufferDistance(sourceLabs, index, neighbour));
+    });
     if (localEdge >= settings.strongEdgeThreshold * 0.7) continue;
     if ((secondDistance - currentDistance) < matrix[((y & 1) * 2) + (x & 1)] * 1.5) result[index] = second;
   }
@@ -805,12 +869,20 @@ function calculatePaintabilityMetrics(cells, width, height, regionMap, sourceLab
   let retainedEdges = 0;
   for (let index = 0; index < cells.length; index += 1) {
     const x = index % width;
-    if (x >= width - 1) continue;
-    const neighbour = index + 1;
-    const sourceEdge = labDistance(sourceLabs[index], sourceLabs[neighbour]);
-    if (sourceEdge >= settings.strongEdgeThreshold) {
-      strongEdges += 1;
-      if (cells[index] !== cells[neighbour]) retainedEdges += 1;
+    const y = Math.floor(index / width);
+    if (x < width - 1) {
+      const neighbour = index + 1;
+      if (labBufferDistance(sourceLabs, index, neighbour) >= settings.strongEdgeThreshold) {
+        strongEdges += 1;
+        if (cells[index] !== cells[neighbour]) retainedEdges += 1;
+      }
+    }
+    if (y < height - 1) {
+      const neighbour = index + width;
+      if (labBufferDistance(sourceLabs, index, neighbour) >= settings.strongEdgeThreshold) {
+        strongEdges += 1;
+        if (cells[index] !== cells[neighbour]) retainedEdges += 1;
+      }
     }
   }
   return {
@@ -818,45 +890,95 @@ function calculatePaintabilityMetrics(cells, width, height, regionMap, sourceLab
     meanRegionSize: cells.length / Math.max(1, sizes.length),
     tinyRegionRatio: tinyCells / Math.max(1, cells.length),
     microRegionRatio: microCells / Math.max(1, cells.length),
-    edgeRetention: strongEdges ? retainedEdges / strongEdges : 1,
-    predictedEffort: sizes.length,
+    strongEdgeCount: strongEdges,
+    retainedStrongEdgeCount: retainedEdges,
+    edgeRetention: strongEdges ? retainedEdges / strongEdges : null,
+    effortLowerBound: {
+      minimumManualStrokes: sizes.length,
+      connectedRegions: sizes.length,
+    },
     minRegionSize: settings.minRegionSize,
   };
 }
 
-function fingerprintResult(width, height, palette, cells, stylePreset, pipelineVersion) {
-  let hash = 2166136261;
-  const update = (value) => {
-    const string = String(value);
-    for (let index = 0; index < string.length; index += 1) hash = Math.imul(hash ^ string.charCodeAt(index), 16777619);
+function uint32Bytes(values) {
+  const bytes = new Uint8Array(values.length * 4);
+  const view = new DataView(bytes.buffer);
+  values.forEach((value, index) => view.setUint32(index * 4, Number(value) >>> 0, true));
+  return bytes;
+}
+
+function paletteBytes(palette) {
+  const bytes = new Uint8Array(palette.length * 3);
+  palette.forEach((hex, index) => {
+    const rgb = hexToRgb(hex);
+    bytes[index * 3] = rgb[0];
+    bytes[(index * 3) + 1] = rgb[1];
+    bytes[(index * 3) + 2] = rgb[2];
+  });
+  return bytes;
+}
+
+function typedDelimitedHash(fields) {
+  const hashes = new Uint32Array([0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35]);
+  const primes = [0x01000193, 0x85ebca77, 0xc2b2ae3d, 0x27d4eb2f];
+  const updateByte = (byte) => {
+    for (let lane = 0; lane < hashes.length; lane += 1) hashes[lane] = Math.imul(hashes[lane] ^ byte, primes[lane]);
   };
-  update(width);
-  update(height);
-  update(stylePreset);
-  update(pipelineVersion);
-  palette.forEach(update);
-  cells.forEach(update);
-  return `fnv1a-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+  fields.forEach(({ tag, bytes }) => {
+    updateByte(tag);
+    const length = uint32Bytes([bytes.length]);
+    length.forEach(updateByte);
+    bytes.forEach(updateByte);
+  });
+  return [...hashes].map((value) => value.toString(16).padStart(8, '0')).join('');
+}
+
+const textEncoder = new TextEncoder();
+
+export function fingerprintPixelizationResult({ width, height, palette, cells, stylePreset, pipelineVersion }) {
+  const cellBytes = cells instanceof Uint8Array ? cells : Uint8Array.from(cells);
+  const digest = typedDelimitedHash([
+    { tag: 1, bytes: textEncoder.encode('splint-pixelization-result-v2') },
+    { tag: 2, bytes: uint32Bytes([width, height]) },
+    { tag: 3, bytes: textEncoder.encode(stylePreset) },
+    { tag: 4, bytes: textEncoder.encode(pipelineVersion) },
+    { tag: 5, bytes: paletteBytes(palette) },
+    { tag: 6, bytes: cellBytes },
+  ]);
+  return `px128-${digest}`;
+}
+
+export function fingerprintPreviewPixels(width, height, rgbaPixels) {
+  const bytes = rgbaPixels instanceof Uint8Array
+    ? rgbaPixels
+    : new Uint8Array(rgbaPixels.buffer, rgbaPixels.byteOffset, rgbaPixels.byteLength);
+  const digest = typedDelimitedHash([
+    { tag: 1, bytes: textEncoder.encode('splint-preview-rgba-v1') },
+    { tag: 2, bytes: uint32Bytes([width, height]) },
+    { tag: 3, bytes },
+  ]);
+  return `rgba128-${digest}`;
 }
 
 export function buildPaintableCells(sourcePixels, width, height, requestedColors, options = {}) {
+  assertPaintableResolution(width, height);
   const settings = getPaintableOptions(width, height, options);
   const paletteRgb = buildPalette(downsampleCellColors(sourcePixels, width, height), requestedColors);
   const initial = regularizePaintableLabels(sourcePixels, width, height, paletteRgb, settings, options.checkCancelled);
   const dithered = applyBoundedOrderedDither(initial.labels, initial.sourceLabs, initial.paletteLabs, width, height, settings, options.checkCancelled);
   const cleaned = mergePaintableRegions(dithered, width, height, paletteRgb, initial.sourceLabs, settings, options.checkCancelled);
   const palette = paletteRgb.map(([red, green, blue]) => normalizeHex(red, green, blue));
+  const metrics = calculatePaintabilityMetrics(cleaned.cells, width, height, cleaned.regionMap, initial.sourceLabs, settings);
   return {
     palette,
-    cells: cleaned.cells,
-    metrics: calculatePaintabilityMetrics(cleaned.cells, width, height, cleaned.regionMap, initial.sourceLabs, settings),
-    sourceLabs: initial.sourceLabs,
-    paletteRgb,
-    settings,
+    cells: Array.from(cleaned.cells),
+    metrics,
   };
 }
 
 async function buildPaintableCellsAsync(sourcePixels, width, height, requestedColors, options, context) {
+  assertPaintableResolution(width, height);
   const settings = getPaintableOptions(width, height, options);
   const paletteRgb = buildPalette(downsampleCellColors(sourcePixels, width, height), requestedColors);
   context.progress('palette', 0.2);
@@ -868,7 +990,7 @@ async function buildPaintableCellsAsync(sourcePixels, width, height, requestedCo
   const palette = paletteRgb.map(([red, green, blue]) => normalizeHex(red, green, blue));
   const metrics = calculatePaintabilityMetrics(cleaned.cells, width, height, cleaned.regionMap, initial.sourceLabs, settings);
   context.progress('complete', 1);
-  return { palette, cells: cleaned.cells, metrics, sourceLabs: initial.sourceLabs, paletteRgb, settings };
+  return { palette, cells: Array.from(cleaned.cells), metrics };
 }
 
 function analysisDimensions(width, height) {
@@ -980,27 +1102,37 @@ async function canvasToDataUrl(canvas) {
   throw new Error('Canvas export API is unavailable');
 }
 
+export function buildPreviewPixelBuffer(width, height, palette, cells) {
+  const rgbaPalette = palette.map(hexToRgb);
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let index = 0; index < cells.length; index += 1) {
+    const color = rgbaPalette[cells[index]] || [0, 0, 0];
+    const offset = index * 4;
+    pixels[offset] = color[0];
+    pixels[offset + 1] = color[1];
+    pixels[offset + 2] = color[2];
+    pixels[offset + 3] = 255;
+  }
+  return pixels;
+}
+
 async function renderPreview(width, height, palette, cells) {
   const pixelCanvas = createRasterCanvas(width, height);
   pixelCanvas.width = width;
   pixelCanvas.height = height;
   const pixelContext = pixelCanvas.getContext('2d');
-  const rgbaPalette = palette.map(hexToRgb);
   const imageData = pixelContext.createImageData(width, height);
-  for (let index = 0; index < cells.length; index += 1) {
-    const color = rgbaPalette[cells[index]] || [0, 0, 0];
-    const offset = index * 4;
-    imageData.data[offset] = color[0];
-    imageData.data[offset + 1] = color[1];
-    imageData.data[offset + 2] = color[2];
-    imageData.data[offset + 3] = 255;
-  }
+  const pixels = buildPreviewPixelBuffer(width, height, palette, cells);
+  imageData.data.set(pixels);
   pixelContext.putImageData(imageData, 0, 0);
   const preview = createRasterCanvas(512, 512);
   const previewContext = preview.getContext('2d');
   previewContext.imageSmoothingEnabled = false;
   previewContext.drawImage(pixelCanvas, 0, 0, 512, 512);
-  return canvasToDataUrl(preview);
+  return {
+    previewDataUrl: await canvasToDataUrl(preview),
+    previewPixelFingerprint: fingerprintPreviewPixels(width, height, pixels),
+  };
 }
 
 export async function buildColoringFromImage(file, options = {}) {
@@ -1016,6 +1148,7 @@ export async function buildColoringFromImage(file, options = {}) {
   const includeOriginalDataUrl = options.includeOriginalDataUrl !== false;
   const pipelineContext = createPipelineContext(options);
   pipelineContext.checkCancelled();
+  if (stylePreset !== 'classic') assertPaintableResolution(width, height);
   const bitmap = await createImageBitmap(file);
   const analysis = analysisDimensions(width, height);
   const canvas = createRasterCanvas(analysis.width, analysis.height);
@@ -1055,19 +1188,20 @@ export async function buildColoringFromImage(file, options = {}) {
         reader.readAsDataURL(file);
       })
       : null;
+    const preview = await renderPreview(width, height, palette, candidate.cells);
     const result = {
       width,
       height,
       palette,
       cells: candidate.cells,
-      previewDataUrl: await renderPreview(width, height, palette, candidate.cells),
+      previewDataUrl: preview.previewDataUrl,
+      previewPixelFingerprint: preview.previewPixelFingerprint,
       originalDataUrl,
       pipelineVersion,
       stylePreset,
       metrics: candidate.metrics,
     };
-    result.resultFingerprint = fingerprintResult(width, height, palette, candidate.cells, stylePreset, pipelineVersion);
-    result.previewFingerprint = result.resultFingerprint;
+    result.resultFingerprint = fingerprintPixelizationResult(result);
     pipelineContext.progress('complete', 1, { resultFingerprint: result.resultFingerprint });
     return result;
   }
@@ -1123,18 +1257,19 @@ export async function buildColoringFromImage(file, options = {}) {
       reader.readAsDataURL(file);
     })
     : null;
+  const preview = await renderPreview(width, height, palette, smoothedCells);
   const result = {
     width,
     height,
     palette,
     cells: smoothedCells,
-    previewDataUrl: await renderPreview(width, height, palette, smoothedCells),
+    previewDataUrl: preview.previewDataUrl,
+    previewPixelFingerprint: preview.previewPixelFingerprint,
     originalDataUrl,
     pipelineVersion,
     stylePreset,
   };
-  result.resultFingerprint = fingerprintResult(width, height, palette, smoothedCells, stylePreset, pipelineVersion);
-  result.previewFingerprint = result.resultFingerprint;
+  result.resultFingerprint = fingerprintPixelizationResult(result);
   pipelineContext.progress('complete', 1, { resultFingerprint: result.resultFingerprint });
   return result;
 }
