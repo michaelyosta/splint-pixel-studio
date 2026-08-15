@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "pixelization-corpus.v1",
+  "name": "independent-real-and-non-pixel-corpus",
+  "description": "Evaluation-only corpus of real photographs and one non-pixel illustration. The strata are coverage labels, not quality labels. Every local derivative is hash-pinned and its source/license is recorded in SOURCES.md.",
+  "defaults": {
+    "colors": 10,
+    "sizes": [192, 512],
+    "crop": null,
+    "yieldEvery": 96,
+    "previewWidth": 320,
+    "previewHeight": 320
+  },
+  "images": [
+    {
+      "id": "portrait-jessica-meir",
+      "path": "scripts/pixelization-eval/corpus/assets/portrait-jessica-meir.jpg",
+      "category": "portrait",
+      "tags": ["photograph", "portrait", "high-detail", "grayscale", "face"],
+      "source": {
+        "title": "Jessica Meir official portrait in an EMU (B&W).jpg",
+        "page": "https://commons.wikimedia.org/wiki/File:Jessica_Meir_official_portrait_in_an_EMU_(B%26W).jpg",
+        "derivativeUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/Jessica_Meir_official_portrait_in_an_EMU_%28B%26W%29.jpg/1920px-Jessica_Meir_official_portrait_in_an_EMU_%28B%26W%29.jpg",
+        "license": "Public domain",
+        "licenseUrl": "https://commons.wikimedia.org/wiki/File:Jessica_Meir_official_portrait_in_an_EMU_(B%26W).jpg#Licensing",
+        "artist": "Josh Valcarcel",
+        "upstreamSha1": "06799b57f5d7b1bc1d6670655c234db7e1cb91e2",
+        "originalWidth": 4816,
+        "originalHeight": 6422,
+        "derivativeWidth": 1920,
+        "sha256": "53f00ccbe889a745c4a085dde02732065fbec59f2bca1f9dfaae211b0251effe"
+      }
+    },
+    {
+      "id": "animal-iguana-venezuela",
+      "path": "scripts/pixelization-eval/corpus/assets/animal-iguana-venezuela.jpg",
+      "category": "animal",
+      "tags": ["photograph", "animal", "organic-texture", "high-detail", "strong-silhouette"],
+      "source": {
+        "title": "Iguana de Venezuela.jpg",
+        "page": "https://commons.wikimedia.org/wiki/File:Iguana_de_Venezuela.jpg",
+        "derivativeUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Iguana_de_Venezuela.jpg/1920px-Iguana_de_Venezuela.jpg",
+        "license": "CC0 1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "artist": "Wilfredor",
+        "upstreamSha1": "b91553c0281669f1f05f7c596ef243d44e5679a9",
+        "originalWidth": 3797,
+        "originalHeight": 2848,
+        "derivativeWidth": 1920,
+        "sha256": "f68277b68f18d89806ba0a9ead1e9408c9e0fb64db6b220ba34f6ee8a30b9016"
+      }
+    },
+    {
+      "id": "landscape-utah-dunes",
+      "path": "scripts/pixelization-eval/corpus/assets/landscape-utah-dunes.jpg",
+      "category": "landscape",
+      "tags": ["photograph", "landscape", "gradient", "layered-depth", "fine-texture"],
+      "source": {
+        "title": "Utah Dunes Landscape - West Desert District.jpg",
+        "page": "https://commons.wikimedia.org/wiki/File:Utah_Dunes_Landscape_-_West_Desert_District.jpg",
+        "derivativeUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Utah_Dunes_Landscape_-_West_Desert_District.jpg/1920px-Utah_Dunes_Landscape_-_West_Desert_District.jpg",
+        "license": "Public domain",
+        "licenseUrl": "https://commons.wikimedia.org/wiki/File:Utah_Dunes_Landscape_-_West_Desert_District.jpg#Licensing",
+        "artist": "BLM Utah / Bob Wick",
+        "upstreamSha1": "74ab899dd443dd19c0ffb31dd618be3debf05694",
+        "originalWidth": 4000,
+        "originalHeight": 2628,
+        "derivativeWidth": 1920,
+        "sha256": "cefccb9b95f999a2444bb72cde06d5384b0144c6b67afe8bdff80b60146ba6bc"
+      }
+    },
+    {
+      "id": "object-palm-wine-cup",
+      "path": "scripts/pixelization-eval/corpus/assets/object-palm-wine-cup.jpg",
+      "category": "object",
+      "tags": ["photograph", "object", "isolated-subject", "neutral-background", "material-texture"],
+      "source": {
+        "title": "Palm Wine Cup, Brücke-Museum Berlin, 65048, view a.jpg",
+        "page": "https://commons.wikimedia.org/wiki/File:Palm_Wine_Cup,_Br%C3%BCcke-Museum_Berlin,_65048,_view_a.jpg",
+        "derivativeUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Palm_Wine_Cup%2C_Br%C3%BCcke-Museum_Berlin%2C_65048%2C_view_a.jpg/1920px-Palm_Wine_Cup%2C_Br%C3%BCcke-Museum_Berlin%2C_65048%2C_view_a.jpg",
+        "license": "CC0 1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "artist": "Nick Ash, Berlin / Brücke Museum",
+        "upstreamSha1": "994e5010cf2794913d2a9bc7958ca14dd53ce297",
+        "originalWidth": 6196,
+        "originalHeight": 8270,
+        "derivativeWidth": 1920,
+        "sha256": "589da43e6f7f86e2ae3b41d33e4cb06f8c2560b54e358818203accefb02f40f6"
+      }
+    },
+    {
+      "id": "gradient-golden-gate-fog",
+      "path": "scripts/pixelization-eval/corpus/assets/gradient-golden-gate-fog.jpg",
+      "category": "gradient",
+      "tags": ["photograph", "gradient", "fog", "low-contrast", "strong-linear-edge"],
+      "source": {
+        "title": "Golden Gate Fog - Flickr - romainguy.jpg",
+        "page": "https://commons.wikimedia.org/wiki/File:Golden_Gate_Fog_-_Flickr_-_romainguy.jpg",
+        "derivativeUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Golden_Gate_Fog_-_Flickr_-_romainguy.jpg/1920px-Golden_Gate_Fog_-_Flickr_-_romainguy.jpg",
+        "license": "CC0 1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "artist": "Romain Guy",
+        "upstreamSha1": "4e30a1c5edb568e0ba219a8e0068a1013310e80d",
+        "originalWidth": 5616,
+        "originalHeight": 3564,
+        "derivativeWidth": 1920,
+        "sha256": "ec1465fe61156a5859b2b43764ed9173ff7a6debee4840b7dcd59bab211f71e3"
+      }
+    },
+    {
+      "id": "illustration-paint-brush",
+      "path": "scripts/pixelization-eval/corpus/assets/illustration-paint-brush.jpg",
+      "category": "simple-illustration",
+      "tags": ["non-pixel-illustration", "simple-shapes", "flat-background", "hard-edge", "small-palette"],
+      "source": {
+        "title": "Leanne Walker- Paint Brush Illustration - FREE (50225393663).jpg",
+        "page": "https://commons.wikimedia.org/wiki/File:Leanne_Walker-_Paint_Brush_Illustration_-_FREE_(50225393663).jpg",
+        "derivativeUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Leanne_Walker-_Paint_Brush_Illustration_-_FREE_%2850225393663%29.jpg/1920px-Leanne_Walker-_Paint_Brush_Illustration_-_FREE_%2850225393663%29.jpg",
+        "license": "CC0 1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "artist": "Leanne Walker",
+        "upstreamSha1": "8627a3885bf18e9d5c86ef4b13bc8f247e959217",
+        "originalWidth": 2881,
+        "originalHeight": 2633,
+        "derivativeWidth": 1920,
+        "sha256": "3870deb1637fa9d05fabe6332cbc4ec3c49d5128ab1c2f9b9ebb30f68b34c4c0"
+      }
+    },
+    {
+      "id": "silhouette-rat",
+      "path": "scripts/pixelization-eval/corpus/assets/silhouette-rat.jpg",
+      "category": "strong-silhouette",
+      "tags": ["photograph", "animal", "strong-silhouette", "high-contrast", "textured-background"],
+      "source": {
+        "title": "Rat silhouette (27072964899).jpg",
+        "page": "https://commons.wikimedia.org/wiki/File:Rat_silhouette_(27072964899).jpg",
+        "derivativeUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Rat_silhouette_%2827072964899%29.jpg/1920px-Rat_silhouette_%2827072964899%29.jpg",
+        "license": "CC0 1.0",
+        "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "artist": "freestocks.org",
+        "upstreamSha1": "9e474f2cf50202ee7766fc9520fb3efadaa73557",
+        "originalWidth": 5391,
+        "originalHeight": 3594,
+        "derivativeWidth": 1920,
+        "sha256": "6d453ff9a55de6503f08ad80315f8e8a09afffc28d209c806b5870aa8c4dba43"
+      }
+    }
+  ]
+}
