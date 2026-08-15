@@ -103,7 +103,7 @@ Stars payments, ledger/payment endpoints, and future business architecture were 
 
 ## Files, branches, and commits
 
-Integrated branch: `codex/splint-recovery-quality`, current commit `bf4a83a`, based on `5d21fd6`.
+Integrated branch: `codex/splint-recovery-quality`, current commit `c5a2e49`, based on `5d21fd6`; `bf4a83a` is the final code integration immediately before this handoff document.
 
 Recovery commits in order:
 
