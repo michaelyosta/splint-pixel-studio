@@ -115,7 +115,8 @@ async function uploadAndCompute(page) {
   await page.goto('/');
   await openImageCreator(page);
   await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
-  await expect(page.locator('.creator-preview-option[data-resolution="192"]')).toHaveAttribute('data-status', 'ready', { timeout: 30000 });
+  await expect(page.locator('.creator-preview-option[data-resolution="512"]')).toHaveAttribute('data-status', 'ready', { timeout: 30000 });
+  await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-resolution', '512');
   await expect(page.locator('.creator-previews')).toBeVisible();
 }
 
@@ -184,6 +185,15 @@ test.describe('Creator 2.0 — full E2E', () => {
     await expect(page.locator('.file-field')).toContainText('test-image.png');
   });
 
+  test('3a. Photo creator defaults to the detail-preserving 512×512/16-colour mode', async ({ page }) => {
+    await page.goto('/');
+    await openImageCreator(page);
+    await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
+    await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-resolution', '512');
+    await expect(page.locator('.creator-colors-badge')).toHaveText('16');
+    await expect(page.locator('.creator-resolution-note')).toContainText('по умолчанию выбран баланс 512');
+  });
+
   test('4. Crop mode shows zoom and offset sliders', async ({ page }) => {
     await page.goto('/');
     await openImageCreator(page);
@@ -237,6 +247,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
+    await page.getByRole('button', { name: 'Сетка 192 на 192' }).click();
     await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-resolution', '192');
     await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-status', 'ready', { timeout: 60000 });
     await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 20000 });

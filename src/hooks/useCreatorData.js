@@ -13,7 +13,12 @@ import {
 import { createCreatorWorkerClient } from '../lib/creatorWorkerClient';
 import { createTiledTemplateAsync } from '../lib/tiledTemplate';
 
-const DEFAULT_CREATOR_RESOLUTION = CREATOR_PREVIEW_RESOLUTIONS[0];
+// The previous 192×192/10-colour default flattened faces, lettering, and
+// silhouettes before the player ever saw the real number grid. 512×512 keeps
+// materially more structure while remaining within the bounded creator
+// contract; 192 remains available when a deliberately simpler painting is
+// preferred.
+const DEFAULT_CREATOR_RESOLUTION = CREATOR_PREVIEW_RESOLUTIONS[1];
 // Pixelization R&D can replace the candidate without changing preview/save
 // semantics. Until that review closes, the selected preset remains an
 // explicit integration switch rather than a creator-flow assumption.
@@ -78,7 +83,7 @@ export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNaviga
     width: DEFAULT_CREATOR_RESOLUTION,
     height: DEFAULT_CREATOR_RESOLUTION,
   });
-  const [creatorColors, setCreatorColors] = useState(10);
+  const [creatorColors, setCreatorColors] = useState(16);
   const [creatorCrop, setCreatorCrop] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
   const [creatorCropMode, setCreatorCropMode] = useState('fit');
   const [creatorImageUrl, setCreatorImageUrl] = useState(null);

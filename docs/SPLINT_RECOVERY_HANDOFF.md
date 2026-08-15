@@ -63,11 +63,11 @@ Owner/device review is required for beauty, edge-detail tradeoff, zoomed number 
 
 ## RECOVERY-P1B — creation preview
 
-The creator now offers on-demand actual converter previews for 192, 512, 1024, and 1200. Each preview shows a bounded real 12×12 numbered crop, palette, received metrics, readability/effort hints, and a clear warning that 1200 is not automatically better. Only the selected full cell map is retained; tile packing happens lazily on save. The preview kernel is the same converter contract used for the selected result.
+The creator now offers on-demand actual converter previews for 192, 512, 1024, and 1200. Each preview shows a bounded real 12×12 numbered crop, palette, received metrics, readability/effort hints, and a clear warning that 1200 is not automatically better. Only the selected full cell map is retained; tile packing happens lazily on save. The preview kernel is the same converter contract used for the selected result. For a new photo, the default is now 512×512 with 16 colours: the owner reproduction showed that the previous 192×192/10-colour default flattened eyes, lettering, and silhouette details. 192 remains an explicit coarse/paintability choice.
 
 Exact-save Chromium evidence decodes the real preview PNG, samples pixels against the submitted palette/cells, and compares the stored tile. Resolution race protection and 192 tiled save/open pass. Mobile 390/430 visual screenshots are under `docs/evidence/creator-preview-recovery/`.
 
-Focused preview/worker tests: 23/23 before integration and 39/39 combined pixel/preview/evaluator after repair. Targeted creator E2E (`6a`, `6b`, `6c`): 3/3. The full creator Chromium suite is now 23/23, including explicit opening of a completed artwork from Gallery into the completion overlay.
+Focused preview/worker tests: 23/23 before integration and 39/39 combined pixel/preview/evaluator after repair. Targeted creator E2E (`6a`, `6b`, `6c`): 3/3. The full creator Chromium suite is now 24/24, including the default-detail regression and explicit opening of a completed artwork from Gallery into the completion overlay.
 
 Preview is kernel/style configurable and does not claim a paintable artistic winner. A paintable request above 512 must be surfaced as unavailable/limited; classic remains the high-resolution fallback.
 
@@ -119,15 +119,15 @@ Supporting worktrees remain available and were not pushed:
 - `codex/recovery-p1c-hud` — `9c43938`, `C:\Users\misa\Desktop\Splint-Recovery-Hud`
 - `codex/recovery-p3-surface` — `6089bfa`, `C:\Users\misa\Desktop\Splint-Recovery-Surface`
 
-The original dirty worktree `C:\Users\misa\Desktop\Splint-Gemini` on `codex/concurrent-special-cells-audit-2026-08-12` was not modified by this integration.
+The original worktree `C:\Users\misa\Desktop\Splint-Gemini` on `codex/concurrent-special-cells-audit-2026-08-12` now contains the recovery merge (`c390f33`) and the creator default-detail fix. Existing user-owned special-cell visual evidence edits remain unstaged and were not overwritten.
 
 ## Verification summary
 
-- Integrated `npm test`: **394/394 PASS**.
+- Integrated `npm test`: **396/396 PASS**.
 - Pixel/preview/evaluator focused: **39/39 PASS**.
 - Specials focused: **62/62 PASS**; browser: **5/5 PASS**.
 - Creator exact-path E2E: **3/3 PASS**; mobile visual checks were 2/2 in the preview worktree.
-- Full creator Chromium E2E: **23/23 PASS**.
+- Full creator Chromium E2E: **24/24 PASS**.
 - Build: PASS; main bundle warning remains (`>500 KB`).
 - Lint: PASS within existing warning budget (`97/100` at final integration); no recovery claim treats warnings as zero.
 - `git diff --check`: PASS.

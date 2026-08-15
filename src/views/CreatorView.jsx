@@ -3,7 +3,7 @@ import { CREATOR_PREVIEW_RESOLUTIONS } from '../lib/imageCrop';
 
 const RESOLUTION_COPY = {
   192: { title: 'Крупные формы', hint: 'Легче раскрашивать' },
-  512: { title: 'Баланс деталей', hint: 'Больше небольших областей' },
+  512: { title: 'Рекомендуемый баланс', hint: 'Больше деталей без режима 1200' },
   1024: { title: 'Мелкие формы', hint: 'Заметно больше ручной работы' },
   1200: { title: 'Максимум клеток', hint: 'Не всегда даёт лучший рисунок' },
 };
@@ -99,7 +99,7 @@ export default function CreatorView({
 
         <div className="creator-grid-section">
           <div className="creator-section-heading"><div><h3>Выберите детализацию</h3><p>Нажмите вариант, чтобы построить его тем же конвертером, который создаст раскраску. Уже готовые варианты остаются для сравнения.</p></div></div>
-          <div className="creator-resolution-note"><strong>1200 — не автоматический «лучший» режим.</strong> Больше клеток может означать больше мелких областей и труднее читаемые номера.</div>
+          <div className="creator-resolution-note"><strong>Для фотографий по умолчанию выбран баланс 512 × 512 и 16 цветов.</strong> Он лучше сохраняет лицо, надписи и силуэты, чем слишком грубые 192 × 192. 1200 — не автоматический «лучший» режим: больше клеток может означать больше мелких областей и труднее читаемые номера.</div>
           <input
             className="grid-detail-range creator-resolution-range"
             type="range"
