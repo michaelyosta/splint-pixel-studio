@@ -387,6 +387,175 @@
   }
 }
 
+/* Product Recovery Phase 1: one bounded, opt-in core-feel slice. */
+.core-feel-context-hint {
+  position: absolute;
+  z-index: 12;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 40px);
+  padding: 8px 13px;
+  border: 1px solid rgba(181, 247, 251, 0.45);
+  border-radius: 999px;
+  background: rgba(3, 12, 29, 0.78);
+  color: #e9fdff;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 28px rgba(1, 6, 25, 0.36);
+  animation: coreFeelHintIn 260ms ease-out both;
+}
+
+.core-feel-ownership-pause {
+  position: absolute;
+  z-index: 13;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: min(310px, calc(100% - 32px));
+  box-sizing: border-box;
+  padding: 11px 12px 12px;
+  border: 1px solid rgba(181, 247, 251, 0.32);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(5, 18, 39, 0.82), rgba(4, 10, 27, 0.94));
+  color: #f5feff;
+  text-align: left;
+  box-shadow: 0 18px 46px rgba(1, 5, 22, 0.48);
+  backdrop-filter: blur(12px);
+  animation: coreFeelOwnershipIn 360ms cubic-bezier(0.2, 0.75, 0.2, 1) both;
+}
+
+.core-feel-beat-kicker {
+  display: block;
+  margin-bottom: 2px;
+  color: rgba(181, 247, 251, 0.72);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.core-feel-ownership-pause > b {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.core-feel-ownership-pause button {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid rgba(181, 247, 251, 0.38);
+  border-radius: 13px;
+  background: rgba(37, 96, 134, 0.42);
+  color: #f4feff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.core-feel-ownership-pause button small {
+  color: #b5f7fb;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.core-feel-ownership-pause .core-feel-stop-button {
+  min-height: 38px;
+  margin-top: 6px;
+  justify-content: center;
+  border-color: transparent;
+  background: transparent;
+  color: rgba(233, 253, 255, 0.68);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.core-feel-rest-copy {
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 12px;
+}
+
+.core-feel-reveal-mark {
+  position: absolute;
+  z-index: 8;
+  box-sizing: border-box;
+  transform-origin: center;
+  pointer-events: none;
+  border-radius: 12px;
+}
+
+.core-feel-reveal-mark--edge-settle {
+  border: 2px solid color-mix(in srgb, var(--reveal-color) 74%, white);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.18), 0 0 24px color-mix(in srgb, var(--reveal-color) 45%, transparent);
+}
+
+.core-feel-reveal-mark--tonal-breathe {
+  border: 1px solid rgba(181, 247, 251, 0.72);
+  background: radial-gradient(circle at 50% 48%, rgba(181, 247, 251, 0.18), transparent 68%);
+  box-shadow: inset 0 0 26px rgba(181, 247, 251, 0.14), 0 0 28px rgba(6, 119, 252, 0.25);
+}
+
+.core-feel-reveal-mark--luminous-edge {
+  border: 2px solid #b5f7fb;
+  box-shadow: inset 0 0 20px rgba(181, 247, 251, 0.20), 0 0 9px #b5f7fb, 0 0 28px rgba(6, 119, 252, 0.46);
+}
+
+.core-feel-reveal-mark.is-settling { animation: coreFeelEdgeResolve 520ms cubic-bezier(0.18, 0.8, 0.24, 1) both; }
+.core-feel-reveal-mark.is-resolved { opacity: 0.42; transform: scale(1); transition: opacity 600ms ease; }
+
+.coloring-session[data-core-feel-camera='ownership-breathe'].core-feel-reveal-active .coloring-canvas-viewport {
+  animation: coreFeelCameraBreathe 620ms cubic-bezier(0.2, 0.72, 0.2, 1) both;
+}
+
+.coloring-task-summary--core-feel {
+  justify-content: center;
+  border-color: rgba(181, 247, 251, 0.18);
+  background: rgba(3, 12, 29, 0.92);
+  color: rgba(233, 253, 255, 0.84);
+  font-weight: 700;
+}
+
+@keyframes coreFeelHintIn {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes coreFeelOwnershipIn {
+  from { opacity: 0; transform: translate(-50%, 12px) scale(0.98); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+@keyframes coreFeelEdgeResolve {
+  0% { opacity: 0; transform: scale(0.94); filter: brightness(1.55); }
+  46% { opacity: 1; transform: scale(1.025); filter: brightness(1.25); }
+  100% { opacity: 0.42; transform: scale(1); filter: brightness(1); }
+}
+
+@keyframes coreFeelCameraBreathe {
+  0%, 100% { transform: scale(1); }
+  48% { transform: scale(1.012); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .core-feel-context-hint,
+  .core-feel-ownership-pause,
+  .core-feel-reveal-mark,
+  .coloring-session[data-core-feel-camera='ownership-breathe'].core-feel-reveal-active .coloring-canvas-viewport {
+    animation: none;
+    transition: none;
+  }
+}
+
 @media (forced-colors: active) {
   .coloring-canvas-container {
     background: Canvas;

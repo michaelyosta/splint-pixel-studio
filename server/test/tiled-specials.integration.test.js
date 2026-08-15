@@ -125,7 +125,7 @@ async function startServer(t, cohort, options = {}) {
     ALLOW_DEV_AUTH: options.allowDevAuth === undefined ? 'true' : String(options.allowDevAuth),
     SPECIAL_CELLS_COHORT: cohort,
     SPECIAL_CELLS_QA_OVERRIDE: 'true',
-    SPECIAL_CELLS_QA_USER_ID: 'user_spark_integration,user_reload_recovery,user_reload_skip,user_two_device_offer,user_tiled_control,tg_424242',
+    SPECIAL_CELLS_QA_USER_ID: 'user_spark_integration,user_tiled_trivial,user_reload_recovery,user_reload_skip,user_two_device_offer,user_tiled_control,tg_424242',
     SPECIAL_CELLS_DIAGNOSTICS: options.diagnostics === false ? 'false' : 'true',
     TELEGRAM_BOT_TOKEN: options.telegramBotToken || '',
     RATE_LIMIT_MAX: '10000',
@@ -220,7 +220,10 @@ test('Spark claim/use is server-authoritative, bounded, and idempotent', async (
   };
   const claimed = await request(`/colorings/${id}/progress/actions`, { method: 'POST', body: claimBody });
   assert.equal(claimed.response.status, 200);
-  assert.equal(claimed.json.special_offer.target_options.length, 2);
+  assert.equal(claimed.json.special_offer.target_options.length, 1);
+  assert.equal(claimed.json.special_offer.default_option_id, claimed.json.special_offer.target_options[0].option_id);
+  assert.equal(claimed.json.special_offer.auto_apply, true);
+  assert.equal(claimed.json.special_offer.interaction_cost, 0);
   assert.ok(claimed.json.special_offer.offer_token);
   assert.equal(claimed.json.special_applied_changes.length, 0);
   assert.equal(claimed.json.special_diagnostics.active_special_id, spark.id);
@@ -355,6 +358,88 @@ test('Spark claim/use is server-authoritative, bounded, and idempotent', async (
   assert.equal(lateClaim.json.code, 'SPECIAL_CLAIM_INVALID');
 });
 
+test('tiled one-cell trigger is committed without any Special offer or effect', async (t) => {
+  const baseUrl = await startServer(t, 'SPECIALS_TREATMENT');
+  const request = createClient(baseUrl, 'user_tiled_trivial');
+  const created = await request('/colorings/create', {
+    method: 'POST',
+    body: {
+      title: 'Tiled trivial Spark guard',
+      storageMode: 'tiled',
+      width: 64,
+      height: 64,
+      tileSize: 32,
+      palette: ['#101820', '#ffffff'],
+      tiles: tiledPayload(64, 64),
+    },
+  });
+  assert.equal(created.response.status, 201);
+  const id = created.json.id;
+  const spark = await findFirstSpark(request, id);
+  assert.ok(spark);
+
+  const localX = spark.local_index % 32;
+  const localY = Math.floor(spark.local_index / 32);
+  const minLocalX = Math.max(0, localX - 6);
+  const minLocalY = Math.max(0, localY - 6);
+  const maxLocalX = Math.min(31, minLocalX + 11);
+  const maxLocalY = Math.min(31, minLocalY + 11);
+  const globalX = spark.cell_index % 64;
+  const globalY = Math.floor(spark.cell_index / 64);
+  const offsetX = globalX - localX;
+  const offsetY = globalY - localY;
+  const localWindow = [];
+  for (let y = minLocalY; y <= maxLocalY; y += 1) {
+    for (let x = minLocalX; x <= maxLocalX; x += 1) {
+      const index = (offsetY + y) * 64 + offsetX + x;
+      if (index !== spark.cell_index) localWindow.push(index);
+    }
+  }
+
+  let revision = 0;
+  for (let offset = 0; offset < localWindow.length; offset += 64) {
+    const painted = await request(`/colorings/${id}/progress/actions`, {
+      method: 'POST',
+      body: {
+        revision,
+        clientBatchId: `tiled-trivial-setup-${offset}`,
+        changes: localWindow.slice(offset, offset + 64).map((index) => ({ index, color: 0 })),
+      },
+    });
+    assert.equal(painted.response.status, 200);
+    revision = painted.json.revision;
+  }
+
+  const claimBody = {
+    revision,
+    clientBatchId: 'tiled-trivial-claim',
+    changes: [{ index: spark.cell_index, color: 0 }],
+    special_action: { type: 'claim_spark', special_id: spark.id },
+  };
+  const claimed = await request(`/colorings/${id}/progress/actions`, { method: 'POST', body: claimBody });
+  assert.equal(claimed.response.status, 200);
+  assert.equal(claimed.json.special_effort.trigger_target.estimated_cells, 1);
+  assert.equal(claimed.json.special_effort.suppression_reason, 'trivial_trigger_target');
+  assert.equal(claimed.json.special_offer, null);
+  assert.deepEqual(claimed.json.special_applied_changes, []);
+  assert.equal(claimed.json.special_discovered, null);
+  assert.ok(claimed.json.percent < 100);
+
+  const replay = await request(`/colorings/${id}/progress/actions`, { method: 'POST', body: claimBody });
+  assert.equal(replay.response.status, 200);
+  assert.equal(replay.json.idempotent, true);
+  assert.equal(replay.json.special_effort.suppression_reason, 'trivial_trigger_target');
+  const after = await request(`/colorings/${id}/progress`);
+  assert.equal(
+    after.json.special_diagnostics.target_effort_distribution.trigger_targets.sample_count,
+    1,
+  );
+  assert.equal(
+    after.json.special_diagnostics.target_effort_distribution.trigger_targets.bins['1'],
+    1,
+  );
+});
+
 test('reload recovers the persisted Spark offer and the recovered token is usable once', async (t) => {
   const baseUrl = await startServer(t, 'SPECIALS_TREATMENT');
   const request = createClient(baseUrl, 'user_reload_recovery');
@@ -375,6 +460,13 @@ test('reload recovers the persisted Spark offer and the recovered token is usabl
   const id = created.json.id;
   const spark = await findFirstSpark(request, id);
   assert.ok(spark);
+
+  const prematureGuidance = await request(
+    `/colorings/${id}/guidance?reason=SPECIAL_TARGETS&special_id=${encodeURIComponent(spark.id)}`,
+  );
+  assert.equal(prematureGuidance.response.status, 409);
+  assert.equal(prematureGuidance.json.code, 'SPECIAL_TARGET_OFFER_REQUIRED');
+  assert.equal('offer_token' in prematureGuidance.json, false);
 
   const claimBody = {
     revision: 0,
@@ -617,12 +709,22 @@ test('tiled control cohort exposes no specials and no gameplay diagnostics', asy
     'recent',
     'special_count',
     'storage_mode',
+    'target_effort_contract',
+    'target_effort_distribution',
     'template_height',
     'template_id',
     'template_width',
     'total_candidates',
     'total_cells',
   ]);
+  assert.equal(progress.json.special_diagnostics.target_effort_distribution.trigger_targets.sample_count, 0);
+  assert.equal(progress.json.special_diagnostics.target_effort_distribution.selected_effect_targets.sample_count, 0);
+  const rejectedTargets = await request(
+    `/colorings/${id}/guidance?reason=SPECIAL_TARGETS&special_id=sc_forged_control`,
+  );
+  assert.equal(rejectedTargets.response.status, 403);
+  assert.equal(rejectedTargets.json.code, 'SPECIAL_TARGETS_CONTROL');
+  assert.equal('offer_token' in rejectedTargets.json, false);
   assert.equal(progress.json.special_diagnostics.cohort, 'control');
   assert.equal(progress.json.special_diagnostics.cohort_override, true);
   assert.deepEqual(progress.json.special_diagnostics.counts_by_kind, {
@@ -1049,7 +1151,7 @@ test('pre-existing v3 template with user progress backfills exactly one determin
   assert.equal(final.json.special_diagnostics.counts_by_kind.hazard, 1);
 });
 
-test('untouched v3 template rebuilds once onto the balanced v4 mix', async (t) => {
+test('untouched v3 template rebuilds once onto the v5 no-Choice mix', async (t) => {
   const baseUrl = await startServer(t, 'SPECIALS_TREATMENT', { e2eHooks: true });
   const request = createClient(baseUrl, userId);
   const seeded = await seedPreexistingSpecialTemplate(request, {
@@ -1064,13 +1166,13 @@ test('untouched v3 template rebuilds once onto the balanced v4 mix', async (t) =
   const first = await request(`/colorings/${seeded.id}/progress`);
   assert.equal(first.response.status, 200);
   assert.equal(first.json.special_diagnostics.generation_action, 'rebuilt');
-  assert.equal(first.json.special_diagnostics.generation_version, 4);
+  assert.equal(first.json.special_diagnostics.generation_version, 5);
   assert.equal(first.json.special_diagnostics.counts_by_kind.hazard, 1);
 
   const second = await request(`/colorings/${seeded.id}/progress`);
   assert.equal(second.response.status, 200);
   assert.equal(second.json.special_diagnostics.generation_action, 'ready');
-  assert.equal(second.json.special_diagnostics.generation_version, 4);
+  assert.equal(second.json.special_diagnostics.generation_version, 5);
   assert.equal(second.json.special_diagnostics.special_count, first.json.special_diagnostics.special_count);
 });
 

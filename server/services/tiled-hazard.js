@@ -8,7 +8,7 @@ import {
   HAZARD_KIND,
 } from './tiled-specials.js';
 
-export const HAZARD_GENERATION_VERSION = 4;
+export const HAZARD_GENERATION_VERSION = 5;
 export const HAZARD_REWARD_MAX_CELLS = 16;
 export const HAZARD_MISS_PENALTY_CELLS = 2;
 export const HAZARD_NEIGHBOR_RADIUS = 3;

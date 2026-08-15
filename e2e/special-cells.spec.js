@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { createHash } from 'node:crypto';
 
 function tiledPayload(width, height, tileSize = 32) {
   const result = [];
@@ -22,8 +23,17 @@ function legacyPayload(width = 28) {
   };
 }
 
-async function createForCohort(page, { cohort, payload }) {
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_pixelhunter' });
+function projectUser(base, testInfo) {
+  // The deterministic E2E seed truncates user ids to 24 characters when it
+  // builds template ids. Prefix a stable project+scenario digest so neither
+  // browser projects nor similarly named scenarios can share an owner id.
+  const project = testInfo.project.name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const digest = createHash('sha256').update(`${project}:${base}`).digest('hex').slice(0, 12);
+  return `e2e_${digest}_${project}_${base}`;
+}
+
+async function createForCohort(page, { cohort, payload, userId }) {
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': userId });
   const storage = payload.storageMode === 'tiled' ? 'tiled' : 'legacy';
   const fixtureResponse = await page.request.post('/api/__e2e/seed-cohort-template', {
     data: {
@@ -74,8 +84,7 @@ async function paintLegacyBatches(page, id, indices, revision = 0, prefix = 'leg
   return nextRevision;
 }
 
-test('Spark stays inside the tiled canvas flow and cannot be replayed', async ({ page }) => {
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_pixelhunter' });
+test('Spark stays inside the tiled canvas flow and cannot be replayed', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     try { localStorage.setItem('splint_onboarding_version', '2'); } catch {}
@@ -83,6 +92,7 @@ test('Spark stays inside the tiled canvas flow and cannot be replayed', async ({
 
   const { created } = await createForCohort(page, {
     cohort: 'treatment',
+    userId: projectUser('user_e2e_spark_tiled', testInfo),
     title: 'Spark canvas flow',
     payload: {
       storageMode: 'tiled',
@@ -99,7 +109,7 @@ test('Spark stays inside the tiled canvas flow and cannot be replayed', async ({
     for (let tileX = 0; tileX < 2 && !marker; tileX += 1) {
       const response = await page.request.get(`/api/colorings/${created.id}/tiles/${tileX}/${tileY}`);
       const tile = await response.json();
-      marker = tile.specials?.[0];
+      marker = tile.specials?.find((special) => special.kind === 'spark');
     }
   }
   expect(marker?.kind).toBe('spark');
@@ -114,7 +124,10 @@ test('Spark stays inside the tiled canvas flow and cannot be replayed', async ({
   });
   expect(claim.ok()).toBe(true);
   const offer = await claim.json();
-  expect(offer.special_offer.target_options).toHaveLength(2);
+  expect(offer.special_offer.target_options).toHaveLength(1);
+  expect(offer.special_offer.default_option_id).toBe(offer.special_offer.target_options[0].option_id);
+  expect(offer.special_offer.auto_apply).toBe(true);
+  expect(offer.special_offer.interaction_cost).toBe(0);
 
   const use = await page.request.post(`/api/colorings/${created.id}/progress/actions`, {
     data: {
@@ -140,34 +153,66 @@ test('Spark stays inside the tiled canvas flow and cannot be replayed', async ({
   await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0);
 });
 
-test('legacy 28x28 treatment discovers Spark in the real canvas and continues', async ({ page }) => {
+test('legacy 28x28 treatment discovers Spark in the real canvas and continues', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     try { localStorage.setItem('splint_onboarding_version', '2'); } catch {}
   });
   const { created, progress } = await createForCohort(page, {
     cohort: 'treatment',
+    userId: projectUser('user_e2e_spark_legacy', testInfo),
     title: 'Legacy Spark treatment',
     payload: legacyPayload(),
   });
   expect(progress.specials).toHaveLength(1);
   const spark = progress.specials[0];
+  let failedAutoUse = 0;
+  await page.route(`**/api/colorings/${created.id}/progress/actions`, async (route) => {
+    let actionType = null;
+    try {
+      actionType = route.request().postDataJSON()?.special_action?.type || null;
+    } catch {
+      // Let malformed requests reach the real server and fail through its own contract.
+    }
+    if (actionType === 'use_spark' && failedAutoUse === 0) {
+      failedAutoUse += 1;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Transient Spark failure', code: 'TEMPORARY_SPECIAL_FAILURE' }),
+      });
+      return;
+    }
+    await route.continue();
+  });
 
   await page.goto(`/?coloring=${created.id}`);
   await expect(page.locator('.coloring-session')).toHaveAttribute('data-special-cohort', 'treatment');
   const canvas = await focusLegacyCell(page, spark.cell_index);
   const claimResponse = page.waitForResponse((response) => response.url().includes(`/colorings/${created.id}/progress/actions`)
-    && response.request().method() === 'POST');
+    && response.request().method() === 'POST'
+    && response.request().postDataJSON()?.special_action?.type === 'claim_spark');
+  const failedUseResponse = page.waitForResponse((response) => response.url().includes(`/colorings/${created.id}/progress/actions`)
+    && response.request().method() === 'POST'
+    && response.request().postDataJSON()?.special_action?.type === 'use_spark'
+    && response.status() === 503);
   await canvas.press('Enter');
   const claimed = await (await claimResponse).json();
+  await failedUseResponse;
   expect(claimed.special_discovered).toEqual({ special_id: spark.id, kind: 'spark' });
+  expect(claimed.special_offer.target_options).toHaveLength(1);
+  expect(claimed.special_offer.auto_apply).toBe(true);
   await expect(page.locator('.legacy-grid-special-offer')).toBeVisible();
-  await expect(page.locator('[data-special-option="a"]')).toBeVisible();
+  await expect(page.locator('[data-special-option]')).toHaveCount(0);
+  await expect(page.locator('[data-special-action="retry"]')).toBeVisible();
 
   const useResponse = page.waitForResponse((response) => response.url().includes(`/colorings/${created.id}/progress/actions`)
-    && response.request().method() === 'POST');
-  await page.locator('[data-special-option="a"]').click();
+    && response.request().method() === 'POST'
+    && response.request().postDataJSON()?.special_action?.type === 'use_spark'
+    && response.status() === 200);
+  await page.locator('[data-special-action="retry"]').click();
   const used = await (await useResponse).json();
+  expect(failedAutoUse).toBe(1);
   expect(used.special_applied_changes.length).toBe(claimed.special_offer.target_options[0].estimated_cells);
   expect(used.special_applied_changes.length).toBeLessThanOrEqual(144);
   await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(0);
@@ -182,12 +227,13 @@ test('legacy 28x28 treatment discovers Spark in the real canvas and continues', 
   expect((await (await continueResponse).json()).revision).toBeGreaterThan(used.revision);
 });
 
-test('legacy 28x28 control has no Spark marker, action, or HUD', async ({ page }) => {
+test('legacy 28x28 control has no Spark marker, action, or HUD', async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     try { localStorage.setItem('splint_onboarding_version', '2'); } catch {}
   });
   const { created, progress } = await createForCohort(page, {
     cohort: 'control',
+    userId: projectUser('user_e2e_spark_control', testInfo),
     title: 'Legacy Spark control',
     payload: legacyPayload(),
   });
@@ -203,12 +249,13 @@ test('legacy 28x28 control has no Spark marker, action, or HUD', async ({ page }
   await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(0);
 });
 
-test('legacy 28x28 last-cell Spark preserves discovery and completion', async ({ page }) => {
+test('legacy 28x28 last-cell Spark suppresses the trivial event and preserves completion', async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     try { localStorage.setItem('splint_onboarding_version', '2'); } catch {}
   });
   const { created, progress } = await createForCohort(page, {
     cohort: 'treatment',
+    userId: projectUser('user_e2e_spark_last_cell', testInfo),
     title: 'Legacy Spark last cell',
     payload: legacyPayload(),
   });
@@ -222,20 +269,25 @@ test('legacy 28x28 last-cell Spark preserves discovery and completion', async ({
     && response.request().method() === 'POST');
   await canvas.press('Enter');
   const completed = await (await finalResponse).json();
-  expect(completed.special_discovered).toEqual({ special_id: spark.id, kind: 'spark' });
+  expect(completed.special_discovered).toBeNull();
+  expect(completed.special_offer).toBeNull();
+  expect(completed.special_effort.trigger_target.estimated_cells).toBe(1);
+  expect(completed.special_effort.suppression_reason).toBe('trivial_trigger_target');
   expect(completed.percent).toBe(100);
   expect(completed.completed_at).toBeTruthy();
   expect(completed.artwork_id).toBeTruthy();
-  await expect(page.locator('[data-special-discovered]')).toBeAttached();
+  await expect(page.locator('[data-special-discovered]')).toHaveCount(0);
+  await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(0);
   await expect(page.locator('.completion-dialog')).toBeVisible();
 });
 
-test('legacy Artifact progress remains visible after a real /progress reload', async ({ page }) => {
+test('legacy Artifact progress remains visible after a real /progress reload', async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     try { localStorage.setItem('splint_onboarding_version', '2'); } catch {}
   });
   const fixture = await createForCohort(page, {
     cohort: 'treatment',
+    userId: projectUser('user_e2e_artifact_reload', testInfo),
     title: 'Legacy Artifact reload',
     payload: legacyPayload(160),
   });
@@ -245,8 +297,8 @@ test('legacy Artifact progress remains visible after a real /progress reload', a
     data: {
       revision: fixture.progress.revision,
       clientBatchId: 'legacy-artifact-reload-claim',
-      changes: [{ index: fixture.artifact.cell_index, color: 0 }],
-      special_action: { type: 'claim_artifact', special_id: fixture.artifact.id },
+      changes: [{ index: artifact.cell_index, color: 0 }],
+      special_action: { type: 'claim_artifact', special_id: artifact.id },
     },
   });
   expect(claim.ok()).toBe(true);

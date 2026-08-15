@@ -15,13 +15,17 @@ import {
 } from './coloring-chunks.js';
 import {
   SPARK_PITY_INTERVAL_CELLS,
+  describeSpecialTargetEffort,
   isSparkTreatmentUser,
+  isSpecialTargetEligible,
+  summarizeSpecialEffort,
 } from './tiled-specials.js';
 import { ensureTiledSpecialCells, readTiledTile } from './tiled-coloring.js';
 
 export const GUIDANCE_SCHEMA_VERSION = 1;
 export const ACTIONABLE_WINDOW_SIZE = 12;
 export const GUIDANCE_MAX_RECENT = 8;
+export const SPECIAL_TARGET_SCAN_LIMIT = 16;
 
 export const GUIDANCE_REASON = Object.freeze({
   INITIAL_TARGET: 'INITIAL_TARGET',
@@ -512,7 +516,7 @@ async function targetForTile(db, {
   return windowTarget;
 }
 
-function targetForSpark(tile, special) {
+export function targetForSpecialCell(tile, special) {
   const localX = Number(special.local_index) % tile.bounds.width;
   const localY = Math.floor(Number(special.local_index) / tile.bounds.width);
   const minLocalX = Math.max(0, localX - 6);
@@ -590,8 +594,8 @@ async function findPitySpark(db, {
       tileY: Number(special.tile_y),
     });
     if (tile.filled[Number(special.local_index)] !== -1) continue;
-    const target = targetForSpark(tile, special);
-    if (target.estimated_cells <= 0) continue;
+    const target = targetForSpecialCell(tile, special);
+    if (!isSpecialTargetEligible(target)) continue;
     return {
       specialId: String(special.special_id),
       target,
@@ -644,10 +648,14 @@ async function resolveTargets(db, options) {
     userId, template, colorIndex, cameraCenter, recentKeys, progress,
   } = options;
   const candidates = await findTileCandidates(db, { userId, template, colorIndex, recentKeys });
-  const ranked = scoreCandidates(candidates, cameraCenter, null, template.tile_size);
+  const ranked = scoreCandidates(candidates, cameraCenter, null, template.tile_size)
+    .sort((first, second) => second.remaining - first.remaining
+      || second.score - first.score
+      || first.tileY - second.tileY
+      || first.tileX - second.tileX);
   const targets = [];
   const seenTiles = new Set();
-  for (const candidate of ranked) {
+  for (const candidate of ranked.slice(0, SPECIAL_TARGET_SCAN_LIMIT)) {
     if (seenTiles.has(candidate.key)) continue;
     const target = await targetForTile(db, {
       userId,
@@ -658,12 +666,17 @@ async function resolveTargets(db, options) {
       cameraCenter,
       progress,
     });
-    if (!target) continue;
+    if (!isSpecialTargetEligible(target)) continue;
     seenTiles.add(candidate.key);
     targets.push({ ...target, color: colorIndex });
-    if (targets.length >= 2) break;
   }
-  return targets;
+  return targets
+    .sort((first, second) => second.estimated_cells - first.estimated_cells
+      || first.tile_y - second.tile_y
+      || first.tile_x - second.tile_x
+      || first.anchor_y - second.anchor_y
+      || first.anchor_x - second.anchor_x)
+    .slice(0, 1);
 }
 
 export function guidanceErrorPayload(error) {
@@ -702,6 +715,9 @@ export async function buildGuidancePlan({
   // Existing tiled templates created before the special-cell migration have
   // zero rows and must not depend on a later tile GET to lazily generate them.
   await ensureTiledSpecialCells(db, template);
+  const isTreatment = sparkTreatment == null
+    ? isSparkTreatmentUser(userId, template.id)
+    : Boolean(sparkTreatment);
   // An offered special event owns the next player decision. Claim/use routes
   // already enforce this invariant, but guidance must enforce it too or a
   // stale auto-advance can issue an ordinary target while Bomb/Fuse/Choice is
@@ -716,9 +732,23 @@ export async function buildGuidancePlan({
       LIMIT 1`,
     [userId, template.id],
   );
-  if (activeSpecialOffer
-    && (reason !== GUIDANCE_REASON.SPECIAL_TARGETS
+  if (reason === GUIDANCE_REASON.SPECIAL_TARGETS && !isTreatment) {
+    throw new TiledGuidanceError(
+      'Special target guidance is unavailable for this cohort',
+      'SPECIAL_TARGETS_CONTROL',
+      403,
+    );
+  }
+  if (reason === GUIDANCE_REASON.SPECIAL_TARGETS
+    && (!activeSpecialOffer
       || String(specialId || '') !== String(activeSpecialOffer.special_id))) {
+    throw new TiledGuidanceError(
+      'Special target guidance requires the matching persisted offer',
+      'SPECIAL_TARGET_OFFER_REQUIRED',
+      409,
+    );
+  }
+  if (activeSpecialOffer && reason !== GUIDANCE_REASON.SPECIAL_TARGETS) {
     throw new TiledGuidanceError(
       'Resolve the current special event first',
       'SPECIAL_ACTIVE_OFFER',
@@ -780,9 +810,6 @@ export async function buildGuidancePlan({
     colorIndex = requestedColor;
   }
 
-  const isTreatment = sparkTreatment == null
-    ? isSparkTreatmentUser(userId, template.id)
-    : Boolean(sparkTreatment);
   const pityAllowed = isTreatment
     && reason !== GUIDANCE_REASON.SPECIAL_TARGETS
     && reason !== GUIDANCE_REASON.MANUAL_COLOR
@@ -848,6 +875,11 @@ export async function buildGuidancePlan({
       progress,
       specialId,
     });
+    const annotatedOptions = targetOptions.map((target, index) => ({
+      ...target,
+      option_id: index === 0 ? 'default' : `option_${index + 1}`,
+      target_effort: describeSpecialTargetEffort(target),
+    }));
     return {
       schema_version: GUIDANCE_SCHEMA_VERSION,
       template_id: template.id,
@@ -860,11 +892,12 @@ export async function buildGuidancePlan({
       next_color: nextColor,
       color_complete: colorComplete,
       artwork_complete: false,
-      target: targetOptions[0] || null,
-      target_options: targetOptions.map((target, index) => ({
-        ...target,
-        option_id: index === 0 ? 'a' : 'b',
-      })),
+      target: annotatedOptions[0] || null,
+      target_options: annotatedOptions,
+      default_option_id: annotatedOptions[0]?.option_id || null,
+      target_effort_distribution: summarizeSpecialEffort(
+        annotatedOptions.map((target) => target.estimated_cells),
+      ),
     };
   }
 

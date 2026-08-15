@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "pixelization-corpus.v1",
+  "name": "splint-classic-paintable-comparison",
+  "description": "Classic/paintable paired corpus. All ten images run at 192 and 512; portrait, animal silhouette, landscape detail, and object detail also run at 1024 and 1200.",
+  "defaults": {
+    "colors": 10,
+    "sizes": [192, 512],
+    "crop": null,
+    "yieldEvery": 96,
+    "previewWidth": 320,
+    "previewHeight": 320
+  },
+  "images": [
+    {
+      "id": "neon-cat",
+      "path": "public/assets/catalog/neon-cat.png",
+      "category": "animal",
+      "tags": ["strong-silhouette", "high-contrast", "simple-illustration", "high-resolution-subset"],
+      "source": { "sha256": "f1fbca71e08dbee161645b19d62e36fe87a942af9d399d5b85c89a58b2e9e855" },
+      "sizes": [192, 512, 1024, 1200]
+    },
+    {
+      "id": "astro-whale",
+      "path": "public/assets/catalog/astro-whale.png",
+      "category": "animal",
+      "tags": ["strong-silhouette", "gradient", "simple-illustration"],
+      "source": { "sha256": "25e7c1468c07956e6296ce45c2027e99d916172d22c01a991a44d37ab05b92f9" }
+    },
+    {
+      "id": "alpine-train",
+      "path": "public/assets/catalog/alpine-train.png",
+      "category": "landscape",
+      "tags": ["strong-silhouette", "high-detail", "edge-heavy"],
+      "source": { "sha256": "1a95bd289340f4c2a191d268d66a25625e446bd5dabf1177f1034b95d2fbcf2b" }
+    },
+    {
+      "id": "lantern-fox",
+      "path": "public/assets/catalog/lantern-fox.png",
+      "category": "animal",
+      "tags": ["strong-silhouette", "high-contrast", "object"],
+      "source": { "sha256": "1aa2693e9dfc557ea7b5f95ad33649a9e3afca9e5d88dcf728ac576d267ef15d" }
+    },
+    {
+      "id": "tea-dragon",
+      "path": "public/assets/catalog/tea-dragon.png",
+      "category": "object",
+      "tags": ["simple-illustration", "small-detail", "high-contrast"],
+      "source": { "sha256": "aad4e1a551239cf294caf8946c86e5bc15bc0ef9f4a7593d460a4ca586f21a3e" }
+    },
+    {
+      "id": "coral-jellyfish",
+      "path": "public/assets/catalog/coral-jellyfish.png",
+      "category": "animal",
+      "tags": ["gradient", "detail", "soft-edge"],
+      "source": { "sha256": "5936faacf3f73fe87afe5dee5f45ceb5a2bbfa6f81d11da0a10487051caa4af5" }
+    },
+    {
+      "id": "lena-portrait",
+      "path": "public/assets/lena_art_avatar.jpg",
+      "category": "portrait",
+      "tags": ["portrait", "gradient", "high-detail", "high-resolution-subset"],
+      "source": { "sha256": "d42b64fee828598366cb95d8e7bd24904c7ac31f2c8dacf3f359eff353c45e9f" },
+      "sizes": [192, 512, 1024, 1200]
+    },
+    {
+      "id": "retro-arcade",
+      "path": "public/assets/retro_arcade_art.jpg",
+      "category": "object",
+      "tags": ["object", "high-detail", "hard-edge", "high-resolution-subset"],
+      "source": { "sha256": "aa92c36fad9188673208f1bfc89d7f28aca26a54ee7874850f3bc087a12f223c" },
+      "sizes": [192, 512, 1024, 1200]
+    },
+    {
+      "id": "city-streets",
+      "path": "public/assets/city_streets_art.jpg",
+      "category": "landscape",
+      "tags": ["landscape", "high-detail", "perspective", "high-resolution-subset"],
+      "source": { "sha256": "2144a936d9818e00dbf569e032193d194184e650a87d4c6773625260e3795f5f" },
+      "sizes": [192, 512, 1024, 1200]
+    },
+    {
+      "id": "fantasy-worlds",
+      "path": "public/assets/fantasy_worlds_art.jpg",
+      "category": "simple-illustration",
+      "tags": ["simple-illustration", "strong-silhouette", "gradient"],
+      "source": { "sha256": "e792594322d2fd30336ece23e763af5987a796c32ee55143765b2ba9b4f2eb40" }
+    }
+  ]
+}

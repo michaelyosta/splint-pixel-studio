@@ -25,11 +25,10 @@ test('every stable reason code maps to concise Russian title and text', () => {
   assert.equal(isKnownReasonCode('NOT_A_CODE'), false);
 });
 
-test('premium reason keeps purchase semantics and never implies progression', () => {
+test('premium reason stays neutral and never advertises a payment path', () => {
   const text = reasonText(REASON_CODES.PREMIUM_REQUIRED);
-  assert.match(text, /Premium/);
-  assert.match(text, /Stars/);
-  assert.doesNotMatch(text, /прогресс откроет/i);
+  assert.match(text, /Контент сейчас недоступен/);
+  assert.doesNotMatch(text, /Premium|Stars|купить|покупк|прогресс откроет/i);
   const action = nextActionForRequirement({
     rule_type: 'premium',
     target_value: 'col_premium',
@@ -38,8 +37,20 @@ test('premium reason keeps purchase semantics and never implies progression', ()
     satisfied: false,
     progress: 0,
   });
-  assert.match(action, /Купите Premium-набор за 120 Stars/);
-  assert.match(action, /Прогресс не открывает/);
+  assert.equal(action, 'Контент сейчас недоступен.');
+  assert.doesNotMatch(action, /Premium|Stars|купить|покупк/i);
+
+  const formatted = formatRequirement({
+    rule_type: 'premium',
+    target_value: 'col_premium',
+    target: 120,
+    current: 0,
+    satisfied: false,
+    progress: 0,
+  });
+  assert.equal(formatted.progressText, 'Недоступно');
+  assert.equal(formatted.label, 'Контент сейчас недоступен');
+  assert.doesNotMatch(formatted.label, /Premium|Премиум|Stars/i);
 });
 
 test('recommendation reasons map to stable player-facing labels', () => {

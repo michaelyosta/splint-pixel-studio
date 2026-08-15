@@ -42,14 +42,14 @@ export const STATE_LABELS = Object.freeze({
   [UNLOCK_STATES.AVAILABLE]: 'Доступно',
   [UNLOCK_STATES.OWNED]: 'Открыто',
   [UNLOCK_STATES.PROGRESSION_LOCKED]: 'Закрыто прогрессом',
-  [UNLOCK_STATES.PREMIUM_LOCKED]: 'Premium',
+  [UNLOCK_STATES.PREMIUM_LOCKED]: 'Недоступно',
 });
 
 const STATE_DESCRIPTIONS = Object.freeze({
   [UNLOCK_STATES.AVAILABLE]: 'Можно начать сейчас.',
   [UNLOCK_STATES.OWNED]: 'Уже открыто в вашем профиле.',
   [UNLOCK_STATES.PROGRESSION_LOCKED]: 'Откроется, когда прогресс достигнет условий.',
-  [UNLOCK_STATES.PREMIUM_LOCKED]: 'Доступно только после покупки Premium-набора.',
+  [UNLOCK_STATES.PREMIUM_LOCKED]: 'Сейчас недоступно.',
 });
 
 export function clampProgress(value) {
@@ -84,7 +84,7 @@ export function reasonTitle(code) {
     case REASON_CODES.OWNED: return 'Открыто';
     case REASON_CODES.UNLOCK_READY: return 'Готово к открытию';
     case REASON_CODES.PROGRESSION_REQUIRED: return 'Нужен прогресс';
-    case REASON_CODES.PREMIUM_REQUIRED: return 'Premium-набор';
+    case REASON_CODES.PREMIUM_REQUIRED: return 'Контент сейчас недоступен';
     case REASON_CODES.LEVEL_REQUIRED: return 'Нужен уровень';
     case REASON_CODES.XP_REQUIRED: return 'Нужен опыт';
     case REASON_CODES.ACHIEVEMENT_REQUIRED: return 'Нужно достижение';
@@ -101,7 +101,7 @@ export function reasonText(code) {
     case REASON_CODES.OWNED: return 'Контент уже открыт в вашем профиле.';
     case REASON_CODES.UNLOCK_READY: return 'Условия выполнены — откройте контент и начните раскрашивать.';
     case REASON_CODES.PROGRESSION_REQUIRED: return 'Контент откроется после выполнения условий прогресса.';
-    case REASON_CODES.PREMIUM_REQUIRED: return 'Контент доступен только после покупки Premium-набора за Stars. Прогресс его не открывает.';
+    case REASON_CODES.PREMIUM_REQUIRED: return 'Контент сейчас недоступен. Вернитесь к бесплатным работам.';
     case REASON_CODES.LEVEL_REQUIRED: return 'Нужен более высокий уровень — получайте XP за верные клетки.';
     case REASON_CODES.XP_REQUIRED: return 'Нужно больше опыта — каждая верная клетка приносит XP.';
     case REASON_CODES.ACHIEVEMENT_REQUIRED: return 'Нужно открыть указанное достижение.';
@@ -151,7 +151,7 @@ function normalizeRequirement(requirement) {
   return {
     rule_type: ruleType,
     reason_code: requirement.reason_code || REASON_CODES.PROGRESSION_REQUIRED,
-    label: String(requirement.label || requirementTitle(ruleType)),
+    label: ruleType === 'premium' ? requirementTitle(ruleType) : String(requirement.label || requirementTitle(ruleType)),
     target_value: target,
     current,
     target: safeNumber(requirement.target, total),
@@ -169,7 +169,7 @@ function requirementTitle(ruleType) {
     case 'streak': return 'Серия дней';
     case 'completed_artworks': return 'Завершённые раскраски';
     case 'collection_completion': return 'Завершённая коллекция';
-    case 'premium': return 'Premium-коллекция';
+    case 'premium': return 'Контент сейчас недоступен';
     default: return 'Условие';
   }
 }
@@ -194,7 +194,7 @@ export function nextActionForRequirement(requirement) {
     case 'collection_completion':
       return `Завершите коллекцию целиком: ${current} из ${total}.`;
     case 'premium':
-      return `Купите Premium-набор за ${target || 0} Stars. Прогресс не открывает этот контент.`;
+      return 'Контент сейчас недоступен.';
     default:
       return normalized.satisfied ? 'Условие выполнено.' : 'Продолжайте раскрашивать, чтобы выполнить условие.';
   }
@@ -208,7 +208,7 @@ export function formatRequirement(requirement) {
   if (normalized.rule_type === 'achievement') {
     progressText = normalized.satisfied ? 'Открыто' : 'Не открыто';
   } else if (normalized.rule_type === 'premium') {
-    progressText = `${normalized.target || 0} Stars`;
+    progressText = 'Недоступно';
   } else {
     progressText = `${Math.min(normalized.current, total)} / ${total}`;
   }

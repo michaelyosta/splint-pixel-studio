@@ -43,6 +43,7 @@ import {
   guidanceErrorPayload,
   isTiledGuidanceError,
   parseRecentTiles,
+  targetForSpecialCell,
   GUIDANCE_REASON,
 } from '../services/tiled-guidance.js';
 import {
@@ -61,7 +62,9 @@ import {
   remainingFuseStepChanges,
   deriveSparkChanges,
   deriveLegacySparkChanges,
+  buildLegacySpecialTriggerEffort,
   buildLegacySparkTargetOptions,
+  describeSpecialTargetEffort,
   findSpecial,
   findSpark,
   findActiveSpecialProgress,
@@ -71,9 +74,11 @@ import {
   getSparkExperimentGroup,
   hashOfferToken,
   isSpecialDiagnosticsEnabled,
+  isSpecialTargetEligible,
   isTiledSpecialError,
   markSparkConsumed,
   markSpecialConsumedDirect,
+  markSpecialSkippedDirect,
   markSparkOffered,
   markSparkSkipped,
   persistSparkCells,
@@ -385,6 +390,7 @@ function progressPayload(template, row, artworkId = null) {
     completed_cells: completedCount,
     total_cells: template.cells.length,
     percent: Math.round((completedCount / template.cells.length) * 100),
+    updated_at: compatible ? (row?.updated_at ?? null) : null,
     artwork_id: artworkId,
   };
 }
@@ -1139,6 +1145,7 @@ async function processTiledProgressAction(req, res, template) {
           special_offer: stored.special_offer || null,
           special_applied_changes: stored.special_applied_changes || [],
           special_discovered: null,
+          special_effort: stored.special_effort || null,
           artifact_progress: await buildArtifactProgress(tx, {
             userId: req.userId,
             templateId: template.id,
@@ -1172,6 +1179,7 @@ async function processTiledProgressAction(req, res, template) {
     let specialOffer = null;
     let specialAppliedChanges = [];
     let specialDiscovered = null;
+    let specialEffort = null;
     let claimedSpecialIndex = null;
     let fuseChain = [];
     let fuseRemainingAfterStep = [];
@@ -1243,6 +1251,21 @@ async function processTiledProgressAction(req, res, template) {
         }
         claimedSpecialIndex = Number(special.cell_index);
         specialDiscovered = { special_id: specialAction.special_id, kind: special.kind };
+        if (specialAction.type === 'claim_spark') {
+          const triggerTile = await readTiledTile(tx, {
+            template,
+            userId: req.userId,
+            tileX: Number(special.tile_x),
+            tileY: Number(special.tile_y),
+            progress: existing,
+          });
+          const triggerTarget = targetForSpecialCell(triggerTile, special);
+          specialEffort = {
+            trigger_target: describeSpecialTargetEffort(triggerTarget),
+            selected_effect_target: null,
+            suppression_reason: null,
+          };
+        }
       }
       if (specialAction?.type === 'use_spark') {
         const special = await findSpark(tx, { templateId: template.id, specialId: specialAction.special_id });
@@ -1311,6 +1334,7 @@ async function processTiledProgressAction(req, res, template) {
             reason: GUIDANCE_REASON.SPECIAL_TARGETS,
             specialId: specialAction.special_id,
             cameraCenter: specialAction.camera_center,
+            sparkTreatment: getSparkExperimentGroup(req.userId, template.id) === 'treatment',
           });
           const target = plan.target_options?.[0];
           if (!target) throw specialError('Choice target is no longer available', 'SPECIAL_TARGET_STALE', 409);
@@ -1417,7 +1441,28 @@ async function processTiledProgressAction(req, res, template) {
         state,
       });
       if (persisted.conflict) return { conflict: true, progress: tiledProgressPayload(template, await tx.get('SELECT * FROM coloring_tiled_progress WHERE user_id=? AND template_id=?', [req.userId, template.id])) };
-      if (specialAction?.type === 'claim_spark') {
+      const suppressInteractiveSpecial = Boolean(specialAction?.type === 'claim_spark'
+        && !isSpecialTargetEligible(specialEffort?.trigger_target));
+      if (suppressInteractiveSpecial) {
+        specialEffort.suppression_reason = 'trivial_trigger_target';
+        specialDiscovered = null;
+        await markSpecialSkippedDirect(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: persisted.revision,
+          now,
+        });
+      } else if (specialAction?.type === 'claim_spark') {
+        const token = createOfferToken();
+        await markSparkOffered(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: persisted.revision,
+          tokenHash: token.hash,
+          now,
+        });
         const offer = await buildGuidancePlan({
           db: tx,
           userId: req.userId,
@@ -1425,31 +1470,32 @@ async function processTiledProgressAction(req, res, template) {
           reason: GUIDANCE_REASON.SPECIAL_TARGETS,
           specialId: specialAction.special_id,
           cameraCenter: specialAction.camera_center,
+          sparkTreatment: getSparkExperimentGroup(req.userId, template.id) === 'treatment',
         });
-        if ((offer.target_options || []).length >= 2) {
-          const token = createOfferToken();
-          await markSparkOffered(tx, {
-            userId: req.userId,
-            templateId: template.id,
-            specialId: specialAction.special_id,
-            revision: persisted.revision,
-            tokenHash: token.hash,
-            now,
-          });
+        const defaultTarget = (offer.target_options || [])[0] || null;
+        if (isSpecialTargetEligible(defaultTarget)) {
           specialOffer = {
             special_id: specialAction.special_id,
             offer_token: token.token,
             progress_revision: persisted.revision,
-            target_options: offer.target_options.slice(0, 2),
+            kind: 'spark',
+            target_options: [defaultTarget],
+            default_option_id: defaultTarget.option_id,
+            auto_apply: true,
+            interaction_cost: 0,
+            target_effort: describeSpecialTargetEffort(defaultTarget),
           };
+          specialEffort.selected_effect_target = describeSpecialTargetEffort(defaultTarget);
         } else {
-          await tx.run(`INSERT INTO coloring_special_progress
-            (user_id,template_id,special_id,status,offer_revision,offer_token_hash,updated_at)
-            VALUES (?,?,?,?,?,?,?)
-            ON CONFLICT(user_id,template_id,special_id) DO UPDATE SET
-              status=excluded.status, offer_revision=excluded.offer_revision,
-              offer_token_hash=NULL, updated_at=excluded.updated_at`,
-          [req.userId, template.id, specialAction.special_id, 'skipped', persisted.revision, null, now]);
+          specialEffort.suppression_reason = 'no_eligible_effect_target';
+          specialDiscovered = null;
+          await markSpecialSkippedDirect(tx, {
+            userId: req.userId,
+            templateId: template.id,
+            specialId: specialAction.special_id,
+            revision: persisted.revision,
+            now,
+          });
         }
       } else if (specialAction?.type === 'claim_bomb') {
         const token = createOfferToken();
@@ -1692,6 +1738,7 @@ async function processTiledProgressAction(req, res, template) {
       special_offer: specialOffer,
       special_applied_changes: specialAppliedChanges,
       special_discovered: specialDiscovered,
+      special_effort: specialEffort,
       artifact_progress: await buildArtifactProgress(tx, {
         userId: req.userId,
         templateId: template.id,
@@ -1804,6 +1851,7 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
           specialOffer: storedResponse.special_offer || null,
           specialAppliedChanges: storedResponse.special_applied_changes || [],
           specialDiscovered: null,
+          specialEffort: storedResponse.special_effort || null,
         };
       }
 
@@ -1833,6 +1881,7 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
       let specialOffer = null;
       let specialAppliedChanges = [];
       let specialDiscovered = null;
+      let specialEffort = null;
       let fuseRemainingAfterStep = [];
       const special = specialAction ? await findSpecial(tx, {
         templateId: template.id,
@@ -1842,6 +1891,19 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
       const specialProgress = specialAction ? await getSparkProgress(tx, {
         userId: req.userId, templateId: template.id, specialId: specialAction.special_id,
       }) : null;
+      if (specialAction?.type === 'claim_spark' && special) {
+        specialEffort = {
+          trigger_target: buildLegacySpecialTriggerEffort({
+            cells: template.cells,
+            filled: currentFilled,
+            width: template.width,
+            height: template.height,
+            specialIndex: Number(special.cell_index),
+          }),
+          selected_effect_target: null,
+          suppression_reason: null,
+        };
+      }
       if (specialAction?.type === 'skip_spark' || specialAction?.type === 'skip_fuse'
         || specialAction?.type === 'skip_hazard') {
         if (!special || !specialProgress || specialProgress.status !== 'offered'
@@ -2009,9 +2071,16 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
         filled[change.index] = change.color;
       }
       const completed = isComplete(template, filled);
+      const isNonProgressSpecialSkip = ['skip_spark', 'skip_fuse', 'skip_hazard'].includes(specialAction?.type);
       const nextRevision = specialAction?.type === 'skip_spark'
         || specialAction?.type === 'skip_hazard' ? clientRevision : clientRevision + 1;
       const completedAt = completed ? (existing?.completed_at || now) : null;
+      // Skipping an offered special is a session decision, not meaningful
+      // painting activity. Keep the previous progress timestamp so Continue
+      // remains anchored to the last accepted paint/reveal commit.
+      const activityAt = isNonProgressSpecialSkip && existing?.updated_at
+        ? existing.updated_at
+        : now;
       let artworkId = null;
       let renderArtifact = null;
       let renderStatus = null;
@@ -2019,7 +2088,7 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
       if (existing) {
         const updateResult = await tx.run(
           'UPDATE coloring_progress SET filled_json=?, revision=?, completed_at=?, updated_at=? WHERE user_id=? AND template_id=? AND revision=?',
-          [JSON.stringify(filled), nextRevision, completedAt, now, req.userId, template.id, clientRevision],
+          [JSON.stringify(filled), nextRevision, completedAt, activityAt, req.userId, template.id, clientRevision],
         );
 
         if (updateResult.changes === 0) {
@@ -2040,15 +2109,29 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
         }
       }
 
-      if (specialAction?.type === 'claim_spark') {
+      const suppressInteractiveSpecial = Boolean(specialAction?.type === 'claim_spark'
+        && !isSpecialTargetEligible(specialEffort?.trigger_target));
+      if (suppressInteractiveSpecial) {
+        specialEffort.suppression_reason = 'trivial_trigger_target';
+        specialDiscovered = null;
+        await markSpecialSkippedDirect(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: nextRevision,
+          now,
+        });
+      } else if (specialAction?.type === 'claim_spark') {
         const options = buildLegacySparkTargetOptions({
           cells: template.cells,
           filled,
           width: template.width,
           height: template.height,
           specialIndex: Number(special.cell_index),
+          maxOptions: 1,
         });
-        if (options.length >= 2) {
+        const defaultTarget = options[0] || null;
+        if (isSpecialTargetEligible(defaultTarget)) {
           const token = createOfferToken();
           await markSparkOffered(tx, {
             userId: req.userId,
@@ -2062,16 +2145,24 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
             special_id: specialAction.special_id,
             offer_token: token.token,
             progress_revision: nextRevision,
-            target_options: options.slice(0, 2),
+            kind: 'spark',
+            target_options: [defaultTarget],
+            default_option_id: defaultTarget.option_id,
+            auto_apply: true,
+            interaction_cost: 0,
+            target_effort: describeSpecialTargetEffort(defaultTarget),
           };
+          specialEffort.selected_effect_target = describeSpecialTargetEffort(defaultTarget);
         } else {
-          await tx.run(`INSERT INTO coloring_special_progress
-            (user_id,template_id,special_id,status,offer_revision,offer_token_hash,updated_at)
-            VALUES (?,?,?,?,?,?,?)
-            ON CONFLICT(user_id,template_id,special_id) DO UPDATE SET
-              status=excluded.status, offer_revision=excluded.offer_revision,
-              offer_token_hash=NULL, updated_at=excluded.updated_at`,
-          [req.userId, template.id, specialAction.special_id, 'skipped', nextRevision, null, now]);
+          specialEffort.suppression_reason = 'no_eligible_effect_target';
+          specialDiscovered = null;
+          await markSpecialSkippedDirect(tx, {
+            userId: req.userId,
+            templateId: template.id,
+            specialId: specialAction.special_id,
+            revision: nextRevision,
+            now,
+          });
         }
       } else if (specialAction?.type === 'claim_bomb') {
         const token = createOfferToken();
@@ -2302,6 +2393,7 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
         special_offer: specialOffer,
         special_applied_changes: specialAppliedChanges,
         special_discovered: specialDiscovered,
+        special_effort: specialEffort,
       }), now]);
 
       return {
@@ -2317,6 +2409,7 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
         specialOffer,
         specialAppliedChanges,
         specialDiscovered,
+        specialEffort,
         renderArtifact,
         renderThumbnailArtifact: justCompleted ? renderCanonicalThumbnail({ width: template.width, height: template.height, palette: template.palette, cells: template.cells, filled }) : null,
       };
@@ -2389,6 +2482,7 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
     special_offer: casResult.specialOffer || null,
     special_applied_changes: casResult.specialAppliedChanges || [],
     special_discovered: casResult.specialDiscovered || null,
+    special_effort: casResult.specialEffort || null,
     artifact_progress: await buildArtifactProgress({ get }, {
       userId: req.userId,
       templateId: template.id,

@@ -17,6 +17,7 @@ import {
   SPARK_PITY_INTERVAL_CELLS,
   SPARK_TARGET_MAX_CELLS,
   SPECIAL_MAX_DERIVED_CHANGES,
+  buildLegacySpecialTriggerEffort,
   buildSpecialDiagnostics,
   createOfferToken,
   diagnoseSparkPlacement,
@@ -27,12 +28,66 @@ import {
   hasSparkCohortOverride,
   hashOfferToken,
   isSparkTreatmentUser,
+  isSpecialTargetEligible,
   isSpecialCellsQaEnvironment,
   isSpecialDiagnosticsEnabled,
   readTileSpecials,
+  specialEffortBin,
+  summarizeSpecialEffort,
 } from '../services/tiled-specials.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+test('effort bins cover trivial through high-work targets without setting a product threshold', () => {
+  const examples = new Map([
+    [1, '1'],
+    [3, '2-3'],
+    [12, '4-12'],
+    [50, '33-50'],
+    [200, '51-200'],
+    [500, '200+'],
+  ]);
+  for (const [cells, bin] of examples) assert.equal(specialEffortBin(cells), bin);
+  assert.equal(isSpecialTargetEligible(1), false, 'one cell is the only hard negative sanity guard');
+  assert.equal(isSpecialTargetEligible(3), true);
+  const summary = summarizeSpecialEffort([1, 3, 12, 50, 200, 500]);
+  assert.deepEqual(summary.bins, {
+    1: 1,
+    '2-3': 1,
+    '4-12': 1,
+    '13-32': 0,
+    '33-50': 1,
+    '51-200': 1,
+    '200+': 1,
+  });
+  assert.deepEqual(
+    { min: summary.min, p50: summary.p50, p90: summary.p90, p95: summary.p95, max: summary.max },
+    { min: 1, p50: 12, p90: 500, p95: 500, max: 500 },
+  );
+});
+
+test('legacy trigger effort follows the marker connected target, not disconnected same-color islands', () => {
+  const width = 12;
+  const height = 12;
+  const cells = Array(width * height).fill(1);
+  const filled = Array(width * height).fill(-1);
+  const markerIndex = 6 * width + 6;
+  cells[markerIndex] = 0;
+  cells[0] = 0;
+  cells[11] = 0;
+  cells[11 * width] = 0;
+  cells[width * height - 1] = 0;
+
+  const effort = buildLegacySpecialTriggerEffort({ cells, filled, width, height, specialIndex: markerIndex });
+  assert.equal(effort.estimated_cells, 1);
+  assert.equal(effort.effort_bin, '1');
+  assert.equal(effort.eligible, false);
+
+  cells[markerIndex + 1] = 0;
+  const connected = buildLegacySpecialTriggerEffort({ cells, filled, width, height, specialIndex: markerIndex });
+  assert.equal(connected.estimated_cells, 2);
+  assert.equal(connected.eligible, true);
+});
 
 async function createDiagnosticsDb() {
   const SQL = await initSqlJs();
@@ -217,9 +272,9 @@ test('Special gameplay placement reuses deterministic coordinates and bounded ty
   assert.deepEqual(first, second);
   assert.equal(first.length, 40);
   assert.equal(first[0].kind, 'spark', 'early target remains Spark');
-  assert.deepEqual(new Set(first.map((cell) => cell.kind)), new Set(['spark', 'bomb', 'fuse', 'choice', 'artifact']));
+  assert.deepEqual(new Set(first.map((cell) => cell.kind)), new Set(['spark', 'bomb', 'fuse', 'artifact']));
   assert.equal(new Set(first.map((cell) => cell.cell_index)).size, first.length);
-  assert.ok(first.every((cell) => cell.generation_version === 4));
+  assert.ok(first.every((cell) => cell.generation_version === 5));
 });
 
 test('Spark offer token is one-way hashed and full target cap stays distinct from other effects', () => {
@@ -489,6 +544,8 @@ test('diagnostics contract is stable and never exposes positions, tokens, or eff
     'recent',
     'special_count',
     'storage_mode',
+    'target_effort_contract',
+    'target_effort_distribution',
     'template_height',
     'template_id',
     'template_width',
@@ -699,6 +756,8 @@ test('control diagnostics expose no special positions, tokens, or active offers'
     'recent',
     'special_count',
     'storage_mode',
+    'target_effort_contract',
+    'target_effort_distribution',
     'template_height',
     'template_id',
     'template_width',
@@ -713,6 +772,8 @@ test('control diagnostics expose no special positions, tokens, or active offers'
   assert.equal(diagnostics.active_special_id, null);
   assert.equal(diagnostics.pity_due, false);
   assert.equal(diagnostics.cells_to_next_pity_boundary, SPARK_PITY_INTERVAL_CELLS);
+  assert.equal(diagnostics.target_effort_distribution.trigger_targets.sample_count, 0);
+  assert.equal(diagnostics.target_effort_distribution.selected_effect_targets.sample_count, 0);
 });
 
 test('readTiledTile is read-only; ensureTiledSpecialCells materializes zero-row tiled templates', async () => {

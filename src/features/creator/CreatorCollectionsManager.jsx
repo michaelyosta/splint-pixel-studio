@@ -314,11 +314,6 @@ export default function CreatorCollectionsManager({ templates = [], onCollection
         </div>
       </div>
 
-      <aside className="creator-collections-manager__sales-note" aria-label="Статус продаж">
-        <CircleAlert size={20} aria-hidden="true" />
-        <div><b>Продажа наборов пока недоступна</b><p>Выплаты авторам и Telegram Stars не подключены. Сейчас можно создавать и бесплатно публиковать только собственные наборы.</p></div>
-      </aside>
-
       {notice && <p className={`creator-collections-manager__notice is-${notice.type}`} role={notice.type === 'error' ? 'alert' : 'status'} aria-live="polite">{notice.text}</p>}
     </section>
   );

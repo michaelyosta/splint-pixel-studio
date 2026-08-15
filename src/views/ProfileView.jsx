@@ -36,7 +36,7 @@ export default function ProfileView({
   const isOwnProfile = profile.id === currentUser?.id;
   const completedWorks = isOwnProfile ? mine.filter((item) => item.progress?.percent === 100) : profileArtworks;
   const achievementsUnlocked = achievements.filter((achievement) => achievement.unlocked);
-  const visibleCollections = collections.slice(0, 4);
+  const visibleCollections = collections.filter((collection) => collection.pack_type !== 'premium').slice(0, 4);
   const displayShelf = isOwnProfile ? profileShelf : 'works';
   const shelfItems = displayShelf === 'favorites' ? favoriteTemplates
     : displayShelf === 'history' ? recentTemplates

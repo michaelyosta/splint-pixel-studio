@@ -47,8 +47,11 @@ import {
   capSpecialsPerTile,
   normalizeSpecialKind,
   diagnoseSparkPlacement,
+  describeSpecialTargetEffort,
   generateSparkCells,
+  isSpecialTargetEligible,
   specialDensityForGrid,
+  summarizeSpecialEffort,
 } from '../services/tiled-specials.js';
 import {
   ACTIONABLE_WINDOW_SIZE,
@@ -138,8 +141,8 @@ export function resolveEventKindMix({
     ? hazardAwareKindPattern()
     : productionPattern;
   const activeKinds = normalizedMode === 'none'
-    ? [...new Set([...GAMEPLAY_MIX_TYPES, ...pattern])].filter((kind) => kind !== HAZARD_KIND)
-    : [...new Set([...GAMEPLAY_MIX_TYPES, ...pattern])];
+    ? [...new Set(pattern)].filter((kind) => kind !== HAZARD_KIND)
+    : [...new Set([...pattern, HAZARD_KIND])];
   return {
     source: normalizedMode === 'pattern' || normalizedMode === 'both'
       ? 'simulator-pattern-fixture'
@@ -1107,9 +1110,8 @@ function remainingTiles(state, color, recentSet) {
 }
 
 function bestTarget(state, color, recentSet) {
-  const candidates = remainingTiles(state, color, recentSet);
-  if (!candidates.length) return null;
-  const candidate = candidates[0];
+  const candidate = remainingTiles(state, color, recentSet)[0];
+  if (!candidate) return null;
   const tile = state.tileByKey.get(candidate.key);
   const bounds = state.boundsByKey.get(candidate.key);
   const target = chooseActionableWindowFast({
@@ -1123,8 +1125,34 @@ function bestTarget(state, color, recentSet) {
     cameraCenterX: state.camera.x,
     cameraCenterY: state.camera.y,
   });
-  if (!target) return null;
-  return { tileKey: candidate.key, target };
+  return target ? { tileKey: candidate.key, target } : null;
+}
+
+function bestEligibleEffectTarget(state, color, recentSet, scanLimit = 16) {
+  const candidates = remainingTiles(state, color, recentSet)
+    .sort((first, second) => second.remaining - first.remaining
+      || second.score - first.score
+      || first.key.localeCompare(second.key))
+    .slice(0, scanLimit);
+  const targets = [];
+  for (const candidate of candidates) {
+    const tile = state.tileByKey.get(candidate.key);
+    const bounds = state.boundsByKey.get(candidate.key);
+    const target = chooseActionableWindowFast({
+      cells: tile.cells,
+      filled: state.filledByKey.get(candidate.key),
+      width: bounds.width,
+      height: bounds.height,
+      colorIndex: color,
+      offsetX: bounds.offset_x,
+      offsetY: bounds.offset_y,
+      cameraCenterX: state.camera.x,
+      cameraCenterY: state.camera.y,
+    });
+    if (isSpecialTargetEligible(target)) targets.push({ tileKey: candidate.key, target });
+  }
+  return targets.sort((first, second) => second.target.estimated_cells - first.target.estimated_cells
+    || first.tileKey.localeCompare(second.tileKey))[0] || null;
 }
 
 function findFirstUnfilledSpark(state) {
@@ -1146,7 +1174,7 @@ function findFirstUnfilledSpark(state) {
       spark,
       color,
     });
-    if (target.estimated_cells <= 0) continue;
+    if (!isSpecialTargetEligible(target)) continue;
     return { spark, key, color, target };
   }
   return null;
@@ -1331,8 +1359,11 @@ export function simulateSpecialGameplay({
   let candidateEvaluations = 0;
   let guidedCells = 0;
   let assistedCells = 0;
+  let suppressedTrivialSpecials = 0;
   let truncated = false;
   const events = [];
+  const targetEfforts = [];
+  const triggerEfforts = [];
   const gapsCells = [];
   const gapsTargets = [];
   let firstSparkPlanIndex = null;
@@ -1341,13 +1372,18 @@ export function simulateSpecialGameplay({
   let nonSparkBeforeFirstEvent = 0;
   let firstEventKind = null;
 
-  const triggerClaims = (paintedCells, discoveredByPity = false, planType = 'regular') => {
+  const triggerClaims = (paintedCells, discoveredByPity = false, planType = 'regular', triggerEffort = 0) => {
     for (const painted of paintedCells) {
       const spark = state.sparkByTileLocal.get(painted.tileKey)?.get(painted.localIndex);
       if (!spark || state.claimed.has(String(spark.special_id))) continue;
       state.claimed.add(String(spark.special_id));
-      state.eventCount += 1;
+      triggerEfforts.push(triggerEffort);
       const kind = String(spark.kind || SPARK_KIND);
+      if (kind === SPARK_KIND && !isSpecialTargetEligible(triggerEffort)) {
+        suppressedTrivialSpecials += 1;
+        continue;
+      }
+      state.eventCount += 1;
       if (kind === SPARK_KIND) state.sparkEventCount += 1;
       if (kind === SPARK_KIND && firstSparkPlanIndex == null) {
         firstSparkPlanIndex = planIndex;
@@ -1373,7 +1409,9 @@ export function simulateSpecialGameplay({
       let offerTargetKey = null;
       const hazardNoEffect = kind === HAZARD_KIND;
       if (useColor != null && kind !== ARTIFACT_KIND && !hazardNoEffect) {
-        const offer = bestTarget(state, useColor, recentSet);
+        const offer = kind === SPARK_KIND
+          ? bestEligibleEffectTarget(state, useColor, recentSet)
+          : bestTarget(state, useColor, recentSet);
         if (offer) {
           offerTargetKey = offer.tileKey;
           candidateEvaluations += remainingTiles(state, useColor, recentSet).length * 2;
@@ -1416,6 +1454,7 @@ export function simulateSpecialGameplay({
         gap_cells: gapCells,
         gap_targets: gapTargets,
         assisted_cells: eventAssisted,
+        trigger_effort: describeSpecialTargetEffort({ estimated_cells: triggerEffort }),
         // A pity-directed window can contain another special cell nearby;
         // only the Spark that caused the pity route is a pity discovery.
         discovered_by_pity: discoveredByPity && kind === SPARK_KIND,
@@ -1443,6 +1482,7 @@ export function simulateSpecialGameplay({
         plan.type = 'spark_plan';
         plan.special_id = String(pity.spark.special_id);
         sparkPlans += 1;
+        targetEfforts.push(pity.target.estimated_cells);
         const painted = paintCells(state, {
           tileKey: pity.key,
           color: pity.color,
@@ -1454,7 +1494,12 @@ export function simulateSpecialGameplay({
         const nextRecent = pushRecent(recentList, pity.key);
         recentList.splice(0, recentList.length, ...nextRecent);
         recentSet = new Set(recentList);
-        if (sparkTreatment) triggerClaims(painted.paintedCells, true, 'spark_plan');
+        if (sparkTreatment) triggerClaims(
+          painted.paintedCells,
+          true,
+          'spark_plan',
+          pity.target.estimated_cells,
+        );
         plan.completed_cells = state.completedCells;
         plan.painted_cells = painted.count;
         plan.spark_pity = true;
@@ -1504,13 +1549,19 @@ export function simulateSpecialGameplay({
     guidedCells += painted.count;
     state.completedCells += painted.count;
     regularTargets += 1;
+    targetEfforts.push(target?.estimated_cells ?? painted.count);
     const anchorX = target?.anchor_x ?? (bounds.offset_x + bounds.width / 2);
     const anchorY = target?.anchor_y ?? (bounds.offset_y + bounds.height / 2);
     state.camera = { x: anchorX, y: anchorY };
     const nextRecent = pushRecent(recentList, candidate.key);
     recentList.splice(0, recentList.length, ...nextRecent);
     recentSet = new Set(recentList);
-    if (sparkTreatment) triggerClaims(painted.paintedCells);
+    if (sparkTreatment) triggerClaims(
+      painted.paintedCells,
+      false,
+      'regular',
+      target?.estimated_cells ?? painted.count,
+    );
     plan.completed_cells = state.completedCells;
     plan.painted_cells = painted.count;
     plan.color = selectedColor;
@@ -1599,6 +1650,11 @@ export function simulateSpecialGameplay({
           .map(([kind, cells]) => [kind, state.completedCells ? cells / state.completedCells : null]),
       ),
       assisted_per_event_by_kind: kindMetrics.assisted_per_event_by_kind,
+      target_efforts: targetEfforts,
+      target_effort_distribution: summarizeSpecialEffort(targetEfforts),
+      trigger_efforts: triggerEfforts,
+      trigger_effort_distribution: summarizeSpecialEffort(triggerEfforts),
+      suppressed_trivial_specials: suppressedTrivialSpecials,
       events,
       truncated,
       elapsed_ms: elapsedMs,
@@ -1630,6 +1686,8 @@ function summarizeSize(runs) {
   const placementCoverage = runs.map((run) => run.placement.region_coverage_ratio);
   const nearestNeighbors = runs.map((run) => run.placement.nearest_neighbor_distance.average);
   const assistedRatios = runs.map((run) => run.route.assisted_ratio);
+  const targetEfforts = runs.flatMap((run) => run.route.target_efforts || []);
+  const triggerEfforts = runs.flatMap((run) => run.route.trigger_efforts || []);
   const sparkCounts = runs.map((run) => run.placement.spark_count);
   const firstEventKinds = {};
   for (const run of runs) {
@@ -1714,6 +1772,11 @@ function summarizeSize(runs) {
       runs.flatMap((run) => run.placement.clusters?.sizes || []),
     ),
     assisted_ratio: average(assistedRatios),
+    target_effort_distribution: summarizeSpecialEffort(targetEfforts),
+    trigger_effort_distribution: summarizeSpecialEffort(triggerEfforts),
+    suppressed_trivial_specials: numericSummary(
+      aggregateRunValues(runs, 'route.suppressed_trivial_specials'),
+    ),
     elapsed_ms: aggregateRunValues(runs, 'route.elapsed_ms').reduce((sum, value) => sum + value, 0),
   };
 }

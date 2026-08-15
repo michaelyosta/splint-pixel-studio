@@ -84,7 +84,7 @@ async function startServer(t, cohort) {
       ALLOW_DEV_AUTH: 'true',
       SPECIAL_CELLS_COHORT: cohort,
       SPECIAL_CELLS_QA_OVERRIDE: 'true',
-      SPECIAL_CELLS_QA_USER_ID: 'user_legacy_treatment,user_legacy_skip,user_legacy_control,user_legacy_last_cell',
+      SPECIAL_CELLS_QA_USER_ID: 'user_legacy_treatment,user_legacy_skip,user_legacy_trivial,user_legacy_control,user_legacy_last_cell',
       SPECIAL_CELLS_DIAGNOSTICS: 'true',
       RATE_LIMIT_MAX: '10000',
       RENDER_OUTBOX_ENABLED: 'false',
@@ -144,7 +144,10 @@ test('legacy 28x28 treatment claim is exact, bounded, and idempotent', async (t)
   const { body: claimBody, claimed } = await claimSpark(request, id, spark, 0, 'legacy-spark-claim-001');
   assert.deepEqual(claimed.json.special_discovered, { special_id: spark.id, kind: 'spark' });
   assert.equal(claimed.json.revision, 1);
-  assert.equal(claimed.json.special_offer.target_options.length, 2);
+  assert.equal(claimed.json.special_offer.target_options.length, 1);
+  assert.equal(claimed.json.special_offer.default_option_id, claimed.json.special_offer.target_options[0].option_id);
+  assert.equal(claimed.json.special_offer.auto_apply, true);
+  assert.equal(claimed.json.special_offer.interaction_cost, 0);
   assert.ok(claimed.json.special_offer.offer_token);
   assert.equal(claimed.json.special_applied_changes.length, 0);
 
@@ -196,6 +199,7 @@ test('legacy skip_spark consumes the offer and blocks re-claim', async (t) => {
   const progress = await request(`/colorings/${id}/progress`);
   const spark = progress.json.specials[0];
   const { claimed } = await claimSpark(request, id, spark, 0, 'legacy-skip-claim-001');
+  assert.ok(claimed.json.updated_at);
 
   const skipBody = {
     revision: claimed.json.revision,
@@ -211,6 +215,7 @@ test('legacy skip_spark consumes the offer and blocks re-claim', async (t) => {
   assert.equal(skipped.response.status, 200);
   assert.equal(skipped.json.special_discovered, null);
   assert.equal(skipped.json.revision, claimed.json.revision);
+  assert.equal(skipped.json.updated_at, claimed.json.updated_at);
 
   const skipReplay = await request(`/colorings/${id}/progress/actions`, { method: 'POST', body: skipBody });
   assert.equal(skipReplay.response.status, 200);
@@ -230,6 +235,75 @@ test('legacy skip_spark consumes the offer and blocks re-claim', async (t) => {
 
   const afterSkip = await request(`/colorings/${id}/progress`);
   assert.equal(afterSkip.json.specials[0].state, 'skipped');
+});
+
+test('legacy one-cell trigger is painted normally but never opens or applies a Special', async (t) => {
+  const baseUrl = await startServer(t, 'SPARK_TREATMENT');
+  const request = createClient(baseUrl, 'user_legacy_trivial');
+  const id = await createLegacy28Template(request, 'Legacy trivial Spark guard');
+  const initial = await request(`/colorings/${id}/progress`);
+  const spark = initial.json.specials[0];
+  const anchorX = spark.cell_index % 28;
+  const anchorY = Math.floor(spark.cell_index / 28);
+  const minX = Math.max(0, Math.min(16, anchorX - 6));
+  const minY = Math.max(0, Math.min(16, anchorY - 6));
+  const localWindow = [];
+  for (let y = minY; y <= minY + 11; y += 1) {
+    for (let x = minX; x <= minX + 11; x += 1) {
+      const index = y * 28 + x;
+      if (index !== spark.cell_index) localWindow.push(index);
+    }
+  }
+  const disconnectedSingleton = localWindow[0];
+  const setupCells = localWindow.filter((index) => index !== disconnectedSingleton);
+
+  let revision = 0;
+  for (let offset = 0; offset < setupCells.length; offset += 64) {
+    const painted = await request(`/colorings/${id}/progress/actions`, {
+      method: 'POST',
+      body: {
+        revision,
+        clientBatchId: `legacy-trivial-setup-${offset}`,
+        changes: setupCells.slice(offset, offset + 64).map((index) => ({ index, color: 0 })),
+      },
+    });
+    assert.equal(painted.response.status, 200);
+    revision = painted.json.revision;
+  }
+
+  const claimBody = {
+    revision,
+    clientBatchId: 'legacy-trivial-claim',
+    changes: [{ index: spark.cell_index, color: 0 }],
+    special_action: { type: 'claim_spark', special_id: spark.id },
+  };
+  const claimed = await request(`/colorings/${id}/progress/actions`, { method: 'POST', body: claimBody });
+  assert.equal(claimed.response.status, 200);
+  assert.equal(claimed.json.special_effort.trigger_target.estimated_cells, 1);
+  assert.equal(claimed.json.special_effort.trigger_target.effort_bin, '1');
+  assert.equal(claimed.json.special_effort.trigger_target.eligible, false);
+  assert.equal(claimed.json.special_effort.suppression_reason, 'trivial_trigger_target');
+  assert.equal(claimed.json.special_offer, null);
+  assert.deepEqual(claimed.json.special_applied_changes, []);
+  assert.equal(claimed.json.special_discovered, null);
+  assert.ok(claimed.json.percent < 100, 'ordinary painting continues with unfinished work');
+
+  const replay = await request(`/colorings/${id}/progress/actions`, { method: 'POST', body: claimBody });
+  assert.equal(replay.response.status, 200);
+  assert.equal(replay.json.idempotent, true);
+  assert.equal(replay.json.special_effort.suppression_reason, 'trivial_trigger_target');
+  const after = await request(`/colorings/${id}/progress`);
+  assert.equal(after.json.specials[0].state, 'skipped');
+  assert.equal(after.json.filled[disconnectedSingleton], -1,
+    'a disconnected same-color singleton does not make the marker target eligible');
+  assert.equal(
+    after.json.special_diagnostics.target_effort_distribution.trigger_targets.sample_count,
+    1,
+  );
+  assert.equal(
+    after.json.special_diagnostics.target_effort_distribution.trigger_targets.bins['1'],
+    1,
+  );
 });
 
 test('legacy control cohort exposes no specials and rejects forged claims', async (t) => {
@@ -294,7 +368,10 @@ test('legacy treatment last-cell Spark completes the 28x28 template exactly once
   };
   const finalClaim = await request(`/colorings/${id}/progress/actions`, { method: 'POST', body: finalBody });
   assert.equal(finalClaim.response.status, 200);
-  assert.deepEqual(finalClaim.json.special_discovered, { special_id: spark.id, kind: 'spark' });
+  assert.equal(finalClaim.json.special_discovered, null, 'one final cell cannot interrupt completion with a Special');
+  assert.equal(finalClaim.json.special_offer, null);
+  assert.equal(finalClaim.json.special_effort.trigger_target.estimated_cells, 1);
+  assert.equal(finalClaim.json.special_effort.suppression_reason, 'trivial_trigger_target');
   assert.equal(finalClaim.json.percent, 100);
   assert.ok(finalClaim.json.completed_at);
   assert.ok(finalClaim.json.artwork_id);

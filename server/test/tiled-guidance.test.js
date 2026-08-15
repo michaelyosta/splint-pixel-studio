@@ -216,6 +216,45 @@ test('Spark pity makes the first treatment target contain the deterministic earl
   db.close();
 });
 
+test('SPECIAL_TARGETS requires treatment and the matching persisted offer', async () => {
+  const db = await createGuidanceDb();
+  const adapter = wrapSqlite(db);
+  const template = await seedTemplate(adapter);
+  const special = await adapter.get(
+    "SELECT * FROM coloring_special_cells WHERE template_id=? AND special_id LIKE 'sc_early_%'",
+    [template.id],
+  );
+  const request = (overrides = {}) => buildGuidancePlan({
+    db: adapter,
+    userId: 'user-guidance',
+    template,
+    reason: GUIDANCE_REASON.SPECIAL_TARGETS,
+    specialId: special.special_id,
+    cameraCenter: { x: 32, y: 32 },
+    ...overrides,
+  });
+  await assert.rejects(
+    () => request({ sparkTreatment: false }),
+    (error) => error?.code === 'SPECIAL_TARGETS_CONTROL' && error?.status === 403,
+  );
+  await assert.rejects(
+    () => request({ sparkTreatment: true }),
+    (error) => error?.code === 'SPECIAL_TARGET_OFFER_REQUIRED' && error?.status === 409,
+  );
+  await adapter.run(`INSERT INTO coloring_special_progress
+    (user_id,template_id,special_id,status,offer_revision,offer_token_hash,updated_at)
+    VALUES (?,?,?,?,?,?,?)`,
+  ['user-guidance', template.id, special.special_id, 'offered', 0, 'server-only-token-hash', '2026-08-07T00:00:00.000Z']);
+  await assert.rejects(
+    () => request({ specialId: 'sc_forged', sparkTreatment: true }),
+    (error) => error?.code === 'SPECIAL_TARGET_OFFER_REQUIRED' && error?.status === 409,
+  );
+  const allowed = await request({ sparkTreatment: true });
+  assert.equal(allowed.special_id, special.special_id);
+  assert.equal('offer_token' in allowed, false);
+  db.close();
+});
+
 test('Spark early guarantee survives resume progress until the first event is handled', async () => {
   const db = await createGuidanceDb();
   const adapter = wrapSqlite(db);

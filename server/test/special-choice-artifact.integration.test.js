@@ -61,6 +61,7 @@ async function startServer(t, userId) {
       SPECIAL_CELLS_QA_OVERRIDE: 'true',
       SPECIAL_CELLS_QA_USER_ID: 'choice_artifact_user,choice_reload_user,artifact_reload_user,artifact_small_map_user',
       SPECIAL_CELLS_DIAGNOSTICS: 'true',
+      SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE: 'true',
       RATE_LIMIT_MAX: '10000',
       RENDER_OUTBOX_ENABLED: 'false',
     },

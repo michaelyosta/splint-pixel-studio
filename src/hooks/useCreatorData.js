@@ -1,125 +1,323 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, metaApi } from '../api/client';
 import { buildColoringFromImage } from '../lib/pixelColoring';
-import { renderImageCropPreview, renderFitPreview, renderGridPreview, renderNumberedPreview } from '../lib/imageCrop';
-import { assessQualityAsync } from '../lib/creatorQuality';
+import {
+  CREATOR_PREVIEW_RESOLUTIONS,
+  buildCreatorPreviewCacheKey,
+  deriveCreatorPreviewInsights,
+  isCreatorPreviewCurrent,
+  renderCreatorNumberGridPreview,
+  renderFitPreview,
+  renderImageCropPreview,
+} from '../lib/imageCrop';
 import { createCreatorWorkerClient } from '../lib/creatorWorkerClient';
 import { createTiledTemplateAsync } from '../lib/tiledTemplate';
+
+const DEFAULT_CREATOR_RESOLUTION = CREATOR_PREVIEW_RESOLUTIONS[0];
+// Pixelization R&D can replace the candidate without changing preview/save
+// semantics. Until that review closes, the selected preset remains an
+// explicit integration switch rather than a creator-flow assumption.
+const CREATOR_STYLE_PRESET = import.meta.env.VITE_CREATOR_PREVIEW_STYLE_PRESET?.trim() || null;
+
+function emptyPreviewOption(resolution) {
+  return {
+    resolution,
+    status: 'idle',
+    progress: 0,
+    stage: null,
+    error: null,
+    pixel: null,
+    numbered: null,
+    palette: [],
+    metrics: null,
+    insights: null,
+    pipelineVersion: null,
+    resultFingerprint: null,
+    previewPixelFingerprint: null,
+  };
+}
+
+function emptyCreatorPreviews(selectedResolution = DEFAULT_CREATOR_RESOLUTION) {
+  return {
+    original: null,
+    selectedResolution,
+    options: Object.fromEntries(
+      CREATOR_PREVIEW_RESOLUTIONS.map((resolution) => [resolution, emptyPreviewOption(resolution)]),
+    ),
+  };
+}
+
+function asPreviewSummary(data) {
+  const { width, height, palette, cells, metrics = {}, previewDataUrl = null } = data;
+  const resultFingerprint = data.resultFingerprint || null;
+  return {
+    resolution: width,
+    width,
+    height,
+    status: 'ready',
+    progress: 1,
+    stage: 'done',
+    error: null,
+    pixel: previewDataUrl,
+    numbered: renderCreatorNumberGridPreview(width, height, palette, cells),
+    palette,
+    metrics,
+    insights: deriveCreatorPreviewInsights({ width, height, palette, cells, metrics }),
+    pipelineVersion: data.pipelineVersion,
+    stylePreset: data.stylePreset,
+    resultFingerprint,
+    previewPixelFingerprint: data.previewPixelFingerprint || null,
+  };
+}
 
 export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNavigate }) {
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState('Моя пиксельная раскраска');
   const [creating, setCreating] = useState(false);
-  // 24×24 with eight colours is quick, but it flattens most user photos and
-  // illustrations before the converter has a chance to preserve their forms.
-  const [creatorGrid, setCreatorGrid] = useState({ width: 32, height: 32 });
+  const [creatorGrid, setCreatorGridState] = useState({
+    width: DEFAULT_CREATOR_RESOLUTION,
+    height: DEFAULT_CREATOR_RESOLUTION,
+  });
   const [creatorColors, setCreatorColors] = useState(10);
   const [creatorCrop, setCreatorCrop] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
   const [creatorCropMode, setCreatorCropMode] = useState('fit');
   const [creatorImageUrl, setCreatorImageUrl] = useState(null);
   const [creatorResult, setCreatorResult] = useState(null);
   const [creatorQuality, setCreatorQuality] = useState(null);
-  const [creatorPreviews, setCreatorPreviews] = useState({ original: null, pixel: null, numbered: null });
+  const [creatorPreviews, setCreatorPreviews] = useState(() => emptyCreatorPreviews());
   const [creatorComputing, setCreatorComputing] = useState(false);
   const [createdColoring, setCreatedColoring] = useState(null);
+
   const creatorComputeRef = useRef(0);
   const creatorFileRef = useRef(null);
+  const creatorFileTokenRef = useRef('no-file');
   const creatorTimerRef = useRef(null);
-  const computeRef = useRef(null);
   const creatorWorkerRef = useRef(null);
-  if (!creatorWorkerRef.current) creatorWorkerRef.current = createCreatorWorkerClient();
-  computeRef.current = computeCreatorPreview;
+  const creatorWorkerInitializedRef = useRef(false);
+  const creatorCacheRef = useRef(new Map());
+  const creatorFullResultRef = useRef(null);
+  const creatorGridRef = useRef(creatorGrid);
+  const creatorImageUrlRef = useRef(null);
+  const computeRef = useRef(null);
+
+  if (!creatorWorkerInitializedRef.current) {
+    creatorWorkerRef.current = createCreatorWorkerClient();
+    creatorWorkerInitializedRef.current = true;
+  }
 
   useEffect(() => {
-    if (!creatorImageUrl) return;
-    window.clearTimeout(creatorTimerRef.current);
-    creatorTimerRef.current = window.setTimeout(() => computeRef.current(), 400);
-    return () => window.clearTimeout(creatorTimerRef.current);
-  }, [creatorGrid, creatorColors, creatorCrop, creatorCropMode, creatorImageUrl]);
+    creatorGridRef.current = creatorGrid;
+  }, [creatorGrid]);
 
-  async function computeCreatorPreview() {
-    const sourceFile = creatorFileRef.current || file;
-    if (!sourceFile) return;
-    setCreatorComputing(true);
-    const id = ++creatorComputeRef.current;
-    let imgUrl;
-    try {
-      imgUrl = URL.createObjectURL(sourceFile);
-      const img = new window.Image();
-      img.src = imgUrl;
-      await img.decode();
-      const preset = { width: creatorGrid.width, height: creatorGrid.height, colors: creatorColors };
-      const crop = creatorCropMode === 'crop' ? creatorCrop : null;
-      let data;
-      if (creatorWorkerRef.current) {
-        try {
-          data = await creatorWorkerRef.current.run(sourceFile, { ...preset, crop });
-        } catch (workerError) {
-          if (workerError?.name === 'AbortError') throw workerError;
-          // Older WebViews may expose Worker but not the full canvas/File API
-          // used by the pipeline. Retire the failed worker and keep the
-          // user-facing flow available on the main thread.
-          creatorWorkerRef.current.dispose();
-          creatorWorkerRef.current = null;
-          data = await buildColoringFromImage(sourceFile, { ...preset, crop, yieldEvery: 96 });
-        }
-      } else {
-        data = await buildColoringFromImage(sourceFile, { ...preset, crop, yieldEvery: 96 });
+  useEffect(() => () => {
+    window.clearTimeout(creatorTimerRef.current);
+    creatorComputeRef.current += 1;
+    creatorWorkerRef.current?.dispose();
+    if (creatorImageUrlRef.current) URL.revokeObjectURL(creatorImageUrlRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!creatorImageUrl) return undefined;
+    window.clearTimeout(creatorTimerRef.current);
+    const batchId = ++creatorComputeRef.current;
+    creatorWorkerRef.current?.cancel();
+    creatorCacheRef.current.clear();
+    creatorFullResultRef.current = null;
+    setCreatorResult(null);
+    setCreatorQuality(null);
+    // Crop changes invalidate the source crop as well as the converted cells.
+    // Rebuilding the bounded source preview on a colors-only change is cheap
+    // and avoids preserving a stale crop through this shared invalidation path.
+    setCreatorPreviews(emptyCreatorPreviews(creatorGridRef.current.width));
+    creatorTimerRef.current = window.setTimeout(() => {
+      computeRef.current?.({ batchId });
+    }, 450);
+    return () => window.clearTimeout(creatorTimerRef.current);
+  }, [creatorColors, creatorCrop, creatorCropMode, creatorImageUrl]);
+
+  async function runPreviewPipeline(sourceFile, options, batchId, onProgress) {
+    const pipelineOptions = {
+      ...options,
+      mode: 'preview',
+      includeOriginalDataUrl: false,
+      ...(CREATOR_STYLE_PRESET ? { stylePreset: CREATOR_STYLE_PRESET } : {}),
+    };
+    if (creatorWorkerRef.current) {
+      try {
+        return await creatorWorkerRef.current.run(sourceFile, pipelineOptions, { onProgress });
+      } catch (workerError) {
+        if (workerError?.name === 'AbortError') throw workerError;
+        creatorWorkerRef.current.dispose();
+        creatorWorkerRef.current = null;
       }
-      if (id !== creatorComputeRef.current) return;
-      const { width, height, palette, cells } = data;
-      const originalPreview = crop ? renderImageCropPreview(img, { ...creatorCrop, size: 512 }) : renderFitPreview(img, 512);
-      if (id !== creatorComputeRef.current) return;
-      // The creator pipeline already produces the bounded 512px preview in
-      // the worker. Re-rendering all 1.44M cells here would put the exact
-      // large-grid bottleneck back on the UI thread.
-      const pixelPreview = data.previewDataUrl || renderGridPreview(width, height, palette, cells);
-      if (id !== creatorComputeRef.current) return;
-      // A numbered 1200x1200 canvas would allocate hundreds of megabytes and
-      // spend most of the preview time painting text that cannot be read at
-      // the card's size. Large creator maps use the bounded pixel preview;
-      // numbered previews remain useful for the legacy-sized maps.
-      const numberedPreview = width > 160 || height > 160 ? null : renderNumberedPreview(width, height, palette, cells);
-      if (id !== creatorComputeRef.current) return;
-      const quality = data.quality || await assessQualityAsync(width, height, palette, cells, { yieldEvery: 96 });
-      if (id !== creatorComputeRef.current) return;
-      setCreatorPreviews({ original: originalPreview, pixel: pixelPreview, numbered: numberedPreview });
-      const creatorPayload = width > 160 || height > 160
-        ? await (async () => {
-          const metadata = { ...data };
-          delete metadata.cells;
-          delete metadata.originalDataUrl;
-          delete metadata.quality;
-          // The worker already performs the 1.44M-cell -> tile conversion.
-          // Keep the synchronous fallback for older WebViews without Worker.
-          const tiled = data.tiles
-            ? data
-            : await createTiledTemplateAsync({ width, height, palette, cells: data.cells }, { yieldEvery: 24 });
-          return { ...metadata, tiles: tiled.tiles, tileSize: tiled.tileSize || 32, originalDataUrl: null };
-        })()
-        : data;
-      setCreatorResult(creatorPayload);
-      setCreatorQuality(quality);
-    } catch (error) {
-      showNotice(error.message || 'Не удалось обработать изображение', 'error');
+    }
+    return buildColoringFromImage(sourceFile, {
+      ...pipelineOptions,
+      yieldEvery: 96,
+      shouldCancel: () => !isCreatorPreviewCurrent(batchId, creatorComputeRef.current),
+      onProgress,
+    });
+  }
+
+  function setPreviewOption(resolution, updater) {
+    setCreatorPreviews((previous) => ({
+      ...previous,
+      options: {
+        ...previous.options,
+        [resolution]: typeof updater === 'function'
+          ? updater(previous.options[resolution] || emptyPreviewOption(resolution))
+          : updater,
+      },
+    }));
+  }
+
+  async function loadSourcePreview(sourceFile, crop, batchId) {
+    const objectUrl = URL.createObjectURL(sourceFile);
+    try {
+      const image = new window.Image();
+      image.src = objectUrl;
+      await image.decode();
+      if (!isCreatorPreviewCurrent(batchId, creatorComputeRef.current)) return;
+      const original = crop
+        ? renderImageCropPreview(image, { ...creatorCrop, size: 512 })
+        : renderFitPreview(image, 512);
+      setCreatorPreviews((previous) => ({ ...previous, original }));
     } finally {
-      if (imgUrl) URL.revokeObjectURL(imgUrl);
-      if (id === creatorComputeRef.current) setCreatorComputing(false);
+      URL.revokeObjectURL(objectUrl);
     }
   }
 
-  async function prepareFromImage(f) {
-    const img = f || file;
-    if (!img) return;
-    creatorFileRef.current = img;
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(img.type) || img.size > 10 * 1024 * 1024) {
-      return showNotice('Поддерживаются PNG, JPG и WebP размером до 10 МБ', 'error');
+  async function computeResolution(sourceFile, resolution, batchId, { retain = false } = {}) {
+    if (!isCreatorPreviewCurrent(batchId, creatorComputeRef.current)) return null;
+    const crop = creatorCropMode === 'crop' ? creatorCrop : null;
+    const cacheKey = buildCreatorPreviewCacheKey({
+      fileToken: creatorFileTokenRef.current,
+      width: resolution,
+      colors: creatorColors,
+      cropMode: creatorCropMode,
+      crop,
+      stylePreset: CREATOR_STYLE_PRESET || 'pipeline-default',
+    });
+    const cached = creatorCacheRef.current.get(cacheKey);
+    if (cached) setPreviewOption(resolution, cached.summary);
+
+    setPreviewOption(resolution, (previous) => ({
+      ...previous,
+      status: 'computing',
+      progress: 0,
+      stage: 'prepare',
+      error: null,
+    }));
+    const data = await runPreviewPipeline(sourceFile, {
+      width: resolution,
+      height: resolution,
+      colors: creatorColors,
+      crop,
+    }, batchId, (progress) => {
+      if (!isCreatorPreviewCurrent(batchId, creatorComputeRef.current)) return;
+      setPreviewOption(resolution, (previous) => ({
+        ...previous,
+        status: 'computing',
+        stage: progress?.stage || previous.stage,
+        progress: Number(progress?.progress || 0),
+      }));
+    });
+    if (!isCreatorPreviewCurrent(batchId, creatorComputeRef.current)) return null;
+    const summary = asPreviewSummary(data);
+    const full = {
+      ...data,
+      originalDataUrl: null,
+      previewDataUrl: summary.pixel,
+      resultFingerprint: summary.resultFingerprint,
+      previewPixelFingerprint: summary.previewPixelFingerprint,
+    };
+    // Only bounded previews and statistics are cached across choices. The
+    // cell array for exactly one selected result lives in creatorFullResultRef.
+    creatorCacheRef.current.set(cacheKey, { summary });
+    setPreviewOption(resolution, summary);
+    if (retain) {
+      creatorFullResultRef.current = full;
+      setCreatorResult(full);
+      setCreatorQuality(summary.insights?.paintability || null);
     }
-    const url = URL.createObjectURL(img);
+    return full;
+  }
+
+  async function computeCreatorPreview({ batchId = null } = {}) {
+    const sourceFile = creatorFileRef.current || file;
+    if (!sourceFile) return;
+    const activeBatch = batchId ?? ++creatorComputeRef.current;
+    if (batchId == null) {
+      creatorWorkerRef.current?.cancel();
+      creatorFullResultRef.current = null;
+      setCreatorResult(null);
+    }
+    const selectedResolution = creatorGridRef.current.width;
+    setCreatorComputing(true);
+    try {
+      const crop = creatorCropMode === 'crop' ? creatorCrop : null;
+      if (!creatorPreviews.original) await loadSourcePreview(sourceFile, crop, activeBatch);
+      await computeResolution(sourceFile, selectedResolution, activeBatch, { retain: true });
+    } catch (error) {
+      if (error?.name !== 'AbortError') showNotice(error.message || 'Не удалось обработать изображение', 'error');
+    } finally {
+      if (isCreatorPreviewCurrent(activeBatch, creatorComputeRef.current)) setCreatorComputing(false);
+    }
+  }
+  computeRef.current = computeCreatorPreview;
+
+  function selectCreatorGrid(nextGrid) {
+    const resolution = Number(nextGrid?.width);
+    if (!CREATOR_PREVIEW_RESOLUTIONS.includes(resolution)) return;
+    const next = { width: resolution, height: resolution };
+    creatorGridRef.current = next;
+    setCreatorGridState(next);
+    setCreatorPreviews((previous) => ({
+      ...previous,
+      selectedResolution: resolution,
+      options: Object.fromEntries(Object.entries(previous.options).map(([key, option]) => [
+        key,
+        option.status === 'computing' && Number(key) !== resolution
+          ? { ...option, status: 'idle', progress: 0, stage: null }
+          : option,
+      ])),
+    }));
+    const retained = creatorFullResultRef.current;
+    if (retained?.width === resolution && retained.resultFingerprint) {
+      setCreatorResult(retained);
+      return;
+    }
+    creatorFullResultRef.current = null;
+    setCreatorResult(null);
+    if (!creatorFileRef.current) return;
+    const batchId = ++creatorComputeRef.current;
+    creatorWorkerRef.current?.cancel();
+    setCreatorComputing(true);
+    computeResolution(creatorFileRef.current, resolution, batchId, { retain: true })
+      .catch((error) => {
+        if (error?.name !== 'AbortError') showNotice(error.message || 'Не удалось построить выбранный вариант', 'error');
+      })
+      .finally(() => {
+        if (isCreatorPreviewCurrent(batchId, creatorComputeRef.current)) setCreatorComputing(false);
+      });
+  }
+
+  async function prepareFromImage(selectedFile) {
+    const imageFile = selectedFile || file;
+    if (!imageFile) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(imageFile.type) || imageFile.size > 10 * 1024 * 1024) {
+      showNotice('Поддерживаются PNG, JPG и WebP размером до 10 МБ', 'error');
+      return;
+    }
+    creatorFileRef.current = imageFile;
+    creatorFileTokenRef.current = `${imageFile.name}:${imageFile.size}:${imageFile.lastModified}`;
+    if (creatorImageUrlRef.current) URL.revokeObjectURL(creatorImageUrlRef.current);
+    const url = URL.createObjectURL(imageFile);
+    creatorImageUrlRef.current = url;
     setCreatorImageUrl(url);
     setCreatorResult(null);
     setCreatorQuality(null);
-    setCreatorPreviews({ original: null, pixel: null, numbered: null });
+    setCreatorPreviews(emptyCreatorPreviews(creatorGridRef.current.width));
     setCreatorCrop({ scale: 1, offsetX: 0, offsetY: 0 });
     setCreatorCropMode('fit');
   }
@@ -132,23 +330,65 @@ export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNaviga
   }
 
   async function saveDraftColoring() {
-    if (!creatorResult) return;
+    const selected = creatorFullResultRef.current;
+    const selectedResolution = creatorGridRef.current.width;
+    const preview = creatorPreviews.options[selectedResolution];
+    if (!selected
+      || selected.width !== selectedResolution
+      || !selected.resultFingerprint
+      || selected.resultFingerprint !== preview?.resultFingerprint
+      || (preview?.previewPixelFingerprint
+        && selected.previewPixelFingerprint !== preview.previewPixelFingerprint)) {
+      showNotice('Сначала дождитесь точного превью выбранной детализации', 'error');
+      return;
+    }
     setCreating(true);
     try {
-      const created = await api('/colorings/create', { method: 'POST', body: { title, description: 'Создано из пользовательского изображения', ...creatorResult } });
-      const successPreview = created.preview_url || creatorPreviews.pixel || creatorPreviews.numbered || null;
+      const tiled = await createTiledTemplateAsync({
+        width: selected.width,
+        height: selected.height,
+        palette: selected.palette,
+        cells: selected.cells,
+      }, { yieldEvery: 8 });
+      const payload = {
+        title,
+        description: 'Создано из пользовательского изображения',
+        width: selected.width,
+        height: selected.height,
+        palette: selected.palette,
+        previewDataUrl: selected.previewDataUrl,
+        originalDataUrl: null,
+        storageMode: 'tiled',
+        tiles: tiled.tiles,
+        tileSize: 32,
+        pipelineVersion: selected.pipelineVersion,
+        stylePreset: selected.stylePreset,
+        resultFingerprint: selected.resultFingerprint,
+        previewPixelFingerprint: preview.previewPixelFingerprint,
+        metrics: selected.metrics,
+      };
+      const created = await api('/colorings/create', { method: 'POST', body: payload });
+      const successPreview = created.preview_url || selected.previewDataUrl || preview.pixel || null;
       setCreatorResult(null);
+      creatorFullResultRef.current = null;
       setFile(null);
       creatorFileRef.current = null;
+      if (creatorImageUrlRef.current) URL.revokeObjectURL(creatorImageUrlRef.current);
+      creatorImageUrlRef.current = null;
       setCreatorImageUrl(null);
-      setCreatorPreviews({ original: null, pixel: null, numbered: null });
+      setCreatorPreviews(emptyCreatorPreviews());
       setCreatorQuality(null);
       await onLoadMine();
-      metaApi.track('create_coloring', { id: created.id });
+      metaApi.track('create_coloring', {
+        id: created.id,
+        resolution: selectedResolution,
+        pipelineVersion: selected.pipelineVersion,
+        resultFingerprint: selected.resultFingerprint,
+      });
       setCreatedColoring({ id: created.id, title: created.title || title, previewUrl: successPreview });
       onNavigate('created');
     } catch (error) {
-      showNotice(error.message, 'error');
+      showNotice(error.message || 'Не удалось сохранить раскраску', 'error');
     } finally {
       setCreating(false);
     }
@@ -179,7 +419,7 @@ export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNaviga
     setTitle,
     creating,
     creatorGrid,
-    setCreatorGrid,
+    setCreatorGrid: selectCreatorGrid,
     creatorColors,
     setCreatorColors,
     creatorCrop,

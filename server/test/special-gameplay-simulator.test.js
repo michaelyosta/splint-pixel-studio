@@ -256,7 +256,8 @@ test('event mix sweep aggregates expose first event, events/target, type distrib
 test('kind adapter follows production and never silently omits hazard', () => {
   const production = resolveEventKindMix({ includeHazard: false });
   assert.equal(production.source, 'production');
-  assert.deepEqual(production.active_kinds, ['spark', 'bomb', 'fuse', 'choice', 'artifact']);
+  assert.deepEqual(production.active_kinds, ['spark', 'bomb', 'fuse', 'artifact']);
+  assert.equal(production.pattern.includes('choice'), false, 'new production generation disables generic Choice');
   assert.equal(production.production.hazard_registered, true);
   assert.equal(production.production.hazard_in_active_kinds, true);
   assert.equal(production.production.hazard_in_pattern, false);
@@ -486,7 +487,7 @@ test('event mix reports deterministic count, streak, gap, rate, and assisted met
   first.route.elapsed_ms = 0;
   second.route.elapsed_ms = 0;
   assert.deepEqual(first, second);
-  assert.deepEqual(first.model.gameplay_types, ['spark', 'bomb', 'fuse', 'choice', 'artifact']);
+  assert.deepEqual(first.model.gameplay_types, ['spark', 'bomb', 'fuse', 'artifact']);
   assert.equal(first.model.event_mix, true);
   assert.ok(first.placement.kind_counts.spark >= 1);
   assert.ok(Object.keys(first.route.events_by_kind).length > 1);
@@ -509,6 +510,12 @@ test('event mix reports deterministic count, streak, gap, rate, and assisted met
     assert.equal(summary.count, first.route.events_by_kind[kind]);
     assert.ok(first.route.assisted_ratio_by_kind[kind] >= 0);
   }
+  assert.ok(first.route.target_effort_distribution.sample_count > 0);
+  assert.ok(first.route.target_effort_distribution.p50 >= 1);
+  assert.ok(first.route.target_effort_distribution.p90 >= first.route.target_effort_distribution.p50);
+  assert.deepEqual(Object.keys(first.route.target_effort_distribution.bins), [
+    '1', '2-3', '4-12', '13-32', '33-50', '51-200', '200+',
+  ]);
 });
 
 test('cadence sweep report is deterministic and includes per-density aggregates', () => {
@@ -539,9 +546,10 @@ test('event mix sweep report is deterministic and deterministic by digest', () =
   const second = runEventMixSweep(options);
   assert.equal(digestSweepReport(first), digestSweepReport(second));
   assert.equal(first.event_mix, true);
-  assert.deepEqual(first.model.gameplay_types, ['spark', 'bomb', 'fuse', 'choice', 'artifact']);
+  assert.deepEqual(first.model.gameplay_types, ['spark', 'bomb', 'fuse', 'artifact']);
   assert.ok(first.per_density['250'].per_size['160'].events_by_kind.fuse.avg > 0);
   assert.ok(first.per_density['250'].per_size['160'].trap_rate > 0);
+  assert.ok(first.per_density['250'].per_size['160'].target_effort_distribution.p95 >= 1);
 });
 
 test('event-mix pity remains Spark-only', () => {
