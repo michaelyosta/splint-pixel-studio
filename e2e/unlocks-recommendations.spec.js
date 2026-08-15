@@ -164,20 +164,21 @@ test.describe('Unlocks and recommendations', () => {
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
   });
 
-  test('premium direct ID keeps purchase semantics separate from progression', async ({ page }) => {
+  test('premium direct ID shows a neutral unavailable state without payment CTA', async ({ page }) => {
     await openDirectId(page, 'color_premium_whale');
     const locked = page.locator('[data-unlock-locked="true"]');
     await expect(locked).toBeVisible({ timeout: 10000 });
     await expect(locked).toHaveAttribute('data-locked-state', 'premium_locked');
     await expect(locked).toHaveAttribute('data-locked-reason', 'PREMIUM_REQUIRED');
     await expect(locked.locator('[data-requirement-type="premium"]')).toBeVisible();
-    await expect(locked).toContainText('Premium');
-    await expect(locked).toContainText('Stars');
-    await expect(locked).toContainText(/Прогресс его не открывает/i);
-    await expect(locked).toContainText('Как купить Premium');
+    await expect(locked).toContainText('Контент сейчас недоступен');
+    await expect(locked).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
+    await expect(locked.getByRole('button', { name: /Как купить Premium/i })).toHaveCount(0);
+    await expect(locked.getByRole('button', { name: 'В каталог', exact: true })).toBeVisible();
 
-    await locked.getByRole('button', { name: 'Как купить Premium' }).click();
-    await expect(page.locator('.catalog-premium')).toBeVisible({ timeout: 10000 });
+    await locked.getByRole('button', { name: 'В каталог', exact: true }).click();
+    await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.catalog-chips')).not.toContainText(/Premium|Премиум|Stars|витрин/i);
   });
 
   test('eligible user gets an actionable direct-ID open and owned transition', async ({ page, browserName }) => {

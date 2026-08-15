@@ -68,6 +68,7 @@ export default function UnlockJourneyCard({
   const current = journey?.current || null;
   const next = journey?.next || null;
   const premiumOnly = journey && !current && journey.counts.premium_locked > 0;
+  const currentUnavailable = current?.state === UNLOCK_STATES.PREMIUM_LOCKED;
   const allOpen = journey && !current && !premiumOnly;
 
   return (
@@ -78,9 +79,9 @@ export default function UnlockJourneyCard({
           <h2>Следующие коллекции</h2>
         </div>
         {journey && (
-          <span className="unlock-journey-counts" aria-label={`${journey.counts.available} доступно, ${journey.counts.owned} открыто, ${journey.counts.progression_locked} закрыто прогрессом, ${journey.counts.premium_locked} premium`}>
+          <span className="unlock-journey-counts" aria-label={`${journey.counts.available} доступно, ${journey.counts.owned} открыто, ${journey.counts.progression_locked} закрыто прогрессом`}>
             <Map size={14} aria-hidden="true" />
-            {journey.counts.available} · {journey.counts.owned} · {journey.counts.progression_locked} · {journey.counts.premium_locked}
+            {journey.counts.available} · {journey.counts.owned} · {journey.counts.progression_locked}
           </span>
         )}
       </div>
@@ -88,8 +89,11 @@ export default function UnlockJourneyCard({
       <JourneyStatus status={status} onRetry={onRetry}>
         {premiumOnly ? (
           <div className="unlock-journey-empty" data-journey-status="ready">
-            <p>Осталось {journey.counts.premium_locked} Premium-наборов. Их можно купить за Stars, прогресс их не открывает.</p>
-            {onOpen && <button className="secondary-button" type="button" onClick={() => onOpen(null, 'premium')}>Premium-наборы</button>}
+            <p>Некоторые открытия сейчас недоступны. Возвращайтесь к бесплатным работам.</p>
+          </div>
+        ) : currentUnavailable ? (
+          <div className="unlock-journey-empty" data-journey-status="ready" data-journey-unavailable="true">
+            <p>Этот контент сейчас недоступен. Продолжайте раскрашивать доступные работы.</p>
           </div>
         ) : allOpen ? (
           <div className="unlock-journey-empty" data-journey-status="ready">
@@ -118,10 +122,6 @@ export default function UnlockJourneyCard({
               <button className="primary-button unlock-journey-cta" type="button" onClick={() => onOpen?.(current)}>
                 Открыть сейчас <ArrowRight size={16} aria-hidden="true" />
               </button>
-            ) : current.state === UNLOCK_STATES.PREMIUM_LOCKED ? (
-              <button className="secondary-button unlock-journey-cta" type="button" onClick={() => onOpen?.(current, 'premium')}>
-                Как купить Premium
-              </button>
             ) : (
               <p className="unlock-journey-hint">Раскрашивайте картины — условия обновляются автоматически.</p>
             )}
@@ -133,7 +133,7 @@ export default function UnlockJourneyCard({
         )}
       </JourneyStatus>
 
-      {next && (
+      {next && next.state !== UNLOCK_STATES.PREMIUM_LOCKED && (
         <div className="unlock-journey-next" data-journey-next-id={next.subject_id} data-journey-next-state={next.state}>
           <span>Дальше</span>
           <b>{next.title}</b>

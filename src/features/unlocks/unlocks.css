@@ -368,6 +368,16 @@
 .unlock-locked-page .player-topbar .unlock-chip {
   flex: 0 0 auto;
 }
+.unlock-locked-unavailable-chip {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--app-text-secondary);
+  font-size: 10px;
+  font-weight: 750;
+}
 
 .unlock-locked-hero {
   display: flex;
@@ -386,6 +396,12 @@
     linear-gradient(130deg, rgba(157, 107, 255, 0.12), rgba(16, 29, 45, 0.96) 68%),
     var(--app-card);
 }
+.unlock-locked-hero--unavailable {
+  border-color: var(--app-border-strong);
+  background:
+    linear-gradient(130deg, rgba(148, 163, 184, 0.1), rgba(16, 29, 45, 0.96) 68%),
+    var(--app-card);
+}
 .unlock-locked-icon {
   width: 52px;
   height: 52px;
@@ -399,6 +415,10 @@
 .unlock-locked-hero--progression .unlock-locked-icon {
   background: rgba(157, 107, 255, 0.16);
   color: #C9B8FF;
+}
+.unlock-locked-hero--unavailable .unlock-locked-icon {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--app-text-secondary);
 }
 .unlock-locked-hero h1 {
   color: var(--app-text-primary);
@@ -445,6 +465,13 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
+}
+.unlock-locked-unavailable {
+  margin: 0;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
 }
 
 @media (max-width: 360px) {

@@ -111,11 +111,9 @@ export default function CatalogView({
     .filter(matchesSearch)
     .sort((first, second) => new Date(second.added_at || second.created_at || 0) - new Date(first.added_at || first.created_at || 0));
   const freeCollections = collections.filter((collection) => collection.pack_type !== 'premium');
-  const premiumCollections = collections.filter((collection) => collection.pack_type === 'premium');
   const currentTemplates = catalogChip === 'popular' ? popularTemplates
     : catalogChip === 'new' ? newestTemplates
     : catalogChip === 'free' ? searchedTemplates
-    : catalogChip === 'premium' ? []
     : searchedTemplates;
   const visibleTemplates = currentTemplates.slice(0, visibleCount);
   const chipItems = [
@@ -123,7 +121,6 @@ export default function CatalogView({
     { id: 'popular', label: 'Популярное' },
     { id: 'new', label: 'Новинки' },
     { id: 'free', label: 'Бесплатно' },
-    { id: 'premium', label: 'Premium' },
   ];
   const progressById = new Map(mine.map((item) => [item.id, item.progress?.percent || 0]));
 
@@ -156,10 +153,10 @@ export default function CatalogView({
         {renderArtworkGrid(popularTemplates.slice(0, 4), 'Популярные работы')}
         <div className="catalog-section-heading"><div><p className="eyebrow">НОВИНКИ</p><h2>Свежие картины</h2></div><button type="button" onClick={() => onChangeChip('new')}>Смотреть все</button></div>
         {renderArtworkGrid(newestTemplates.slice(0, 4), 'Новые работы')}
-        {collections.length > 0 && <><div className="catalog-section-heading"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Соберите свою полку</h2></div></div>{renderCollectionGrid(collections.slice(0, 4), 'Коллекции')}</>}
+        {freeCollections.length > 0 && <><div className="catalog-section-heading"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Соберите свою полку</h2></div></div>{renderCollectionGrid(freeCollections.slice(0, 4), 'Коллекции')}</>}
       </>}
 
-      {catalogChip === 'premium' ? <section className="catalog-empty catalog-premium"><p className="eyebrow">PREMIUM</p><h2>Премиум-наборы</h2><p>{premiumCollections.length ? 'Выберите набор, чтобы посмотреть доступные картины.' : 'Премиум-наборы появятся здесь после подключения витрины.'}</p>{premiumCollections.length ? renderCollectionGrid(premiumCollections, 'Премиум-наборы') : <button className="secondary-button" type="button" onClick={() => onChangeChip('all')}>К бесплатным работам</button>}</section> : catalogChip !== 'all' || catalogCollection ? <>
+      {catalogChip === 'premium' ? <section className="catalog-empty catalog-unavailable" data-catalog-unavailable="true"><p className="eyebrow">КАТАЛОГ</p><h2>Контент сейчас недоступен</h2><p>Вернитесь к бесплатным работам.</p><button className="secondary-button" type="button" onClick={() => onChangeChip('all')}>К бесплатным работам</button></section> : catalogChip !== 'all' || catalogCollection ? <>
         <div className="catalog-section-heading catalog-section-heading--single"><div><p className="eyebrow">{catalogChip === 'popular' ? 'ПОПУЛЯРНОЕ' : catalogChip === 'new' ? 'НОВИНКИ' : catalogChip === 'free' ? 'БЕСПЛАТНО' : 'КОЛЛЕКЦИЯ'}</p><h2>{catalogCollection ? catalogCollection.title : `${currentTemplates.length} работ`}</h2></div></div>
         {renderArtworkGrid(visibleTemplates, 'Картины каталога')}
         {!visibleTemplates.length && <p className="catalog-empty">По этому запросу ничего не найдено.</p>}

@@ -2367,10 +2367,6 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .catalog-collection-card b { display: -webkit-box; overflow: hidden; font-size: 11px; line-height: 1.2; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .catalog-collection-card small { color: var(--app-text-secondary); font-size: 9px; }
 .catalog-empty { margin: 20px 0; padding: 20px 14px; border: 1px dashed var(--app-border-strong); border-radius: var(--radius-lg); color: var(--app-text-secondary); font-size: 12px; text-align: center; }
-.catalog-premium { border-style: solid; border-color: rgba(255, 199, 44, 0.33); background: linear-gradient(135deg, rgba(255, 199, 44, 0.12), var(--app-card)); }
-.catalog-premium .eyebrow { color: var(--app-gold); }
-.catalog-premium h2 { margin-bottom: 7px; color: var(--app-text-primary); }
-.catalog-premium > p:not(.eyebrow) { margin: 0 0 14px; line-height: 1.45; }
 
 /* Create hub */
 .create-hub-heading { margin-bottom: 18px; }

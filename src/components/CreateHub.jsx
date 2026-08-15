@@ -1,6 +1,6 @@
-import { BookOpen, ImagePlus, Sparkles, Star } from 'lucide-react';
+import { BookOpen, ImagePlus, Sparkles } from 'lucide-react';
 
-const SOON_OPTIONS = [
+const CREATE_OPTIONS = [
   {
     id: 'draw',
     title: 'Нарисовать самому',
@@ -10,17 +10,10 @@ const SOON_OPTIONS = [
   },
   {
     id: 'pack',
-    title: 'Создать набор',
-    copy: 'Объединяйте картины в собственный пак',
+    title: 'Собрать бесплатную коллекцию',
+    copy: 'Объединяйте свои работы в бесплатную коллекцию',
     Icon: BookOpen,
     accent: 'orange',
-  },
-  {
-    id: 'sell',
-    title: 'Продать набор',
-    copy: 'Монетизация появится после запуска витрины',
-    Icon: Star,
-    accent: 'gold',
   },
 ];
 
@@ -41,7 +34,7 @@ export default function CreateHub({ onImport, onManualDraw = null, onCreatePack 
           <span className="create-hub-copy"><b>Из изображения</b><small>Преобразуйте фото в пиксельную раскраску</small></span>
           <span className="create-hub-arrow" aria-hidden="true">›</span>
         </button>
-        {SOON_OPTIONS.map(({ id, title, copy, Icon, accent }) => {
+        {CREATE_OPTIONS.map(({ id, title, copy, Icon, accent }) => {
           const action = id === 'draw' ? onManualDraw : id === 'pack' ? onCreatePack : null;
           const isReady = typeof action === 'function';
           return <button key={id} className={`create-hub-card ${isReady ? 'create-hub-card--active' : 'create-hub-card--soon'} create-hub-card--${accent}`} type="button" disabled={!isReady} onClick={isReady ? action : undefined}>

@@ -101,6 +101,22 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.context().setExtraHTTPHeaders({ 'X-User-Id': `e2e_${testInfo.testId}` });
   });
 
+  test('Create hub keeps free creator paths without commercial promises', async ({ page }) => {
+    await page.goto('/');
+    await page.getByText('Создать').first().click();
+    const hub = page.locator('.create-hub-page');
+    await expect(hub).toBeVisible({ timeout: 10000 });
+    await expect(hub).not.toContainText(/Продать набор|витрин|Stars|Premium/i);
+    await expect(hub.getByRole('button', { name: /Из изображения/ })).toBeEnabled();
+    await expect(hub.getByRole('button', { name: /Нарисовать самому/ })).toBeEnabled();
+    await expect(hub.getByRole('button', { name: /Собрать бесплатную коллекцию/ })).toBeEnabled();
+
+    for (const viewport of [{ width: 390, height: 844 }, { width: 430, height: 932 }]) {
+      await page.setViewportSize(viewport);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    }
+  });
+
   test('1. App shell and navigation render', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.app-header')).toBeVisible({ timeout: 15000 });

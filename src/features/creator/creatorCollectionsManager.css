@@ -82,10 +82,6 @@
 .creator-collections-manager__template > button { flex: 0 0 auto; min-height: 44px; color: var(--app-cyan, var(--collection-cyan)); }
 .creator-collections-manager__archive { width: 100%; margin-top: 18px; color: #ffadad !important; }
 
-.creator-collections-manager__sales-note { display: flex; gap: 10px; margin-top: 18px; padding: 12px; border: 1px solid rgba(251, 191, 36, 0.34); border-radius: 13px; background: rgba(251, 191, 36, 0.075); color: #fcd34d; }
-.creator-collections-manager__sales-note svg { flex: 0 0 auto; margin-top: 1px; }
-.creator-collections-manager__sales-note b { display: block; font-size: 13px; }
-.creator-collections-manager__sales-note p { margin: 4px 0 0; color: var(--app-text-secondary, var(--collection-muted)); font-size: 11px; line-height: 1.45; }
 .creator-collections-manager__empty,
 .creator-collections-manager__loading { display: flex; align-items: center; gap: 7px; margin: 10px 0 2px; color: var(--app-text-secondary, var(--collection-muted)); font-size: 12px; line-height: 1.45; }
 .creator-collections-manager__spin { animation: creatorCollectionsSpin 1s linear infinite; color: var(--app-cyan, var(--collection-cyan)); }
