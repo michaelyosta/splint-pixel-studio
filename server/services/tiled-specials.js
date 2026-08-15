@@ -760,6 +760,41 @@ function targetWindowForCells({ cells, filled, width, height, color, anchorIndex
   };
 }
 
+// Legacy Smart routing starts from eight-connected color clusters before it
+// creates a working window. Eligibility therefore has to measure the cluster
+// containing the marker, not unrelated same-color islands that happen to sit
+// inside the same 12x12 rectangle.
+function connectedTargetWindowForCells(options) {
+  const target = targetWindowForCells(options);
+  const { cells, filled, width, height, color, anchorIndex } = options;
+  const bounds = target.bounds;
+  if (filled?.[anchorIndex] !== -1 || Number(cells?.[anchorIndex]) !== Number(color)) {
+    return { ...target, estimated_cells: 0 };
+  }
+  const visited = new Uint8Array(Number(width) * Number(height));
+  const queue = [Number(anchorIndex)];
+  visited[Number(anchorIndex)] = 1;
+  let head = 0;
+  let estimatedCells = 0;
+  while (head < queue.length) {
+    const index = queue[head];
+    head += 1;
+    estimatedCells += 1;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    for (let nextY = Math.max(bounds.min_y, y - 1); nextY <= Math.min(bounds.max_y, y + 1); nextY += 1) {
+      for (let nextX = Math.max(bounds.min_x, x - 1); nextX <= Math.min(bounds.max_x, x + 1); nextX += 1) {
+        if (nextX === x && nextY === y) continue;
+        const nextIndex = nextY * width + nextX;
+        if (visited[nextIndex] || filled[nextIndex] !== -1 || Number(cells[nextIndex]) !== Number(color)) continue;
+        visited[nextIndex] = 1;
+        queue.push(nextIndex);
+      }
+    }
+  }
+  return { ...target, estimated_cells: estimatedCells };
+}
+
 export function buildLegacySpecialTriggerEffort({
   cells, filled, width, height, specialIndex,
 } = {}) {
@@ -769,7 +804,7 @@ export function buildLegacySpecialTriggerEffort({
     || !Number.isInteger(color)) {
     return describeSpecialTargetEffort(null);
   }
-  return describeSpecialTargetEffort(targetWindowForCells({
+  return describeSpecialTargetEffort(connectedTargetWindowForCells({
     cells,
     filled,
     width,

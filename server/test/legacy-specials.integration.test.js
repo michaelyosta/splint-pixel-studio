@@ -254,15 +254,17 @@ test('legacy one-cell trigger is painted normally but never opens or applies a S
       if (index !== spark.cell_index) localWindow.push(index);
     }
   }
+  const disconnectedSingleton = localWindow[0];
+  const setupCells = localWindow.filter((index) => index !== disconnectedSingleton);
 
   let revision = 0;
-  for (let offset = 0; offset < localWindow.length; offset += 64) {
+  for (let offset = 0; offset < setupCells.length; offset += 64) {
     const painted = await request(`/colorings/${id}/progress/actions`, {
       method: 'POST',
       body: {
         revision,
         clientBatchId: `legacy-trivial-setup-${offset}`,
-        changes: localWindow.slice(offset, offset + 64).map((index) => ({ index, color: 0 })),
+        changes: setupCells.slice(offset, offset + 64).map((index) => ({ index, color: 0 })),
       },
     });
     assert.equal(painted.response.status, 200);
@@ -292,6 +294,8 @@ test('legacy one-cell trigger is painted normally but never opens or applies a S
   assert.equal(replay.json.special_effort.suppression_reason, 'trivial_trigger_target');
   const after = await request(`/colorings/${id}/progress`);
   assert.equal(after.json.specials[0].state, 'skipped');
+  assert.equal(after.json.filled[disconnectedSingleton], -1,
+    'a disconnected same-color singleton does not make the marker target eligible');
   assert.equal(
     after.json.special_diagnostics.target_effort_distribution.trigger_targets.sample_count,
     1,

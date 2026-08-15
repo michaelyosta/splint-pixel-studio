@@ -461,6 +461,13 @@ test('reload recovers the persisted Spark offer and the recovered token is usabl
   const spark = await findFirstSpark(request, id);
   assert.ok(spark);
 
+  const prematureGuidance = await request(
+    `/colorings/${id}/guidance?reason=SPECIAL_TARGETS&special_id=${encodeURIComponent(spark.id)}`,
+  );
+  assert.equal(prematureGuidance.response.status, 409);
+  assert.equal(prematureGuidance.json.code, 'SPECIAL_TARGET_OFFER_REQUIRED');
+  assert.equal('offer_token' in prematureGuidance.json, false);
+
   const claimBody = {
     revision: 0,
     clientBatchId: 'reload-claim-001',
@@ -712,6 +719,12 @@ test('tiled control cohort exposes no specials and no gameplay diagnostics', asy
   ]);
   assert.equal(progress.json.special_diagnostics.target_effort_distribution.trigger_targets.sample_count, 0);
   assert.equal(progress.json.special_diagnostics.target_effort_distribution.selected_effect_targets.sample_count, 0);
+  const rejectedTargets = await request(
+    `/colorings/${id}/guidance?reason=SPECIAL_TARGETS&special_id=sc_forged_control`,
+  );
+  assert.equal(rejectedTargets.response.status, 403);
+  assert.equal(rejectedTargets.json.code, 'SPECIAL_TARGETS_CONTROL');
+  assert.equal('offer_token' in rejectedTargets.json, false);
   assert.equal(progress.json.special_diagnostics.cohort, 'control');
   assert.equal(progress.json.special_diagnostics.cohort_override, true);
   assert.deepEqual(progress.json.special_diagnostics.counts_by_kind, {

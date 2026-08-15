@@ -14,7 +14,11 @@ import {
   isTargetConsideredDone, normalizeSafeArea, resolveColorTransition, resolveNextOutcome,
 } from './engine/routeTargeting.js';
 import { createBoundedAnnouncer } from '../../lib/accessibility.js';
-import { autoSparkActionForOffer } from '../../lib/specialCellsGameplay.js';
+import {
+  autoSparkActionForOffer,
+  autoSparkActionKey,
+  submitAutoSparkAction,
+} from '../../lib/specialCellsGameplay.js';
 import {
   getCoreFeelFragmentForColor,
   getNextCoreFeelFragment,
@@ -120,6 +124,9 @@ export default function ColoringSession({
   const resumedTargetRef = useRef(resumeSnapshot?.smartTarget || null);
   const persistedTargetIdRef = useRef(null);
   const autoSparkOfferKeyRef = useRef('');
+  const autoSparkBlockedKeyRef = useRef('');
+  const [autoSparkRetryKey, setAutoSparkRetryKey] = useState('');
+  const [autoSparkAttempt, setAutoSparkAttempt] = useState(0);
   const specialTreatment = specialCohort === 'treatment';
   const coreFeelActive = isCoreFeelReference(coreFeelExperiment, template);
   const enhancedCoreFeel = coreFeelActive && coreFeelExperiment.variant?.enhanced;
@@ -131,14 +138,34 @@ export default function ColoringSession({
   useEffect(() => {
     const action = autoSparkActionForOffer(specialOffer);
     if (!action || typeof onSpecialAction !== 'function') {
-      if (!specialOffer) autoSparkOfferKeyRef.current = '';
+      if (!specialOffer) {
+        autoSparkOfferKeyRef.current = '';
+        autoSparkBlockedKeyRef.current = '';
+        setAutoSparkRetryKey('');
+      }
       return;
     }
-    const key = `${action.special_id}:${action.offer_token}:${action.option_id}`;
+    const key = autoSparkActionKey(action);
+    if (autoSparkBlockedKeyRef.current === key) return;
     if (autoSparkOfferKeyRef.current === key) return;
     autoSparkOfferKeyRef.current = key;
-    void onSpecialAction(action);
-  }, [specialOffer, onSpecialAction]);
+    setAutoSparkRetryKey('');
+    void submitAutoSparkAction(onSpecialAction, action).then((accepted) => {
+      if (autoSparkOfferKeyRef.current !== key || accepted) return;
+      autoSparkOfferKeyRef.current = '';
+      autoSparkBlockedKeyRef.current = key;
+      setAutoSparkRetryKey(key);
+    });
+  }, [specialOffer, onSpecialAction, autoSparkAttempt]);
+
+  function retryAutoSpark() {
+    const key = autoSparkActionKey(autoSparkActionForOffer(specialOffer));
+    if (!key || autoSparkRetryKey !== key) return;
+    autoSparkOfferKeyRef.current = '';
+    autoSparkBlockedKeyRef.current = '';
+    setAutoSparkRetryKey('');
+    setAutoSparkAttempt((attempt) => attempt + 1);
+  }
 
   const safeArea = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
   const [safeAreaState, setSafeAreaState] = useState(safeArea.current);
@@ -1397,6 +1424,11 @@ export default function ColoringSession({
             <span className="progressive-grid-special-detail">
               Сервер выбрал трудоёмкий участок · {specialOffer.target_options?.[0]?.estimated_cells || 0} клеток
             </span>
+            {autoSparkRetryKey && (
+              <button type="button" data-special-action="retry" onClick={retryAutoSpark}>
+                Повторить Spark
+              </button>
+            )}
           </div>
         )}
         {specialTreatment && specialDiscovered && !specialOffer && (

@@ -715,6 +715,9 @@ export async function buildGuidancePlan({
   // Existing tiled templates created before the special-cell migration have
   // zero rows and must not depend on a later tile GET to lazily generate them.
   await ensureTiledSpecialCells(db, template);
+  const isTreatment = sparkTreatment == null
+    ? isSparkTreatmentUser(userId, template.id)
+    : Boolean(sparkTreatment);
   // An offered special event owns the next player decision. Claim/use routes
   // already enforce this invariant, but guidance must enforce it too or a
   // stale auto-advance can issue an ordinary target while Bomb/Fuse/Choice is
@@ -729,9 +732,23 @@ export async function buildGuidancePlan({
       LIMIT 1`,
     [userId, template.id],
   );
-  if (activeSpecialOffer
-    && (reason !== GUIDANCE_REASON.SPECIAL_TARGETS
+  if (reason === GUIDANCE_REASON.SPECIAL_TARGETS && !isTreatment) {
+    throw new TiledGuidanceError(
+      'Special target guidance is unavailable for this cohort',
+      'SPECIAL_TARGETS_CONTROL',
+      403,
+    );
+  }
+  if (reason === GUIDANCE_REASON.SPECIAL_TARGETS
+    && (!activeSpecialOffer
       || String(specialId || '') !== String(activeSpecialOffer.special_id))) {
+    throw new TiledGuidanceError(
+      'Special target guidance requires the matching persisted offer',
+      'SPECIAL_TARGET_OFFER_REQUIRED',
+      409,
+    );
+  }
+  if (activeSpecialOffer && reason !== GUIDANCE_REASON.SPECIAL_TARGETS) {
     throw new TiledGuidanceError(
       'Resolve the current special event first',
       'SPECIAL_ACTIVE_OFFER',
@@ -793,9 +810,6 @@ export async function buildGuidancePlan({
     colorIndex = requestedColor;
   }
 
-  const isTreatment = sparkTreatment == null
-    ? isSparkTreatmentUser(userId, template.id)
-    : Boolean(sparkTreatment);
   const pityAllowed = isTreatment
     && reason !== GUIDANCE_REASON.SPECIAL_TARGETS
     && reason !== GUIDANCE_REASON.MANUAL_COLOR

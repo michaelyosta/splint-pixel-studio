@@ -26,6 +26,20 @@ export function autoSparkActionForOffer(offer) {
   };
 }
 
+export function autoSparkActionKey(action) {
+  if (!action) return '';
+  return `${action.special_id}:${action.offer_token}:${action.option_id}`;
+}
+
+export async function submitAutoSparkAction(onSpecialAction, action) {
+  if (typeof onSpecialAction !== 'function' || !action) return false;
+  try {
+    return await onSpecialAction(action) !== false;
+  } catch {
+    return false;
+  }
+}
+
 export function specialOfferDecisionCount(offer) {
   if (autoSparkActionForOffer(offer)) return 0;
   if (Array.isArray(offer?.choice_options)) return 1;

@@ -20,7 +20,11 @@ import {
   isSpecialCellsDiagnosticsEnabled,
 } from '../../../lib/specialCellsDiagnostics.js';
 import { createBoundedAnnouncer, formatPaletteState, moveKeyboardCursor } from '../../../lib/accessibility.js';
-import { autoSparkActionForOffer } from '../../../lib/specialCellsGameplay.js';
+import {
+  autoSparkActionForOffer,
+  autoSparkActionKey,
+  submitAutoSparkAction,
+} from '../../../lib/specialCellsGameplay.js';
 import SpecialCellsDevHud from '../SpecialCellsDevHud.jsx';
 import {
   GRID_LOD_MODE,
@@ -312,7 +316,9 @@ function BombOfferPanel({
   );
 }
 
-function SpecialOfferPanel({ specialOffer, onSpecialAction, cameraRef, sizeRef, clientRef }) {
+function SpecialOfferPanel({
+  specialOffer, onSpecialAction, cameraRef, sizeRef, clientRef, autoSparkRetry, onRetryAutoSpark,
+}) {
   const kind = offerKind(specialOffer);
   const visual = specialKindVisual(kind);
   if (kind === 'bomb') {
@@ -472,6 +478,11 @@ function SpecialOfferPanel({ specialOffer, onSpecialAction, cameraRef, sizeRef, 
       <span className="progressive-grid-special-detail progressive-grid-spark-contract" data-spark-target-contract>
         Сервер выбрал трудоёмкий участок · {estimated} клеток
       </span>
+      {autoSparkRetry && (
+        <button type="button" data-special-action="retry" onClick={onRetryAutoSpark}>
+          Повторить Spark
+        </button>
+      )}
     </div>
   );
 }
@@ -571,6 +582,9 @@ export default function ProgressiveColoringSession({
   const guidanceBootstrappedRef = useRef(false);
   const previousSpecialOfferRef = useRef(null);
   const autoSparkOfferKeyRef = useRef('');
+  const autoSparkBlockedKeyRef = useRef('');
+  const [autoSparkRetryKey, setAutoSparkRetryKey] = useState('');
+  const [autoSparkAttempt, setAutoSparkAttempt] = useState(0);
   const wrongNoticeTimerRef = useRef(null);
   const successNoticeTimerRef = useRef(null);
   const keyboardCellRef = useRef(null);
@@ -578,14 +592,34 @@ export default function ProgressiveColoringSession({
   useEffect(() => {
     const action = autoSparkActionForOffer(specialOffer);
     if (!action || typeof onSpecialAction !== 'function') {
-      if (!specialOffer) autoSparkOfferKeyRef.current = '';
+      if (!specialOffer) {
+        autoSparkOfferKeyRef.current = '';
+        autoSparkBlockedKeyRef.current = '';
+        setAutoSparkRetryKey('');
+      }
       return;
     }
-    const key = `${action.special_id}:${action.offer_token}:${action.option_id}`;
+    const key = autoSparkActionKey(action);
+    if (autoSparkBlockedKeyRef.current === key) return;
     if (autoSparkOfferKeyRef.current === key) return;
     autoSparkOfferKeyRef.current = key;
-    void onSpecialAction(action);
-  }, [specialOffer, onSpecialAction]);
+    setAutoSparkRetryKey('');
+    void submitAutoSparkAction(onSpecialAction, action).then((accepted) => {
+      if (autoSparkOfferKeyRef.current !== key || accepted) return;
+      autoSparkOfferKeyRef.current = '';
+      autoSparkBlockedKeyRef.current = key;
+      setAutoSparkRetryKey(key);
+    });
+  }, [specialOffer, onSpecialAction, autoSparkAttempt]);
+
+  function retryAutoSpark() {
+    const key = autoSparkActionKey(autoSparkActionForOffer(specialOffer));
+    if (!key || autoSparkRetryKey !== key) return;
+    autoSparkOfferKeyRef.current = '';
+    autoSparkBlockedKeyRef.current = '';
+    setAutoSparkRetryKey('');
+    setAutoSparkAttempt((attempt) => attempt + 1);
+  }
   const diagnosticsRef = useRef(null);
   const [diagnostics, setDiagnostics] = useState(null);
   const instructionsId = useId();
@@ -2645,6 +2679,8 @@ export default function ProgressiveColoringSession({
             cameraRef={cameraRef}
             sizeRef={sizeRef}
             clientRef={clientRef}
+            autoSparkRetry={autoSparkRetryKey === autoSparkActionKey(autoSparkActionForOffer(specialOffer))}
+            onRetryAutoSpark={retryAutoSpark}
           />
         )}
         {sparkWave && (

@@ -613,11 +613,11 @@ export function useColoringSession({
   }
 
   async function queueTiledSpecialAction(specialAction) {
-    if (!template || !specialAction) return;
+    if (!template || !specialAction) return false;
     const activeOffer = tiledSpecialOfferRef.current;
     if (activeOffer && String(activeOffer.special_id) !== String(specialAction.special_id)) {
       showNotice('Сначала завершите текущее особое событие', 'info');
-      return;
+      return false;
     }
     // Special actions stay on the shared server-authoritative contract.
     // Unsupported kinds remain visible with disabled buttons and stray calls
@@ -634,7 +634,7 @@ export function useColoringSession({
     ]);
     if (!supportedSpecialActions.has(specialAction.type)) {
       showNotice('Этот эффект ещё недоступен', 'info');
-      return;
+      return false;
     }
     if (!isLargeGridTemplate(template)) {
       setSaveState(isOnline ? 'syncing' : 'offline');
@@ -673,6 +673,7 @@ export function useColoringSession({
         onRewards(saved, template.id);
         if (saved.percent === 100) setServerCompletedTemplateId(template.id);
         setSaveState('saved');
+        return true;
       } catch (error) {
         recordSpecialCellsError(error);
         if (isTerminalSpecialError(error)) {
@@ -681,12 +682,13 @@ export function useColoringSession({
           setTiledSpecialDiscovered(null);
           setSaveState(isOnline ? 'saved' : 'offline');
           showNotice(error.message || 'Spark больше недоступен', 'info');
+          return true;
         } else {
           setSaveState(isOnline ? 'pending' : 'offline');
           showNotice(error.message || 'Не удалось применить Spark', 'error');
+          return false;
         }
       }
-      return;
     }
     tiledQueueRef.current.push({
       clientBatchId: `tiled-special-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -714,6 +716,7 @@ export function useColoringSession({
     }
     setSaveState(isOnline ? 'syncing' : 'offline');
     flushTiledQueue().then(() => setSaveState('saved')).catch(() => setSaveState('pending'));
+    return true;
   }
 
   async function retryPendingSave() {

@@ -1334,6 +1334,7 @@ async function processTiledProgressAction(req, res, template) {
             reason: GUIDANCE_REASON.SPECIAL_TARGETS,
             specialId: specialAction.special_id,
             cameraCenter: specialAction.camera_center,
+            sparkTreatment: getSparkExperimentGroup(req.userId, template.id) === 'treatment',
           });
           const target = plan.target_options?.[0];
           if (!target) throw specialError('Choice target is no longer available', 'SPECIAL_TARGET_STALE', 409);
@@ -1453,6 +1454,15 @@ async function processTiledProgressAction(req, res, template) {
           now,
         });
       } else if (specialAction?.type === 'claim_spark') {
+        const token = createOfferToken();
+        await markSparkOffered(tx, {
+          userId: req.userId,
+          templateId: template.id,
+          specialId: specialAction.special_id,
+          revision: persisted.revision,
+          tokenHash: token.hash,
+          now,
+        });
         const offer = await buildGuidancePlan({
           db: tx,
           userId: req.userId,
@@ -1460,18 +1470,10 @@ async function processTiledProgressAction(req, res, template) {
           reason: GUIDANCE_REASON.SPECIAL_TARGETS,
           specialId: specialAction.special_id,
           cameraCenter: specialAction.camera_center,
+          sparkTreatment: getSparkExperimentGroup(req.userId, template.id) === 'treatment',
         });
         const defaultTarget = (offer.target_options || [])[0] || null;
         if (isSpecialTargetEligible(defaultTarget)) {
-          const token = createOfferToken();
-          await markSparkOffered(tx, {
-            userId: req.userId,
-            templateId: template.id,
-            specialId: specialAction.special_id,
-            revision: persisted.revision,
-            tokenHash: token.hash,
-            now,
-          });
           specialOffer = {
             special_id: specialAction.special_id,
             offer_token: token.token,

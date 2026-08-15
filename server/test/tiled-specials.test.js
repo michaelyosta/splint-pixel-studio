@@ -17,6 +17,7 @@ import {
   SPARK_PITY_INTERVAL_CELLS,
   SPARK_TARGET_MAX_CELLS,
   SPECIAL_MAX_DERIVED_CHANGES,
+  buildLegacySpecialTriggerEffort,
   buildSpecialDiagnostics,
   createOfferToken,
   diagnoseSparkPlacement,
@@ -63,6 +64,29 @@ test('effort bins cover trivial through high-work targets without setting a prod
     { min: summary.min, p50: summary.p50, p90: summary.p90, p95: summary.p95, max: summary.max },
     { min: 1, p50: 12, p90: 500, p95: 500, max: 500 },
   );
+});
+
+test('legacy trigger effort follows the marker connected target, not disconnected same-color islands', () => {
+  const width = 12;
+  const height = 12;
+  const cells = Array(width * height).fill(1);
+  const filled = Array(width * height).fill(-1);
+  const markerIndex = 6 * width + 6;
+  cells[markerIndex] = 0;
+  cells[0] = 0;
+  cells[11] = 0;
+  cells[11 * width] = 0;
+  cells[width * height - 1] = 0;
+
+  const effort = buildLegacySpecialTriggerEffort({ cells, filled, width, height, specialIndex: markerIndex });
+  assert.equal(effort.estimated_cells, 1);
+  assert.equal(effort.effort_bin, '1');
+  assert.equal(effort.eligible, false);
+
+  cells[markerIndex + 1] = 0;
+  const connected = buildLegacySpecialTriggerEffort({ cells, filled, width, height, specialIndex: markerIndex });
+  assert.equal(connected.estimated_cells, 2);
+  assert.equal(connected.eligible, true);
 });
 
 async function createDiagnosticsDb() {
