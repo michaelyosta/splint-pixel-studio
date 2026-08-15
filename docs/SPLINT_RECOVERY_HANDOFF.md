@@ -103,7 +103,7 @@ Stars payments, ledger/payment endpoints, and future business architecture were 
 
 ## Files, branches, and commits
 
-Integrated branch: `codex/splint-recovery-quality`, current commit `c814856`, based on `5d21fd6`; `c814856` closes the explicit completed-artwork Gallery route regression found during final audit.
+Integrated branch: `codex/splint-recovery-quality`, current commit `03e586f`, based on `5d21fd6`; code checkpoint `c814856` closes the explicit completed-artwork Gallery route regression found during final audit.
 
 Recovery commits in order:
 
