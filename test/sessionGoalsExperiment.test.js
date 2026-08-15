@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   resolveSessionGoalsExperiment,
   SESSION_GOALS_MODES,
+  shouldShowSessionGoals,
 } from '../src/features/goals/sessionGoalsExperiment.js';
 
 test('recovery defaults to the hidden goals treatment', () => {
@@ -34,4 +35,11 @@ test('hidden is an explicit treatment and unknown values fail closed', () => {
   });
   assert.equal(resolveSessionGoalsExperiment('?sessionGoals=off').showGoals, false);
   assert.equal(resolveSessionGoalsExperiment('?sessionGoals=unexpected').showGoals, false);
+});
+
+test('core-feel always suppresses the session-goal card and timer loop', () => {
+  const control = resolveSessionGoalsExperiment('?sessionGoals=control');
+  assert.equal(shouldShowSessionGoals(control, false), true);
+  assert.equal(shouldShowSessionGoals(control, true), false);
+  assert.equal(shouldShowSessionGoals(resolveSessionGoalsExperiment('?sessionGoals=hidden'), false), false);
 });

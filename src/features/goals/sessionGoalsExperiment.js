@@ -23,3 +23,8 @@ export function resolveSessionGoalsExperiment(search = globalThis.location?.sear
     source: rawMode == null ? 'default' : 'query',
   };
 }
+
+/** Core-feel owns the full first-minute HUD and always suppresses this card. */
+export function shouldShowSessionGoals(experiment, coreFeelActive = false) {
+  return Boolean(experiment?.showGoals && !coreFeelActive);
+}

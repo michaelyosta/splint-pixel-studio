@@ -275,4 +275,18 @@ test.describe('Session goals', () => {
     await expect(page.locator('.coloring-task-summary')).toBeVisible();
     await expect(page.locator('.coloring-canvas')).toBeVisible();
   });
+
+  test('core-feel suppresses an explicit goal-card control override but keeps painting guidance', async ({ page }) => {
+    await page.goto('/?coreFeel=b&coreSubject=corefeel_goals_override&sessionGoals=control');
+
+    const player = page.locator('.player-page');
+    await expect(player).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.coloring-session')).toHaveAttribute('data-core-feel-variant', 'b');
+    await expect(player).toHaveAttribute('data-session-goals-mode', 'control');
+    await expect(player).toHaveAttribute('data-session-goals-visible', 'false');
+    await expect(page.locator('.session-goal-card')).toHaveCount(0);
+    await expect(page.locator('[data-core-feel-hint]')).toContainText('светлому контуру');
+    await expect(page.locator('canvas.coloring-canvas')).toHaveAttribute('data-active-work-cells', /\d/);
+    expect(await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('splint:session-goals:')))).toEqual([]);
+  });
 });

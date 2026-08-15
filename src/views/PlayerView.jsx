@@ -25,7 +25,7 @@ import { isLargeGridTemplate } from '../lib/tileGrid';
 import { bindTelegramBackButton } from '../lib/telegram';
 import {
   resolveSessionGoalsExperiment,
-  SESSION_GOALS_MODES,
+  shouldShowSessionGoals,
 } from '../features/goals/sessionGoalsExperiment';
 
 const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE !== 'false';
@@ -187,7 +187,7 @@ export default function PlayerView({
 }) {
   const coreFeelActive = Boolean(coreFeelExperiment?.enabled && template?.id === coreFeelExperiment.referenceTemplateId);
   const sessionGoalsExperiment = useMemo(() => resolveSessionGoalsExperiment(), []);
-  const showSessionGoals = sessionGoalsExperiment.mode === SESSION_GOALS_MODES.CONTROL;
+  const showSessionGoals = shouldShowSessionGoals(sessionGoalsExperiment, coreFeelActive);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hudHidden, setHudHidden] = useState(false);
   const startPaintTimerRef = useRef(null);
@@ -404,7 +404,11 @@ export default function PlayerView({
   };
 
   return (
-    <section className="page player-page" data-session-goals-mode={sessionGoalsExperiment.mode}>
+    <section
+      className="page player-page"
+      data-session-goals-mode={sessionGoalsExperiment.mode}
+      data-session-goals-visible={showSessionGoals ? 'true' : 'false'}
+    >
       <div className={`player-topbar${coreFeelActive ? ' player-topbar--core-feel' : ''}`}>
         <button className="back-button" onClick={() => coreFeelActive ? leaveCoreFeelSession() : setView('catalog')} aria-label={coreFeelActive ? 'Завершить тест' : 'Назад'}><ChevronLeft size={18} /></button>
         <span className="player-topbar-title">{template.title}</span>
