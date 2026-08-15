@@ -129,7 +129,7 @@ The original worktree `C:\Users\misa\Desktop\Splint-Gemini` on `codex/concurrent
 - Creator exact-path E2E: **3/3 PASS**; mobile visual checks were 2/2 in the preview worktree.
 - Full creator Chromium E2E: **24/24 PASS**.
 - Build: PASS; main bundle warning remains (`>500 KB`).
-- Lint: PASS within existing warning budget (`97/100` at final integration); no recovery claim treats warnings as zero.
+- Lint: PASS within existing warning budget (`93/100` in this worktree); no recovery claim treats warnings as zero.
 - `git diff --check`: PASS.
 - Human/device gates remain explicitly open where listed above.
 
