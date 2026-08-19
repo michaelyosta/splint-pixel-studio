@@ -2626,6 +2626,27 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .progressive-grid-special-wave-ring { width: 24px; height: 24px; flex: 0 0 auto; border: 2px solid #70e1ff; border-radius: 50%; box-shadow: 0 0 14px rgba(82, 218, 255, 0.62); animation: sparkWaveRing 1.5s ease-out both; }
 @keyframes sparkWaveIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.75); } 18% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); } }
 @keyframes sparkWaveRing { 0% { opacity: 0; transform: scale(0.35); } 50% { opacity: 0.9; } 100% { opacity: 0; transform: scale(2.8); } }
+
+.phase2-spark-offer { border-color: rgba(127, 231, 255, 0.78); background: rgba(6, 19, 29, 0.94); }
+.phase2-spark-offer .progressive-grid-special-title { color: #e9fbff; }
+.phase2-spark-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; width: 100%; margin-top: 4px; }
+.phase2-spark-options button { display: grid; gap: 3px; min-width: 0; padding: 8px 9px; border: 1px solid rgba(127, 231, 255, 0.48); border-radius: 9px; background: rgba(27, 70, 88, 0.72); color: #f2fcff; text-align: left; cursor: pointer; }
+.phase2-spark-options button:hover, .phase2-spark-options button:focus-visible { border-color: #a6f2ff; background: rgba(38, 102, 127, 0.82); outline: none; }
+.phase2-spark-options b { font-size: 10px; }
+.phase2-spark-options small { color: #b5d1da; font-size: 8px; line-height: 1.25; }
+.phase2-next-beat { position: absolute; left: 50%; bottom: 62px; z-index: 6; display: grid; gap: 5px; width: min(86vw, 280px); padding: 10px 12px; border: 1px solid rgba(127, 231, 255, 0.62); border-radius: 12px; background: rgba(6, 19, 29, 0.93); box-shadow: 0 0 24px rgba(82, 218, 255, 0.16); color: #e7fbff; transform: translateX(-50%); }
+.phase2-next-beat b { font-size: 11px; }
+.phase2-next-beat span { color: #b5d1da; font-size: 9px; line-height: 1.3; }
+.phase2-next-beat button { justify-self: start; min-height: 32px; padding: 0 10px; border: 1px solid rgba(127, 231, 255, 0.58); border-radius: 8px; background: rgba(38, 102, 127, 0.7); color: #f2fcff; font-size: 10px; font-weight: 750; }
+.phase2-next-beat button:hover, .phase2-next-beat button:focus-visible { border-color: #a6f2ff; background: rgba(38, 126, 155, 0.86); outline: none; }
+.session-game-stop-button { min-height: 30px; padding: 0 9px; border: 1px solid rgba(127, 231, 255, 0.42); border-radius: 8px; background: rgba(7, 23, 32, 0.74); color: #bfeef8; font-size: 10px; font-weight: 750; }
+.session-game-stop-button:hover, .session-game-stop-button:focus-visible { border-color: #a6f2ff; color: #f2fcff; outline: none; }
+.progressive-grid-artifact-reveal { position: absolute; top: 50%; left: 50%; z-index: 7; display: flex; align-items: center; gap: 10px; max-width: min(86vw, 300px); padding: 10px 13px; border: 1px solid rgba(255, 214, 145, 0.82); border-radius: 13px; background: rgba(25, 17, 7, 0.92); box-shadow: 0 0 0 1px rgba(255, 214, 145, 0.12), 0 0 32px rgba(255, 190, 90, 0.25); color: #fff3d8; pointer-events: none; transform: translate(-50%, -50%); animation: phase2ArtifactRevealIn 420ms cubic-bezier(0.18, 0.8, 0.24, 1) both; }
+.progressive-grid-artifact-reveal-glyph { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid rgba(255, 214, 145, 0.82); border-radius: 9px; color: #ffd991; font-size: 18px; }
+.progressive-grid-artifact-reveal b, .progressive-grid-artifact-reveal small { display: block; }
+.progressive-grid-artifact-reveal b { font-size: 11px; }
+.progressive-grid-artifact-reveal small { margin-top: 3px; color: #dfcda9; font-size: 9px; }
+@keyframes phase2ArtifactRevealIn { from { opacity: 0; transform: translate(-50%, -50%) scale(0.88); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 .progressive-grid-special-kind { position: relative; overflow: hidden; }
 .progressive-grid-special-kind::after { content: ''; position: absolute; inset: 3px 5px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; opacity: 0.32; transform: skewX(-20deg); }
 @media (max-width: 430px) {
@@ -2641,6 +2662,10 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
   .progressive-grid-spark-target-map > span { box-shadow: none; }
   .progressive-grid-special-wave, .progressive-grid-special-wave-ring { animation: none; }
   .progressive-grid-special-wave { opacity: 1; transform: translate(-50%, -50%); }
+}
+@media (max-width: 430px) {
+  .phase2-spark-options { grid-template-columns: 1fr; }
+  .session-game-stop-button { padding-inline: 7px; }
 }
 .progressive-grid-wrong { position: absolute; left: 50%; bottom: 14px; z-index: 3; max-width: calc(100% - 28px); padding: 8px 11px; border: 1px solid rgba(255, 77, 77, 0.65); border-radius: 999px; background: rgba(40, 12, 16, 0.92); color: #ffd7d7; font-size: 10px; text-align: center; transform: translateX(-50%); pointer-events: none; }
 .progressive-grid-success { position: absolute; left: 50%; bottom: 14px; z-index: 3; max-width: calc(100% - 28px); padding: 8px 11px; border: 1px solid rgba(46, 229, 157, 0.65); border-radius: 999px; background: rgba(10, 32, 24, 0.92); color: #bfffe0; font-size: 10px; text-align: center; transform: translateX(-50%); pointer-events: none; }

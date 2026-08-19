@@ -28,7 +28,7 @@ async function request(path, { userId, method = 'GET', body } = {}) {
   return { response, json };
 }
 
-test('analytics allowlist accepts special help and core-feel experiment events', async (t) => {
+test('analytics allowlist accepts special help, core-feel, and Phase 2 experiment events', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'splint-analytics-allowlist-'));
   const server = spawn('node', ['index.js'], {
     cwd: serverDir,
@@ -88,6 +88,24 @@ test('analytics allowlist accepts special help and core-feel experiment events',
       userId,
       method: 'POST',
       body: { event, payload: { id: 'color_astro-whale', variant: 'b' } },
+    });
+    assert.equal(tracked.response.status, 200, `${event} must remain accepted`);
+    assert.equal(tracked.json.success, true);
+  }
+
+  for (const event of [
+    'session_game_experiment_open',
+    'session_game_first_action',
+    'session_game_special_offered',
+    'session_game_special_selected',
+    'session_game_special_applied',
+    'session_game_artifact_discovered',
+    'session_game_stop',
+  ]) {
+    const tracked = await request('/meta/analytics', {
+      userId,
+      method: 'POST',
+      body: { event, payload: { template_id: 'phase2-fixture', variant: 'treatment' } },
     });
     assert.equal(tracked.response.status, 200, `${event} must remain accepted`);
     assert.equal(tracked.json.success, true);

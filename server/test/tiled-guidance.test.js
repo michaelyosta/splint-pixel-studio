@@ -252,6 +252,11 @@ test('SPECIAL_TARGETS requires treatment and the matching persisted offer', asyn
   const allowed = await request({ sparkTreatment: true });
   assert.equal(allowed.special_id, special.special_id);
   assert.equal('offer_token' in allowed, false);
+  const sessionGame = await request({ sparkTreatment: true, sessionGame: true });
+  assert.equal(sessionGame.target_options.length, 2);
+  assert.deepEqual(sessionGame.target_options.map((option) => option.option_id), ['scene', 'nearby']);
+  assert.deepEqual(sessionGame.target_options.map((option) => option.label), ['Крупный фрагмент', 'Другой фрагмент']);
+  assert.equal(sessionGame.default_option_id, 'scene');
   db.close();
 });
 

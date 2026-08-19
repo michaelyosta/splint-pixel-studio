@@ -30,6 +30,7 @@ export function useColoringSession({
   setServerCompletedTemplateId,
   serverCompletedTemplateId,
   coreFeelExperiment,
+  sessionGameExperiment,
 }) {
   const [template, setTemplate] = useState(null);
   const [progress, setProgress] = useState(null);
@@ -257,6 +258,7 @@ export function useColoringSession({
   function trackCanonicalSpecialEvents({ saved, specialAction, templateId, replay = false } = {}) {
     if (!specialAction || replay) return;
     const actionType = String(specialAction.type || '');
+    const sessionGame = Boolean(sessionGameExperiment?.enabled && specialAction.session_game);
     const inferredKind = actionType.replace(/^(claim_|use_|skip_|disarm_)/, '') || null;
     const kind = saved?.special_discovered?.kind || saved?.special_offer?.kind || inferredKind;
     const base = {
@@ -279,6 +281,31 @@ export function useColoringSession({
       metaApi.track('powerup_used', {
         ...base,
         cells: saved.special_applied_changes.length,
+      }).catch(() => {});
+    }
+    if (sessionGame && saved?.special_offer) {
+      metaApi.track('session_game_special_offered', {
+        ...base,
+        option_count: saved.special_offer.target_options?.length || 0,
+      }).catch(() => {});
+    }
+    if (sessionGame && actionType === 'use_spark') {
+      metaApi.track('session_game_special_selected', {
+        ...base,
+        option_id: specialAction.option_id || null,
+      }).catch(() => {});
+    }
+    if (sessionGame && Array.isArray(saved?.special_applied_changes) && saved.special_applied_changes.length) {
+      metaApi.track('session_game_special_applied', {
+        ...base,
+        cells: saved.special_applied_changes.length,
+      }).catch(() => {});
+    }
+    if (sessionGame && saved?.special_discovered?.kind === 'artifact') {
+      metaApi.track('session_game_artifact_discovered', {
+        ...base,
+        fragments: saved.special_discovered.artifact_fragments || 1,
+        complete: Boolean(saved.special_discovered.artifact_complete),
       }).catch(() => {});
     }
   }
@@ -554,6 +581,15 @@ export function useColoringSession({
         onUnlockRefresh();
       }
       if (!coreFeelActive) metaApi.track('open_level', { id });
+      if (sessionGameExperiment?.enabled && isLargeGridTemplate(nextTemplate)) {
+        metaApi.track('session_game_experiment_open', {
+          template_id: id,
+          variant: sessionGameExperiment.variantId,
+          version: sessionGameExperiment.version,
+          resumed: Boolean(nextResume?.progressRevision),
+          subject_id: sessionGameExperiment.subjectId || null,
+        }).catch(() => {});
+      }
       if (coreFeelActive) {
         metaApi.track('core_feel_experiment_open', {
           id,
@@ -633,6 +669,9 @@ export function useColoringSession({
       'disarm_hazard',
       'skip_hazard',
     ]);
+    if (sessionGameExperiment?.enabled && specialAction.type === 'claim_artifact') {
+      supportedSpecialActions.add('claim_artifact');
+    }
     if (!supportedSpecialActions.has(specialAction.type)) {
       showNotice('Этот эффект ещё недоступен', 'info');
       return false;
@@ -699,6 +738,7 @@ export function useColoringSession({
     writeTiledJournal(template.id);
     if (specialAction.type === 'use_spark'
       || specialAction.type === 'use_bomb'
+      || specialAction.type === 'claim_artifact'
       || specialAction.type === 'skip_spark'
       || specialAction.type === 'disarm_fuse'
       || specialAction.type === 'skip_fuse'
@@ -776,6 +816,15 @@ export function useColoringSession({
     const coreFeelActive = isCoreFeelReference(coreFeelExperiment, template);
     if (!coreFeelActive) {
       metaApi.track('first_pixel', { id: template?.id, time_to_first_action_ms: timeToAction }).catch(() => {});
+      if (sessionGameExperiment?.enabled && isLargeGridTemplate(template)) {
+        metaApi.track('session_game_first_action', {
+          template_id: template.id,
+          variant: sessionGameExperiment.variantId,
+          time_to_action_ms: timeToAction,
+          resumed: Number(progress?.completed_cells || 0) > 0,
+          source: 'manual',
+        }).catch(() => {});
+      }
     } else {
       metaApi.track(coreFeelResumeRef.current ? 'core_feel_resume_action' : 'core_feel_first_handmade_action', {
         id: template.id,

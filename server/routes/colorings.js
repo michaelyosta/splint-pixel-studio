@@ -1072,6 +1072,7 @@ async function processTiledProgressAction(req, res, template) {
       offer_token: rawSpecialAction.offer_token ? String(rawSpecialAction.offer_token) : null,
       option_id: rawSpecialAction.option_id ? String(rawSpecialAction.option_id) : null,
       camera_center: rawSpecialAction.camera_center || null,
+      session_game: rawSpecialAction.session_game === true || rawSpecialAction.session_game === 'true',
       center_x: rawSpecialAction.center_x === undefined || rawSpecialAction.center_x === null || rawSpecialAction.center_x === ''
         ? null
         : Number(rawSpecialAction.center_x),
@@ -1471,6 +1472,7 @@ async function processTiledProgressAction(req, res, template) {
           specialId: specialAction.special_id,
           cameraCenter: specialAction.camera_center,
           sparkTreatment: getSparkExperimentGroup(req.userId, template.id) === 'treatment',
+          sessionGame: specialAction.session_game,
         });
         const defaultTarget = (offer.target_options || [])[0] || null;
         if (isSpecialTargetEligible(defaultTarget)) {
@@ -1479,10 +1481,11 @@ async function processTiledProgressAction(req, res, template) {
             offer_token: token.token,
             progress_revision: persisted.revision,
             kind: 'spark',
-            target_options: [defaultTarget],
+            target_options: specialAction.session_game ? (offer.target_options || []).slice(0, 2) : [defaultTarget],
             default_option_id: defaultTarget.option_id,
-            auto_apply: true,
-            interaction_cost: 0,
+            auto_apply: !specialAction.session_game,
+            interaction_cost: specialAction.session_game ? 1 : 0,
+            session_game: Boolean(specialAction.session_game),
             target_effort: describeSpecialTargetEffort(defaultTarget),
           };
           specialEffort.selected_effect_target = describeSpecialTargetEffort(defaultTarget);
@@ -1786,6 +1789,7 @@ router.post('/:id/progress/actions', authMiddleware, asyncRoute(async (req, res)
       special_id: String(rawSpecialAction.special_id || ''),
       offer_token: rawSpecialAction.offer_token ? String(rawSpecialAction.offer_token) : null,
       option_id: rawSpecialAction.option_id ? String(rawSpecialAction.option_id) : null,
+      session_game: rawSpecialAction.session_game === true || rawSpecialAction.session_game === 'true',
       center_x: rawSpecialAction.center_x === undefined || rawSpecialAction.center_x === null || rawSpecialAction.center_x === ''
         ? null
         : Number(rawSpecialAction.center_x),

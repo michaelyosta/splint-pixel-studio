@@ -25,6 +25,7 @@ import {
   isCoreFeelReference,
 } from '../coreFeel/coreFeelExperiment.js';
 import { playCoreFeelFeedback } from '../coreFeel/coreFeelFeedback.js';
+import { isSessionGameSpecialAllowed } from '../sessionGame/sessionGameExperiment.js';
 import './coloring.css';
 
 const LARGE_ROUTE_DIMENSION = 160;
@@ -95,6 +96,7 @@ export default function ColoringSession({
   onVisibleSpecialKinds,
   coreFeelExperiment = null,
   onCoreFeelStop,
+  sessionGameExperiment = null,
 }) {
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const containerRef = useRef(null);
@@ -127,7 +129,9 @@ export default function ColoringSession({
   const autoSparkBlockedKeyRef = useRef('');
   const [autoSparkRetryKey, setAutoSparkRetryKey] = useState('');
   const [autoSparkAttempt, setAutoSparkAttempt] = useState(0);
-  const specialTreatment = specialCohort === 'treatment';
+  const sessionGameActive = Boolean(sessionGameExperiment?.enabled);
+  const specialTreatment = specialCohort === 'treatment'
+    && (!sessionGameActive || sessionGameExperiment.variantId === 'treatment');
   const coreFeelActive = isCoreFeelReference(coreFeelExperiment, template);
   const enhancedCoreFeel = coreFeelActive && coreFeelExperiment.variant?.enhanced;
   const artifactProgress = progress?.artifact_progress || null;
@@ -137,6 +141,7 @@ export default function ColoringSession({
 
   useEffect(() => {
     const action = autoSparkActionForOffer(specialOffer);
+    if (sessionGameActive) return;
     if (!action || typeof onSpecialAction !== 'function') {
       if (!specialOffer) {
         autoSparkOfferKeyRef.current = '';
@@ -156,7 +161,7 @@ export default function ColoringSession({
       autoSparkBlockedKeyRef.current = key;
       setAutoSparkRetryKey(key);
     });
-  }, [specialOffer, onSpecialAction, autoSparkAttempt]);
+  }, [sessionGameActive, specialOffer, onSpecialAction, autoSparkAttempt]);
 
   function retryAutoSpark() {
     const key = autoSparkActionKey(autoSparkActionForOffer(specialOffer));
@@ -999,6 +1004,7 @@ export default function ColoringSession({
     setLocalFilled(nextFilled);
     const special = specialTreatment
       ? specialCells.find((special) => ['spark', 'bomb', 'fuse', 'choice', 'artifact', 'hazard'].includes(special.kind)
+        && isSessionGameSpecialAllowed(sessionGameExperiment, special.kind)
         && special.state === 'unseen'
         && !claimedSpecialsRef.current.has(special.id)
         && operation.changes.some((change) => change.index === Number(special.cell_index)
@@ -1008,6 +1014,7 @@ export default function ColoringSession({
       type: `claim_${special.kind}`,
       special_id: special.id,
       cell_index: Number(special.cell_index),
+      session_game: sessionGameActive,
       experiment_group: 'treatment',
     } : null;
     if (special) claimedSpecialsRef.current.add(special.id);
@@ -1237,7 +1244,9 @@ export default function ColoringSession({
             interactionDisabled={routeDisplay.status === 'focusingTarget' || coreFeelBeat?.status === 'revealed'}
             peekColor={peekColor}
             onResetView={handleCanvasResetView}
-            specialCells={specialTreatment ? specialCells : []}
+            specialCells={specialTreatment
+              ? specialCells.filter((special) => isSessionGameSpecialAllowed(sessionGameExperiment, special.kind))
+              : []}
             onVisibleSpecialKinds={onVisibleSpecialKinds}
             coreFeelVariant={enhancedCoreFeel ? coreFeelExperiment.variant : null}
             revealBeat={coreFeelBeat?.status === 'revealed' ? {

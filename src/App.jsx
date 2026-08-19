@@ -27,11 +27,13 @@ import { formatDifficulty } from './lib/catalogMeta';
 import { getRequestedColoringId, hapticSelection } from './lib/telegram';
 import { readCurrentResumeSnapshot } from './lib/resumeState.js';
 import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
+import { resolveSessionGameExperiment } from './features/sessionGame/sessionGameExperiment.js';
 import './App.css';
 import './features/unlocks/unlocks.css';
 
 function App() {
   const coreFeelExperiment = useMemo(() => resolveCoreFeelExperiment(), []);
+  const sessionGameExperiment = useMemo(() => resolveSessionGameExperiment(), []);
   const initialResume = useMemo(() => readCurrentResumeSnapshot(), []);
   const initialRequestedId = useMemo(() => getRequestedColoringId(), []);
   const [view, setView] = useState(() => {
@@ -81,6 +83,7 @@ function App() {
     setServerCompletedTemplateId: product.setServerCompletedTemplateId,
     serverCompletedTemplateId: product.serverCompletedTemplateId,
     coreFeelExperiment,
+    sessionGameExperiment,
   });
   const director = useDirectorData({
     enabled: !coreFeelExperiment.enabled,
@@ -343,6 +346,7 @@ function App() {
         completedPreview={session.completedPreview}
         zoneIndices={session.zoneIndicesRef.current}
         coreFeelExperiment={coreFeelExperiment}
+        sessionGameExperiment={sessionGameExperiment}
       />
     );
   } else if (view === 'home' && coreFeelExperiment.enabled) {

@@ -28,6 +28,8 @@ const ANALYTICS_EVENTS = new Set([
   'special_help_hint_shown', 'special_help_opened',
   'core_feel_experiment_open', 'core_feel_first_handmade_action', 'core_feel_resume_action',
   'core_feel_manual_fragment_reveal', 'core_feel_next_beat_selected', 'core_feel_session_stop',
+  'session_game_experiment_open', 'session_game_first_action', 'session_game_special_offered', 'session_game_special_selected',
+  'session_game_special_applied', 'session_game_artifact_discovered', 'session_game_stop',
 ]);
 
 function todayKey(date = new Date()) {

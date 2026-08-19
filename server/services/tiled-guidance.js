@@ -645,7 +645,7 @@ async function resolveTarget(db, {
 
 async function resolveTargets(db, options) {
   const {
-    userId, template, colorIndex, cameraCenter, recentKeys, progress,
+    userId, template, colorIndex, cameraCenter, recentKeys, progress, limit = 1,
   } = options;
   const candidates = await findTileCandidates(db, { userId, template, colorIndex, recentKeys });
   const ranked = scoreCandidates(candidates, cameraCenter, null, template.tile_size)
@@ -676,7 +676,7 @@ async function resolveTargets(db, options) {
       || first.tile_x - second.tile_x
       || first.anchor_y - second.anchor_y
       || first.anchor_x - second.anchor_x)
-    .slice(0, 1);
+    .slice(0, Math.max(1, Math.min(2, Number(limit) || 1)));
 }
 
 export function guidanceErrorPayload(error) {
@@ -698,6 +698,7 @@ export async function buildGuidancePlan({
   targetColor = null,
   specialId = null,
   sparkTreatment = null,
+  sessionGame = false,
 } = {}) {
   if (!db || !template) {
     throw new TiledGuidanceError('Guidance requires a database and template', 'INVALID_GUIDANCE_INPUT', 500);
@@ -874,10 +875,19 @@ export async function buildGuidancePlan({
       recentKeys,
       progress,
       specialId,
+      limit: sessionGame ? 2 : 1,
     });
     const annotatedOptions = targetOptions.map((target, index) => ({
       ...target,
-      option_id: index === 0 ? 'default' : `option_${index + 1}`,
+      option_id: sessionGame
+        ? (index === 0 ? 'scene' : 'nearby')
+        : (index === 0 ? 'default' : `option_${index + 1}`),
+      ...(sessionGame ? {
+        label: index === 0 ? 'Крупный фрагмент' : 'Другой фрагмент',
+        description: index === 0
+          ? `${target.estimated_cells} клеток · заметный шаг картины`
+          : `${target.estimated_cells} клеток · продолжить в другой части`,
+      } : {}),
       target_effort: describeSpecialTargetEffort(target),
     }));
     return {

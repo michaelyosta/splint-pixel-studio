@@ -358,6 +358,61 @@ test('Spark claim/use is server-authoritative, bounded, and idempotent', async (
   assert.equal(lateClaim.json.code, 'SPECIAL_CLAIM_INVALID');
 });
 
+test('Phase 2 session-game Spark is a manual two-option offer with no auto-apply', async (t) => {
+  const baseUrl = await startServer(t, 'SPECIALS_TREATMENT');
+  const request = createClient(baseUrl, 'user_spark_integration');
+  const created = await request('/colorings/create', {
+    method: 'POST',
+    body: {
+      title: 'Phase 2 session game',
+      storageMode: 'tiled',
+      width: 64,
+      height: 64,
+      tileSize: 32,
+      palette: ['#101820', '#ffffff'],
+      tiles: tiledPayload(64, 64),
+    },
+  });
+  assert.equal(created.response.status, 201);
+  const id = created.json.id;
+  const spark = await findFirstSpark(request, id);
+  assert.ok(spark);
+  const claimed = await request(`/colorings/${id}/progress/actions`, {
+    method: 'POST',
+    body: {
+      revision: 0,
+      clientBatchId: 'phase2-spark-claim-001',
+      changes: [{ index: spark.cell_index, color: 0 }],
+      special_action: { type: 'claim_spark', special_id: spark.id, session_game: true },
+    },
+  });
+  assert.equal(claimed.response.status, 200);
+  assert.equal(claimed.json.special_offer.target_options.length, 2);
+  assert.equal(claimed.json.special_offer.auto_apply, false);
+  assert.equal(claimed.json.special_offer.interaction_cost, 1);
+  assert.equal(claimed.json.special_offer.session_game, true);
+  assert.equal(claimed.json.special_applied_changes.length, 0);
+
+  const used = await request(`/colorings/${id}/progress/actions`, {
+    method: 'POST',
+    body: {
+      revision: claimed.json.revision,
+      clientBatchId: 'phase2-spark-use-001',
+      changes: [],
+      special_action: {
+        type: 'use_spark',
+        special_id: spark.id,
+        offer_token: claimed.json.special_offer.offer_token,
+        option_id: claimed.json.special_offer.target_options[1].option_id,
+        session_game: true,
+      },
+    },
+  });
+  assert.equal(used.response.status, 200);
+  assert.equal(used.json.special_applied_changes.length, claimed.json.special_offer.target_options[1].estimated_cells);
+  assert.equal(used.json.special_offer, null);
+});
+
 test('tiled one-cell trigger is committed without any Special offer or effect', async (t) => {
   const baseUrl = await startServer(t, 'SPECIALS_TREATMENT');
   const request = createClient(baseUrl, 'user_tiled_trivial');

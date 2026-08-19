@@ -1,8 +1,10 @@
 import { getCoreFeelDevSubject } from '../features/coreFeel/coreFeelExperiment.js';
+import { getSessionGameDevSubject } from '../features/sessionGame/sessionGameExperiment.js';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export const DEV_USER_ID = getCoreFeelDevSubject()
+  || getSessionGameDevSubject()
   || import.meta.env.VITE_DEV_USER_ID
   || 'user_pixelhunter';
 
@@ -10,11 +12,12 @@ function authHeaders(userId = DEV_USER_ID) {
   const telegramInitData = window.Telegram?.WebApp?.initData?.trim();
   const allowDevAuth = import.meta.env.VITE_ALLOW_DEV_AUTH === 'true';
 
-  return telegramInitData
+  const headers = telegramInitData
     ? { 'X-Telegram-Init-Data': telegramInitData }
     : allowDevAuth
       ? { 'X-User-Id': userId }
       : {};
+  return headers;
 }
 
 async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signal } = {}) {

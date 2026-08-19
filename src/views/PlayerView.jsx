@@ -184,10 +184,24 @@ export default function PlayerView({
   completedPreview,
   zoneIndices,
   coreFeelExperiment,
+  sessionGameExperiment,
 }) {
   const coreFeelActive = Boolean(coreFeelExperiment?.enabled && template?.id === coreFeelExperiment.referenceTemplateId);
+  const sessionGameActive = Boolean(
+    sessionGameExperiment?.enabled
+      && !coreFeelActive
+      && template?.storage_mode === 'tiled',
+  );
   const sessionGoalsExperiment = useMemo(() => resolveSessionGoalsExperiment(), []);
-  const showSessionGoals = shouldShowSessionGoals(sessionGoalsExperiment, coreFeelActive);
+  const showSessionGoals = shouldShowSessionGoals(sessionGoalsExperiment, coreFeelActive || sessionGameActive);
+  const stopSessionGame = useCallback(() => {
+    if (!sessionGameActive) return;
+    onTrack?.('session_game_stop', {
+      template_id: template?.id || null,
+      reason: 'player_pause',
+    });
+    setView('catalog');
+  }, [onTrack, sessionGameActive, setView, template?.id]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hudHidden, setHudHidden] = useState(false);
   const startPaintTimerRef = useRef(null);
@@ -275,7 +289,7 @@ export default function PlayerView({
 
   const showNextVisibleHint = useCallback(() => {
     if (onboardingRef.current !== null || specialHelpOpenRef.current) return;
-    if (progress?.specials_experiment_group !== 'treatment') return;
+    if (progress?.specials_experiment_group !== 'treatment' || sessionGameActive) return;
     const current = specialHelpStateRef.current;
     const kind = visibleSpecialKindsRef.current
       .find((candidate) => shouldShowSpecialKindHint(current, candidate));
@@ -283,7 +297,7 @@ export default function PlayerView({
     setSpecialHintKind(kind);
     commitSpecialHelpState(markSpecialKindSeen(current, kind));
     onTrack?.('special_help_hint_shown', { kind, id: template?.id });
-  }, [commitSpecialHelpState, onTrack, progress?.specials_experiment_group, template?.id]);
+  }, [commitSpecialHelpState, onTrack, progress?.specials_experiment_group, sessionGameActive, template?.id]);
 
   const handleVisibleSpecialKinds = useCallback((kinds) => {
     const normalized = [...new Set((kinds || [])
@@ -412,6 +426,7 @@ export default function PlayerView({
       <div className={`player-topbar${coreFeelActive ? ' player-topbar--core-feel' : ''}`}>
         <button className="back-button" onClick={() => coreFeelActive ? leaveCoreFeelSession() : setView('catalog')} aria-label={coreFeelActive ? 'Завершить тест' : 'Назад'}><ChevronLeft size={18} /></button>
         <span className="player-topbar-title">{template.title}</span>
+        {sessionGameActive && <button type="button" className="session-game-stop-button" data-session-game-stop onClick={stopSessionGame}>Пауза</button>}
         <span className={`save-status${saving || saveState === 'syncing' ? ' saving' : ''}${!isOnline || saveState === 'offline' ? ' offline' : ''}`} role="status" aria-live="polite">
           <span className="save-dot" aria-hidden="true" />{saveLabel}
         </span>
@@ -469,12 +484,12 @@ export default function PlayerView({
         }}
       />}
 
-      {!coreFeelActive && zoneReward && <div className="milestone zone"><Target size={17} /> {zoneReward}</div>}
+      {!coreFeelActive && !sessionGameActive && zoneReward && <div className="milestone zone"><Target size={17} /> {zoneReward}</div>}
 
       {import.meta.env.DEV && import.meta.env.VITE_SHOW_ENGINE_BADGE === 'true' && <div className={`engine-badge ${USE_NEW_COLORING_ENGINE ? 'smart' : 'legacy'}`}>{USE_NEW_COLORING_ENGINE ? 'Engine: Smart' : 'Engine: Legacy'}</div>}
 
       {isTiled ? (
-        <ProgressiveColoringSession
+          <ProgressiveColoringSession
           template={template}
           progress={progress}
           selectedColor={selectedColor}
@@ -494,6 +509,7 @@ export default function PlayerView({
           hideNumbers={hideNumbers}
           hintMode={playMode === 'classic' && hintMode}
           onOpenMenu={() => setMenuOpen(true)}
+          sessionGameExperiment={sessionGameActive ? sessionGameExperiment : null}
         />
       ) : USE_NEW_COLORING_ENGINE ? (
         <ColoringSession
@@ -529,6 +545,7 @@ export default function PlayerView({
           onVisibleSpecialKinds={coreFeelActive ? undefined : handleVisibleSpecialKinds}
           onSpecialAction={coreFeelActive ? undefined : onTiledSpecialAction}
           coreFeelExperiment={coreFeelActive ? coreFeelExperiment : null}
+          sessionGameExperiment={sessionGameActive ? sessionGameExperiment : null}
           onCoreFeelStop={coreFeelActive ? leaveCoreFeelSession : undefined}
         />
       ) : (
