@@ -2795,7 +2795,7 @@ export default function ProgressiveColoringSession({
             <button type="button" onClick={() => { setErrorNotice(null); setInputNotice(null); markFreeExploration(); }}>Свободный просмотр</button>
           </div>
         )}
-        {specialTreatment && specialOffer && (
+        {specialTreatment && specialOffer && manifestReady && hasLoadedTiles && (
           <SpecialOfferPanel
             key={specialOffer.special_id || specialOffer.offer_token || 'special-offer'}
             specialOffer={specialOffer}

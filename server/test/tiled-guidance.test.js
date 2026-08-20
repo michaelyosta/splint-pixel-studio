@@ -216,6 +216,25 @@ test('Spark pity makes the first treatment target contain the deterministic earl
   db.close();
 });
 
+test('session-game initial guidance never steals the first manual reveal with Spark pity', async () => {
+  const db = await createGuidanceDb();
+  const adapter = wrapSqlite(db);
+  const template = await seedTemplate(adapter);
+  const sessionGame = await buildGuidancePlan({
+    db: adapter,
+    userId: 'user-guidance',
+    template,
+    reason: GUIDANCE_REASON.INITIAL_TARGET,
+    cameraCenter: { x: 32, y: 32 },
+    sparkTreatment: true,
+    sessionGame: true,
+  });
+  assert.equal(sessionGame.special_pity, undefined);
+  assert.equal(sessionGame.special_id, undefined);
+  assert.ok(sessionGame.target);
+  db.close();
+});
+
 test('SPECIAL_TARGETS requires treatment and the matching persisted offer', async () => {
   const db = await createGuidanceDb();
   const adapter = wrapSqlite(db);

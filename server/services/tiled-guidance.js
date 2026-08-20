@@ -17,6 +17,7 @@ import {
   SPARK_PITY_INTERVAL_CELLS,
   describeSpecialTargetEffort,
   isSparkTreatmentUser,
+  isSessionGameTargetEligible,
   isSpecialTargetEligible,
   summarizeSpecialEffort,
 } from './tiled-specials.js';
@@ -646,6 +647,7 @@ async function resolveTarget(db, {
 async function resolveTargets(db, options) {
   const {
     userId, template, colorIndex, cameraCenter, recentKeys, progress, limit = 1,
+    sessionGame = false,
   } = options;
   const candidates = await findTileCandidates(db, { userId, template, colorIndex, recentKeys });
   const ranked = scoreCandidates(candidates, cameraCenter, null, template.tile_size)
@@ -670,7 +672,10 @@ async function resolveTargets(db, options) {
     seenTiles.add(candidate.key);
     targets.push({ ...target, color: colorIndex });
   }
-  return targets
+  const effortAwareTargets = sessionGame
+    ? targets.filter((target) => isSessionGameTargetEligible(target, targets))
+    : targets;
+  return effortAwareTargets
     .sort((first, second) => second.estimated_cells - first.estimated_cells
       || first.tile_y - second.tile_y
       || first.tile_x - second.tile_x
@@ -812,6 +817,7 @@ export async function buildGuidancePlan({
   }
 
   const pityAllowed = isTreatment
+    && !sessionGame
     && reason !== GUIDANCE_REASON.SPECIAL_TARGETS
     && reason !== GUIDANCE_REASON.MANUAL_COLOR
     && reason !== GUIDANCE_REASON.RETURN_TO_TARGET;
@@ -876,6 +882,7 @@ export async function buildGuidancePlan({
       progress,
       specialId,
       limit: sessionGame ? 2 : 1,
+      sessionGame,
     });
     const annotatedOptions = targetOptions.map((target, index) => ({
       ...target,

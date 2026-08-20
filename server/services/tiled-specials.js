@@ -99,6 +99,10 @@ export const SPARK_MACRO_REGION_SIZE = 128;
 export const SPARK_PITY_INTERVAL_CELLS = SPARK_DENSITY_CELLS;
 export const SPARK_OFFER_RECOVERY_BATCH_LIMIT = 64;
 export const SPECIAL_MIN_EFFECT_CELLS = 2;
+// Phase 2 deliberately starts at the first non-trivial effort bin. The legacy
+// production path keeps SPECIAL_MIN_EFFECT_CELLS=2 for compatibility; the
+// session-game cohort uses percentile-relative filtering on top of this floor.
+export const SESSION_GAME_MIN_EFFECT_CELLS = 4;
 export const SPECIAL_EFFORT_BIN_KEYS = Object.freeze([
   '1', '2-3', '4-12', '13-32', '33-50', '51-200', '200+',
 ]);
@@ -120,6 +124,24 @@ export function isSpecialTargetEligible(targetOrCells) {
     ? Number(targetOrCells?.estimated_cells)
     : Number(targetOrCells);
   return Number.isFinite(cells) && cells >= SPECIAL_MIN_EFFECT_CELLS;
+}
+
+/**
+ * Phase 2 target gate. A special should not interrupt a singleton or a tiny
+ * target, and a target should earn its place relative to the candidates that
+ * are actually available in the current artwork/camera context. The p50 is a
+ * derived distribution value, not a hand-tuned global cadence.
+ */
+export function isSessionGameTargetEligible(target, candidates = []) {
+  if (!isSpecialTargetEligible(target)) return false;
+  const estimatedCells = Math.max(0, Math.floor(Number(target?.estimated_cells) || 0));
+  if (estimatedCells < SESSION_GAME_MIN_EFFECT_CELLS) return false;
+  const candidateValues = (candidates || [])
+    .map((candidate) => Number(candidate?.estimated_cells))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const p50 = summarizeSpecialEffort(candidateValues).p50;
+  const relativeFloor = Math.max(SESSION_GAME_MIN_EFFECT_CELLS, Number(p50 || 0));
+  return estimatedCells >= relativeFloor;
 }
 
 export function describeSpecialTargetEffort(target) {

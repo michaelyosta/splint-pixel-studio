@@ -2647,6 +2647,9 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .progressive-grid-artifact-reveal b { font-size: 11px; }
 .progressive-grid-artifact-reveal small { margin-top: 3px; color: #dfcda9; font-size: 9px; }
 @keyframes phase2ArtifactRevealIn { from { opacity: 0; transform: translate(-50%, -50%) scale(0.88); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .progressive-grid-artifact-reveal { animation: none; }
+}
 .progressive-grid-special-kind { position: relative; overflow: hidden; }
 .progressive-grid-special-kind::after { content: ''; position: absolute; inset: 3px 5px; border-top: 1px solid currentColor; border-bottom: 1px solid currentColor; opacity: 0.32; transform: skewX(-20deg); }
 @media (max-width: 430px) {

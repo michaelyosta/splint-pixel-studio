@@ -231,7 +231,9 @@ export function useColoringSession({
       },
       onProgress: (saved) => {
         setProgress(saved);
-        if (!isCoreFeelReference(coreFeelExperiment, templateForQueue)) onRewards(saved, templateForQueue.id);
+        if (!isCoreFeelReference(coreFeelExperiment, templateForQueue)) onRewards(saved, templateForQueue.id, {
+          suppressNotice: Boolean(sessionGameExperiment?.enabled),
+        });
         if (saved.percent === 100) setServerCompletedTemplateId(templateForQueue.id);
       },
       onNotice: (message, type) => {
@@ -385,7 +387,7 @@ export function useColoringSession({
               setTiledReconciledChanges([...batch]);
             }
             setProgress(saved);
-            onRewards(saved, template.id);
+            onRewards(saved, template.id, { suppressNotice: Boolean(sessionGameExperiment?.enabled) });
             if (entry.specialAction && specialAction) {
               const replay = isIdempotentReplay(saved);
               const nextOffer = offerFromProgress(saved);
@@ -458,7 +460,7 @@ export function useColoringSession({
           if (serverProgress) {
             tiledRevisionRef.current = Number(serverProgress.revision || tiledRevisionRef.current);
             setProgress(serverProgress);
-            onRewards(serverProgress, template.id);
+            onRewards(serverProgress, template.id, { suppressNotice: Boolean(sessionGameExperiment?.enabled) });
           }
           const recoveredOffer = offerFromProgress(serverProgress);
           tiledSpecialOfferRef.current = recoveredOffer;
@@ -710,7 +712,7 @@ export function useColoringSession({
           templateId: template.id,
           replay: isIdempotentReplay(saved),
         });
-        onRewards(saved, template.id);
+        onRewards(saved, template.id, { suppressNotice: Boolean(sessionGameExperiment?.enabled) });
         if (saved.percent === 100) setServerCompletedTemplateId(template.id);
         setSaveState('saved');
         return true;

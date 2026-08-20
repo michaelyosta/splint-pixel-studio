@@ -25,7 +25,7 @@ export function useProductProfileData({ showNotice }) {
     if (historyResult.status === 'fulfilled') setRecentTemplates(historyResult.value);
   }, []);
 
-  const applyRewards = useCallback((saved, templateId) => {
+  const applyRewards = useCallback((saved, templateId, options = {}) => {
     const rewards = saved?.rewards;
     if (!rewards) return;
     if (rewards.progression) setProgression(rewards.progression);
@@ -35,7 +35,7 @@ export function useProductProfileData({ showNotice }) {
     const amount = Number(rewards.xp_awarded || 0);
     if (amount > 0) {
       setLatestReward({ amount, idempotent: Boolean(saved.idempotent) });
-      if (!saved.idempotent) showNotice(`+${amount} XP`, 'success');
+      if (!saved.idempotent && !options.suppressNotice) showNotice(`+${amount} XP`, 'success');
     }
   }, [showNotice]);
 
