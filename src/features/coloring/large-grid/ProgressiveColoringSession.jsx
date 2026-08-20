@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { extendStroke, PAINT_STATUS, paintStrokeIndex } from './strokeLive.js';
 import { createProgressiveGridClient, PROGRESSIVE_GRID_STATUS, isAbortError } from '../../../lib/progressiveGridClient.js';
-import { DEV_USER_ID } from '../../../api/client.js';
+import { DEV_USER_ID, metaApi } from '../../../api/client.js';
 import {
   buildSpecialCellsDiagnosticsSnapshot,
   getSpecialCellsLastError,
@@ -2404,7 +2404,6 @@ export default function ProgressiveColoringSession({
               setSessionGameSpecialsArmed(true);
               metaApi.track('session_game_first_manual_reveal', {
                 template_id: template.id,
-                session_id: sessionIdRef.current,
                 manual_cells: Number(smartPlanRef.current?.target?.estimated_cells || 0),
               }).catch(() => {});
               setHasVisibleSpecialMarker(false);

@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 test('Phase 2 keeps the first reveal player-authored before any special event', async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   test.skip(testInfo.project.name.toLowerCase().includes('webkit'), 'Canvas delivery verifier targets Chromium/WebView-like projects');
+  const pageErrors = [];
+  page.on('pageerror', (error) => pageErrors.push(error));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
     try { localStorage.setItem('splint_onboarding_version', '2'); } catch {}
@@ -60,4 +62,5 @@ test('Phase 2 keeps the first reveal player-authored before any special event', 
   await expect(page.locator('[data-session-game-specials-armed="true"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-guide-target-remaining="0"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-session-game-spark]')).toHaveCount(0);
+  expect(pageErrors, pageErrors.map((error) => error.stack || error.message).join('\n')).toHaveLength(0);
 });
