@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
-import { get, getDb, initDb, closeDb, withDbTransaction, bootstrapSystemData, seedDemoData } from './db.js';
+import { all, get, getDb, initDb, closeDb, withDbTransaction, bootstrapSystemData, seedDemoData } from './db.js';
 
 import feedRouter        from './routes/feed.js';
 import postsRouter       from './routes/posts.js';
@@ -147,7 +147,9 @@ if (process.env.GUIDANCE_BACKFILL_AUTO !== 'false') {
   const guidanceBackfillTick = async () => {
     if (backfillStopped) return;
     try {
-      const result = await backfillGuidanceIndex(db, { limit: 1, templateLimit: 1 });
+      // The backfill service consumes the small { get, all, run } adapter
+      // contract; getDb() is the storage handle ({ mode, sqlite, pool }).
+      const result = await backfillGuidanceIndex({ get, all }, { limit: 1, templateLimit: 1 });
       backfilledCount += result.processed;
       if (result.processed === 0 || (backfillBudget > 0 && backfilledCount >= backfillBudget)) {
         backfillStopped = true;

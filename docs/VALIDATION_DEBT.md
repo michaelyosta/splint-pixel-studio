@@ -9,10 +9,12 @@ not stop reversible product work unless the entry explicitly says so.
 Hypothesis: the Recovery core slice produces a satisfying player-authored reveal
 before assisted throughput appears.
 
-Status: OPEN — provisional baseline accepted for continued Phase 2 work.
+Status: OPEN — provisional baseline accepted for continued Phase 2/3 work.
 
-Agent evidence: automated Phase 0/1 and Phase 2 tests, browser route checks,
-Canvas/application-state checks, and preserved input/reload guardrails.
+Agent evidence: automated Phase 0/1 and Phase 2 tests, a Chromium pointer-stroke
+first-reveal test, browser route checks, Canvas/application-state checks, and
+preserved input/reload guardrails. Current root suite: 412 passed; server suite:
+363 passed / 65 skipped; Phase 2 Chromium slice: 5 passed.
 
 Human evidence missing: 8–12 observed players on real Telegram Android/iOS
 devices, including treatment/control comparison and verbal authorship feedback.
@@ -31,11 +33,13 @@ do not restore meta noise or broad Special Cells while evidence is collected.
 Hypothesis: one rare positive spectacle plus passive Artifact discovery improves
 anticipation without making the player a passenger.
 
-Status: OPEN — candidate selection pending blinded agent comparison.
+Status: OPEN — provisional Spark-choice baseline; candidate selection remains
+unlocked for human comparison.
 
-Agent evidence: audit verdicts identify Spark/Bomb as redesign candidates,
-Artifact as the only plausible discovery event, and Fuse/Hazard/Choice as
-cut/merge candidates; Phase 2 treatment currently gates Spark + Artifact.
+Agent evidence: two independent reviews, the positive-event scorecard, bounded
+Spark-choice/auto/Bomb E2E contracts, and the deterministic 30s/3m/15m
+simulator. Treatment gates one positive event plus Artifact; Fuse/Hazard/Choice
+remain excluded.
 
 Human evidence missing: want-again, agency, calmness, and continuation scores
 for the selected event versus core-only control.
@@ -46,8 +50,9 @@ Blocks: final Special Cells lock and broad cohort rollout.
 
 Does NOT block: bounded prototypes, deterministic simulations, and visual review.
 
-Provisional decision: test at most one positive event and one Artifact path;
-keep Fuse, Hazard, and Choice disabled in the experimental product path.
+Provisional decision: use `spark_choice` as the agency baseline; keep
+`spark_auto` and `bomb` isolated query variants only. Keep Fuse, Hazard, and
+Choice disabled in the experimental product path.
 
 ## VD-TELEGRAM-WEBVIEW-001
 
@@ -78,8 +83,10 @@ session quality without reducing artistic appeal.
 
 Status: OPEN — R&D stream.
 
-Agent evidence: existing Recovery benchmark and deterministic converter parity
-checks; new candidate evidence will be appended by the pixelization stream.
+Agent evidence: deterministic recommendation matrix has 28 metric rows and 14
+paired comparisons; two provisional positives (illustration-paint-brush at
+192px and landscape-utah-dunes at 512px), with classic+human-review fallback
+for the remaining candidates and explicit unavailable 1024/1200 probes.
 
 Human evidence missing: blinded artistic preference and creator acceptance.
 
@@ -91,4 +98,3 @@ Does NOT block: benchmark work or using the current safe preset as default.
 
 Provisional decision: keep the current safe preset until a candidate wins on
 paintability, preview/final parity, and performance together.
-

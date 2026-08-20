@@ -1,6 +1,6 @@
 # Splint Product Recovery — Phase 2 Handoff
 
-Статус этой поставки: **READY FOR PHASE 2 HUMAN PLAYTEST**.
+Статус этой поставки: **SUCCESS_WITH_VALIDATION_DEBT — READY FOR CORE/PHASE 2 PLAYTEST**.
 
 Это означает, что vertical slice собран, серверный контракт и automated regression checks проходят. Это **не** означает, что удовольствие, желание продолжить или retention доказаны: для этого нужны настоящие игроки на Telegram device.
 
@@ -30,7 +30,8 @@ Hazard. Это agent prototype для scorecard, а не доказанный wi
 
 ## 2. Как открыть сравнение
 
-Нужен tiled artwork и его `coloringId`.
+Нужен tiled artwork и его `coloringId` (в runtime поддерживаются оба query-key:
+`coloring` и совместимый алиас `coloringId`).
 
 Treatment:
 
@@ -82,7 +83,12 @@ Allowlisted events:
 - `session_game_special_selected`;
 - `session_game_special_applied`;
 - `session_game_artifact_discovered`;
+- `session_game_first_manual_reveal`;
 - `session_game_stop`.
+
+Runtime guard evidence now also covers `session_game=1` in the guidance query,
+early Special suppression until the first manual fragment, bounded preload of a
+recovered offer tile, and hidden XP-facing toast in the session slice.
 
 Для playtest нужно сравнивать treatment/control по:
 
@@ -100,13 +106,15 @@ Allowlisted events:
 Пройдено в Phase 2 worktree:
 
 - `npm.cmd run build` — PASS;
-- root tests — 399 PASS;
-- `npm.cmd --prefix server test` — 362 PASS / 65 skipped / 0 failed;
-- `server/test/tiled-guidance.test.js` — 10 PASS;
+- root tests — 412 PASS;
+- `npm.cmd --prefix server test` — 363 PASS / 65 skipped / 0 failed;
+- `server/test/tiled-guidance.test.js` — 11 PASS;
 - `server/test/tiled-specials.integration.test.js` — 20 PASS;
 - `server/test/analytics-allowlist.integration.test.js` — PASS;
-- session-game unit tests — 3 PASS;
+- session-game/simulator/client unit tests — 25 focused PASS;
 - `npx playwright test e2e/phase2-session-game.spec.js --project=chromium` — 1 PASS;
+- `npx playwright test e2e/phase2-positive-events.spec.js --project=chromium` — 2 PASS;
+- `npx playwright test e2e/phase2-manual-first-reveal.spec.js --project=chromium` — 1 PASS;
 - `git diff --check` — PASS;
 - pinned Oxlint 1.74.0 — 93 existing warnings, no new changed-file warning observed; npm lint in the empty worktree would otherwise install a newer tool and exceed the repository budget.
 
@@ -120,7 +128,9 @@ Input/performance guardrails retained: pointermove hot path, tile-bounded Canvas
 - Spark/Artifact frequency и human stopping points на 30 секунд / 3 минуты / 15 минут;
 - визуальная доступность overlay на всех реальных safe-area размерах.
 
-До этих проверок нельзя переходить к Phase 3, возвращать новые Special Cells или строить retention/meta слой.
+До этих проверок нельзя объявлять core enjoyment доказанным, возвращать новые
+Special Cells или строить retention/meta слой. Reversible Phase 3 visual work
+может продолжаться как validation debt, но не должен менять core event choice.
 
 ## 10. Что должен оценить владелец руками
 

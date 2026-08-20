@@ -219,9 +219,10 @@ export function buildColoringDeepLink(coloringId) {
   return `${base}?coloring=${encodeURIComponent(coloringId)}`;
 }
 
-/** Reads the coloring id requested via `?coloring=` or Telegram start param. */
+/** Reads the coloring id requested via `?coloring=`/`?coloringId=` or Telegram start param. */
 export function getRequestedColoringId() {
-  const fromQuery = new URLSearchParams(window.location.search).get('coloring');
+  const query = new URLSearchParams(window.location.search);
+  const fromQuery = query.get('coloring') || query.get('coloringId');
   if (fromQuery) return fromQuery;
   const startParam = getTelegramWebApp()?.initDataUnsafe?.start_param;
   if (startParam?.startsWith('coloring_')) return startParam.slice('coloring_'.length);

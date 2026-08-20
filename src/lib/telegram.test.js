@@ -5,10 +5,22 @@ import {
   disableTelegramVerticalSwipes,
   enableTelegramVerticalSwipes,
   getTelegramVerticalSwipeStatus,
+  getRequestedColoringId,
   isTelegramVersionAtLeast,
   supportsTelegramVerticalSwipes,
   TELEGRAM_SWIPE_CONTROL_VERSION,
 } from './telegram.js';
+
+function withLocationSearch(search, run) {
+  const previous = globalThis.window;
+  globalThis.window = { location: { search }, Telegram: undefined };
+  try {
+    return run();
+  } finally {
+    if (previous === undefined) delete globalThis.window;
+    else globalThis.window = previous;
+  }
+}
 
 function supportedWebApp({ version = '7.7', isFullscreen, swipesEnabled = true, initData = 'test-init-data' } = {}) {
   return {
@@ -61,6 +73,15 @@ test(`vertical swipe control requires WebApp API ${TELEGRAM_SWIPE_CONTROL_VERSIO
   assert.equal(isTelegramVersionAtLeast('6.1'), false);
   assert.equal(isTelegramVersionAtLeast(''), false);
   assert.equal(isTelegramVersionAtLeast(undefined), false);
+});
+
+test('coloring deep links accept the canonical and legacy query key', () => {
+  withLocationSearch('?coloring=color_neon-cat', () => {
+    assert.equal(getRequestedColoringId(), 'color_neon-cat');
+  });
+  withLocationSearch('?coloringId=color_neon-cat', () => {
+    assert.equal(getRequestedColoringId(), 'color_neon-cat');
+  });
 });
 
 test('capability check prefers isVersionAtLeast and falls back to the version field', () => {

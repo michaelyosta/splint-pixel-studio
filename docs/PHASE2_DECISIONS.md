@@ -45,3 +45,64 @@ frequent.
 **REVERSIBLE:** Yes. Eligibility remains server/client gated and can fall back to
 core-only control.
 
+## DECISION: transport the session-game gate through the real guidance request
+
+**EVIDENCE:** The server-side `sessionGame` guard initially existed only in the
+service call. The browser client did not serialize it into `/guidance`, so the
+first-target Spark pity path could still be selected in the actual app even
+though the isolated service test passed. The new client query test and manual
+pointer E2E verify `session_game=1` end to end.
+
+**ALTERNATIVES:** rely on the URL-only experiment flag; gate only in the client;
+remove the first-target pity logic globally.
+
+**WHY CHOSEN:** The flag is explicit, bounded to the session experiment, and
+keeps legacy production guidance compatible. The client also suppresses early
+Special claims until the first guided fragment is manually completed.
+
+**RISK:** A reload before the first reveal intentionally keeps the first-minute
+gate conservative and may delay a rare event by one additional fragment.
+
+**VALIDATION DEBT:** VD-CORE-FEEL-001, VD-TELEGRAM-WEBVIEW-001.
+
+**REVERSIBLE:** Yes.
+
+## DECISION: preload the persisted event tile before rendering a recovered offer
+
+**EVIDENCE:** Browser review showed an offer over `Загружаем фрагмент поля…` or
+an overview. A recovered Spark/Bomb offer now loads one bounded target tile and
+switches to work LOD before the panel is visible. Chromium Spark/Bomb/manual E2E
+all pass with the panel over a loaded Canvas.
+
+**ALTERNATIVES:** render the offer immediately; force a camera teleport; block
+the event until a full viewport is loaded.
+
+**WHY CHOSEN:** One target tile removes the blank-state contradiction without
+adding full-grid work or stealing the camera.
+
+**RISK:** A very small viewport may still need the normal tile loader to fetch
+neighbouring context.
+
+**VALIDATION DEBT:** VD-TELEGRAM-WEBVIEW-001.
+
+**REVERSIBLE:** Yes.
+
+## DECISION: keep Spark choice as the provisional Phase 2 event baseline
+
+**EVIDENCE:** Independent scorecard: Spark choice agency 7/10, auto 4/10,
+Bomb 6/10. Auto has the lowest interaction cost but the highest risk of making
+the player a passenger; Bomb has clearer spatial causality but an unproven
+meaningful aim decision.
+
+**ALTERNATIVES:** ship Spark auto as default; ship Bomb as the sole event; keep
+all candidate variants simultaneously in one cohort.
+
+**WHY CHOSEN:** Choice preserves player intent while the two alternatives stay
+available as isolated, reversible comparison knobs.
+
+**RISK:** The two current Spark targets can still be visually too similar; a
+human comparison may reject the baseline.
+
+**VALIDATION DEBT:** VD-PHASE2-SPECIAL-001.
+
+**REVERSIBLE:** Yes.
