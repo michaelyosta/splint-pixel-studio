@@ -51,6 +51,12 @@ import {
   isTrueColorCompletion,
   planGuidanceCamera,
 } from './smartRoute.js';
+import {
+  normalizeRevealBounds,
+  revealBoundsToScreen,
+  revealCeremonyCopy,
+  revealCeremonyDuration,
+} from './revealCeremony.js';
 
 const CELL_SIZE = 32;
 // Keep the initial viewport bounded: at 0.08 a phone sees a small tile
@@ -199,6 +205,38 @@ function offerKind(specialOffer) {
   // Existing server offers have no kind yet; fall back to the proven spark
   // contract so this slice never invents or fakes a new field.
   return specialOffer?.kind ? String(specialOffer.kind).toLowerCase() : 'spark';
+}
+
+function RevealCeremony({ ceremony, camera, size, reducedMotion }) {
+  if (!ceremony || !size?.width || !size?.height) return null;
+  const frame = ceremony.bounds
+    ? revealBoundsToScreen(ceremony.bounds, camera, CELL_SIZE)
+    : {
+      left: 12,
+      top: 12,
+      width: Math.max(0, size.width - 24),
+      height: Math.max(0, size.height - 24),
+    };
+  if (!frame || frame.width <= 0 || frame.height <= 0) return null;
+  const copy = revealCeremonyCopy(ceremony.kind);
+  return (
+    <div
+      className={`progressive-grid-reveal-ceremony progressive-grid-reveal-ceremony--${ceremony.kind}`}
+      style={{ left: frame.left, top: frame.top, width: frame.width, height: frame.height }}
+      role="status"
+      aria-live="polite"
+      data-reveal-ceremony
+      data-reveal-ceremony-kind={ceremony.kind}
+      data-reveal-ceremony-cells={String(ceremony.cells || 0)}
+      data-reveal-ceremony-reduced-motion={reducedMotion ? 'true' : 'false'}
+    >
+      <span className="progressive-grid-reveal-ceremony-frame" aria-hidden="true" />
+      <span className="progressive-grid-reveal-ceremony-copy">
+        <b>{copy.label}</b>
+        <small>{copy.detail}</small>
+      </span>
+    </div>
+  );
 }
 
 const BOMB_CENTER_NUDGE_LIMIT = 6;
@@ -674,6 +712,7 @@ export default function ProgressiveColoringSession({
   const [errorNotice, setErrorNotice] = useState(null);
   const [navigationMode, setNavigationMode] = useState(false);
   const [sparkWave, setSparkWave] = useState(null);
+  const [revealCeremony, setRevealCeremony] = useState(null);
   const [artifactReveal, setArtifactReveal] = useState(null);
   const [sessionGameNextBeatReady, setSessionGameNextBeatReady] = useState(false);
   const [sessionGameSpecialsArmed, setSessionGameSpecialsArmed] = useState(false);
@@ -707,6 +746,7 @@ export default function ProgressiveColoringSession({
   const [autoSparkAttempt, setAutoSparkAttempt] = useState(0);
   const wrongNoticeTimerRef = useRef(null);
   const successNoticeTimerRef = useRef(null);
+  const revealCeremonyTimerRef = useRef(null);
   const keyboardCellRef = useRef(null);
   const selectedSparkTargetRef = useRef(null);
   const sessionEventOfferKeyRef = useRef('');
@@ -951,6 +991,11 @@ export default function ProgressiveColoringSession({
     const event = specialApplied.kind === 'bomb'
       ? 'bomb'
       : sessionGameEvent === 'spark_auto' ? 'spark_auto' : 'spark_choice';
+    showRevealCeremony({
+      kind: 'special',
+      bounds: selected?.bounds || changeBounds,
+      cells: changes.length,
+    });
     setSparkWave({
       revision: specialApplied.revision,
       cells: specialApplied.changes.length,
@@ -965,7 +1010,7 @@ export default function ProgressiveColoringSession({
     selectedSparkTargetRef.current = null;
     const timer = window.setTimeout(() => setSparkWave(null), reducedMotion ? 700 : 1500);
     return () => window.clearTimeout(timer);
-  }, [reducedMotion, sessionGameActive, sessionGameEvent, specialApplied, template.width]);
+  }, [reducedMotion, sessionGameActive, sessionGameEvent, showRevealCeremony, specialApplied, template.width]);
 
   useEffect(() => {
     if (!sessionGameActive || specialDiscovered?.kind !== 'artifact') return undefined;
@@ -1249,6 +1294,22 @@ export default function ProgressiveColoringSession({
     }
   }
 
+  const showRevealCeremony = useCallback(({ kind = 'fragment', bounds = null, cells = 0 } = {}) => {
+    const normalizedBounds = normalizeRevealBounds(bounds, template.width, template.height);
+    const token = `${kind}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+    setRevealCeremony({
+      token,
+      kind,
+      bounds: normalizedBounds,
+      cells: Math.max(0, Number(cells) || 0),
+    });
+    if (revealCeremonyTimerRef.current) clearTimeout(revealCeremonyTimerRef.current);
+    revealCeremonyTimerRef.current = window.setTimeout(() => {
+      revealCeremonyTimerRef.current = null;
+      setRevealCeremony((current) => (current?.token === token ? null : current));
+    }, revealCeremonyDuration(kind, reducedMotion));
+  }, [reducedMotion, template.height, template.width]);
+
   function animateCameraTo(targetCamera, { immediate = false, onComplete } = {}) {
     cancelCameraAnimation();
     if (!targetCamera) {
@@ -1317,6 +1378,7 @@ export default function ProgressiveColoringSession({
     if (plan.artworkComplete) {
       clearGuidanceIndexRetry();
       setSmartStateValue('artworkComplete');
+      showRevealCeremony({ kind: 'artwork', cells: template.width * template.height });
       setSuccessNotice('Картина готова');
       if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
       successNoticeTimerRef.current = setTimeout(() => setSuccessNotice(null), 3600);
@@ -1768,6 +1830,7 @@ export default function ProgressiveColoringSession({
       guidanceTokenRef.current += 1;
       if (wrongNoticeTimerRef.current) clearTimeout(wrongNoticeTimerRef.current);
       if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
+      if (revealCeremonyTimerRef.current) clearTimeout(revealCeremonyTimerRef.current);
       scheduleCameraSave(cameraRef.current);
       flushCameraSave();
       announcerRef.current?.destroy();
@@ -2401,6 +2464,11 @@ export default function ProgressiveColoringSession({
           targetRemainingRef.current = Math.max(0, (targetRemainingRef.current ?? 0) - paintedInTarget);
           setGuide((current) => (current ? { ...current, targetRemaining: targetRemainingRef.current } : current));
           if (targetRemainingRef.current === 0) {
+            showRevealCeremony({
+              kind: 'fragment',
+              bounds: smartPlanRef.current?.target?.bounds,
+              cells: normalized.length,
+            });
             if (sessionGameActive && !sessionGameSpecialsArmedRef.current) {
               sessionGameSpecialsArmedRef.current = true;
               setSessionGameSpecialsArmed(true);
@@ -3008,6 +3076,12 @@ export default function ProgressiveColoringSession({
             onSessionGameSparkSelection={(option) => { selectedSparkTargetRef.current = option; }}
           />
         )}
+        <RevealCeremony
+          ceremony={revealCeremony}
+          camera={camera}
+          size={size}
+          reducedMotion={reducedMotion}
+        />
         {sparkWave && (
           <div
             className={`progressive-grid-special-wave phase2-${sparkWave.event || 'spark'}-wave`}

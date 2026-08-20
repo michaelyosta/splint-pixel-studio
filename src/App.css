@@ -2626,6 +2626,116 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .progressive-grid-special-wave-ring { width: 24px; height: 24px; flex: 0 0 auto; border: 2px solid #70e1ff; border-radius: 50%; box-shadow: 0 0 14px rgba(82, 218, 255, 0.62); animation: sparkWaveRing 1.5s ease-out both; }
 @keyframes sparkWaveIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.75); } 18% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); } }
 @keyframes sparkWaveRing { 0% { opacity: 0; transform: scale(0.35); } 50% { opacity: 0.9; } 100% { opacity: 0; transform: scale(2.8); } }
+.progressive-grid-reveal-ceremony {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  overflow: visible;
+}
+.progressive-grid-reveal-ceremony-frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border: 1px solid rgba(176, 244, 255, 0.92);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(127, 231, 255, 0.14), transparent 42%, rgba(127, 231, 255, 0.06));
+  box-shadow: 0 0 0 1px rgba(127, 231, 255, 0.12), 0 0 24px rgba(82, 218, 255, 0.34);
+  animation: phase3RevealFrame 1.45s cubic-bezier(0.18, 0.74, 0.24, 1) both;
+}
+.progressive-grid-reveal-ceremony-frame::before,
+.progressive-grid-reveal-ceremony-frame::after {
+  content: '';
+  position: absolute;
+  display: block;
+  background: rgba(229, 251, 255, 0.92);
+  box-shadow: 0 0 12px rgba(127, 231, 255, 0.84);
+}
+.progressive-grid-reveal-ceremony-frame::before {
+  top: -1px;
+  left: 10%;
+  width: 26%;
+  height: 2px;
+  animation: phase3RevealScanX 1.45s ease-out both;
+}
+.progressive-grid-reveal-ceremony-frame::after {
+  right: -1px;
+  top: 12%;
+  width: 2px;
+  height: 25%;
+  animation: phase3RevealScanY 1.45s ease-out both;
+}
+.progressive-grid-reveal-ceremony-copy {
+  position: absolute;
+  top: -31px;
+  left: 5px;
+  display: grid;
+  gap: 2px;
+  min-width: max-content;
+  padding: 5px 8px;
+  border: 1px solid rgba(127, 231, 255, 0.48);
+  border-radius: 7px;
+  background: rgba(6, 19, 29, 0.9);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.22);
+  color: #e7fbff;
+  font-size: 9px;
+  line-height: 1.15;
+  animation: phase3RevealCopy 1.45s ease-out both;
+}
+.progressive-grid-reveal-ceremony-copy small { color: #b5d1da; font-size: 8px; }
+.progressive-grid-reveal-ceremony--artwork {
+  z-index: 4;
+}
+.progressive-grid-reveal-ceremony--artwork .progressive-grid-reveal-ceremony-frame {
+  border-color: rgba(255, 232, 181, 0.96);
+  background: linear-gradient(135deg, rgba(255, 214, 145, 0.12), transparent 44%, rgba(127, 231, 255, 0.08));
+  box-shadow: 0 0 0 1px rgba(255, 214, 145, 0.16), 0 0 38px rgba(255, 190, 90, 0.28);
+}
+.progressive-grid-reveal-ceremony--artwork .progressive-grid-reveal-ceremony-frame::before,
+.progressive-grid-reveal-ceremony--artwork .progressive-grid-reveal-ceremony-frame::after {
+  background: rgba(255, 244, 211, 0.94);
+  box-shadow: 0 0 14px rgba(255, 214, 145, 0.82);
+}
+.progressive-grid-reveal-ceremony--artwork .progressive-grid-reveal-ceremony-copy {
+  border-color: rgba(255, 214, 145, 0.58);
+  color: #fff3d8;
+}
+.progressive-grid-reveal-ceremony--special .progressive-grid-reveal-ceremony-frame {
+  border-color: rgba(127, 231, 255, 0.72);
+  background: rgba(127, 231, 255, 0.035);
+  box-shadow: 0 0 0 1px rgba(127, 231, 255, 0.08), 0 0 18px rgba(82, 218, 255, 0.22);
+}
+@keyframes phase3RevealFrame {
+  0% { opacity: 0; transform: scale(0.985); }
+  18% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.012); }
+}
+@keyframes phase3RevealScanX {
+  0% { opacity: 0; transform: translateX(-20%); }
+  24% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(260%); }
+}
+@keyframes phase3RevealScanY {
+  0% { opacity: 0; transform: translateY(-15%); }
+  26% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(285%); }
+}
+@keyframes phase3RevealCopy {
+  0% { opacity: 0; transform: translateY(4px); }
+  16% { opacity: 1; transform: translateY(0); }
+  72% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progressive-grid-reveal-ceremony-frame,
+  .progressive-grid-reveal-ceremony-frame::before,
+  .progressive-grid-reveal-ceremony-frame::after,
+  .progressive-grid-reveal-ceremony-copy {
+    animation: none;
+  }
+  .progressive-grid-reveal-ceremony-frame { opacity: 1; }
+  .progressive-grid-reveal-ceremony-copy { opacity: 1; transform: none; }
+}
 .phase2-spark-auto-offer { border-color: rgba(127, 231, 255, 0.72); background: rgba(6, 19, 29, 0.9); }
 .phase2-spark-auto-offer .progressive-grid-special-title { color: #e9fbff; }
 .phase2-spark-auto-wave { border-color: rgba(127, 231, 255, 0.82); box-shadow: 0 0 0 1px rgba(112, 225, 255, 0.1), 0 0 36px rgba(82, 218, 255, 0.28); }
