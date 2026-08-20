@@ -61,6 +61,7 @@ test('Phase 2 keeps the first reveal player-authored before any special event', 
   await page.mouse.up();
   await expect(page.locator('[data-session-game-specials-armed="true"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-guide-target-remaining="0"]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-reveal-ceremony-kind="fragment"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-session-game-spark]')).toHaveCount(0);
   expect(pageErrors, pageErrors.map((error) => error.stack || error.message).join('\n')).toHaveLength(0);
 });
