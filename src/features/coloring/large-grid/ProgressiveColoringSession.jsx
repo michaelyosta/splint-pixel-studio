@@ -936,6 +936,22 @@ export default function ProgressiveColoringSession({
     return () => window.clearInterval(interval);
   }, [specialCellsDiagnosticsEnabled]);
 
+  const showRevealCeremony = useCallback(({ kind = 'fragment', bounds = null, cells = 0 } = {}) => {
+    const normalizedBounds = normalizeRevealBounds(bounds, template.width, template.height);
+    const token = `${kind}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+    setRevealCeremony({
+      token,
+      kind,
+      bounds: normalizedBounds,
+      cells: Math.max(0, Number(cells) || 0),
+    });
+    if (revealCeremonyTimerRef.current) clearTimeout(revealCeremonyTimerRef.current);
+    revealCeremonyTimerRef.current = window.setTimeout(() => {
+      revealCeremonyTimerRef.current = null;
+      setRevealCeremony((current) => (current?.token === token ? null : current));
+    }, revealCeremonyDuration(kind, reducedMotion));
+  }, [reducedMotion, template.height, template.width]);
+
   useEffect(() => {
     if (!specialOffer) return;
     // An offer is a short-lived decision state, not a modal route. Stop any
@@ -1293,22 +1309,6 @@ export default function ProgressiveColoringSession({
       autoAdvanceTimerRef.current = null;
     }
   }
-
-  const showRevealCeremony = useCallback(({ kind = 'fragment', bounds = null, cells = 0 } = {}) => {
-    const normalizedBounds = normalizeRevealBounds(bounds, template.width, template.height);
-    const token = `${kind}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-    setRevealCeremony({
-      token,
-      kind,
-      bounds: normalizedBounds,
-      cells: Math.max(0, Number(cells) || 0),
-    });
-    if (revealCeremonyTimerRef.current) clearTimeout(revealCeremonyTimerRef.current);
-    revealCeremonyTimerRef.current = window.setTimeout(() => {
-      revealCeremonyTimerRef.current = null;
-      setRevealCeremony((current) => (current?.token === token ? null : current));
-    }, revealCeremonyDuration(kind, reducedMotion));
-  }, [reducedMotion, template.height, template.width]);
 
   function animateCameraTo(targetCamera, { immediate = false, onComplete } = {}) {
     cancelCameraAnimation();
