@@ -1444,7 +1444,7 @@ export default function ProgressiveColoringSession({
     recent = null,
     immediate = false,
   } = {}) {
-    if (specialOffer) {
+    if (specialOffer || sessionGameNextBeatReady) {
       cancelAutoAdvance();
       return;
     }
@@ -2324,7 +2324,7 @@ export default function ProgressiveColoringSession({
    * application-level stroke and one canonical redraw.
    */
   function commitChanges(changes, { announce = false, wrongDetected = false, wrongCell = null, unloaded = [] } = {}) {
-    if (specialOffer) {
+    if (specialOffer || sessionGameNextBeatReady) {
       // A stroke must never be queued behind an unresolved offer. This guard
       // is a defensive boundary for a stroke that began just before the
       // offer response arrived; normal pointerdown is blocked below too.
@@ -2339,7 +2339,9 @@ export default function ProgressiveColoringSession({
         if (localIndex >= 0 && localIndex < tile.filled.length) tile.filled[localIndex] = -1;
       }
       cancelAutoAdvance();
-      setInputNotice('Сначала завершите особое событие');
+      setInputNotice(specialOffer
+        ? 'Сначала завершите особое событие'
+        : 'Выберите следующий фрагмент, чтобы продолжить');
       return;
     }
     const client = clientRef.current;
@@ -2559,10 +2561,16 @@ export default function ProgressiveColoringSession({
     // own click handlers run; capturing their pointer here prevents zone and
     // zoom navigation in touch WebViews.
     if (event.target instanceof Element && event.target.closest('button')) return;
-    if (specialOffer) {
+    if (specialOffer || sessionGameNextBeatReady) {
       event.preventDefault();
       cancelAutoAdvance();
       setInputNotice('Сначала завершите особое событие');
+      return;
+    }
+    if (sessionGameNextBeatReady) {
+      event.preventDefault();
+      cancelAutoAdvance();
+      setInputNotice('Выберите следующий фрагмент, чтобы продолжить');
       return;
     }
     if (event.pointerType === 'touch') {
