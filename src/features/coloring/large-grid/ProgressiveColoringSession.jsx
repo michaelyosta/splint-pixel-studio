@@ -2564,13 +2564,9 @@ export default function ProgressiveColoringSession({
     if (specialOffer || sessionGameNextBeatReady) {
       event.preventDefault();
       cancelAutoAdvance();
-      setInputNotice('Сначала завершите особое событие');
-      return;
-    }
-    if (sessionGameNextBeatReady) {
-      event.preventDefault();
-      cancelAutoAdvance();
-      setInputNotice('Выберите следующий фрагмент, чтобы продолжить');
+      setInputNotice(specialOffer
+        ? 'Сначала завершите особое событие'
+        : 'Выберите следующий фрагмент, чтобы продолжить');
       return;
     }
     if (event.pointerType === 'touch') {
