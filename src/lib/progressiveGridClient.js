@@ -335,6 +335,7 @@ function buildGuidanceQuery({
   tileY,
   specialId,
   sparkTreatment,
+  sessionGame,
 } = {}) {
   const params = new URLSearchParams();
   if (selectedColor != null && Number.isInteger(selectedColor)) params.set('selected_color', String(selectedColor));
@@ -351,6 +352,7 @@ function buildGuidanceQuery({
   }
   if (specialId) params.set('special_id', String(specialId));
   if (sparkTreatment != null) params.set('spark_treatment', sparkTreatment ? '1' : '0');
+  if (sessionGame != null) params.set('session_game', sessionGame ? '1' : '0');
   return params.toString();
 }
 
@@ -554,6 +556,7 @@ export function createProgressiveGridClient({
     tileY,
     specialId,
     sparkTreatment,
+    sessionGame,
     signal,
   } = {}) {
     ensureManifest();
@@ -574,6 +577,7 @@ export function createProgressiveGridClient({
       tileY,
       specialId,
       sparkTreatment,
+      sessionGame,
     });
   }
 

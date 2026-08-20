@@ -100,6 +100,7 @@ test('analytics allowlist accepts special help, core-feel, and Phase 2 experimen
     'session_game_special_selected',
     'session_game_special_applied',
     'session_game_artifact_discovered',
+    'session_game_first_manual_reveal',
     'session_game_stop',
   ]) {
     const tracked = await request('/meta/analytics', {

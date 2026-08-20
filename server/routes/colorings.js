@@ -683,6 +683,7 @@ router.get('/:id/guidance', authMiddleware, asyncRoute(async (req, res) => {
         : null,
       specialId: req.query.special_id ? String(req.query.special_id) : null,
       sparkTreatment: getSparkExperimentGroup(req.userId, template.id) === 'treatment',
+      sessionGame: req.query.session_game === '1' || req.query.session_game === 'true',
     }));
     return res.json(plan);
   } catch (error) {

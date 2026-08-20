@@ -676,6 +676,7 @@ export default function ProgressiveColoringSession({
   const [sparkWave, setSparkWave] = useState(null);
   const [artifactReveal, setArtifactReveal] = useState(null);
   const [sessionGameNextBeatReady, setSessionGameNextBeatReady] = useState(false);
+  const [sessionGameSpecialsArmed, setSessionGameSpecialsArmed] = useState(false);
   const [hasVisibleSpecialMarker, setHasVisibleSpecialMarker] = useState(false);
   const markerPhaseRef = useRef(0);
   const smartStateRef = useRef('idle');
@@ -709,13 +710,14 @@ export default function ProgressiveColoringSession({
   const keyboardCellRef = useRef(null);
   const selectedSparkTargetRef = useRef(null);
   const sessionEventOfferKeyRef = useRef('');
+  const sessionGameSpecialsArmedRef = useRef(false);
 
   const sessionGameActive = Boolean(sessionGameExperiment?.enabled);
   const sessionGameTreatment = sessionGameActive && sessionGameExperiment.variantId === 'treatment';
   const sessionGameEvent = sessionGameTreatment ? sessionGameExperiment.positiveEventId : null;
   const sessionGameAutomaticSpark = sessionGameEvent === 'spark_auto';
   const specialAllowed = (kind) => !sessionGameActive
-    || isSessionGameSpecialAllowed(sessionGameExperiment, kind);
+    || (sessionGameSpecialsArmed && isSessionGameSpecialAllowed(sessionGameExperiment, kind));
 
   useEffect(() => {
     const action = autoSparkActionForOffer(specialOffer);
@@ -864,7 +866,7 @@ export default function ProgressiveColoringSession({
     // The tiled client/cache is stable for this mounted session; the camera
     // and load status are the visible-relevance signals.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camera, lodMode, manifestReady, onVisibleSpecialKinds, progress?.revision, reconciledChanges, sessionGameActive, size.height, size.width, specialApplied, specialTreatment, status]);
+  }, [camera, lodMode, manifestReady, onVisibleSpecialKinds, progress?.revision, reconciledChanges, sessionGameActive, sessionGameSpecialsArmed, size.height, size.width, specialApplied, specialTreatment, status]);
   const specialCellsDiagnosticsEnabled = isSpecialCellsDiagnosticsEnabled(import.meta.env);
   const specialCellsSnapshot = specialCellsDiagnosticsEnabled
     ? buildSpecialCellsDiagnosticsSnapshot({
@@ -1461,6 +1463,7 @@ export default function ProgressiveColoringSession({
         tileX,
         tileY,
         sparkTreatment: specialTreatment,
+        sessionGame: sessionGameActive,
       });
       if (token !== guidanceTokenRef.current) return;
       if (isStaleGuidance(plan, committedRevisionRef.current)) {
@@ -1811,6 +1814,8 @@ export default function ProgressiveColoringSession({
     cancelAutoAdvance();
     cancelCameraAnimation();
     previousSpecialOfferRef.current = null;
+    sessionGameSpecialsArmedRef.current = false;
+    setSessionGameSpecialsArmed(false);
     setManifestReady(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template.id]);
@@ -1968,6 +1973,42 @@ export default function ProgressiveColoringSession({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lodMode, viewportPlanKey]);
+
+  useEffect(() => {
+    if (!specialOffer || !manifestReady || !size.width || !size.height) return undefined;
+    const client = clientRef.current;
+    if (!client) return undefined;
+    const option = specialOffer.target_options?.find((candidate) => (
+      candidate.option_id === specialOffer.default_option_id
+    )) || specialOffer.target_options?.[0];
+    const tileX = option?.tile_x != null
+      ? Number(option.tile_x)
+      : Number.isFinite(Number(specialOffer.center_x))
+        ? Math.floor(Number(specialOffer.center_x) / 32)
+        : null;
+    const tileY = option?.tile_y != null
+      ? Number(option.tile_y)
+      : Number.isFinite(Number(specialOffer.center_y))
+        ? Math.floor(Number(specialOffer.center_y) / 32)
+        : null;
+    if (!Number.isInteger(tileX) || !Number.isInteger(tileY)) return undefined;
+    // A recovered offer is still a player-facing Canvas state. Load its tile
+    // before showing the panel so the decision never floats over a blank
+    // spinner/overview. This does not move the camera or enter the pointermove
+    // path; it only makes the persisted event visually reviewable.
+    setLodMode(GRID_LOD_MODE.WORK);
+    const controller = new AbortController();
+    client.fetchTile(tileX, tileY, { signal: controller.signal })
+      .then(() => {
+        if (controller.signal.aborted) return;
+        markFirstTile();
+        redraw((value) => value + 1);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+    // The offer identity and manifest own this bounded preload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manifestReady, specialOffer, size.height, size.width]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const draw = useCallback(() => {
@@ -2334,12 +2375,15 @@ export default function ProgressiveColoringSession({
         session_game: sessionGameActive,
         experiment_group: 'treatment',
       } : null;
+      const gatedSpecialAction = sessionGameActive && !sessionGameSpecialsArmedRef.current
+        ? null
+        : specialAction;
       onStrokeCommitted?.(normalized, {
         type: 'stroke',
         timestamp: Date.now(),
         changes: normalized,
         color: normalized[0].to,
-      }, specialAction);
+      }, gatedSpecialAction);
       try {
         window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
       } catch {
@@ -2355,6 +2399,17 @@ export default function ProgressiveColoringSession({
           targetRemainingRef.current = Math.max(0, (targetRemainingRef.current ?? 0) - paintedInTarget);
           setGuide((current) => (current ? { ...current, targetRemaining: targetRemainingRef.current } : current));
           if (targetRemainingRef.current === 0) {
+            if (sessionGameActive && !sessionGameSpecialsArmedRef.current) {
+              sessionGameSpecialsArmedRef.current = true;
+              setSessionGameSpecialsArmed(true);
+              metaApi.track('session_game_first_manual_reveal', {
+                template_id: template.id,
+                session_id: sessionIdRef.current,
+                manual_cells: Number(smartPlanRef.current?.target?.estimated_cells || 0),
+              }).catch(() => {});
+              setHasVisibleSpecialMarker(false);
+              onVisibleSpecialKinds?.([]);
+            }
             setSuccessNotice('Участок готов');
             if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
             successNoticeTimerRef.current = setTimeout(() => setSuccessNotice(null), 1600);
@@ -2837,12 +2892,16 @@ export default function ProgressiveColoringSession({
       data-grid-width={template.width}
       data-grid-height={template.height}
       data-lod-mode={lodMode}
+      data-camera-x={Number.isFinite(camera.x) ? camera.x : ''}
+      data-camera-y={Number.isFinite(camera.y) ? camera.y : ''}
+      data-camera-zoom={Number.isFinite(camera.zoom) ? camera.zoom : ''}
       data-tile-error-count={tileErrorCount}
       data-smart-state={smartState}
       data-smart-color={smartPlanRef.current?.selectedColor == null ? '' : smartPlanRef.current.selectedColor}
       data-smart-target-tile={smartPlanRef.current?.target == null
         ? ''
         : `${smartPlanRef.current.target.tile_x}:${smartPlanRef.current.target.tile_y}`}
+      data-session-game-specials-armed={sessionGameSpecialsArmed ? 'true' : 'false'}
       data-smart-target-x={smartPlanRef.current?.target?.anchor_x == null ? '' : smartPlanRef.current.target.anchor_x}
       data-smart-target-y={smartPlanRef.current?.target?.anchor_y == null ? '' : smartPlanRef.current.target.anchor_y}
       data-special-treatment={specialTreatment ? 'treatment' : 'control'}

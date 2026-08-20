@@ -12,6 +12,7 @@ import {
 import { LruTileCache, normalizeTilePayload } from '../src/features/coloring/large-grid/tileCache.js';
 import {
   createProgressiveGridClient,
+  loadGuidance,
   loadGridManifest,
 } from '../src/lib/progressiveGridClient.js';
 
@@ -87,6 +88,37 @@ test('manifest loader keeps a 1200x1200 manifest metadata-only', async () => {
   assert.equal('filled' in manifest, false);
   assert.equal('cells' in manifest.template, false);
   assert.equal(manifest.grid.tileSize, TILE_SIZE);
+});
+
+test('guidance client carries the Phase 2 session-game gate to the server', async () => {
+  const calls = [];
+  const guidance = await loadGuidance({
+    url: '/api/colorings/phase2-fixture/guidance',
+    templateId: 'phase2-fixture',
+    sessionGame: true,
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return jsonResponse({
+        schema_version: 1,
+        template_id: 'phase2-fixture',
+        progress_revision: 0,
+        reason: 'INITIAL_TARGET',
+        selected_color: 0,
+        global_remaining_for_color: 8,
+        target: {
+          tile_x: 0,
+          tile_y: 0,
+          anchor_x: 2,
+          anchor_y: 2,
+          bounds: { min_x: 0, min_y: 0, max_x: 4, max_y: 4, width: 5, height: 5 },
+          estimated_cells: 8,
+          color: 0,
+        },
+      });
+    },
+  });
+  assert.equal(guidance.target.estimated_cells, 8);
+  assert.match(calls[0], /session_game=1/);
 });
 
 test('overview zoom uses the preview contract and does not request detail tiles', async () => {
