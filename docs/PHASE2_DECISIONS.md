@@ -67,6 +67,30 @@ gate conservative and may delay a rare event by one additional fragment.
 
 **REVERSIBLE:** Yes.
 
+## DECISION: add a bounded Canvas-first reveal ceremony before locking the event winner
+
+**EVIDENCE:** The Phase 2 slice now proves the manual fragment transition and
+the independent visual review found that event cards can compete with the
+artwork. A pure helper, reduced-motion fallback, fresh Chromium assertion, and
+417-test root suite keep the ceremony bounded and input-safe.
+
+**ALTERNATIVES:** add more particles/HUD; wait for a Special winner first;
+build a full completion/progression ceremony.
+
+**WHY CHOSEN:** The ceremony increases the payoff of the action already made by
+the player without adding a new economy, camera steal, backend contract, or
+event family. It is a reversible Phase 3 visual slice, not a claim that the
+effect is emotionally proven.
+
+**RISK:** The frame/copy may still read as a system overlay, and the positive
+event score remains split between agency-safe Choice and visually stronger
+Automatic Spark.
+
+**VALIDATION DEBT:** VD-PHASE3-VISUAL-001 and VD-PHASE2-P1-001.
+
+**REVERSIBLE:** Yes. Remove the overlay or tune its CSS without touching the
+authoritative painting contract.
+
 ## DECISION: preload the persisted event tile before rendering a recovered offer
 
 **EVIDENCE:** Browser review showed an offer over `Загружаем фрагмент поля…` or

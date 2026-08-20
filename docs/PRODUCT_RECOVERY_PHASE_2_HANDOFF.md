@@ -1,6 +1,6 @@
 # Splint Product Recovery — Phase 2 Handoff
 
-Статус этой поставки: **SUCCESS_WITH_VALIDATION_DEBT — READY FOR CORE/PHASE 2 PLAYTEST**.
+Статус этой поставки: **SUCCESS_WITH_VALIDATION_DEBT — PHASE 2 MACHINE/AGENT PASS; PHASE 3 CEREMONY INTEGRATED**.
 
 Это означает, что vertical slice собран, серверный контракт и automated regression checks проходят. Это **не** означает, что удовольствие, желание продолжить или retention доказаны: для этого нужны настоящие игроки на Telegram device.
 
@@ -106,7 +106,7 @@ recovered offer tile, and hidden XP-facing toast in the session slice.
 Пройдено в Phase 2 worktree:
 
 - `npm.cmd run build` — PASS;
-- root tests — 412 PASS;
+- root tests — 417 PASS;
 - `npm.cmd --prefix server test` — 363 PASS / 65 skipped / 0 failed;
 - `server/test/tiled-guidance.test.js` — 11 PASS;
 - `server/test/tiled-specials.integration.test.js` — 20 PASS;
@@ -114,11 +114,20 @@ recovered offer tile, and hidden XP-facing toast in the session slice.
 - session-game/simulator/client unit tests — 25 focused PASS;
 - `npx playwright test e2e/phase2-session-game.spec.js --project=chromium` — 1 PASS;
 - `npx playwright test e2e/phase2-positive-events.spec.js --project=chromium` — 2 PASS;
-- `npx playwright test e2e/phase2-manual-first-reveal.spec.js --project=chromium` — 1 PASS;
+- `npx playwright test e2e/phase2-manual-first-reveal.spec.js --project=chromium` — 1 PASS, including a Canvas-first ceremony assertion and `pageerror` guard;
+- `node --test test/revealCeremony.test.js` — 4 PASS;
 - `git diff --check` — PASS;
 - pinned Oxlint 1.74.0 — 93 existing warnings, no new changed-file warning observed; npm lint in the empty worktree would otherwise install a newer tool and exceed the repository budget.
 
-Input/performance guardrails retained: pointermove hot path, tile-bounded Canvas work, Stroke Engine, bounded cache, reduced-motion branch, sound-off compatibility, offline/reload persistence.
+Input/performance guardrails retained: pointermove hot path, tile-bounded Canvas work, Stroke Engine, bounded cache, reduced-motion branch, sound-off compatibility, offline/reload persistence. The ceremony is CSS/DOM-only and bounded to the active fragment bounds; it does not change camera or tile loading.
+
+Phase 3 bounded visual slice:
+
+- fragment completion: short frame/scan and ownership copy on the Canvas;
+- Special reveal: same restrained language, lower emphasis;
+- artwork completion: longer warm-toned ceremony;
+- reduced motion: no animation, shorter bounded duration;
+- no backend, progression, currency, social, or new Special mechanics.
 
 ## 9. Что пока не проверено
 
@@ -129,8 +138,10 @@ Input/performance guardrails retained: pointermove hot path, tile-bounded Canvas
 - визуальная доступность overlay на всех реальных safe-area размерах.
 
 До этих проверок нельзя объявлять core enjoyment доказанным, возвращать новые
-Special Cells или строить retention/meta слой. Reversible Phase 3 visual work
-может продолжаться как validation debt, но не должен менять core event choice.
+Special Cells или строить retention/meta слой. Event-choice evidence остаётся
+конфликтным: Spark choice безопаснее по agency, а visual red-team предпочёл
+Automatic Spark из-за ложного выбора. Поэтому текущая ветка сохраняет
+`spark_choice` baseline и оставляет `spark_auto`/Bomb query-gated.
 
 ## 10. Что должен оценить владелец руками
 

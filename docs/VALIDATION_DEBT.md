@@ -12,9 +12,10 @@ before assisted throughput appears.
 Status: OPEN — provisional baseline accepted for continued Phase 2/3 work.
 
 Agent evidence: automated Phase 0/1 and Phase 2 tests, a Chromium pointer-stroke
-first-reveal test, browser route checks, Canvas/application-state checks, and
-preserved input/reload guardrails. Current root suite: 412 passed; server suite:
-363 passed / 65 skipped; Phase 2 Chromium slice: 5 passed.
+first-reveal test with a page-error assertion, browser route checks,
+Canvas/application-state checks, and preserved input/reload guardrails. Current
+root suite: 417 passed; server suite: 363 passed / 65 skipped; fresh Phase 2
+Chromium slice: 4 passed.
 
 Human evidence missing: 8–12 observed players on real Telegram Android/iOS
 devices, including treatment/control comparison and verbal authorship feedback.
@@ -27,6 +28,32 @@ Does NOT block: reversible Phase 2 prototypes, simulator work, and agent review.
 
 Provisional decision: keep the player-authored reveal contract as the baseline;
 do not restore meta noise or broad Special Cells while evidence is collected.
+
+## VD-PHASE3-VISUAL-001
+
+Hypothesis: a short Canvas-first reveal ceremony makes a completed fragment or
+artwork feel visibly authored without turning the HUD into the reward.
+
+Status: OPEN — provisional ceremony integrated behind the existing tiled path.
+
+Agent evidence: pure bounds/camera helper tests (4/4), fresh manual-first-reveal
+Chromium E2E with the ceremony assertion, reduced-motion CSS fallback, and full
+root suite (417/417).
+
+Human evidence missing: blinded visual preference, perceived authorship,
+calmness, safe-area readability, and whether the overlay increases desire to do
+the next fragment on real Telegram devices.
+
+Risk: MEDIUM. The frame may still read as a system overlay, especially when a
+Special offer is also visible.
+
+Blocks: final visual-language lock and public “memorable reveal” claim.
+
+Does NOT block: reversible ceremony iteration and continued Phase 3 machine
+verification.
+
+Provisional decision: keep the restrained Canvas-first frame/copy; do not add
+particles, currencies, completion economy, or a second ceremony family yet.
 
 ## VD-PHASE2-SPECIAL-001
 
@@ -98,3 +125,30 @@ Does NOT block: benchmark work or using the current safe preset as default.
 
 Provisional decision: keep the current safe preset until a candidate wins on
 paintability, preview/final parity, and performance together.
+
+## VD-PHASE2-P1-001
+
+Hypothesis: the positive event should be selected by authored payoff rather than
+by a nominally meaningful choice.
+
+Status: OPEN — conflicting agent evidence; no irreversible winner declared.
+
+Agent evidence: original scorecard favours Spark choice for agency (7/10), while
+the visual red-team found the two choice targets visually indistinguishable and
+recommended Automatic Spark > Choice > Bomb for the current rendered slice.
+
+Human evidence missing: blinded treatment/control comparison of authorship,
+spectacle, calmness, and “want the next beat” scores.
+
+Risk: HIGH for the event lock, but reversible because all three variants remain
+query-gated and Fuse/Hazard/Choice remain excluded.
+
+Blocks: final positive-event default and broad cohort rollout.
+
+Does NOT block: Canvas ceremony, analytics, simulator, or isolated comparison
+builds.
+
+Provisional decision: keep `spark_choice` as the agency-safe baseline in the
+current branch; treat `spark_auto` as the visual red-team candidate, not as a
+winner. Do not expand Bomb targeting until its payoff exceeds its interruption
+cost.
