@@ -32,6 +32,29 @@ test('treatment exposes only Spark and Artifact, while control exposes no specia
   assert.equal(isSessionGameSpecialAllowed(control, 'artifact'), false);
 });
 
+test('positive-event candidates keep one event family plus passive Artifact', () => {
+  const automaticSpark = resolveSessionGameExperiment(
+    '?phase2=session&phase2Variant=treatment&phase2Event=spark_auto&phase2Subject=phase2_spark_auto',
+    { DEV: true },
+  );
+  const bomb = resolveSessionGameExperiment(
+    '?phase2=session&phase2Variant=treatment&phase2Event=bomb&phase2Subject=phase2_bomb',
+    { DEV: true },
+  );
+  assert.equal(automaticSpark.positiveEventId, 'spark_auto');
+  assert.equal(automaticSpark.positiveEvent.mode, 'automatic');
+  assert.deepEqual(automaticSpark.variant.allowedSpecialKinds, ['spark', 'artifact']);
+  assert.equal(isSessionGameSpecialAllowed(automaticSpark, 'spark'), true);
+  assert.equal(isSessionGameSpecialAllowed(automaticSpark, 'bomb'), false);
+  assert.equal(isSessionGameSpecialAllowed(automaticSpark, 'artifact'), true);
+  assert.equal(bomb.positiveEventId, 'bomb');
+  assert.equal(bomb.positiveEvent.mode, 'spatial');
+  assert.deepEqual(bomb.variant.allowedSpecialKinds, ['bomb', 'artifact']);
+  assert.equal(isSessionGameSpecialAllowed(bomb, 'bomb'), true);
+  assert.equal(isSessionGameSpecialAllowed(bomb, 'spark'), false);
+  assert.equal(isSessionGameSpecialAllowed(bomb, 'artifact'), true);
+});
+
 test('subject IDs are opt-in dev auth only and are bounded', () => {
   const valid = getSessionGameDevSubject(
     '?phase2=session&phase2Subject=phase2_human_7',

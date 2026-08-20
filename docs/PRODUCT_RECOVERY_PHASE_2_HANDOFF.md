@@ -16,6 +16,14 @@ Phase 2 ограничен одной гипотезой: ручная раск�
 - явная пауза после Spark и кнопка «Пауза» в top bar;
 - минимальные события для будущего сравнения.
 
+В отдельном reversible candidate slice доступны два сравнимых positive-event
+knob-а (по умолчанию остаётся `spark_choice`): `phase2Event=spark_auto`
+автоматически применяет один server-selected Spark target после ручного
+trigger, а `phase2Event=bomb` оставляет один spatial confirm для bounded Bomb
+reveal. Оба варианта сохраняют пассивный Artifact и исключают Fuse, Choice и
+Hazard. Это agent prototype для scorecard, а не доказанный winner; подробное
+сравнение находится в `docs/PHASE2_POSITIVE_EVENT_SCORECARD.md`.
+
 В control специальные события полностью скрыты в клиентском slice. Fuse, Hazard, Choice и Bomb не показываются в этом эксперименте. Их production implementation и серверная инфраструктура не удалялись.
 
 Не менялись: Stars, магазин, social feed, XP/progression architecture, новые виды Special Cells, 1200×1200 как отдельный продуктовый режим и backend migration strategy.

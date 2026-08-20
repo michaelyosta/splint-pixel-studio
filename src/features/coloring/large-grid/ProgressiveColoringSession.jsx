@@ -222,6 +222,7 @@ function BombOfferPanel({
   cameraRef,
   sizeRef,
   defaultCenter = null,
+  sessionGameEvent = null,
 }) {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const cameraCenter = guidanceCameraCenter(cameraRef.current, sizeRef.current, CELL_SIZE);
@@ -241,6 +242,40 @@ function BombOfferPanel({
     return next;
   });
   const radius = Number(specialOffer.radius) || 3;
+  const phase2Spatial = sessionGameEvent === 'bomb';
+  if (phase2Spatial) {
+      return (
+      <div
+        className="progressive-grid-special-offer progressive-grid-bomb-offer phase2-bomb-offer"
+        role="dialog"
+        aria-label="Бомба: раскрыть участок"
+        data-special-kind="bomb"
+        data-phase2-bomb
+        data-special-supported="true"
+        data-bomb-center-x={center.x}
+        data-bomb-center-y={center.y}
+      >
+        <span className="progressive-grid-special-title">Бомба: раскрыть участок</span>
+        <span className="progressive-grid-special-kind" aria-hidden="true">Бомба</span>
+        <span className="progressive-grid-special-detail">Один спокойный взрыв · радиус {radius}</span>
+        <button
+          type="button"
+          data-special-action="use"
+          data-phase2-bomb-use
+          data-bomb-use
+          onClick={() => onSpecialAction?.({
+            type: 'use_bomb',
+            special_id: specialOffer.special_id,
+            offer_token: specialOffer.offer_token,
+            center_x: center.x,
+            center_y: center.y,
+            session_game: true,
+            experiment_group: 'treatment',
+          })}
+        >Раскрыть здесь</button>
+      </div>
+    );
+  }
   return (
     <div
       className="progressive-grid-special-offer progressive-grid-bomb-offer"
@@ -324,7 +359,7 @@ function BombOfferPanel({
 
 function SpecialOfferPanel({
   specialOffer, onSpecialAction, cameraRef, sizeRef, clientRef, autoSparkRetry, onRetryAutoSpark,
-  sessionGameActive = false, onSessionGameSparkSelection,
+  sessionGameActive = false, sessionGameEvent = null, onSessionGameSparkSelection,
 }) {
   const kind = offerKind(specialOffer);
   const visual = specialKindVisual(kind);
@@ -341,6 +376,7 @@ function SpecialOfferPanel({
                 ? { x: Number(specialOffer.center_x), y: Number(specialOffer.center_y) }
                 : findSpecialCellCenter(clientRef.current, specialOffer.special_id)
             }
+            sessionGameEvent={sessionGameEvent}
       />
     );
   }
@@ -469,6 +505,32 @@ function SpecialOfferPanel({
     option.option_id === specialOffer.default_option_id
   )) || specialOffer.target_options[0];
   const estimated = Math.max(0, Number(target?.estimated_cells) || 0);
+  if (sessionGameActive && sessionGameEvent === 'spark_auto') {
+    return (
+      <div
+        className="progressive-grid-special-offer progressive-grid-spark-offer phase2-spark-auto-offer"
+        role="status"
+        aria-live="polite"
+        aria-label="Искра раскрывает участок"
+        data-special-kind="spark"
+        data-session-game-spark
+        data-session-game-spark-auto
+        data-special-supported="true"
+        data-special-interaction-cost="0"
+      >
+        <span className="progressive-grid-special-title">Искра проходит по фрагменту…</span>
+        <span className="progressive-grid-special-kind" aria-hidden="true">{visual.label}</span>
+        <span className="progressive-grid-special-detail progressive-grid-spark-contract">
+          Участок раскроется целиком · {estimated} клеток
+        </span>
+        {autoSparkRetry && (
+          <button type="button" data-special-action="retry" onClick={onRetryAutoSpark}>
+            Повторить раскрытие
+          </button>
+        )}
+      </div>
+    );
+  }
   if (sessionGameActive) {
     return (
       <div
@@ -646,9 +708,12 @@ export default function ProgressiveColoringSession({
   const successNoticeTimerRef = useRef(null);
   const keyboardCellRef = useRef(null);
   const selectedSparkTargetRef = useRef(null);
+  const sessionEventOfferKeyRef = useRef('');
 
   const sessionGameActive = Boolean(sessionGameExperiment?.enabled);
   const sessionGameTreatment = sessionGameActive && sessionGameExperiment.variantId === 'treatment';
+  const sessionGameEvent = sessionGameTreatment ? sessionGameExperiment.positiveEventId : null;
+  const sessionGameAutomaticSpark = sessionGameEvent === 'spark_auto';
   const specialAllowed = (kind) => !sessionGameActive
     || isSessionGameSpecialAllowed(sessionGameExperiment, kind);
 
@@ -675,6 +740,51 @@ export default function ProgressiveColoringSession({
       setAutoSparkRetryKey(key);
     });
   }, [sessionGameActive, specialOffer, onSpecialAction, autoSparkAttempt]);
+
+  // Automatic Spark is deliberately a client-side event candidate on top of
+  // the existing server-authoritative offer. The server still chooses and
+  // bounds the target; this effect only removes a redundant choice modal and
+  // sends the single default target intent once per persisted offer.
+  useEffect(() => {
+    if (!sessionGameAutomaticSpark || !specialOffer || offerKind(specialOffer) !== 'spark'
+      || typeof onSpecialAction !== 'function') {
+      if (!specialOffer) sessionEventOfferKeyRef.current = '';
+      return;
+    }
+    const target = specialOffer.target_options?.find((option) => (
+      option.option_id === specialOffer.default_option_id
+    )) || specialOffer.target_options?.[0];
+    if (!target?.option_id || !specialOffer.offer_token) return;
+    const key = `${specialOffer.special_id}:${specialOffer.offer_token}:${target.option_id}`;
+    if (sessionEventOfferKeyRef.current === key) return;
+    sessionEventOfferKeyRef.current = key;
+    selectedSparkTargetRef.current = target;
+    setAutoSparkRetryKey('');
+    Promise.resolve(onSpecialAction({
+      type: 'use_spark',
+      special_id: specialOffer.special_id,
+      offer_token: specialOffer.offer_token,
+      option_id: target.option_id,
+      session_game: true,
+      experiment_group: 'treatment',
+    })).then((accepted) => {
+      if (sessionEventOfferKeyRef.current !== key || accepted) return;
+      sessionEventOfferKeyRef.current = '';
+      setAutoSparkRetryKey(autoSparkActionKey({
+        special_id: specialOffer.special_id,
+        offer_token: specialOffer.offer_token,
+        option_id: target.option_id,
+      }));
+    }).catch(() => {
+      if (sessionEventOfferKeyRef.current !== key) return;
+      sessionEventOfferKeyRef.current = '';
+      setAutoSparkRetryKey(autoSparkActionKey({
+        special_id: specialOffer.special_id,
+        offer_token: specialOffer.offer_token,
+        option_id: target.option_id,
+      }));
+    });
+  }, [autoSparkAttempt, onSpecialAction, sessionGameAutomaticSpark, specialOffer]);
 
   function retryAutoSpark() {
     const key = autoSparkActionKey(autoSparkActionForOffer(specialOffer));
@@ -821,19 +931,39 @@ export default function ProgressiveColoringSession({
   }, [specialApplied, specialTreatment, template.width]);
 
   useEffect(() => {
-    if (!specialApplied || specialApplied.kind !== 'spark' || !specialApplied.changes?.length) return undefined;
+    if (!specialApplied || !['spark', 'bomb'].includes(specialApplied.kind)
+      || !specialApplied.changes?.length) return undefined;
     const selected = selectedSparkTargetRef.current;
+    const changes = specialApplied.changes || [];
+    const indices = changes
+      .map((change) => Number(change.index))
+      .filter((index) => Number.isInteger(index) && index >= 0);
+    const changeBounds = indices.length
+      ? {
+        min_x: Math.min(...indices.map((index) => index % template.width)),
+        min_y: Math.min(...indices.map((index) => Math.floor(index / template.width))),
+        max_x: Math.max(...indices.map((index) => index % template.width)),
+        max_y: Math.max(...indices.map((index) => Math.floor(index / template.width))),
+      }
+      : null;
+    const event = specialApplied.kind === 'bomb'
+      ? 'bomb'
+      : sessionGameEvent === 'spark_auto' ? 'spark_auto' : 'spark_choice';
     setSparkWave({
       revision: specialApplied.revision,
       cells: specialApplied.changes.length,
-      bounds: selected?.bounds || null,
-      label: selected?.label || 'Выбранный фрагмент',
+      bounds: selected?.bounds || changeBounds,
+      label: specialApplied.kind === 'bomb'
+        ? 'Пространство вокруг точки раскрылось'
+        : selected?.label || 'Выбранный фрагмент',
       phase2: sessionGameActive,
+      event,
     });
+    if (sessionGameActive) setSessionGameNextBeatReady(true);
     selectedSparkTargetRef.current = null;
     const timer = window.setTimeout(() => setSparkWave(null), reducedMotion ? 700 : 1500);
     return () => window.clearTimeout(timer);
-  }, [reducedMotion, sessionGameActive, specialApplied]);
+  }, [reducedMotion, sessionGameActive, sessionGameEvent, specialApplied, template.width]);
 
   useEffect(() => {
     if (!sessionGameActive || specialDiscovered?.kind !== 'artifact') return undefined;
@@ -1967,11 +2097,17 @@ export default function ProgressiveColoringSession({
       const width = (Number(bounds.max_x) - Number(bounds.min_x) + 1) * CELL_SIZE;
       const height = (Number(bounds.max_y) - Number(bounds.min_y) + 1) * CELL_SIZE;
       if ([x, y, width, height].every(Number.isFinite)) {
+        const bombWave = sparkWave.event === 'bomb';
+        const automaticSparkWave = sparkWave.event === 'spark_auto';
         ctx.save();
-        ctx.strokeStyle = 'rgba(127, 231, 255, 0.95)';
+        ctx.strokeStyle = bombWave ? 'rgba(255, 145, 130, 0.96)' : 'rgba(127, 231, 255, 0.95)';
         ctx.lineWidth = 3 / Math.max(camera.zoom, 0.1);
-        ctx.shadowColor = 'rgba(82, 218, 255, 0.82)';
+        ctx.shadowColor = bombWave ? 'rgba(255, 111, 92, 0.72)' : 'rgba(82, 218, 255, 0.82)';
         ctx.shadowBlur = 14 / Math.max(camera.zoom, 0.1);
+        if (automaticSparkWave) {
+          ctx.fillStyle = 'rgba(112, 225, 255, 0.07)';
+          ctx.fillRect(x + 2, y + 2, Math.max(0, width - 4), Math.max(0, height - 4));
+        }
         ctx.strokeRect(x + 2, y + 2, Math.max(0, width - 4), Math.max(0, height - 4));
         ctx.restore();
       }
@@ -2806,20 +2942,23 @@ export default function ProgressiveColoringSession({
             autoSparkRetry={autoSparkRetryKey === autoSparkActionKey(autoSparkActionForOffer(specialOffer))}
             onRetryAutoSpark={retryAutoSpark}
             sessionGameActive={sessionGameActive}
+            sessionGameEvent={sessionGameEvent}
             onSessionGameSparkSelection={(option) => { selectedSparkTargetRef.current = option; }}
           />
         )}
         {sparkWave && (
           <div
-            className="progressive-grid-special-wave"
+            className={`progressive-grid-special-wave phase2-${sparkWave.event || 'spark'}-wave`}
             role="status"
             data-special-wave
-            data-special-wave-kind="spark"
+            data-special-wave-kind={sparkWave.event || 'spark'}
             data-special-wave-cells={String(sparkWave.cells)}
           >
             <span className="progressive-grid-special-wave-ring" aria-hidden="true" />
             <span>
-              <b>{sparkWave.phase2 ? 'Участок раскрыт' : 'Spark wave'}</b>
+              <b>{sparkWave.phase2
+                ? (sparkWave.event === 'bomb' ? 'Взрыв раскрыл участок' : 'Участок раскрыт')
+                : 'Spark wave'}</b>
               <small>{sparkWave.phase2 ? sparkWave.label : `${sparkWave.cells} cells filled by the selected target`}</small>
             </span>
           </div>
@@ -2835,9 +2974,10 @@ export default function ProgressiveColoringSession({
         )}
         {artifactReveal && (
           <div
-            className="progressive-grid-artifact-reveal"
+            className="progressive-grid-artifact-reveal phase2-artifact-discovery"
             role="status"
             data-session-game-artifact
+            data-phase2-artifact-discovery
             data-artifact-fragments={String(artifactReveal.fragments)}
             data-artifact-complete={String(artifactReveal.complete)}
           >

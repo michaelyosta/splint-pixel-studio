@@ -2626,6 +2626,17 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .progressive-grid-special-wave-ring { width: 24px; height: 24px; flex: 0 0 auto; border: 2px solid #70e1ff; border-radius: 50%; box-shadow: 0 0 14px rgba(82, 218, 255, 0.62); animation: sparkWaveRing 1.5s ease-out both; }
 @keyframes sparkWaveIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.75); } 18% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); } }
 @keyframes sparkWaveRing { 0% { opacity: 0; transform: scale(0.35); } 50% { opacity: 0.9; } 100% { opacity: 0; transform: scale(2.8); } }
+.phase2-spark-auto-offer { border-color: rgba(127, 231, 255, 0.72); background: rgba(6, 19, 29, 0.9); }
+.phase2-spark-auto-offer .progressive-grid-special-title { color: #e9fbff; }
+.phase2-spark-auto-wave { border-color: rgba(127, 231, 255, 0.82); box-shadow: 0 0 0 1px rgba(112, 225, 255, 0.1), 0 0 36px rgba(82, 218, 255, 0.28); }
+.phase2-spark-auto-wave .progressive-grid-special-wave-ring { border-color: #a9f3ff; box-shadow: 0 0 18px rgba(82, 218, 255, 0.72); }
+.phase2-bomb-offer { border-color: rgba(255, 126, 116, 0.78); background: rgba(29, 11, 12, 0.93); }
+.phase2-bomb-offer .progressive-grid-special-title { color: #ffe9e5; }
+.phase2-bomb-offer .progressive-grid-special-detail { color: #e2b5ae; }
+.phase2-bomb-wave { border-color: rgba(255, 145, 130, 0.84); background: rgba(29, 11, 12, 0.9); box-shadow: 0 0 0 1px rgba(255, 145, 130, 0.1), 0 0 34px rgba(255, 111, 92, 0.3); }
+.phase2-bomb-wave .progressive-grid-special-wave-ring { border-color: #ffb1a5; box-shadow: 0 0 18px rgba(255, 111, 92, 0.68); }
+.phase2-bomb-offer [data-phase2-bomb-use] { border-color: rgba(255, 145, 130, 0.68); background: rgba(128, 49, 42, 0.62); color: #fff1ee; }
+.phase2-bomb-offer [data-phase2-bomb-use]:hover, .phase2-bomb-offer [data-phase2-bomb-use]:focus-visible { border-color: #ffc0b7; background: rgba(156, 60, 50, 0.8); outline: none; }
 
 .phase2-spark-offer { border-color: rgba(127, 231, 255, 0.78); background: rgba(6, 19, 29, 0.94); }
 .phase2-spark-offer .progressive-grid-special-title { color: #e9fbff; }

@@ -273,6 +273,7 @@ export function useColoringSession({
       action: actionType,
       revision: saved?.revision ?? null,
       experiment_group: specialAction.experiment_group || null,
+      positive_event: sessionGameExperiment?.positiveEventId || null,
     };
     if (saved?.special_discovered) metaApi.track('special_cell_discovered', base).catch(() => {});
     if (saved?.special_offer) metaApi.track('powerup_received', base).catch(() => {});
@@ -291,10 +292,12 @@ export function useColoringSession({
         option_count: saved.special_offer.target_options?.length || 0,
       }).catch(() => {});
     }
-    if (sessionGame && actionType === 'use_spark') {
+    if (sessionGame && (actionType === 'use_spark' || actionType === 'use_bomb')) {
       metaApi.track('session_game_special_selected', {
         ...base,
         option_id: specialAction.option_id || null,
+        center_x: specialAction.center_x == null ? null : specialAction.center_x,
+        center_y: specialAction.center_y == null ? null : specialAction.center_y,
       }).catch(() => {});
     }
     if (sessionGame && Array.isArray(saved?.special_applied_changes) && saved.special_applied_changes.length) {
@@ -414,7 +417,9 @@ export function useColoringSession({
                 setTiledSpecialApplied({
                   revision: saved.revision,
                   specialId: entry.specialAction.special_id,
-                  kind: entry.specialAction.type === 'use_spark' ? 'spark' : null,
+                  kind: entry.specialAction.type === 'use_spark'
+                    ? 'spark'
+                    : entry.specialAction.type === 'use_bomb' ? 'bomb' : null,
                   changes: saved.special_applied_changes,
                 });
                 if (!replay) {
