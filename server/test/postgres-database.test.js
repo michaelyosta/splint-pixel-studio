@@ -224,6 +224,45 @@ test('PostgreSQL financial constraints reject negative values', { skip: !databas
 async function dropAllTables(pool) {
   await pool.query(`
     DROP TABLE IF EXISTS
+      telegram_stars_support_cases,
+      telegram_stars_reconciliation_issues,
+      telegram_stars_reconciliation_runs,
+      telegram_stars_refund_requests,
+      telegram_stars_refunds,
+      telegram_stars_entitlements,
+      telegram_stars_payments,
+      telegram_stars_events,
+      telegram_stars_orders,
+      coloring_special_progress,
+      coloring_special_cells,
+      coloring_template_guidance_index_meta,
+      coloring_tiled_progress_colors,
+      coloring_tiled_progress_tile_colors,
+      coloring_template_color_counts,
+      coloring_template_tile_color_counts,
+      template_entitlements,
+      unlock_rules,
+      render_outbox,
+      weekly_challenge_progress,
+      weekly_challenges,
+      coloring_tiled_progress_tiles,
+      coloring_tiled_progress,
+      coloring_template_tiles,
+      user_template_xp_cells,
+      collection_items,
+      user_xp_events,
+      user_template_history,
+      user_favorite_templates,
+      daily_challenge_progress,
+      daily_challenges,
+      abuse_counters,
+      message_request_dedup,
+      coloring_progress_batches,
+      template_ratings,
+      moderation_actions,
+      collection_ownerships,
+      stars_ledger_entries,
+      stars_operations,
       analytics_events,
       user_achievements,
       coloring_zones,
@@ -254,6 +293,12 @@ test('PostgreSQL runMigrations is idempotent', { skip: !databaseUrl }, async (t)
   });
 
   await dropAllTables(pool);
+
+  const leftover = await pool.query(
+    "SELECT to_regclass('public.telegram_stars_orders') AS orders, to_regclass('public.telegram_stars_entitlements') AS entitlements",
+  );
+  assert.equal(leftover.rows[0].orders, null, 'Test reset must remove Telegram Stars orders');
+  assert.equal(leftover.rows[0].entitlements, null, 'Test reset must remove Telegram Stars entitlements');
 
   const result1 = await runMigrations({
     mode: 'postgres',
@@ -445,6 +490,18 @@ async function setupTestData(pool, userId, templateId) {
   );
 }
 
+// Test templates can be referenced by the daily-challenge fixture.  Remove
+// those dependent rows before deleting the template so cleanup is valid on a
+// fresh PostgreSQL schema as well as on an upgraded one.
+async function deleteTemplateFixture(pool, templateId) {
+  await pool.query(
+    'DELETE FROM daily_challenge_progress WHERE date_key IN (SELECT date_key FROM daily_challenges WHERE template_id=$1)',
+    [templateId],
+  );
+  await pool.query('DELETE FROM daily_challenges WHERE template_id=$1', [templateId]);
+  await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+}
+
 test('POSTGRES: old revision fails CAS with changes=0, not throw', { skip: !databaseUrl }, async (t) => {
   const { withTransaction } = await import('../database/transaction.js');
   const pool = await getPool();
@@ -454,7 +511,7 @@ test('POSTGRES: old revision fails CAS with changes=0, not throw', { skip: !data
   t.after(async () => {
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();
@@ -491,7 +548,7 @@ test('POSTGRES: future revision fails CAS with changes=0', { skip: !databaseUrl 
   t.after(async () => {
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();
@@ -528,7 +585,7 @@ test('POSTGRES: two concurrent PUTs with same revision — one success, one chan
   t.after(async () => {
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();
@@ -583,7 +640,7 @@ test('POSTGRES: two concurrent initial inserts — one success, one unique viola
   t.after(async () => {
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();
@@ -629,7 +686,7 @@ test('POSTGRES: pool works after CAS conflict', { skip: !databaseUrl }, async (t
   t.after(async () => {
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();
@@ -751,7 +808,7 @@ test('HTTP: initial save revision=0 returns 200 with revision=1', { skip: !datab
     const pool = await getPool();
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();
@@ -786,7 +843,7 @@ test('HTTP: second save revision=1 for JSONB returns 200 with revision=2', { ski
     const pool = await getPool();
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();
@@ -833,7 +890,7 @@ test('HTTP: old revision returns 409 with current progress', { skip: !databaseUr
     const pool = await getPool();
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();
@@ -893,7 +950,7 @@ test('HTTP: future revision returns 409', { skip: !databaseUrl }, async (t) => {
     const pool = await getPool();
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();
@@ -938,7 +995,7 @@ test('HTTP: two concurrent PUTs with same revision — one 200, one 409', { skip
     const pool = await getPool();
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();
@@ -997,7 +1054,7 @@ test('HTTP: two concurrent initial PUTs with revision=0 — one 200, one 409', {
     const pool = await getPool();
     try {
       await pool.query('DELETE FROM coloring_progress WHERE user_id=$1', [userId]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await deleteTemplateFixture(pool, templateId);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } finally {
       await pool.end();

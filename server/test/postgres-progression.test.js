@@ -176,7 +176,8 @@ test('PostgreSQL daily challenge repairs a stale seeded assignment', { skip: !da
 
   const runId = `pgstale_${Date.now()}`;
   const userId = `${runId}_user`;
-  const templateId = `${runId}_tpl`;
+  const staleTemplateId = `${runId}_stale_tpl`;
+  const eligibleTemplateId = `${runId}_eligible_tpl`;
   const now = '2026-08-09T10:00:00.000Z';
   const dateKey = now.slice(0, 10);
 
@@ -184,7 +185,7 @@ test('PostgreSQL daily challenge repairs a stale seeded assignment', { skip: !da
     try {
       await pool.query('DELETE FROM daily_challenge_progress WHERE user_id=$1', [userId]);
       await pool.query('DELETE FROM daily_challenges WHERE date_key=$1', [dateKey]);
-      await pool.query('DELETE FROM coloring_templates WHERE id=$1', [templateId]);
+      await pool.query('DELETE FROM coloring_templates WHERE id = ANY($1::text[])', [[staleTemplateId, eligibleTemplateId]]);
       await pool.query('DELETE FROM users WHERE id=$1', [userId]);
     } catch { /* best-effort cleanup */ }
     await pool.end();
@@ -196,11 +197,16 @@ test('PostgreSQL daily challenge repairs a stale seeded assignment', { skip: !da
     await tx.run(`INSERT INTO coloring_templates
       (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,source_type,visibility,status,created_at,updated_at,storage_mode,tile_size,theme,collection_id)
       VALUES (?,?,?,?, 'test', 'easy', 8, 8, ?, ?, 'catalog', 'public', 'active', ?, ?, 'legacy', 32, 'featured', NULL)`,
-    [templateId, null, templateId, templateId, JSON.stringify(['#000000', '#ffffff']), JSON.stringify(Array(64).fill(0)), now, now]);
+    [staleTemplateId, null, staleTemplateId, staleTemplateId, JSON.stringify(['#000000', '#ffffff']), JSON.stringify(Array(64).fill(0)), now, now]);
+    await tx.run(`INSERT INTO coloring_templates
+      (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,source_type,visibility,status,created_at,updated_at,storage_mode,tile_size,theme,collection_id)
+      VALUES (?,?,?,?, 'test', 'easy', 8, 8, ?, ?, 'catalog', 'public', 'active', ?, ?, 'legacy', 32, 'featured', NULL)`,
+    [eligibleTemplateId, null, eligibleTemplateId, eligibleTemplateId, JSON.stringify(['#000000', '#ffffff']), JSON.stringify(Array(64).fill(0)), now, now]);
+    await tx.run('UPDATE coloring_templates SET status=? WHERE id=?', ['hidden', staleTemplateId]);
     await tx.run('DELETE FROM daily_challenges WHERE date_key=?', [dateKey]);
     await tx.run(`INSERT INTO daily_challenges
       (date_key,template_id,target_cells,xp_reward,created_at)
-      VALUES (?, 'missing_stale_template', 5, 30, ?)`, [dateKey, now]);
+      VALUES (?, ?, 5, 30, ?)`, [dateKey, staleTemplateId, now]);
   });
 
   let challenge;
@@ -210,7 +216,7 @@ test('PostgreSQL daily challenge repairs a stale seeded assignment', { skip: !da
 
   assert.ok(challenge, 'a stale seeded daily_challenges row must be repaired');
   assert.equal(challenge.date_key, dateKey);
-  assert.notEqual(challenge.template_id, 'missing_stale_template');
+  assert.equal(challenge.template_id, eligibleTemplateId);
   const rows = await pool.query(
     `SELECT d.template_id, t.id AS joined_template, t.status, t.visibility
       FROM daily_challenges d
