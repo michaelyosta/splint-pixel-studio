@@ -1262,10 +1262,17 @@ export default function ProgressiveColoringSession({
     resumeChangeRef.current({
       selectedColor: plan.selectedColor,
       smartTargetRevision: plan.progressRevision,
+      nextBeat: {
+        kind: 'fragment',
+        tileKey: `${plan.target.tile_x}:${plan.target.tile_y}`,
+        color: plan.target.color ?? plan.selectedColor,
+        estimatedCells: plan.target.estimated_cells,
+      },
       smartTarget: {
         kind: 'tiled',
         tileKey: `${plan.target.tile_x}:${plan.target.tile_y}`,
         color: plan.target.color ?? plan.selectedColor,
+        estimatedCells: plan.target.estimated_cells,
         anchorX: plan.target.anchor_x,
         anchorY: plan.target.anchor_y,
         bounds: {

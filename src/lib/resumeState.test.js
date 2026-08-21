@@ -31,6 +31,7 @@ const base = {
     targetId: null,
     tileKey: '4:2',
     color: 3,
+    estimatedCells: null,
     anchorX: 0,
     anchorY: 0,
     bounds: null,
@@ -38,6 +39,14 @@ const base = {
     templateVersion: null,
   },
   smartTargetRevision: 7,
+  nextBeat: {
+    kind: 'fragment',
+    tileKey: '4:2',
+    targetId: null,
+    color: 3,
+    estimatedCells: 12,
+  },
+  sessionDurationBucket: 'medium',
   pendingSave: false,
   lastInteractionAt: '2026-08-15T00:00:00.000Z',
 };

@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef } from 'react';
 import { ArrowRight, Clock3, Flame, Sparkles } from 'lucide-react';
 import RecommendationsStrip from '../features/unlocks/RecommendationsStrip';
 import UnlockJourneyCard from '../features/unlocks/UnlockJourneyCard';
+import { describeResumeBeat } from '../lib/resumeBeat.js';
+import { readCurrentResumeSnapshot } from '../lib/resumeState.js';
 
-function fallbackAction(item, type) {
+function fallbackAction(item, type, resumeSnapshot = null) {
   if (!item) return null;
   const percent = item.progress?.percent || item.progress_percent || 0;
+  const resumeBeat = type === 'resume' && resumeSnapshot ? describeResumeBeat(resumeSnapshot) : null;
   return {
     id: `action_${type}_${item.id}`,
     type,
@@ -15,9 +18,10 @@ function fallbackAction(item, type) {
     reason: type === 'resume' ? 'CONTINUE_PROGRESS' : 'COLD_START',
     estimated_time: `${item.est_minutes || 3} мин`,
     reward: type === 'resume'
-      ? `Осталось ${100 - percent}% картины`
+      ? (resumeBeat?.detail || `Осталось ${100 - percent}% картины`)
       : 'Первая раскрытая картина',
     progress_percent: percent,
+    resume_beat: resumeBeat,
   };
 }
 
@@ -83,10 +87,19 @@ export default function HomeView({
       if (secondActivity !== firstActivity) return secondActivity - firstActivity;
       return String(first.id).localeCompare(String(second.id));
     })[0];
+  const persistedResume = readCurrentResumeSnapshot();
+  const persistedResumeItem = persistedResume?.artworkId
+    ? mine.find((item) => item.id === persistedResume.artworkId && hasUnfinishedProgress(item))
+    : null;
   const featured = today?.for_you || templates[0];
   const directorPrimary = director?.nextAction?.primary_action || null;
-  const primary = directorPrimary
-    || fallbackAction(continueItem, 'resume')
+  const resumeAction = fallbackAction(
+    persistedResumeItem || continueItem,
+    'resume',
+    persistedResumeItem ? persistedResume : null,
+  );
+  const primary = resumeAction
+    || directorPrimary
     || fallbackAction(featured, 'start');
   const unlockPreview = director?.nextAction?.unlock_preview || null;
 
@@ -174,12 +187,13 @@ export default function HomeView({
         type="button"
         onClick={handlePrimary}
         data-guided-action="primary"
+        data-resume-promise={primary.resume_beat ? 'true' : undefined}
       >
         <span className="home-guided-preview" style={primary.preview_url ? { backgroundImage: `url(${primary.preview_url})` } : undefined} aria-hidden="true" />
         <span className="home-guided-copy">
           <b>{primary.title}</b>
           <small>{primary.estimated_time || '3 мин'} · {primary.reward}</small>
-          <span className="home-guided-meta"><Clock3 size={13} /> {primary.type === 'resume' ? `${primary.progress_percent}% готово` : 'Начать раскрывать'}</span>
+          <span className="home-guided-meta"><Clock3 size={13} /> {primary.resume_beat?.promise || (primary.type === 'resume' ? `${primary.progress_percent}% готово` : 'Начать раскрывать')}</span>
         </span>
         <ArrowRight className="home-guided-arrow" size={18} aria-hidden="true" />
       </button>

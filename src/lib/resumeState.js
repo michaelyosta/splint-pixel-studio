@@ -1,3 +1,8 @@
+import {
+  normalizeResumeBeat,
+  normalizeSessionDurationBucket,
+} from './resumeBeat.js';
+
 export const RESUME_STATE_VERSION = 1;
 
 const CURRENT_KEY_PREFIX = 'splint:resume-current:v1:';
@@ -73,6 +78,7 @@ function normalizeSmartTarget(target) {
     targetId: typeof target.targetId === 'string' ? target.targetId : null,
     tileKey: typeof target.tileKey === 'string' ? target.tileKey : null,
     color: finiteInteger(target.color),
+    estimatedCells: finiteInteger(target.estimatedCells),
     anchorX: finiteNumber(target.anchorX),
     anchorY: finiteNumber(target.anchorY),
     bounds: target.bounds && typeof target.bounds === 'object'
@@ -111,7 +117,9 @@ export function normalizeResumeSnapshot(snapshot) {
     camera: normalizeCamera(snapshot.camera),
     selectedColor: selectedColor == null ? null : Math.max(0, selectedColor),
     smartTarget: normalizeSmartTarget(snapshot.smartTarget),
+    nextBeat: normalizeResumeBeat(snapshot.nextBeat),
     smartTargetRevision: smartTargetRevision == null ? null : Math.max(0, smartTargetRevision),
+    sessionDurationBucket: normalizeSessionDurationBucket(snapshot.sessionDurationBucket),
     pendingSave: Boolean(snapshot.pendingSave),
     lastInteractionAt,
   };

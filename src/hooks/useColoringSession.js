@@ -16,6 +16,7 @@ import {
   writeResumeSnapshot,
 } from '../lib/resumeState.js';
 import { getNextCoreFeelFragment, isCoreFeelReference } from '../features/coreFeel/coreFeelExperiment.js';
+import { classifySessionDuration } from '../lib/resumeBeat.js';
 
 export function useColoringSession({
   view,
@@ -87,6 +88,7 @@ export function useColoringSession({
   const filledRef = useRef([]);
   const zoneIndicesRef = useRef({});
   const resumeSnapshotRef = useRef(null);
+  const sessionStopRecordedRef = useRef(false);
 
   tiledSpecialOfferRef.current = tiledSpecialOffer;
 
@@ -102,10 +104,10 @@ export function useColoringSession({
       // A completed artwork is no longer a resumable Continue candidate. Keep
       // its per-artwork camera/history hint, but move the cold-start pointer
       // back to Home until the player explicitly opens another unfinished work.
-      route: completed ? 'home' : view,
+      route: completed ? 'home' : (patch.route || view),
       progressRevision: progress?.revision ?? resumeSnapshotRef.current?.progressRevision ?? 0,
       selectedColor,
-      pendingSave: saveState !== 'saved',
+      pendingSave: patch.pendingSave ?? (saveState !== 'saved'),
       lastInteractionAt: new Date().toISOString(),
     });
     if (!next) return null;
@@ -524,6 +526,7 @@ export function useColoringSession({
       resumeSnapshotRef.current = nextResume;
       setResumeSnapshot(nextResume);
       beginAnalyticsSession();
+      sessionStopRecordedRef.current = false;
       specialGroupRef.current = nextProgress.specials_experiment_group || null;
       setLatestReward(Number(nextProgress.completion_reward_xp || 0) > 0
         ? { amount: Number(nextProgress.completion_reward_xp), idempotent: true }
@@ -1006,10 +1009,39 @@ export function useColoringSession({
   }
 
   const handlePlayerSetView = useCallback((nextView) => {
-    if (nextView === 'catalog') saveQueueRef.current?.flush();
+    const leavingPlay = view === 'play' && Boolean(template?.id);
+    if (leavingPlay && (nextView === 'catalog' || nextView === 'home')) {
+      const elapsedMs = Math.max(0, Date.now() - Number(sessionStartRef.current || Date.now()));
+      const durationBucket = classifySessionDuration(elapsedMs);
+      persistResumeState({
+        route: nextView,
+        sessionDurationBucket: durationBucket,
+        pendingSave: saveState !== 'saved'
+          || (isLargeGridTemplate(template) && tiledQueueRef.current.length > 0),
+      });
+      if (!sessionStopRecordedRef.current) {
+        sessionStopRecordedRef.current = true;
+        metaApi.track('session_resume_point_saved', {
+          template_id: template.id,
+          session_id: sessionIdRef.current,
+          duration_bucket: durationBucket,
+          duration_ms: elapsedMs,
+          completed_percent: progress?.percent ?? 0,
+          next_beat: Boolean(resumeSnapshotRef.current?.nextBeat || resumeSnapshotRef.current?.smartTarget),
+          stop_route: nextView,
+        }).catch(() => {});
+      }
+    }
+    if (nextView === 'catalog' || nextView === 'home') {
+      saveQueueRef.current?.flush();
+      if (isLargeGridTemplate(template) && isOnline) {
+        flushTiledQueue().catch(() => setSaveState('pending'));
+      }
+    }
     setLockedUnlock(null);
     onNavigate(nextView);
-  }, [onNavigate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, onNavigate, progress?.percent, saveState, template, view]);
 
   const gameProgress = useMemo(() => {
     if (!template || !progress) return null;

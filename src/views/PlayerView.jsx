@@ -198,9 +198,9 @@ export default function PlayerView({
     if (!sessionGameActive) return;
     onTrack?.('session_game_stop', {
       template_id: template?.id || null,
-      reason: 'player_pause',
+      reason: 'player_save_point',
     });
-    setView('catalog');
+    setView('home');
   }, [onTrack, sessionGameActive, setView, template?.id]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hudHidden, setHudHidden] = useState(false);
@@ -426,7 +426,7 @@ export default function PlayerView({
       <div className={`player-topbar${coreFeelActive ? ' player-topbar--core-feel' : ''}`}>
         <button className="back-button" onClick={() => coreFeelActive ? leaveCoreFeelSession() : setView('catalog')} aria-label={coreFeelActive ? 'Завершить тест' : 'Назад'}><ChevronLeft size={18} /></button>
         <span className="player-topbar-title">{template.title}</span>
-        {sessionGameActive && <button type="button" className="session-game-stop-button" data-session-game-stop onClick={stopSessionGame}>Пауза</button>}
+        {sessionGameActive && <button type="button" className="session-game-stop-button" data-session-game-stop onClick={stopSessionGame}>Сохранить точку</button>}
         <span className={`save-status${saving || saveState === 'syncing' ? ' saving' : ''}${!isOnline || saveState === 'offline' ? ' offline' : ''}`} role="status" aria-live="polite">
           <span className="save-dot" aria-hidden="true" />{saveLabel}
         </span>
