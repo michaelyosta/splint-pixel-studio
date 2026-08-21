@@ -89,6 +89,7 @@ test('explicit staging-like environments default to disabled payments', () => {
 for (const [name, mutate, expected] of [
   ['DATABASE_URL', (env) => { delete env.DATABASE_URL; }, /DATABASE_URL/],
   ['S3 config', (env) => { delete env.S3_BUCKET; }, /S3_BUCKET/],
+  ['S3 HTTPS endpoint', (env) => { env.S3_ENDPOINT = 'http://s3.example.com'; }, /S3_ENDPOINT must be an HTTPS URL/],
   ['S3 driver', (env) => { env.STORAGE_DRIVER = 'local'; }, /STORAGE_DRIVER=s3/],
   ['CORS origins', (env) => { delete env.CORS_ORIGINS; }, /CORS_ORIGINS/],
   ['HTTPS CORS origin', (env) => { env.CORS_ORIGINS = 'http://app.example.com'; }, /exact HTTPS origin/],

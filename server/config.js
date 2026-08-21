@@ -55,6 +55,19 @@ function parseProxyAddress(value) {
   return value;
 }
 
+function validateProductionS3Endpoint(value) {
+  let url;
+  try {
+    url = new URL(String(value || ''));
+  } catch {
+    throw new Error('S3_ENDPOINT must be a valid HTTPS URL in production');
+  }
+  if (url.protocol !== 'https:' || url.username || url.password) {
+    throw new Error('S3_ENDPOINT must be an HTTPS URL without embedded credentials in production');
+  }
+  return url.href;
+}
+
 export function validateProductionConfiguration(env = process.env) {
   if (env.NODE_ENV !== 'production') {
     return { isProduction: false, allowedOrigins: [], trustProxy: false };
@@ -85,6 +98,7 @@ export function validateProductionConfiguration(env = process.env) {
   const missing = required.filter((name) => !String(env[name] || '').trim());
   if (env.STORAGE_DRIVER !== 's3') missing.push('STORAGE_DRIVER=s3');
   if (missing.length) throw new Error(`Missing required production configuration: ${missing.join(', ')}`);
+  validateProductionS3Endpoint(env.S3_ENDPOINT);
 
   const allowedOrigins = parseOrigins(env.CORS_ORIGINS);
   const trustProxyValues = String(env.TRUST_PROXY || '').split(',').map((value) => value.trim()).filter(Boolean);

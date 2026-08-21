@@ -49,6 +49,15 @@ surface was added.
   every explicitly named deployment environment defaults to `disabled`.
 - **Verifier:** `server/test/config.test.js`.
 
+### RC-SEC-005 — Production S3 credentials could target plain HTTP
+
+- **Risk:** presence-only validation accepted an `http://` S3 endpoint. With
+  real credentials this could expose private originals and access keys in
+  transit.
+- **Fix:** production configuration now requires an HTTPS S3 endpoint without
+  embedded credentials. Local HTTP MinIO remains a DEV/TEST concern.
+- **Verifier:** `server/test/config.test.js`.
+
 The legacy `SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE` flag is also rejected by the
 production validator. Special QA overrides and diagnostics already require an
 exact `development`/`test` environment, explicit dev auth, and an allowlisted
