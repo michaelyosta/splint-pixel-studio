@@ -253,3 +253,130 @@ Controlled, metadata-gated long-form pilot.
 
 Provisional decision:
 Keep long-form gated by segmentation and closure evidence; do not make 1200x1200 the default format.
+
+## PRODUCT-PHASE-5
+
+VD-PHASE5-PACK-001
+
+Hypothesis:
+One coherent showcase premium pack creates desire for a finished collection object rather than for acceleration or consumables.
+
+Status: OPEN — prototype/agent evidence only.
+
+Agent evidence:
+Premium pack uses existing content-quality gates and explicit free/owned/paid/unavailable states; no production payment activation.
+
+Human evidence missing:
+Pack appeal, willingness-to-buy, price sensitivity, and perceived quality.
+
+Risk:
+high for business launch, low for prototype.
+
+Blocks:
+Final price and public launch.
+
+Does NOT block:
+Store UX and entitlement integration testing.
+
+Provisional decision:
+Keep one showcase pack; do not expand paid catalog before evidence.
+
+VD-PHASE5-STARS-001
+
+Hypothesis:
+A disabled-by-default Telegram XTR adapter can make production launch a controlled configuration switch while preserving server authority.
+
+Status: OPEN — sandbox/real Telegram delivery missing.
+
+Agent evidence:
+State-machine, idempotency, duplicate/retry, delayed success, cancellation, refund and reconciliation tests with client callback treated as non-authoritative.
+
+Human evidence missing:
+Telegram Bot API sandbox/pre-checkout/payment/refund delivery and operational support drill.
+
+Risk:
+high.
+
+Blocks:
+Production payment activation.
+
+Does NOT block:
+Mocked lifecycle implementation and adversarial testing.
+
+Provisional decision:
+Keep `PAYMENTS_MODE=disabled` as default; require explicit production configuration and release decision.
+
+VD-PHASE5-SHARE-001
+
+Hypothesis:
+Before/after/final artwork deep-links are a natural Telegram distribution object.
+
+Status: OPEN — physical recipient/device validation missing.
+
+Agent evidence:
+Specific artwork/pack deep-link helpers and share-state tests.
+
+Human evidence missing:
+Android/iOS Telegram WebView, native share/story behavior, recipient re-entry.
+
+Risk:
+medium.
+
+Blocks:
+Public distribution claims.
+
+Does NOT block:
+URL construction, privacy checks and mocked share flow.
+
+Provisional decision:
+Share artwork result, never a generic Home route.
+
+VD-PHASE5-ABUSE-001
+
+Hypothesis:
+Existing durable abuse budgets plus bounded upload/conversion safeguards prevent obvious cost amplification in the pilot.
+
+Status: OPEN — adversarial production traffic and cost telemetry missing.
+
+Agent evidence:
+Existing actor-keyed counters, payload/file bounds, storage path safety, and targeted abuse tests; Phase 5 adds only P0/P1 gaps.
+
+Human evidence missing:
+Load/cost behavior under hostile traffic, alerting and operational response.
+
+Risk:
+high for public scale.
+
+Blocks:
+Unbounded public uploads/conversions.
+
+Does NOT block:
+Controlled internal premium-pack pilot.
+
+Provisional decision:
+Keep per-user/rate/size/compute safeguards and defer broad scale claims.
+
+VD-PHASE5-PIXEL-001
+
+Hypothesis:
+Exact-resolution Pixelization evidence can identify a premium-quality candidate without equating logical size to artistic quality.
+
+Status: OPEN.
+
+Agent evidence:
+Phase 4 gate remains fail-closed; no production auto-promotion.
+
+Human evidence missing:
+Independent artistic review and real-device visual preference.
+
+Risk:
+medium.
+
+Blocks:
+Premium content selection only.
+
+Does NOT block:
+Payment/store architecture work.
+
+Provisional decision:
+Treat logical and rendered resolution independently; do not market 1024/1200 as quality proof.
