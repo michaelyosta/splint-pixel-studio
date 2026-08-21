@@ -100,6 +100,12 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
   });
 
   async function dismissOnboarding(page) {
+    // The player shell mounts before the async session/template request is
+    // complete.  Waiting for the shell alone lets the overlay appear after
+    // this helper's old 5s probe, which then blocks the next HUD action.  Wait
+    // for the actual session first so this verifier observes a settled player
+    // rather than racing the onboarding effect.
+    await expect(page.locator('.coloring-session')).toBeVisible({ timeout: 15000 });
     const skipBtn = page.locator('.onboarding-card .secondary-button');
     await skipBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     if (await skipBtn.isVisible().catch(() => false)) {
