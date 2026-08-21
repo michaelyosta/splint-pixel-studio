@@ -380,3 +380,29 @@ Payment/store architecture work.
 
 Provisional decision:
 Treat logical and rendered resolution independently; do not market 1024/1200 as quality proof.
+
+VD-PHASE5-SECURITY-001
+
+Hypothesis:
+The XTR vertical slice cannot grant or retain premium access through malformed, reordered, duplicated, stale, or client-forged payment input.
+
+Status:
+OPEN — machine adversarial coverage is strong; real Telegram provider delivery is not wired.
+
+Agent evidence:
+Independent red-team reproduced numeric update-id rejection, client-price fallback, legacy-credit bypass risk, duplicate pre-checkout approval, refund-before-capture loss, duplicate product orders, and UI callback optimism. The integration now normalizes numeric update ids, requires a non-mock server product/price resolver, fails closed in production, gates legacy credits, makes pre-checkout one-shot, persists pending refund tombstones, projects active XTR access into canonical unlock facts, enforces one active product entitlement, forwards durable refund idempotency keys, and requires server-confirmed entitlement in the Store reducer. Targeted XTR tests: 16/16; canonical unlock test: PASS.
+
+Human evidence missing:
+Verified Telegram Bot API webhook delivery, provider sandbox/refund behavior, process-crash recovery with the real adapter, and production operations/support ownership.
+
+Risk:
+high until a real provider adapter is independently reviewed; low for the disabled mock slice.
+
+Blocks:
+Production payment activation, final payment security sign-off, and public purchase claims.
+
+Does NOT block:
+Continued local/agent testing, Store/entitlement UX work, or a disabled-by-default build.
+
+Provisional decision:
+Keep the XTR route unmounted and `PAYMENTS_MODE=disabled`; do not accept `stars_balance` or client callbacks as payment authority.

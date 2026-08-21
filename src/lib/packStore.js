@@ -18,9 +18,12 @@ export const PACK_STATES = Object.freeze({
 export const CHECKOUT_STATES = Object.freeze({
   IDLE: 'idle',
   PENDING: 'pending',
+  INVOICE_OPENED: 'invoice_opened',
+  PENDING_CONFIRMATION: 'pending_confirmation',
   SUCCESS: 'success',
   CANCELLED: 'cancelled',
   ERROR: 'error',
+  REFUNDED: 'refunded',
   RESTORING: 'restoring',
 });
 
@@ -165,9 +168,12 @@ export function packStateLabel(state) {
 export function checkoutStateLabel(state) {
   switch (state) {
     case CHECKOUT_STATES.PENDING: return 'Проверяем доступ…';
+    case CHECKOUT_STATES.INVOICE_OPENED: return 'Счёт открыт в Telegram';
+    case CHECKOUT_STATES.PENDING_CONFIRMATION: return 'Ожидаем подтверждение сервера…';
     case CHECKOUT_STATES.SUCCESS: return 'Доступ подтверждён';
     case CHECKOUT_STATES.CANCELLED: return 'Покупка отменена';
     case CHECKOUT_STATES.ERROR: return 'Не удалось подтвердить покупку';
+    case CHECKOUT_STATES.REFUNDED: return 'Покупка возвращена';
     case CHECKOUT_STATES.RESTORING: return 'Восстанавливаем покупки…';
     default: return '';
   }
@@ -201,6 +207,10 @@ export function reduceCheckoutState(state = checkout(CHECKOUT_STATES.IDLE), even
   switch (type) {
     case 'BEGIN':
       return checkout(CHECKOUT_STATES.PENDING, { requestId: event.requestId || null });
+    case 'INVOICE_OPENED':
+      return checkout(CHECKOUT_STATES.INVOICE_OPENED, { requestId: event.requestId || current.requestId || null });
+    case 'PENDING_CONFIRMATION':
+      return checkout(CHECKOUT_STATES.PENDING_CONFIRMATION, { requestId: event.requestId || current.requestId || null });
     case 'SUCCESS':
       return checkout(CHECKOUT_STATES.SUCCESS, {
         requestId: event.requestId || current.requestId || null,
@@ -217,6 +227,11 @@ export function reduceCheckoutState(state = checkout(CHECKOUT_STATES.IDLE), even
       return checkout(CHECKOUT_STATES.ERROR, {
         requestId: current.requestId || null,
         error: safeString(event.error, 'Не удалось подтвердить покупку'),
+      });
+    case 'REFUNDED':
+      return checkout(CHECKOUT_STATES.REFUNDED, {
+        requestId: current.requestId || null,
+        operationId: event.operationId || null,
       });
     case 'RETRY':
       return checkout(CHECKOUT_STATES.PENDING, { requestId: event.requestId || current.requestId || null });
@@ -244,7 +259,8 @@ export function reduceCheckoutState(state = checkout(CHECKOUT_STATES.IDLE), even
 export function isCheckoutTerminal(state) {
   return state?.status === CHECKOUT_STATES.SUCCESS
     || state?.status === CHECKOUT_STATES.CANCELLED
-    || state?.status === CHECKOUT_STATES.ERROR;
+    || state?.status === CHECKOUT_STATES.ERROR
+    || state?.status === CHECKOUT_STATES.REFUNDED;
 }
 
 export function isKnownPackState(state) {

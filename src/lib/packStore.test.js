@@ -68,3 +68,14 @@ test('checkout reducer covers pending, success, cancel, retry and restore withou
   assert.equal(state.status, CHECKOUT_STATES.SUCCESS);
   assert.equal(state.restored, true);
 });
+
+test('checkout reducer exposes invoice and refund states without treating them as ownership', () => {
+  let state = reduceCheckoutState(undefined, { type: 'BEGIN', requestId: 'invoice-1' });
+  state = reduceCheckoutState(state, { type: 'INVOICE_OPENED' });
+  assert.equal(state.status, CHECKOUT_STATES.INVOICE_OPENED);
+  state = reduceCheckoutState(state, { type: 'PENDING_CONFIRMATION' });
+  assert.equal(state.status, CHECKOUT_STATES.PENDING_CONFIRMATION);
+  state = reduceCheckoutState(state, { type: 'REFUNDED', operationId: 'refund-1' });
+  assert.equal(state.status, CHECKOUT_STATES.REFUNDED);
+  assert.equal(state.owned, undefined);
+});

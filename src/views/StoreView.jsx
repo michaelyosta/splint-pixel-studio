@@ -129,6 +129,10 @@ export default function StoreView({
       const result = await callback(selected);
       if (paymentResultIsCancelled(result)) {
         dispatchCheckout({ type: 'CANCEL', reason: 'user' });
+      } else if (result?.invoice_opened === true || result?.status === CHECKOUT_STATES.INVOICE_OPENED) {
+        dispatchCheckout({ type: 'INVOICE_OPENED' });
+      } else if (result?.pending_confirmation === true || result?.status === CHECKOUT_STATES.PENDING_CONFIRMATION) {
+        dispatchCheckout({ type: 'PENDING_CONFIRMATION' });
       } else if (paymentResultIsSuccessful(result)) {
         dispatchCheckout({ type: kind === 'restore' ? 'RESTORE_SUCCESS' : 'SUCCESS', operationId: result.operation_id });
         onTrack(kind === 'restore' ? 'pack_purchase_restored' : 'pack_purchase_confirmed', { collection_id: selected.id });
@@ -177,6 +181,12 @@ export default function StoreView({
 
   const checkoutEnabled = selected ? canCheckout(selected, paymentsMode) : false;
   const retryable = checkout.status === CHECKOUT_STATES.ERROR || checkout.status === CHECKOUT_STATES.CANCELLED;
+  const checkoutBusy = [
+    CHECKOUT_STATES.PENDING,
+    CHECKOUT_STATES.INVOICE_OPENED,
+    CHECKOUT_STATES.PENDING_CONFIRMATION,
+    CHECKOUT_STATES.RESTORING,
+  ].includes(checkout.status);
 
   return (
     <section className="page store-page" data-store-page data-payments-mode={paymentsMode}>
@@ -218,14 +228,14 @@ export default function StoreView({
             </div>}
 
             {checkout.status !== CHECKOUT_STATES.IDLE && <div className={`store-checkout-status store-checkout-status--${checkout.status}`} data-checkout-state={checkout.status} role="status">
-              {checkout.status === CHECKOUT_STATES.PENDING || checkout.status === CHECKOUT_STATES.RESTORING ? <LoaderCircle className="spin" size={16} /> : checkout.status === CHECKOUT_STATES.SUCCESS ? <Check size={16} /> : <X size={16} />}
+              {checkoutBusy ? <LoaderCircle className="spin" size={16} /> : checkout.status === CHECKOUT_STATES.SUCCESS ? <Check size={16} /> : <X size={16} />}
               <span>{checkoutStateLabel(checkout.status) || checkout.reason || checkout.error}</span>
-              {checkout.status === CHECKOUT_STATES.PENDING && <button type="button" onClick={() => dispatchCheckout({ type: 'CANCEL', reason: 'user' })}>Отмена</button>}
+              {checkoutBusy && checkout.status !== CHECKOUT_STATES.RESTORING && <button type="button" onClick={() => dispatchCheckout({ type: 'CANCEL', reason: 'user' })}>Отмена</button>}
             </div>}
 
             <div className="store-detail-actions">
               {(selected.pack_state === PACK_STATES.FREE || selected.pack_state === PACK_STATES.OWNED) && <button className="primary-button" type="button" onClick={openSelected}><ArrowRight size={16} /> Открыть набор</button>}
-              {selected.pack_state === PACK_STATES.PAID && <button className="primary-button" type="button" disabled={!checkoutEnabled || checkout.status === CHECKOUT_STATES.PENDING || checkout.status === CHECKOUT_STATES.RESTORING} onClick={() => runPayment('purchase')} data-purchase-action="buy">{checkout.status === CHECKOUT_STATES.PENDING ? <><LoaderCircle className="spin" size={16} /> Проверяем…</> : `Купить за ${selected.price_in_stars} Stars`}</button>}
+              {selected.pack_state === PACK_STATES.PAID && <button className="primary-button" type="button" disabled={!checkoutEnabled || checkoutBusy} onClick={() => runPayment('purchase')} data-purchase-action="buy">{checkoutBusy ? <><LoaderCircle className="spin" /> Проверяем…</> : `Купить за ${selected.price_in_stars} Stars`}</button>}
               {retryable && checkoutEnabled && <button className="secondary-button" type="button" onClick={() => runPayment('purchase')} data-purchase-action="retry"><RefreshCw size={15} /> Попробовать снова</button>}
               {selected.pack_state === PACK_STATES.PAID && <button className="secondary-button" type="button" disabled={!checkoutEnabled || checkout.status === CHECKOUT_STATES.RESTORING} onClick={() => runPayment('restore')} data-purchase-action="restore"><RefreshCw size={15} /> Восстановить покупку</button>}
               {selected.pack_state === PACK_STATES.UNAVAILABLE && <p className="store-unavailable-copy">Этот набор сейчас недоступен.</p>}
