@@ -5,7 +5,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
 import { requireRole } from '../middleware/authorization.js';
 import { purchaseCollection, StarsTransactionError } from '../services/stars-transactions.js';
-import { getPaymentsMode } from '../config.js';
+import { getPaymentsMode, isDevelopmentAuthEnabled } from '../config.js';
 
 const router = Router();
 
@@ -95,7 +95,7 @@ router.patch('/:id/settings', authMiddleware, asyncRoute(async (req, res) => {
 }));
 
 // POST /users/:id/add-stars (dev-only debug endpoint)
-if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_AUTH === 'true') {
+if (isDevelopmentAuthEnabled()) {
   router.post('/:id/add-stars', authMiddleware, asyncRoute(async (req, res) => {
     if (req.params.id !== req.userId) return res.status(403).json({ error: 'Запрещено' });
     await run('UPDATE users SET stars_balance=stars_balance+100 WHERE id=?', [req.userId]);

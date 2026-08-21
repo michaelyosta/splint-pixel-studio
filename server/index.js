@@ -168,7 +168,7 @@ if (process.env.GUIDANCE_BACKFILL_AUTO !== 'false') {
 
 // ── Test-only e2e seed hooks ───────────────────────────────────────────────
 // Mounted only when E2E_SEED_HOOKS=true (e2e runtime); never in production.
-if (process.env.E2E_SEED_HOOKS === 'true') {
+if (process.env.E2E_SEED_HOOKS === 'true' && process.env.NODE_ENV === 'test') {
   const e2eHooksRouter = (await import('./routes/e2e-hooks.js')).default;
   app.use('/__e2e', e2eHooksRouter);
   console.log('E2E seed hooks enabled');

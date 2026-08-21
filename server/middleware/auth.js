@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { get, run } from '../db.js';
 import { asyncRoute } from './asyncRoute.js';
+import { isDevelopmentAuthEnabled } from '../config.js';
 
 function validateTelegramInitData(initData, token) {
   const params = new URLSearchParams(initData);
@@ -60,7 +61,7 @@ export const authMiddleware = asyncRoute(
     }
 
     const devUserId = req.headers['x-user-id'];
-    const allowDevelopmentAuth = process.env.ALLOW_DEV_AUTH === 'true';
+    const allowDevelopmentAuth = isDevelopmentAuthEnabled();
     if (devUserId && allowDevelopmentAuth) {
       req.userId = String(devUserId);
       req.authMode = 'development';

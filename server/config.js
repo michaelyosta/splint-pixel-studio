@@ -2,6 +2,19 @@ import { isIP } from 'node:net';
 
 export const PAYMENT_MODES = Object.freeze(['disabled', 'internal_credits', 'telegram_stars']);
 
+// An omitted NODE_ENV is kept compatible with the existing local test
+// harnesses. Explicitly named staging/preview environments must never inherit
+// the local X-User-Id/debug surface just because a deployment accidentally
+// carried ALLOW_DEV_AUTH=true.
+export function isLocalDevelopmentEnvironment(env = process.env) {
+  const nodeEnv = String(env.NODE_ENV || '').trim().toLowerCase();
+  return !nodeEnv || nodeEnv === 'development' || nodeEnv === 'test';
+}
+
+export function isDevelopmentAuthEnabled(env = process.env) {
+  return env.ALLOW_DEV_AUTH === 'true' && isLocalDevelopmentEnvironment(env);
+}
+
 export function getPaymentsMode(env = process.env) {
   const defaultMode = env.NODE_ENV === 'production' ? 'disabled' : 'internal_credits';
   const mode = String(env.PAYMENTS_MODE || defaultMode).trim().toLowerCase();
@@ -52,8 +65,14 @@ export function validateProductionConfiguration(env = process.env) {
   if (env.ALLOW_DEV_AUTH === 'true') throw new Error('ALLOW_DEV_AUTH cannot be enabled in production');
   if (env.SPECIAL_CELLS_QA_OVERRIDE === 'true') throw new Error('SPECIAL_CELLS_QA_OVERRIDE cannot be enabled in production');
   if (env.SPECIAL_CELLS_DIAGNOSTICS === 'true') throw new Error('SPECIAL_CELLS_DIAGNOSTICS cannot be enabled in production');
+  if (env.SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE === 'true') throw new Error('SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE cannot be enabled in production');
+  if (env.E2E_SEED_HOOKS === 'true') throw new Error('E2E_SEED_HOOKS cannot be enabled in production');
   if (!env.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required in production');
   if (env.SEED_DEMO_DATA === 'true') throw new Error('SEED_DEMO_DATA cannot be enabled in production');
+
+  if (paymentsMode === 'internal_credits') {
+    throw new Error('PAYMENTS_MODE=internal_credits cannot be enabled in production; keep production payments disabled');
+  }
 
   if (paymentsMode === 'telegram_stars') {
     // The provider adapter/webhook is intentionally not mounted in this
