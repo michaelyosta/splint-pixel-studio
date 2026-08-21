@@ -21,7 +21,8 @@ test('capture 16-zone player at 390px', async ({ page }) => {
   await page.getByText('Создать').first().click();
   await page.getByRole('button', { name: 'Из изображения' }).click();
   await page.locator('.file-field input[type="file"]').setInputFiles([fixture]);
-  await page.locator('.grid-detail-range').fill('18');
+  // Resolution is represented by the current discrete preset index.
+  await page.locator('.grid-detail-range').fill('3');
   await page.locator('button.create-button').first().click();
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 60000 });
   await page.locator('button', { hasText: 'Сохранить и начать' }).click();

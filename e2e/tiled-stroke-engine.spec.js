@@ -41,7 +41,8 @@ async function createAndOpenBarsColoring(page) {
   await page.getByRole('button', { name: 'Из изображения' }).click();
   await expect(page.locator('.creator-page')).toBeVisible({ timeout: 10000 });
   await page.locator('.file-field input[type="file"]').setInputFiles([fixture]);
-  await page.locator('.grid-detail-range').fill('18'); // 1200x1200
+  // The creator control is a discrete preset index; index 3 is 1200x1200.
+  await page.locator('.grid-detail-range').fill('3');
   await expect(page.locator('button.create-button').first()).toBeEnabled({ timeout: 30000 });
   await page.locator('button.create-button').first().click();
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 60000 });

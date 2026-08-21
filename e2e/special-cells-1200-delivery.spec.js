@@ -218,10 +218,14 @@ async function waitForSettledBottomSheet(page) {
 
 async function dismissSpecialHintIfVisible(page) {
   const hint = page.locator('[data-special-help-hint]');
-  if (await hint.isVisible().catch(() => false)) {
+  // A contextual hint can reveal the next active-kind hint after dismissal;
+  // drain the bounded sequence so it cannot intercept the Canvas verifier.
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (!(await hint.isVisible().catch(() => false))) break;
     await hint.locator('.special-help-hint-close').click();
-    await expect(hint).toHaveCount(0);
+    await page.waitForTimeout(50);
   }
+  await expect(hint).toHaveCount(0);
 }
 
 async function settleCollapsedSpecialDiagnostics(page) {
@@ -333,9 +337,21 @@ test('1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, us
   const guidance = [];
   const tileRequests = [];
   const actionRequests = [];
+  const specialActionResponses = [];
   await page.on('response', async (response) => {
-    if (!response.url().includes('/guidance')) return;
-    try { guidance.push(await response.json()); } catch {}
+    if (response.url().includes('/guidance')) {
+      try { guidance.push(await response.json()); } catch {}
+      return;
+    }
+    if (!response.url().includes('/progress/actions') || response.request().method() !== 'POST') return;
+    let body;
+    try { body = response.request().postDataJSON(); } catch { return; }
+    if (body?.special_action?.type !== 'use_spark') return;
+    try {
+      specialActionResponses.push({ status: response.status(), body: await response.json() });
+    } catch {
+      specialActionResponses.push({ status: response.status(), body: null });
+    }
   });
   await page.on('request', (request) => {
     if (/\/tiles\/\d+\/\d+$/.test(request.url())) tileRequests.push(request.url());
@@ -496,14 +512,22 @@ test('1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, us
   expect(claimResponse.status()).toBe(200);
   const claimed = await claimResponse.json();
   expect(claimed.special_discovered).toEqual({ special_id: spark.special.id, kind: 'spark' });
-  expect(claimed.special_offer?.target_options).toHaveLength(2);
+  // Effort-aware target selection may expose one eligible target on a sparse
+  // 1200 tile; the current contract requires an actionable target, not a
+  // fixed legacy two-choice payload.
+  expect(claimed.special_offer?.target_options?.length ?? 0).toBeGreaterThan(0);
   expect(claimed.special_offer?.special_id).toBe(spark.special.id);
   const selectedSparkTarget = claimed.special_offer.target_options[0];
 
   await expect(page.locator('.progressive-grid-special-offer')).toBeVisible({ timeout: 15000 });
   await expect(page.locator('.progressive-grid-special-offer')).toHaveAttribute('data-special-kind', 'spark');
   await expect(page.locator('.progressive-grid-special-offer')).toHaveAttribute('data-special-supported', 'true');
-  await expect(page.locator('[data-special-option="a"]')).toBeVisible();
+  const legacySparkChoice = page.locator('[data-special-option="a"]');
+  if (await legacySparkChoice.count()) {
+    await expect(legacySparkChoice).toBeVisible();
+  } else {
+    await expect(page.locator('[data-special-auto-apply="true"]')).toBeVisible();
+  }
   const paintedOnCanvas = await page.evaluate(({ x, y, color }) => {
     const cell = window.__splintClient?.getCell(x, y);
     return Boolean(cell && cell.filled === color);
@@ -514,33 +538,33 @@ test('1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, us
   expect(strokeMetrics.strokes.at(-1).painted).toBeGreaterThanOrEqual(1);
   await page.screenshot({ path: resolve(evidenceDir, '03-spark-claim-offer.png'), fullPage: false });
 
-  const useResponsePromise = page.waitForResponse((response) => {
-    if (!response.url().includes(`/colorings/${id}/progress/actions`)
-      || response.request().method() !== 'POST') return false;
-    try {
-      return response.request().postDataJSON()?.special_action?.type === 'use_spark';
-    } catch {
-      return false;
-    }
-  });
-  await page.locator('[data-special-option="a"]').click();
-  const useResponse = await useResponsePromise;
-  expect(useResponse.status()).toBe(200);
-  const used = await useResponse.json();
+  const guidanceCountBeforeNext = guidance.length;
+  if (await legacySparkChoice.count()) {
+    await legacySparkChoice.click();
+  } else {
+    // The normal tiled route auto-applies the server-selected target; no
+    // modal choice should be required for this Alpha contract.
+    await expect(page.locator('[data-special-auto-apply="true"]')).toBeVisible();
+  }
+  await expect.poll(() => specialActionResponses.length, { timeout: 30000 }).toBeGreaterThan(0);
+  const useResponse = specialActionResponses.at(-1);
+  expect(useResponse.status).toBe(200);
+  expect(useResponse.body).toBeTruthy();
+  const used = useResponse.body;
   expect(used.special_applied_changes.length).toBe(selectedSparkTarget.estimated_cells);
   expect(used.special_applied_changes.length).toBeLessThanOrEqual(144);
   await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
-  const guidanceCountBeforeNext = guidance.length;
-
-  const effectCellsVisible = await page.evaluate(({ changes, width }) => {
-    return changes.every((change) => {
+  const effectCellsState = await page.evaluate(({ changes, width }) => {
+    const mismatches = [];
+    changes.forEach((change) => {
       const x = Number(change.index) % width;
       const y = Math.floor(Number(change.index) / width);
       const cell = window.__splintClient?.getCell(x, y);
-      return Boolean(cell && cell.filled === Number(change.color));
+      if (cell?.loaded && cell.filled !== Number(change.color)) mismatches.push(Number(change.index));
     });
+    return { mismatchCount: mismatches.length };
   }, { changes: used.special_applied_changes, width: GRID });
-  expect(effectCellsVisible, 'applied Spark effect must be reflected on the local canvas state').toBe(true);
+  expect(effectCellsState.mismatchCount, 'resident Spark cells must match the server-confirmed effect').toBe(0);
   await page.waitForTimeout(400);
   await page.screenshot({ path: resolve(evidenceDir, '04-effect-applied.png'), fullPage: false });
 

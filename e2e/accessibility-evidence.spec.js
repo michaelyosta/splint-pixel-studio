@@ -135,7 +135,9 @@ async function createAndOpenTiledColoring(page) {
   await page.getByRole('button', { name: 'Из изображения' }).click();
   await expect(page.locator('.creator-page')).toBeVisible({ timeout: 10000 });
   await page.locator('.file-field input[type="file"]').setInputFiles([resolve(process.cwd(), 'e2e', 'fixtures', 'test-image.png')]);
-  await page.locator('.grid-detail-range').fill('18');
+  // Resolution is a discrete preset index (0=192 ... 3=1200), not the
+  // obsolete raw detail value used by the original fixture.
+  await page.locator('.grid-detail-range').fill('3');
   await page.locator('button.create-button').first().click();
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 45000 });
   const saveButton = page.locator('button', { hasText: 'Сохранить и начать' });

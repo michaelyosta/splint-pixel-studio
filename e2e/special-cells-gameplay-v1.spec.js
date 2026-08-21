@@ -1,13 +1,15 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect } from '@playwright/test';
-import { generateHazardCells } from '../server/services/tiled-hazard.js';
 import { generateSpecialCells } from '../server/services/tiled-specials.js';
 
 const GRID = 1200;
 const TILE = 32;
 const evidenceDir = resolve('docs/evidence/special-cells-gameplay-v1');
-const EVENT_KINDS = ['spark', 'bomb', 'fuse', 'hazard', 'choice'];
+// Alpha keeps one positive-event family plus passive Artifact in the player
+// journey. Fuse, Choice and Hazard remain compatibility/server paths and are
+// covered by their focused server contracts rather than this legacy journey.
+const EVENT_KINDS = ['spark', 'bomb', 'artifact'];
 
 function tiledPayload(width, height, tileSize = TILE) {
   const result = [];
@@ -58,15 +60,7 @@ function findSpecials(id) {
     tileSize: TILE,
     tiles,
   });
-  const hazards = generateHazardCells({
-    templateId: id,
-    width: GRID,
-    height: GRID,
-    tileSize: TILE,
-    tiles,
-    occupiedIndices: generated.map((cell) => cell.cell_index),
-  });
-  return [...generated, ...hazards]
+  return generated
     .map((cell) => ({ ...cell, id: cell.special_id, state: 'unseen' }))
     .sort((a, b) => Number(a.cell_index) - Number(b.cell_index));
 }
@@ -222,7 +216,7 @@ async function resolveOffer(page, id, special, { reloadBeforeUse = false, offlin
   await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 30000 });
 }
 
-test('1200x1200 Gameplay v1 journey crosses positive, spatial, chain, hazard, choice, rare, reload and offline recovery', async ({ page, browserName }, testInfo) => {
+test('1200x1200 Alpha journey crosses active positive and rare events with reload/offline recovery', async ({ page, browserName }, testInfo) => {
   test.skip(browserName === 'webkit', 'Gameplay v1 journey targets the Chromium tiled canvas contract');
   test.setTimeout(360000);
   mkdirSync(evidenceDir, { recursive: true });

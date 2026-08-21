@@ -5,7 +5,10 @@ import { test, expect } from '@playwright/test';
 const GRID = 160;
 const TILE = 32;
 const evidenceDir = resolve('docs/evidence/special-cells-long-journey-2026-08-09');
-const KINDS = ['spark', 'bomb', 'fuse', 'choice', 'artifact'];
+// Current Alpha journey: bounded positive events plus passive Artifact.
+// Fuse and Choice remain compatibility-only server paths, not player-facing
+// long-session requirements.
+const KINDS = ['spark', 'bomb', 'artifact'];
 
 async function createTreatment(page) {
   await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_long_journey' });
@@ -95,7 +98,7 @@ async function resolveSpecialAction(page, id, actionType, actionLocator, fuse = 
   return last;
 }
 
-test('treatment long journey resolves every special kind without leaving the Canvas', async ({ page, browserName }, testInfo) => {
+test('treatment long journey resolves active special kinds without leaving the Canvas', async ({ page, browserName }, testInfo) => {
   test.skip(browserName === 'webkit', 'long journey verifier targets the Chromium pointer/keyboard contract');
   test.setTimeout(240000);
   mkdirSync(evidenceDir, { recursive: true });
@@ -134,13 +137,9 @@ test('treatment long journey resolves every special kind without leaving the Can
       let actionLocator;
       if (special.kind === 'spark') actionLocator = offer.locator('[data-special-option="a"]');
       if (special.kind === 'bomb') actionLocator = offer.locator('[data-bomb-use]');
-      if (special.kind === 'fuse') actionLocator = offer.locator('[data-fuse-disarm]');
-      if (special.kind === 'choice') actionLocator = offer.locator('[data-special-option="smart_target"]');
       await expect(actionLocator).toBeVisible();
-      const actionType = special.kind === 'spark' ? 'use_spark'
-        : special.kind === 'bomb' ? 'use_bomb'
-          : special.kind === 'fuse' ? 'disarm_fuse' : 'use_choice';
-      const used = await resolveSpecialAction(page, created.id, actionType, actionLocator, special.kind === 'fuse');
+      const actionType = special.kind === 'spark' ? 'use_spark' : 'use_bomb';
+      const used = await resolveSpecialAction(page, created.id, actionType, actionLocator);
       await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
       expect(used.special_applied_changes.length).toBeGreaterThan(0);
       expect(used.special_applied_changes.length).toBeLessThanOrEqual(special.kind === 'spark' ? 144 : 32);

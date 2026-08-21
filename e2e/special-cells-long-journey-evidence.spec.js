@@ -43,7 +43,7 @@ async function findSpecials(page, id) {
 }
 
 function spacedOnePerKind(specials) {
-  const kinds = ['spark', 'bomb', 'fuse', 'choice', 'artifact'];
+  const kinds = ['spark', 'bomb', 'artifact'];
   const chosen = [];
   for (const kind of kinds) {
     const candidate = specials.find((special) => special.kind === kind
@@ -108,7 +108,7 @@ async function isInViewport(locator) {
   });
 }
 
-test('long journey evidence screenshots show active offer and Canvas return', async ({ page, browserName }, testInfo) => {
+test('long journey evidence screenshots show active offers and Canvas return', async ({ page, browserName }, testInfo) => {
   test.skip(browserName === 'webkit', 'long journey evidence verifier targets the Chromium keyboard contract');
   test.setTimeout(240000);
   mkdirSync(evidenceDir, { recursive: true });
@@ -119,10 +119,10 @@ test('long journey evidence screenshots show active offer and Canvas return', as
 
   const { created } = await createTreatment(page);
   const selected = spacedOnePerKind(await findSpecials(page, created.id));
-  expect(selected.map((special) => special.kind).sort()).toEqual(['artifact', 'bomb', 'choice', 'fuse', 'spark']);
+  expect(selected.map((special) => special.kind).sort()).toEqual(['artifact', 'bomb', 'spark']);
   // Artifact has no offer action and is already exercised by the existing
   // long-journey spec; the evidence spec focuses on active offers plus Canvas
-  // return for the four actionable kinds.
+  // return for the two actionable kinds.
   const actionable = selected.filter((special) => special.kind !== 'artifact');
 
   await page.goto(`/?coloring=${created.id}`);
@@ -165,13 +165,9 @@ test('long journey evidence screenshots show active offer and Canvas return', as
     let actionLocator;
     if (special.kind === 'spark') actionLocator = offer.locator('[data-special-option="a"]');
     if (special.kind === 'bomb') actionLocator = offer.locator('[data-bomb-use]');
-    if (special.kind === 'fuse') actionLocator = offer.locator('[data-fuse-disarm]');
-    if (special.kind === 'choice') actionLocator = offer.locator('[data-special-option="smart_target"]');
     await expect(actionLocator).toBeVisible();
-    const actionType = special.kind === 'spark' ? 'use_spark'
-      : special.kind === 'bomb' ? 'use_bomb'
-        : special.kind === 'fuse' ? 'disarm_fuse' : 'use_choice';
-    const used = await resolveSpecialAction(page, created.id, actionType, actionLocator, special.kind === 'fuse');
+    const actionType = special.kind === 'spark' ? 'use_spark' : 'use_bomb';
+    const used = await resolveSpecialAction(page, created.id, actionType, actionLocator);
     await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
     expect(used.special_applied_changes.length).toBeGreaterThan(0);
     expect(used.special_applied_changes.length).toBeLessThanOrEqual(special.kind === 'spark' ? 144 : 32);

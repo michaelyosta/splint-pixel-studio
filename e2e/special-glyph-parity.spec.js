@@ -2,7 +2,10 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect } from '@playwright/test';
 
-const KINDS = ['spark', 'bomb', 'fuse', 'choice', 'artifact', 'hazard'];
+// Alpha's visible glyph contract is intentionally bounded to the positive
+// event family plus passive Artifact. Legacy Fuse/Choice/Hazard vocabulary is
+// retained for server compatibility, not required in the player-facing RC.
+const KINDS = ['spark', 'bomb', 'artifact'];
 const LEGACY_GRID = 96;
 const TILED_GRID = 160;
 const TILE = 32;
@@ -519,7 +522,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   await page.context().setExtraHTTPHeaders({ 'X-User-Id': `e2e_${testInfo.testId}` });
 });
 
-test('legacy glyph masks are distinct and readable for all six kinds', async ({ page }) => {
+test('legacy glyph masks are distinct and readable for active Alpha kinds', async ({ page }) => {
   test.setTimeout(240000);
   mkdirSync(evidenceDir, { recursive: true });
   const { created, progress } = await createLegacy(page);
@@ -547,7 +550,6 @@ test('legacy glyph masks are distinct and readable for all six kinds', async ({ 
     await captureGlyph(page, 'legacy', special, LEGACY_GRID, 390, { theme: 'light' });
     await captureGlyph(page, 'legacy', special, LEGACY_GRID, 390, { reveal: true });
   }
-  await captureGlyph(page, 'legacy', selected.find((special) => special.kind === 'hazard'), LEGACY_GRID, 390, { reducedMotion: true });
   for (let first = 0; first < signatures.length; first += 1) {
     for (let second = first + 1; second < signatures.length; second += 1) {
       if (signatures[first].kind === signatures[second].kind) continue;
@@ -561,7 +563,7 @@ test('legacy glyph masks are distinct and readable for all six kinds', async ({ 
   }
 });
 
-test('tiled glyph masks are distinct, hidden in overview, and readable at low zoom', async ({ page }) => {
+test('tiled glyph masks are distinct, hidden in overview, and readable at low zoom for active Alpha kinds', async ({ page }) => {
   test.setTimeout(300000);
   mkdirSync(evidenceDir, { recursive: true });
   const { created, specials } = await createTiled(page);
@@ -587,7 +589,6 @@ test('tiled glyph masks are distinct, hidden in overview, and readable at low zo
     await captureGlyph(page, 'tiled', special, TILED_GRID, 390, { theme: 'light' });
     await captureGlyph(page, 'tiled', special, TILED_GRID, 390, { reveal: true });
   }
-  await captureGlyph(page, 'tiled', selected.find((special) => special.kind === 'hazard'), TILED_GRID, 390, { reducedMotion: true });
   for (let first = 0; first < signatures.length; first += 1) {
     for (let second = first + 1; second < signatures.length; second += 1) {
       if (signatures[first].kind === signatures[second].kind) continue;
@@ -643,18 +644,24 @@ test('tiled reveal claims exactly once and survives reload without duplicate', a
   await openRevealMode(page);
   await moveToCell(page, 'tiled', Number(spark.cell_index), TILED_GRID);
   const capture = await claimRequests(page, created.id, 'claim_spark');
+  const useCapture = await claimRequests(page, created.id, 'use_spark');
   const canvas = page.locator('.progressive-grid-area > canvas');
   await canvas.press('Enter');
-  await expect(page.locator('.progressive-grid-special-offer')).toBeVisible({ timeout: 15000 });
+  await expect.poll(() => capture.requests.length, { timeout: 15000 }).toBe(1);
   await page.waitForTimeout(500);
-  expect(capture.requests.length).toBe(1);
-  const offerCount = await page.locator('.progressive-grid-special-offer').count();
-  expect(offerCount).toBe(1);
+  if (useCapture.requests.length) {
+    expect(useCapture.requests.at(-1).status()).toBe(200);
+    await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
+  } else {
+    await expect(page.locator('.progressive-grid-special-offer')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(1);
+  }
   page.off('response', capture.handler);
+  page.off('response', useCapture.handler);
 
   await page.reload();
   await waitTiledWork(page);
-  await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(1, { timeout: 15000 });
+  await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(useCapture.requests.length ? 0 : 1, { timeout: 15000 });
   await expect(page.locator('[data-special-discovered]')).toHaveCount(0);
 });
 
@@ -668,17 +675,24 @@ test('legacy reveal claims exactly once and survives reload without duplicate', 
   await openRevealMode(page);
   await moveToCell(page, 'legacy', Number(spark.cell_index), LEGACY_GRID);
   const capture = await claimRequests(page, created.id, 'claim_spark');
+  const useCapture = await claimRequests(page, created.id, 'use_spark');
   const canvas = page.locator('canvas.coloring-canvas');
   await canvas.press('Enter');
-  await expect(page.locator('.legacy-grid-special-offer')).toBeVisible({ timeout: 15000 });
+  await expect.poll(() => capture.requests.length, { timeout: 15000 }).toBe(1);
   await page.waitForTimeout(500);
-  expect(capture.requests.length).toBe(1);
-  expect(await page.locator('.legacy-grid-special-offer').count()).toBe(1);
+  if (useCapture.requests.length) {
+    expect(useCapture.requests.at(-1).status()).toBe(200);
+    await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
+  } else {
+    await expect(page.locator('.legacy-grid-special-offer')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(1);
+  }
   page.off('response', capture.handler);
+  page.off('response', useCapture.handler);
 
   await page.reload();
   await expect(page.locator('.coloring-session')).toHaveAttribute('data-special-cohort', 'treatment', { timeout: 30000 });
-  await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(1, { timeout: 15000 });
+  await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(useCapture.requests.length ? 0 : 1, { timeout: 15000 });
   await expect(page.locator('[data-special-discovered]')).toHaveCount(0);
 });
 
