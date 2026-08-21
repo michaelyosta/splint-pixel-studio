@@ -8,6 +8,7 @@ import {
   formatArtworkMeta,
   formatResumeBeat,
   isCompletedArtwork,
+  isInProgressArtwork,
   sortCollectionsForShelf,
   sortGalleryItems,
 } from '../src/lib/galleryProgression.js';
@@ -38,6 +39,14 @@ test('gallery summary separates completed results from active and unopened work'
     artwork('new', 0),
   ]), { completed: 1, inProgress: 1, unopened: 1 });
   assert.equal(isCompletedArtwork(artwork('done', 100)), true);
+});
+
+test('new user-created artwork is actionable before its first paint', () => {
+  assert.equal(isInProgressArtwork(artwork('created', 0, { source_type: 'user' })), true);
+  assert.deepEqual(buildGallerySummary([
+    artwork('created', 0, { source_type: 'user' }),
+    artwork('catalog-unopened', 0),
+  ]), { completed: 0, inProgress: 1, unopened: 1 });
 });
 
 test('gallery ordering puts active return target before completed results', () => {

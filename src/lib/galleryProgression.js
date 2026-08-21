@@ -28,7 +28,12 @@ export function isCompletedArtwork(item) {
 
 export function isInProgressArtwork(item) {
   const percent = progressPercent(item);
-  return percent > 0 && percent < 100;
+  // A newly-created private artwork is already an actionable gallery item
+  // even before its first paint.  /colorings/mine includes it for its owner,
+  // and hiding a 0% user work would make creator -> gallery -> delete/resume
+  // impossible.  Catalog items without progress remain unopened instead.
+  return (percent > 0 && percent < 100)
+    || (percent === 0 && item?.source_type === 'user');
 }
 
 function activityTime(item) {

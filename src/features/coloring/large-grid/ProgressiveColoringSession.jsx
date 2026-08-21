@@ -48,6 +48,7 @@ import {
   isGuidanceIndexMissing,
   isStaleGuidance,
   isTargetActionable,
+  MIN_WORK_ZOOM,
   isTrueColorCompletion,
   planGuidanceCamera,
 } from './smartRoute.js';
@@ -1938,7 +1939,11 @@ export default function ProgressiveColoringSession({
     const storedCamera = restoreStoredCamera();
     if (storedCamera) {
       resumeCameraRef.current = storedCamera;
-      resumeCameraAppliedRef.current = true;
+      // An old overview camera is useful orientation state, but it must not
+      // suppress the first actionable Director focus.  Reuse a persisted
+      // camera only once it is at the same readable scale as a work target;
+      // otherwise the guidance plan owns the camera transition.
+      resumeCameraAppliedRef.current = storedCamera.zoom >= MIN_WORK_ZOOM;
       updateCamera(storedCamera);
     } else {
       updateCamera({
