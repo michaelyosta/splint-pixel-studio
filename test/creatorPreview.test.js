@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CREATOR_PREVIEW_RESOLUTIONS,
+  buildCreatorPreviewError,
   buildCreatorPreviewCacheKey,
   deriveCreatorPreviewInsights,
   isCreatorPreviewCurrent,
@@ -31,6 +32,31 @@ test('preview cache identity includes file, resolution, crop, colors, and style'
   }));
   assert.equal(isCreatorPreviewCurrent(7, 7), true);
   assert.equal(isCreatorPreviewCurrent(7, 8), false);
+});
+
+test('failed preview clears stale evidence and exposes the bounded error', () => {
+  const result = buildCreatorPreviewError({
+    resolution: 1200,
+    status: 'computing',
+    pixel: 'data:image/png;base64,stale',
+    numbered: 'data:image/png;base64,stale-numbered',
+    palette: ['#ffffff'],
+    resultFingerprint: 'stale-result',
+  }, {
+    code: 'PAINTABLE_RESOLUTION_LIMIT',
+    message: 'paintable-v1 supports at most 512x512 logical cells',
+  });
+  assert.equal(result.resolution, 1200);
+  assert.equal(result.status, 'error');
+  assert.equal(result.progress, 0);
+  assert.equal(result.pixel, null);
+  assert.equal(result.numbered, null);
+  assert.deepEqual(result.palette, []);
+  assert.equal(result.resultFingerprint, null);
+  assert.deepEqual(result.error, {
+    code: 'PAINTABLE_RESOLUTION_LIMIT',
+    message: 'paintable-v1 supports at most 512x512 logical cells',
+  });
 });
 
 test('paintability insight penalizes fragmentation and tiny regions', () => {
