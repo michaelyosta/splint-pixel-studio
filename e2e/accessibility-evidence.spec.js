@@ -138,10 +138,12 @@ async function createAndOpenTiledColoring(page) {
   // Resolution is a discrete preset index (0=192 ... 3=1200), not the
   // obsolete raw detail value used by the original fixture.
   await page.locator('.grid-detail-range').fill('3');
-  await page.locator('button.create-button').first().click();
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 45000 });
+  await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-resolution', '1200');
+  await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-status', 'ready', { timeout: 120000 });
   const saveButton = page.locator('button', { hasText: 'Сохранить и начать' });
   await expect(saveButton).toBeVisible({ timeout: 15000 });
+  await expect(saveButton).toBeEnabled({ timeout: 120000 });
   await Promise.all([
     page.waitForResponse((r) => r.url().includes('/colorings/create')),
     saveButton.click(),
@@ -262,6 +264,7 @@ test.describe('Accessibility evidence', () => {
   });
 
   test('capture tiled 1200 player at 390px', async ({ page }) => {
+    test.setTimeout(240000);
     await page.setViewportSize({ width: 390, height: 844 });
     const tileResponses = [];
     page.on('response', (response) => {
@@ -271,7 +274,7 @@ test.describe('Accessibility evidence', () => {
     });
     await createAndOpenTiledColoring(page);
     const session = page.locator('.progressive-coloring-session');
-    await expect(session.locator('canvas')).toBeVisible({ timeout: 10000 });
+    await expect(session.locator('canvas:not(.progressive-grid-minimap-canvas)')).toBeVisible({ timeout: 10000 });
     await page.screenshot({ path: resolve(evidenceDir, 'tiled-1200-390.png') });
     const metrics = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
