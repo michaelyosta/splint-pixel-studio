@@ -264,6 +264,9 @@ test('/colorings/mine includes tiled progress with a bounded 1200x1200 payload',
   assert.equal(item.progress.total_cells, 1_200 * 1_200);
   assert.equal(item.progress.completed_cells, 1);
   assert.equal(Object.hasOwn(item.progress, 'filled'), false, 'no 1.44M filled array is materialized');
+  assert.equal(item.content_metadata?.schema_version, 'content-metadata.v1');
+  assert.ok(item.content_metadata.duration.label.includes('Длинная'));
+  assert.ok(item.content_metadata.complexity.label);
   assert.ok(Buffer.byteLength(JSON.stringify(mine.json)) < 100_000, 'mine payload stays bounded at 1200x1200');
 });
 

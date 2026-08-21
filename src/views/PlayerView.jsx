@@ -23,6 +23,7 @@ import {
 } from '../lib/specialHelp';
 import { isLargeGridTemplate } from '../lib/tileGrid';
 import { bindTelegramBackButton } from '../lib/telegram';
+import { formatContentMetadataDetail } from '../lib/contentMetadata.js';
 import {
   resolveSessionGoalsExperiment,
   shouldShowSessionGoals,
@@ -180,7 +181,6 @@ export default function PlayerView({
   onPublishCompleted,
   onDismissOnboarding,
   onTrack,
-  formatDifficulty,
   completedPreview,
   zoneIndices,
   coreFeelExperiment,
@@ -378,6 +378,7 @@ export default function PlayerView({
     return <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div>;
   }
 
+  const contentMetadata = formatContentMetadataDetail(template);
   const isComplete = isProgressComplete(gameProgress);
   const totalXp = progression?.xp_total ?? 0;
   const level = progression?.level ?? 1;
@@ -444,6 +445,7 @@ export default function PlayerView({
       {!coreFeelActive && <div className={`player-hint ${hudHidden ? 'faded' : ''}`} onClick={showHud}>
         <span className="player-hint-target"><Target size={14} /> {contextGoal}</span>
       </div>}
+      {!coreFeelActive && <div className="player-content-metadata" data-content-metadata={contentMetadata.assessed ? 'authoritative' : 'unassessed'}>{contentMetadata.line}</div>}
 
       {showSpecialHint && specialHintKind && (
         <div className="special-help-hint" role="status" data-special-help-hint data-special-help-kind={specialHintKind}>
@@ -671,7 +673,7 @@ export default function PlayerView({
           {beforePreview
             ? <CompareSlider before={beforePreview} after={completedPreview} title={template.title} />
             : <img src={completedPreview} alt={`Готовая работа ${template.title}`} />}
-          <p className="eyebrow">Картина раскрыта · {formatDifficulty(template.difficulty)}</p>
+          <p className="eyebrow" data-content-metadata={contentMetadata.assessed ? 'authoritative' : 'unassessed'}>Картина раскрыта · {contentMetadata.line}</p>
           <h2 id="completion-title">Картина раскрыта!</h2>
           <p className="completion-work-title">{template.title}</p>
           <div className="completion-rewards">

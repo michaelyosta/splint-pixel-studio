@@ -281,3 +281,54 @@ export function buildContentMetadata(template = {}, { metrics = null, pixelizati
     },
   };
 }
+
+/**
+ * Build one bounded, collection-level metadata object from already selected
+ * template summaries. Collection cards do not need (and must not receive)
+ * cell maps; every item is therefore evaluated from the same safe editorial
+ * signals used for tiled catalog rows.
+ */
+export function buildCollectionContentMetadata(templates = []) {
+  const rows = Array.isArray(templates) ? templates.slice(0, 48) : [];
+  if (!rows.length) {
+    return {
+      schema_version: CONTENT_METADATA_SCHEMA_VERSION,
+      duration: { band: 'unknown', label: 'Длительность не проверена', session_mode: 'unknown', confidence: 'none', source: 'collection-items-missing' },
+      complexity: { band: 'unknown', label: 'Сложность не проверена', confidence: 'none', source: 'collection-items-missing', gate: 'review' },
+      style: { route: 'classic', status: 'unassessed', confidence: 'none', label: 'Стиль не проверен', reasons: ['collection-items-missing'], policy: PIXELIZATION_ROUTING_POLICY, source: 'safe-classic-default' },
+      quality_gate: { status: 'review', reasons: ['collection-items-missing'], blocking: false },
+    };
+  }
+
+  const metadata = rows.map((template) => buildContentMetadata(template));
+  const durationRank = { short: 0, medium: 1, long: 2 };
+  const complexityRank = { calm: 0, focused: 1, intricate: 2 };
+  const durationBands = [...new Set(metadata.map((item) => item.duration.band))];
+  const complexityBands = [...new Set(metadata.map((item) => item.complexity.band))];
+  const longestDuration = metadata.reduce((best, item) => (
+    (durationRank[item.duration.band] ?? -1) > (durationRank[best.duration.band] ?? -1) ? item : best
+  ), metadata[0]).duration;
+  const highestComplexity = metadata.reduce((best, item) => (
+    (complexityRank[item.complexity.band] ?? -1) > (complexityRank[best.complexity.band] ?? -1) ? item : best
+  ), metadata[0]).complexity;
+  const duration = durationBands.length === 1
+    ? { ...longestDuration, label: `${longestDuration.label} · подборка` }
+    : { band: 'mixed', label: 'Смешанная · разные сессии', session_mode: 'mixed', confidence: 'aggregate', source: 'collection-items', item_count: rows.length };
+  const complexity = complexityBands.length === 1
+    ? { ...highestComplexity, label: `${highestComplexity.label} · подборка` }
+    : { band: 'mixed', label: 'Смешанная сложность', score: highestComplexity.score, confidence: 'aggregate', source: 'collection-items', gate: 'review', item_count: rows.length };
+  const styleRoutes = [...new Set(metadata.map((item) => `${item.style.route}:${item.style.status}`))];
+  const style = styleRoutes.length === 1
+    ? { ...metadata[0].style, source: 'collection-items', item_count: rows.length }
+    : { route: 'classic', status: 'unassessed', confidence: 'aggregate', label: 'Стиль не проверен для всей подборки', reasons: ['mixed-item-style-evidence'], policy: PIXELIZATION_ROUTING_POLICY, source: 'collection-items', item_count: rows.length };
+  const reasons = [...new Set(metadata.flatMap((item) => item.quality_gate.reasons))];
+  if (duration.band === 'mixed') reasons.push('mixed-session-lengths');
+  if (complexity.band === 'mixed') reasons.push('mixed-complexity');
+  return {
+    schema_version: CONTENT_METADATA_SCHEMA_VERSION,
+    duration,
+    complexity,
+    style,
+    quality_gate: { status: reasons.length ? 'review' : 'pass', reasons: [...new Set(reasons)], blocking: false, item_count: rows.length },
+  };
+}

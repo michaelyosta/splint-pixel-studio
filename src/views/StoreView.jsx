@@ -10,6 +10,7 @@ import {
   reduceCheckoutState,
 } from '../lib/packStore';
 import { buildPackDeepLink, shareViaTelegram } from '../lib/telegram';
+import { formatContentMetadataDetail } from '../lib/contentMetadata.js';
 
 function paymentResultIsSuccessful(result) {
   return result === true || result?.success === true;
@@ -32,6 +33,7 @@ function packCopy(pack) {
 
 function PackPreview({ pack, onSelect }) {
   const progress = pack.total_count > 0 ? Math.round((pack.completed_count / pack.total_count) * 100) : 0;
+  const metadata = formatContentMetadataDetail(pack);
   return (
     <button
       className={`store-pack-card store-pack-card--${pack.pack_state}`}
@@ -50,6 +52,7 @@ function PackPreview({ pack, onSelect }) {
       <span className="store-pack-copy">
         <b>{pack.title}</b>
         <small>{pack.description || `${pack.total_count || 0} работ · ${pack.rarity}`}</small>
+        <small data-content-metadata={metadata.assessed ? 'authoritative' : 'unassessed'}>{metadata.line}</small>
         <span className="store-pack-meta">{packCopy(pack)}</span>
         {pack.total_count > 0 && (
           <span className="store-pack-progress" aria-label={`${pack.completed_count} из ${pack.total_count} завершено`}>
@@ -97,6 +100,7 @@ export default function StoreView({
   }, [packs, selectedPackId]);
 
   const selected = packs.find((pack) => pack.id === selectedPackId) || null;
+  const selectedMetadata = formatContentMetadataDetail(selected);
 
   useEffect(() => {
     dispatchCheckout({ type: 'RESET' });
@@ -199,7 +203,7 @@ export default function StoreView({
           {selected && <section className={`store-detail store-detail--${selected.pack_state}`} data-selected-pack={selected.id} data-pack-state={selected.pack_state}>
             <div className="store-detail-head">
               <span className="store-detail-preview" style={selected.image_url ? { backgroundImage: `url(${selected.image_url})` } : undefined}><BookOpen size={24} aria-hidden="true" /></span>
-              <div><p className="eyebrow">{packStateLabel(selected.pack_state)}</p><h2>{selected.title}</h2><small>{selected.total_count || 0} работ · {selected.rarity}</small></div>
+              <div><p className="eyebrow">{packStateLabel(selected.pack_state)}</p><h2>{selected.title}</h2><small>{selected.total_count || 0} работ · {selected.rarity}</small><small data-content-metadata={selectedMetadata.assessed ? 'authoritative' : 'unassessed'}>{selectedMetadata.line}</small></div>
             </div>
             {selected.description && <p className="store-detail-description">{selected.description}</p>}
 

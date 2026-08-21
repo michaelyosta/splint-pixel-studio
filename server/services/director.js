@@ -7,6 +7,7 @@
 import { buildRecommendations } from './recommendations.js';
 import { getUserUnlockSnapshot } from './unlock-service.js';
 import { getDailyChallengeStatus } from './progression.js';
+import { buildContentMetadata } from './content-quality.js';
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
@@ -95,6 +96,7 @@ function templateAction(template, type, reason, reward = null) {
       : 'Первая раскрытая картина'),
     difficulty: template.difficulty || 'easy',
     progress_percent: template.percent || 0,
+    content_metadata: template.content_metadata || buildContentMetadata(template),
     last_activity_at: template.last_activity_at || null,
   };
 }
@@ -111,6 +113,7 @@ function recommendationAction(item, type = 'start') {
     reward: 'Новая раскрытая картина',
     difficulty: item.difficulty || 'easy',
     progress_percent: 0,
+    content_metadata: item.content_metadata || buildContentMetadata(item),
   };
 }
 

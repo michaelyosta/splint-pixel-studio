@@ -61,6 +61,12 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(catalog.response.status, 200);
   assert.equal(catalog.json.length, 6);
   assert.ok(catalog.json.every((item) => item.preview_url.includes('/assets/catalog/')));
+  assert.ok(catalog.json.every((item) => item.content_metadata?.schema_version === 'content-metadata.v1'));
+  assert.ok(catalog.json.every((item) => item.content_metadata?.duration?.label && item.content_metadata?.complexity?.label));
+  const collections = await request('/meta/collections');
+  assert.equal(collections.response.status, 200);
+  assert.ok(collections.json.length > 0);
+  assert.ok(collections.json.every((collection) => collection.content_metadata?.schema_version === 'content-metadata.v1'));
 
   const me = await request('/users/me');
   assert.equal(me.response.status, 200);
@@ -213,6 +219,7 @@ test('coloring progress can become a social post', async (t) => {
 
   const template = await request(`/colorings/${catalog.json[0].id}`);
   assert.equal(template.response.status, 200);
+  assert.equal(template.json.content_metadata?.schema_version, 'content-metadata.v1');
   const progress = await request(`/colorings/${catalog.json[0].id}/progress`);
   assert.equal(progress.json.percent, 0);
 

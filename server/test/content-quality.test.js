@@ -1,11 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildCollectionContentMetadata,
   buildContentMetadata,
   deriveComplexityMetadata,
   deriveDurationMetadata,
   deriveStyleQualityMetadata,
 } from '../services/content-quality.js';
+
+test('collection metadata stays bounded and makes mixed session promises explicit', () => {
+  const metadata = buildCollectionContentMetadata([
+    { width: 32, height: 32, difficulty: 'easy', est_minutes: 3, storage_mode: 'legacy' },
+    { width: 1_200, height: 1_200, difficulty: 'hard', est_minutes: 3, storage_mode: 'tiled' },
+  ]);
+  assert.equal(metadata.schema_version, 'content-metadata.v1');
+  assert.equal(metadata.duration.band, 'mixed');
+  assert.match(metadata.duration.label, /разные сессии/);
+  assert.equal(metadata.complexity.band, 'mixed');
+  assert.ok(metadata.quality_gate.reasons.includes('mixed-session-lengths'));
+  assert.ok(!Object.hasOwn(metadata, 'cells'));
+});
+
+test('empty collection metadata fails closed without inventing a duration', () => {
+  const metadata = buildCollectionContentMetadata([]);
+  assert.equal(metadata.duration.band, 'unknown');
+  assert.equal(metadata.complexity.gate, 'review');
+  assert.equal(metadata.quality_gate.blocking, false);
+});
 
 test('short measured artwork receives a bounded, honest session label', () => {
   const metadata = buildContentMetadata({

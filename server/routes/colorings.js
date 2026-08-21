@@ -889,7 +889,11 @@ router.get('/mine', authMiddleware, asyncRoute(async (req, res) => {
       [req.userId, template.id],
     );
     const artwork = await get("SELECT id FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, template.id]);
-    return { ...template, progress: progressPayload(template, progress, artwork?.id || null) };
+    return {
+      ...template,
+      content_metadata: buildContentMetadata(template),
+      progress: progressPayload(template, progress, artwork?.id || null),
+    };
   }));
   res.json(rows);
 }));

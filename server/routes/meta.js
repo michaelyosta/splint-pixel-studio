@@ -6,7 +6,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
 import { getDailyChallengeStatus, getUserProgression, getWeeklyChallengeStatus } from '../services/progression.js';
 import { assertCollectionAccessible } from '../services/unlock-service.js';
-import { buildContentMetadata } from '../services/content-quality.js';
+import { buildCollectionContentMetadata, buildContentMetadata } from '../services/content-quality.js';
 
 const router = Router();
 // Only events actually emitted by the client are accepted here. Keep this in
@@ -103,7 +103,16 @@ router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
   const rows = await Promise.all(cols.map(async (col) => {
     const completed = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.collection_id=? AND a.is_completed=1", [req.userId, col.id]);
     const total = await all('SELECT COUNT(*) as c FROM coloring_templates WHERE collection_id=?', [col.id]);
-    return { ...col, completed_count: completed[0]?.c || 0, total_count: total[0]?.c || 0 };
+    // Collection cards need one bounded, authoritative summary. Do not load
+    // cells here; tiled rows must remain metadata-only at this endpoint.
+    const templates = await all(`SELECT width,height,difficulty,est_minutes,storage_mode
+      FROM coloring_templates WHERE collection_id=? AND status='active' ORDER BY title LIMIT 48`, [col.id]);
+    return {
+      ...col,
+      completed_count: completed[0]?.c || 0,
+      total_count: total[0]?.c || 0,
+      content_metadata: buildCollectionContentMetadata(templates),
+    };
   }));
   res.json(rows);
 }));

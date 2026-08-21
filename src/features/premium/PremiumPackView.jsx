@@ -5,8 +5,8 @@ import {
   SHOWCASE_PREMIUM_PACK,
   isPremiumPackState,
   packStateLabel,
-  packTotalMinutes,
 } from '../../lib/premiumPack.js';
+import { formatContentMetadataDetail, formatPackContentMetadata, hasContentMetadata } from '../../lib/contentMetadata.js';
 import './premiumPack.css';
 
 const WISH_KEY = 'splint:premium-pack-wishes';
@@ -32,6 +32,14 @@ function writeWish(packId) {
 
 function stateClass(state) {
   return isPremiumPackState(state) ? state : PREMIUM_PACK_STATES.UNAVAILABLE;
+}
+
+function packMetadata(pack) {
+  const items = Array.isArray(pack?.items) ? pack.items : [];
+  return {
+    line: formatPackContentMetadata(pack),
+    assessed: items.length > 0 && items.every(hasContentMetadata),
+  };
 }
 
 function PackStateChip({ state }) {
@@ -68,12 +76,13 @@ function stateDescription(state, pack) {
 
 function ItemPreview({ item, state, onOpen }) {
   const canOpen = state === PREMIUM_PACK_STATES.OWNED || state === PREMIUM_PACK_STATES.FREE;
+  const metadata = formatContentMetadataDetail(item);
   return <article className={`premium-pack-item${canOpen ? ' is-openable' : ''}`} data-premium-item-id={item.id} data-premium-item-state={state}>
     <div className="premium-pack-item-image" style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : undefined}>
       {!canOpen && <span className="premium-pack-item-preview-label">ПРЕВЬЮ</span>}
     </div>
     <div className="premium-pack-item-copy">
-      <div className="premium-pack-item-title"><b>{item.title}</b><small>{item.dimensions} · {item.est_minutes} мин</small></div>
+      <div className="premium-pack-item-title"><b>{item.title}</b><small data-content-metadata={metadata.assessed ? 'authoritative' : 'unassessed'}>{item.dimensions} · {metadata.line}</small></div>
       <p>{item.description}</p>
       {canOpen ? <button type="button" className="premium-pack-item-action" onClick={() => onOpen?.(item.id)}>
         {state === PREMIUM_PACK_STATES.OWNED ? 'Открыть' : 'Начать'} <ArrowRight size={14} aria-hidden="true" />
@@ -83,11 +92,12 @@ function ItemPreview({ item, state, onOpen }) {
 }
 
 export function PremiumPackTeaser({ pack = SHOWCASE_PREMIUM_PACK, state = PREMIUM_PACK_STATES.UNAVAILABLE, onOpen }) {
+  const metadata = packMetadata(pack);
   return <button className="premium-pack-teaser" type="button" onClick={onOpen} data-premium-pack-teaser="true" data-premium-state={stateClass(state)}>
     <span className="premium-pack-teaser-image" style={pack.image_url ? { backgroundImage: `url(${pack.image_url})` } : undefined}>
       <Crown size={17} aria-hidden="true" />
     </span>
-    <span className="premium-pack-teaser-copy"><small>{pack.eyebrow}</small><b>{pack.title}</b><span>{pack.items.length} работы · {packTotalMinutes(pack)} мин · {packStateLabel(state)}</span></span>
+    <span className="premium-pack-teaser-copy"><small>{pack.eyebrow}</small><b>{pack.title}</b><span data-content-metadata={metadata.assessed ? 'authoritative' : 'unassessed'}>{pack.items.length} работы · {metadata.line} · {packStateLabel(state)}</span></span>
     <ArrowRight size={17} aria-hidden="true" />
   </button>;
 }
@@ -103,6 +113,7 @@ export default function PremiumPackView({
   prerequisite = null,
 }) {
   const safeState = stateClass(state);
+  const metadata = packMetadata(pack);
   const [wishSaved, setWishSaved] = useState(() => Boolean(readWishes()[pack.id]));
 
   function saveWish() {
@@ -145,7 +156,7 @@ export default function PremiumPackView({
 
     <div className="premium-pack-meta" aria-label="Состав набора">
       <span><BookOpen size={14} aria-hidden="true" /><b>{pack.items.length}</b> работы</span>
-      <span><Clock3 size={14} aria-hidden="true" /><b>{packTotalMinutes(pack)}</b> минут</span>
+      <span data-content-metadata={metadata.assessed ? 'authoritative' : 'unassessed'}><Clock3 size={14} aria-hidden="true" /><b>{metadata.line}</b></span>
       <span><Crown size={14} aria-hidden="true" /><b>{pack.price_in_stars}</b> Stars</span>
     </div>
 

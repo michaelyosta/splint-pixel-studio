@@ -132,6 +132,8 @@ test('cold start recommendations are deterministic, bounded, and exclude hidden/
   assert.ok(first.recommendations.every((item) => item.id !== 'tpl_hidden'));
   assert.ok(first.recommendations.every((item) => item.id !== 'tpl_own'));
   assert.ok(first.recommendations.every((item) => !Object.hasOwn(item, 'cells') && !Object.hasOwn(item, 'filled')));
+  assert.ok(first.recommendations.every((item) => item.content_metadata?.schema_version === 'content-metadata.v1'));
+  assert.ok(first.recommendations.every((item) => item.content_metadata?.duration?.label && item.content_metadata?.complexity?.label));
 });
 
 test('personalized ranking uses verified themes, collections, difficulty, and in-progress state', async () => {

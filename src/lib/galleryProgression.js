@@ -1,3 +1,5 @@
+import { formatContentMetadataLine, hasContentMetadata } from './contentMetadata.js';
+
 /**
  * Small, view-only helpers for the Phase 4 collection surface.
  *
@@ -86,7 +88,8 @@ export function formatArtworkComplexity(item) {
 }
 
 export function formatArtworkMeta(item) {
-  return `${formatArtworkDuration(item)} · ${formatArtworkComplexity(item)}`;
+  if (hasContentMetadata(item)) return formatContentMetadataLine(item);
+  return `${formatArtworkDuration(item)} · ${formatArtworkComplexity(item)} · Метаданные не проверены`;
 }
 
 /**

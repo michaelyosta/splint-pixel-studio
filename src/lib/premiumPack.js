@@ -46,6 +46,13 @@ export const SHOWCASE_PREMIUM_PACK = Object.freeze({
       micro_region_ratio: 0.04,
       final_reveal: true,
       identity: true,
+      content_metadata: {
+        schema_version: 'content-metadata.v1',
+        duration: { band: 'medium', label: 'Средняя · около 6 мин', minutes: 6, total_cells: 576, session_mode: 'standard', confidence: 'editorial', source: 'curated-pack-editorial' },
+        complexity: { band: 'focused', label: 'Сосредоточенная', score: 42, confidence: 'editorial', source: 'curated-pack-editorial', gate: 'review' },
+        style: { route: 'classic', status: 'unassessed', confidence: 'none', label: 'Стиль не проверен', reasons: ['exact-pixelization-evidence-missing'], policy: 'pixelization-routing-v1', source: 'safe-classic-default' },
+        quality_gate: { status: 'review', reasons: ['pixelization-review'], blocking: false },
+      },
       // The seeded premium template is intentionally simple; this records
       // the same creatorQuality acceptance bar without shipping cell maps in
       // the preview bundle.
@@ -63,6 +70,13 @@ export const SHOWCASE_PREMIUM_PACK = Object.freeze({
       micro_region_ratio: 0.04,
       final_reveal: true,
       identity: true,
+      content_metadata: {
+        schema_version: 'content-metadata.v1',
+        duration: { band: 'medium', label: 'Средняя · около 6 мин', minutes: 6, total_cells: 576, session_mode: 'standard', confidence: 'editorial', source: 'curated-pack-editorial' },
+        complexity: { band: 'focused', label: 'Сосредоточенная', score: 42, confidence: 'editorial', source: 'curated-pack-editorial', gate: 'review' },
+        style: { route: 'classic', status: 'unassessed', confidence: 'none', label: 'Стиль не проверен', reasons: ['exact-pixelization-evidence-missing'], policy: 'pixelization-routing-v1', source: 'safe-classic-default' },
+        quality_gate: { status: 'review', reasons: ['pixelization-review'], blocking: false },
+      },
       editorial_quality: 'fair',
     },
   ]),

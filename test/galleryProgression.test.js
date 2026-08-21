@@ -5,6 +5,7 @@ import {
   buildGallerySummary,
   formatArtworkComplexity,
   formatArtworkDuration,
+  formatArtworkMeta,
   formatResumeBeat,
   isCompletedArtwork,
   sortCollectionsForShelf,
@@ -53,6 +54,16 @@ test('duration and complexity labels stay honest and bucketed', () => {
   assert.equal(formatArtworkDuration({ est_minutes: 7 }), '5–10 мин');
   assert.equal(formatArtworkComplexity({ difficulty: 'hard' }), 'сложная');
   assert.equal(formatArtworkComplexity({ width: 1200, height: 1200 }), 'много деталей');
+});
+
+test('gallery renders server content metadata and marks legacy payloads as unassessed', () => {
+  const metadata = {
+    schema_version: 'content-metadata.v1',
+    duration: { label: 'Средняя · около 6 мин' },
+    complexity: { label: 'Сосредоточенная' },
+  };
+  assert.equal(formatArtworkMeta(artwork('authoritative', 20, { content_metadata: metadata })), 'Средняя · около 6 мин · Сосредоточенная');
+  assert.match(formatArtworkMeta(artwork('legacy', 20)), /Метаданные не проверены/);
 });
 
 test('resume promise names the next reveal beat without fabricating a target', () => {

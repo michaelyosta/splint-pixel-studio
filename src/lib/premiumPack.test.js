@@ -10,6 +10,7 @@ import {
   packTotalMinutes,
   resolvePremiumPackState,
 } from './premiumPack.js';
+import { formatPackContentMetadata } from './contentMetadata.js';
 
 test('showcase pack meets the bounded curated-content quality bar', () => {
   const result = evaluatePremiumPackQuality(SHOWCASE_PREMIUM_PACK);
@@ -17,6 +18,8 @@ test('showcase pack meets the bounded curated-content quality bar', () => {
   assert.equal(result.items.length, 2);
   assert.equal(isCuratedPremiumPack(SHOWCASE_PREMIUM_PACK), true);
   assert.equal(packTotalMinutes(SHOWCASE_PREMIUM_PACK), 12);
+  assert.ok(SHOWCASE_PREMIUM_PACK.items.every((item) => item.content_metadata?.schema_version === 'content-metadata.v1'));
+  assert.equal(formatPackContentMetadata(SHOWCASE_PREMIUM_PACK), 'Средняя · около 6 мин · Сосредоточенная');
 });
 
 test('quality gate rejects noisy or incomplete pack items', () => {

@@ -4,6 +4,7 @@ import RecommendationsStrip from '../features/unlocks/RecommendationsStrip';
 import UnlockJourneyCard from '../features/unlocks/UnlockJourneyCard';
 import { describeResumeBeat } from '../lib/resumeBeat.js';
 import { readCurrentResumeSnapshot } from '../lib/resumeState.js';
+import { formatContentMetadataDetail } from '../lib/contentMetadata.js';
 
 function fallbackAction(item, type, resumeSnapshot = null) {
   if (!item) return null;
@@ -17,6 +18,7 @@ function fallbackAction(item, type, resumeSnapshot = null) {
     preview_url: item.preview_url || null,
     reason: type === 'resume' ? 'CONTINUE_PROGRESS' : 'COLD_START',
     estimated_time: `${item.est_minutes || 3} мин`,
+    content_metadata: item.content_metadata || null,
     reward: type === 'resume'
       ? (resumeBeat?.detail || `Осталось ${100 - percent}% картины`)
       : 'Первая раскрытая картина',
@@ -102,6 +104,7 @@ export default function HomeView({
     || directorPrimary
     || fallbackAction(featured, 'start');
   const unlockPreview = director?.nextAction?.unlock_preview || null;
+  const primaryMetadata = formatContentMetadataDetail(primary);
 
   const secondary = useMemo(() => {
     const list = [...(director?.nextAction?.secondary_actions || [])].slice(0, 2);
@@ -192,7 +195,7 @@ export default function HomeView({
         <span className="home-guided-preview" style={primary.preview_url ? { backgroundImage: `url(${primary.preview_url})` } : undefined} aria-hidden="true" />
         <span className="home-guided-copy">
           <b>{primary.title}</b>
-          <small>{primary.estimated_time || '3 мин'} · {primary.reward}</small>
+          <small data-content-metadata={primaryMetadata.assessed ? 'authoritative' : 'unassessed'}>{primaryMetadata.line} · {primary.reward}</small>
           <span className="home-guided-meta"><Clock3 size={13} /> {primary.resume_beat?.promise || (primary.type === 'resume' ? `${primary.progress_percent}% готово` : 'Начать раскрывать')}</span>
         </span>
         <ArrowRight className="home-guided-arrow" size={18} aria-hidden="true" />
@@ -215,7 +218,7 @@ export default function HomeView({
       <div className="home-choice-list">
         {secondary.map((option) => (
           <button className="home-choice-card" type="button" key={option.id} data-choice-id={option.id} onClick={() => handleChoice(option)}>
-            <span><b>{option.title}</b><small>{option.estimated_time || '—'} · {option.reward || 'Начать'}</small></span>
+            <span><b>{option.title}</b><small data-content-metadata={formatContentMetadataDetail(option).assessed ? 'authoritative' : 'unassessed'}>{formatContentMetadataDetail(option).line} · {option.reward || 'Начать'}</small></span>
             <ArrowRight size={16} aria-hidden="true" />
           </button>
         ))}

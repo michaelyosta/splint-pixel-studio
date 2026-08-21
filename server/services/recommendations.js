@@ -12,6 +12,7 @@ import {
   STATE_PREMIUM_LOCKED,
   STATE_PROGRESSION_LOCKED,
 } from './unlock-service.js';
+import { buildContentMetadata } from './content-quality.js';
 
 export const RECOMMENDATION_REASONS = Object.freeze({
   CONTINUE_PROGRESS: 'CONTINUE_PROGRESS',
@@ -169,6 +170,7 @@ function recommendationPayload(candidate, ranking) {
     total_cells: toNumber(candidate.width, 0) * toNumber(candidate.height, 0),
     est_minutes: toNumber(candidate.est_minutes, 3),
     storage_mode: candidate.storage_mode || 'legacy',
+    content_metadata: buildContentMetadata(candidate),
     unlock_state: candidate.unlock_state || null,
     unlock_reason_code: candidate.unlock_reason_code || null,
     reason_code: ranking.reason,

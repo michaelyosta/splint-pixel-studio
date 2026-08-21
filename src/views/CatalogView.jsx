@@ -1,7 +1,8 @@
 import { BookOpen, Flame, Heart, Sparkles, Star } from 'lucide-react';
-import { formatDifficulty, MOODS, THEMES } from '../lib/catalogMeta';
+import { MOODS, THEMES } from '../lib/catalogMeta';
 import { prefetchColoring } from '../lib/coloringPrefetch';
 import { hapticImpact, hapticSelection } from '../lib/telegram';
+import { formatContentMetadataDetail } from '../lib/contentMetadata.js';
 import {
   PREMIUM_PACK_STATES,
   SHOWCASE_PREMIUM_PACK,
@@ -66,7 +67,7 @@ export default function CatalogView({
         <p className="eyebrow">СЕГОДНЯ ДЛЯ ВАС</p>
         <button className="editorial-card" onClick={() => onOpen(today.for_you.id)}>
           <span className="editorial-preview" style={today.for_you.preview_url ? { backgroundImage: `url(${today.for_you.preview_url})` } : undefined} />
-          <span className="editorial-info"><b>{today.for_you.title}</b><small>{today.for_you.est_minutes} мин · {today.for_you.width}×{today.for_you.height}</small></span>
+          <span className="editorial-info"><b>{today.for_you.title}</b><small>{formatContentMetadataDetail(today.for_you).line} · {today.for_you.width}×{today.for_you.height}</small></span>
           <Sparkles size={18} />
         </button>
       </div>}
@@ -78,7 +79,7 @@ export default function CatalogView({
         <span className="quick-label">Быстрая до 3 мин</span>
         <div className="quick-scroll">{today.quick.map((item) => <button key={item.id} className="quick-chip" onClick={() => onOpen(item.id)}>
           <span className="quick-chip-preview" style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : undefined} />
-          <small>{item.est_minutes}м</small>
+          <small>{formatContentMetadataDetail(item).duration}</small>
         </button>)}</div>
       </div>}
       <div className="filter-bar">
@@ -96,8 +97,8 @@ export default function CatalogView({
       </div>
       {loading && !templates.length ? <div className="skeleton-grid" aria-label="Загружаем каталог">{[0, 1, 2, 3].map((i) => <div className="skeleton-card" key={i}><div className="skeleton-block skeleton-preview" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /><div className="skeleton-block skeleton-line" /></div>)}</div> : catalogError && !templates.length ? <div className="error-retry"><p>Не удалось загрузить каталог</p><button className="secondary-button" onClick={onRetryCatalog}>Повторить</button></div> : <>
         <div className="coloring-grid">{visibleTemplates.map((item) => <article className="coloring-card" key={item.id} onMouseEnter={() => prefetchColoring(item.id)} onTouchStart={() => prefetchColoring(item.id)}>
-          <div className="card-preview" style={item.preview_url ? { backgroundImage: `linear-gradient(180deg, transparent, #14222e), url(${item.preview_url})` } : undefined}>{progressMap[item.id] > 0 ? <span className="progress-badge">{progressMap[item.id]}%</span> : <span>{item.est_minutes} мин</span>}</div>
-          <div className="card-body"><h2 style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{item.title}</h2><p style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', minHeight: '2.6em' }}>{item.description}</p><small style={{ minHeight: '1.4em', display: 'block' }}>{item.width}×{item.height} · {item.palette.length} цветов · {formatDifficulty(item.difficulty)}</small>
+          <div className="card-preview" style={item.preview_url ? { backgroundImage: `linear-gradient(180deg, transparent, #14222e), url(${item.preview_url})` } : undefined}>{progressMap[item.id] > 0 ? <span className="progress-badge">{progressMap[item.id]}%</span> : <span>{formatContentMetadataDetail(item).duration}</span>}</div>
+          <div className="card-body"><h2 style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{item.title}</h2><p style={{ overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', minHeight: '2.6em' }}>{item.description}</p><small data-content-metadata={formatContentMetadataDetail(item).assessed ? 'authoritative' : 'unassessed'} style={{ minHeight: '1.4em', display: 'block' }}>{item.width}×{item.height} · {formatContentMetadataDetail(item).line}</small>
             <div className="template-rating" aria-label={`Рейтинг ${item.rating_average ? item.rating_average.toFixed(1) : 'без оценок'}`}>
               <div className="rating-stars">{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" disabled={ratingTemplateId === item.id || item.owner_id === currentUser?.id} className={value <= (item.viewer_rating || 0) ? 'selected' : ''} onClick={() => onRate(item, value)} aria-label={`Оценить на ${value}`}><Star size={15} fill={value <= (item.viewer_rating || 0) ? 'currentColor' : 'none'} /></button>)}</div>
               <span>{item.rating_count ? `${item.rating_average.toFixed(1)} · ${item.rating_count}` : 'Нет оценок'}</span>
@@ -149,12 +150,13 @@ export default function CatalogView({
 
   const renderArtworkGrid = (items, label) => <div className="catalog-art-grid" aria-label={label}>{items.map((item) => {
     const progressPercent = progressById.get(item.id) || 0;
+    const metadata = formatContentMetadataDetail(item);
     return <article className="catalog-art-card" key={item.id} onMouseEnter={() => prefetchColoring(item.id)} onTouchStart={() => prefetchColoring(item.id)}>
       <button className="catalog-art-open" type="button" onClick={() => { hapticImpact('light'); onOpen(item.id); }} aria-label={`Открыть раскраску ${item.title}`}>
         <span className="catalog-art-preview" style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : undefined}>
-          {progressPercent > 0 ? <em className="catalog-art-progress">{progressPercent}%</em> : <em>{item.est_minutes || 3} мин</em>}
+          {progressPercent > 0 ? <em className="catalog-art-progress">{progressPercent}%</em> : <em>{metadata.duration}</em>}
         </span>
-        <span className="catalog-art-copy"><b>{item.title}</b><small>{item.width}×{item.height} · {formatDifficulty(item.difficulty)}</small></span>
+        <span className="catalog-art-copy"><b>{item.title}</b><small data-content-metadata={metadata.assessed ? 'authoritative' : 'unassessed'}>{item.width}×{item.height} · {metadata.line}</small></span>
       </button>
       <div className="catalog-art-footer"><span>{item.rating_count ? `★ ${item.rating_average?.toFixed?.(1) || item.rating_average} · ${item.rating_count}` : 'Новая работа'}</span><button className={item.is_favorite ? 'is-favorite' : ''} type="button" onClick={() => onToggleFavorite(item)} disabled={favoriteSavingId === item.id} aria-label={item.is_favorite ? `Удалить ${item.title} из избранного` : `Добавить ${item.title} в избранное`}><Heart size={16} fill={item.is_favorite ? 'currentColor' : 'none'} /></button></div>
     </article>;

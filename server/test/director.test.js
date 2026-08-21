@@ -48,6 +48,9 @@ test('director cold start returns a startable primary action and bounded choices
     assert.ok(action.secondary_actions.length >= 1);
     assert.ok(action.choice_window.options.length >= 1);
     assert.ok(action.choice_window.options.every((option) => option.id && option.title));
+    assert.equal(action.primary_action.content_metadata.schema_version, 'content-metadata.v1');
+    assert.ok(action.primary_action.content_metadata.duration.label);
+    assert.ok(action.primary_action.content_metadata.complexity.label);
     assert.ok(Buffer.byteLength(JSON.stringify(action)) < 50_000, 'director payload stays bounded');
   });
 });

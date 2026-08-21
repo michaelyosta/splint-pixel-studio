@@ -8,6 +8,7 @@ import {
   progressPercent,
   sortGalleryItems,
 } from '../lib/galleryProgression';
+import { hasContentMetadata } from '../lib/contentMetadata.js';
 
 function ArtworkPreview({ item, completed = false }) {
   return <span
@@ -59,7 +60,7 @@ export default function GalleryView({
         <span className="gallery-row-copy">
           <b>{item.title}</b>
           <small>{completed ? 'Готовый результат' : formatResumeBeat(item)}</small>
-          <em>{formatArtworkMeta(item)}</em>
+          <em data-content-metadata={hasContentMetadata(item) ? 'authoritative' : 'unassessed'}>{formatArtworkMeta(item)}</em>
         </span>
         <span className={`gallery-progress${completed ? ' is-complete' : ''}`}>{completed ? <Check size={15} /> : `${percent}%`}</span>
       </button>
@@ -86,7 +87,7 @@ export default function GalleryView({
         <p className="eyebrow">СЛЕДУЮЩИЙ BEAT</p>
         <h2>Продолжить раскрытие</h2>
         <p>{resumeItem.title}</p>
-        <small><Clock3 size={13} aria-hidden="true" /> {formatResumeBeat(resumeItem)} · {formatArtworkMeta(resumeItem)}</small>
+        <small data-content-metadata={hasContentMetadata(resumeItem) ? 'authoritative' : 'unassessed'}><Clock3 size={13} aria-hidden="true" /> {formatResumeBeat(resumeItem)} · {formatArtworkMeta(resumeItem)}</small>
       </div>
       <button type="button" className="primary-button" onClick={() => onOpen(resumeItem.id)} data-gallery-resume-action>
         Продолжить <ArrowRight size={15} aria-hidden="true" />
