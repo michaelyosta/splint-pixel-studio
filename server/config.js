@@ -16,7 +16,7 @@ export function isDevelopmentAuthEnabled(env = process.env) {
 }
 
 export function getPaymentsMode(env = process.env) {
-  const defaultMode = env.NODE_ENV === 'production' ? 'disabled' : 'internal_credits';
+  const defaultMode = isLocalDevelopmentEnvironment(env) ? 'internal_credits' : 'disabled';
   const mode = String(env.PAYMENTS_MODE || defaultMode).trim().toLowerCase();
   if (!PAYMENT_MODES.includes(mode)) {
     throw new Error(`PAYMENTS_MODE must be one of: ${PAYMENT_MODES.join('|')}`);

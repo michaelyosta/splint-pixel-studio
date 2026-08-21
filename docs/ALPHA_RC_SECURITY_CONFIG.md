@@ -40,6 +40,15 @@ surface was added.
   `X-User-Id` surface.
 - **Verifier:** `server/test/config.test.js`; existing auth integration suite.
 
+### RC-SEC-004 — Staging-like environments defaulted to the internal ledger
+
+- **Risk:** when `PAYMENTS_MODE` was omitted, every non-production environment
+  defaulted to `internal_credits`. A staging/preview deployment with existing
+  ledger rows could therefore expose a non-provider purchase path by default.
+- **Fix:** only local/test environments retain the `internal_credits` default;
+  every explicitly named deployment environment defaults to `disabled`.
+- **Verifier:** `server/test/config.test.js`.
+
 The legacy `SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE` flag is also rejected by the
 production validator. Special QA overrides and diagnostics already require an
 exact `development`/`test` environment, explicit dev auth, and an allowlisted

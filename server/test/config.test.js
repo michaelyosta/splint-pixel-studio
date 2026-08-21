@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isDevelopmentAuthEnabled, validateProductionConfiguration } from '../config.js';
+import { getPaymentsMode, isDevelopmentAuthEnabled, validateProductionConfiguration } from '../config.js';
 
 const validProduction = {
   NODE_ENV: 'production',
@@ -76,6 +76,14 @@ test('explicit staging-like environments cannot inherit local development auth',
   // Existing local harnesses intentionally omit NODE_ENV; preserve that
   // compatibility while requiring explicit environment names in deployments.
   assert.equal(isDevelopmentAuthEnabled({ ALLOW_DEV_AUTH: 'true' }), true);
+});
+
+test('explicit staging-like environments default to disabled payments', () => {
+  assert.equal(getPaymentsMode({ NODE_ENV: 'development' }), 'internal_credits');
+  assert.equal(getPaymentsMode({ NODE_ENV: 'test' }), 'internal_credits');
+  assert.equal(getPaymentsMode({ NODE_ENV: 'staging' }), 'disabled');
+  assert.equal(getPaymentsMode({ NODE_ENV: 'preview' }), 'disabled');
+  assert.equal(getPaymentsMode({ NODE_ENV: 'production' }), 'disabled');
 });
 
 for (const [name, mutate, expected] of [
