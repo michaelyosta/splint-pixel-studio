@@ -2,6 +2,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 const originalStorageRoot = process.env.MEDIA_STORAGE_ROOT;
@@ -58,6 +59,15 @@ describe('media-storage local driver safety', () => {
     const mediaKey = await mod.storePrivateOriginal(validDataUrl, 'user_test');
     assert.ok(mediaKey.startsWith('local://'));
     await mod.deletePrivateOriginal(mediaKey);
+  });
+
+  it('deduplicates identical private originals for one owner', async () => {
+    const first = await mod.storePrivateOriginal(validDataUrl, 'user_duplicate');
+    const second = await mod.storePrivateOriginal(validDataUrl, 'user_duplicate');
+    assert.equal(second, first, 'identical uploads must reuse the content-addressed key');
+    const files = await readdir(join(testDir, 'originals', 'user_duplicate'));
+    assert.equal(files.length, 1, 'duplicate uploads must leave one object');
+    await mod.deletePrivateOriginal(first);
   });
 
   it('reads and deletes a canonical object through its database key', async () => {

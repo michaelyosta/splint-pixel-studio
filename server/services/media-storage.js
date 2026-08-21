@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { inflateSync } from 'node:zlib';
 import { dirname, join, resolve, sep } from 'node:path';
@@ -115,11 +115,16 @@ function ensureLocalDir(targetPath) {
 }
 
 // Original files are intentionally never returned by the coloring API.
-export async function storePrivateOriginal(dataUrl, ownerId) {
+export async function storePrivateOriginal(dataUrl, ownerId, decodedImage = null) {
   if (dataUrl == null) return null;
-  const image = decodeImageDataUrl(dataUrl);
+  const image = decodedImage || decodeImageDataUrl(dataUrl);
   if (!image) throw new Error('Unsupported or oversized source image');
-  const key = `originals/${ownerId}/${randomUUID()}.${image.extension}`;
+  // Content-address originals per owner. Repeated uploads of the same source
+  // image now reuse one immutable object instead of multiplying storage. The
+  // owner segment keeps private originals isolated even when two users upload
+  // identical bytes.
+  const contentHash = createHash('sha256').update(image.bytes).digest('hex');
+  const key = `originals/${ownerId}/${contentHash}.${image.extension}`;
   if (isS3Configured()) {
     const client = s3Client();
     await client.send(new PutObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key, Body: image.bytes, ContentType: image.type }));
@@ -127,7 +132,14 @@ export async function storePrivateOriginal(dataUrl, ownerId) {
   }
   const localPath = safeLocalPath(key);
   await ensureLocalDir(localPath);
-  await writeFile(localPath, image.bytes, { flag: 'wx' });
+  try {
+    await writeFile(localPath, image.bytes, { flag: 'wx' });
+  } catch (error) {
+    // The content-addressed key makes duplicate uploads safe to race. A
+    // winner may have created the object between our existence check and the
+    // write; both callers can return the same durable key.
+    if (error.code !== 'EEXIST') throw error;
+  }
   return `local://${key}`;
 }
 

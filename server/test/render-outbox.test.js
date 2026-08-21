@@ -1,6 +1,6 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +20,9 @@ const {
   enqueueRenderJob,
   failRenderJob,
   loadRenderPlan,
+  MAX_BATCH_SIZE,
+  MAX_MAX_ATTEMPTS,
+  processRenderJob,
 } = await import('../services/render-outbox.js');
 
 after(() => {
@@ -128,6 +131,34 @@ test('concurrent claims deliver one job to exactly one worker', async () => {
   assert.deepEqual([first.length, second.length].sort(), [0, 1], 'one worker claims, the other gets nothing');
 });
 
+test('worker claims and retry attempts stay within hard safety ceilings', async () => {
+  const db = await createDb();
+  await insertLegacyFixture(db);
+  await withTransaction(db, async (tx) => {
+    for (let index = 2; index <= 24; index += 1) {
+      const artworkId = `art${index}`;
+      await tx.run(`INSERT INTO artworks
+        (id,owner_id,source_type,image_url,title,template_id,collection_id,collection_title,rarity,is_completed,storage_key,thumbnail_key,content_hash,mime_type,width,height,byte_size,render_status,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [artworkId, 'u1', 'coloring', `/media/${artworkId}.png`, 'Legacy', 't1', null, 'Legacy', 'common', 1, `artworks/u1/${artworkId}.png`, `thumbnails/u1/${artworkId}.png`, 'hash', 'image/png', 8, 8, 1, 'pending', BASE_NOW.toISOString(), BASE_NOW.toISOString()]);
+      await enqueueRenderJob(tx, {
+        artworkId,
+        userId: 'u1',
+        templateId: 't1',
+        renderMode: 'legacy',
+        maxAttempts: 999,
+        now: BASE_NOW,
+      });
+    }
+  });
+
+  const jobs = countRows(db, 'SELECT * FROM render_outbox');
+  assert.equal(jobs.length, 23);
+  assert.ok(jobs.every((job) => Number(job.max_attempts) <= MAX_MAX_ATTEMPTS));
+  const claimed = await claimRenderJobs(db, { workerId: 'bounded-worker', batchSize: 999, now: BASE_NOW });
+  assert.equal(claimed.length, MAX_BATCH_SIZE, 'a hostile worker batch size must not claim an unbounded fleet');
+});
+
 test('active leases are respected and expired leases are reclaimable', async () => {
   const db = await createDb();
   await insertLegacyFixture(db);
@@ -234,6 +265,12 @@ test('drain writes both canonical objects before marking artwork and job ready',
   const artwork = countRows(db, "SELECT render_status FROM artworks WHERE id='art1'")[0];
   assert.equal(job.status, 'ready');
   assert.equal(artwork.render_status, 'ready');
+
+  // A retry/replay uses the same deterministic keys and must not amplify the
+  // local object count even when the first attempt already wrote both files.
+  await processRenderJob(db, job);
+  assert.equal(readdirSync(join(mediaRoot, 'artworks', 'u1')).length, 1);
+  assert.equal(readdirSync(join(mediaRoot, 'thumbnails', 'u1')).length, 1);
 });
 
 test('tiled 1200 render plan never assembles a full filled array', async () => {

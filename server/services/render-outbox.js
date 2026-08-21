@@ -11,9 +11,17 @@ import { storeMediaObject } from './media-storage.js';
 
 export const RENDER_OUTBOX_STATUSES = Object.freeze(['pending', 'processing', 'retry', 'ready', 'dead']);
 export const DEFAULT_MAX_ATTEMPTS = 6;
+export const MAX_MAX_ATTEMPTS = 6;
 export const DEFAULT_LEASE_MS = 5 * 60 * 1000;
 export const DEFAULT_BATCH_SIZE = 16;
+export const MAX_BATCH_SIZE = 16;
 export const DEFAULT_RETRY_DELAYS_MS = Object.freeze([1_000, 5_000, 30_000, 120_000, 600_000]);
+
+function boundedPositiveInteger(value, fallback, maximum) {
+  const numeric = Number(value);
+  if (!Number.isSafeInteger(numeric) || numeric < 1) return fallback;
+  return Math.min(maximum, numeric);
+}
 
 function iso(value = new Date()) {
   return value instanceof Date ? value.toISOString() : String(value);
@@ -58,13 +66,14 @@ export async function enqueueRenderJob(tx, {
   if (!artworkId || !userId || !templateId || !['legacy', 'tiled'].includes(renderMode)) {
     throw new Error('Invalid render outbox enqueue payload');
   }
+  const boundedMaxAttempts = boundedPositiveInteger(maxAttempts, DEFAULT_MAX_ATTEMPTS, MAX_MAX_ATTEMPTS);
   const timestamp = iso(now);
   const id = renderJobId(artworkId);
   await tx.run(`INSERT INTO render_outbox
     (id, artwork_id, user_id, template_id, render_mode, status, attempt_count, max_attempts, next_attempt_at, lease_owner, lease_expires_at, last_error, created_at, updated_at)
     VALUES (?,?,?,?,?, 'pending', 0, ?, ?, NULL, NULL, NULL, ?, ?)
     ON CONFLICT(artwork_id) DO NOTHING`,
-  [id, artworkId, userId, templateId, renderMode, maxAttempts, timestamp, timestamp, timestamp]);
+  [id, artworkId, userId, templateId, renderMode, boundedMaxAttempts, timestamp, timestamp, timestamp]);
   return tx.get('SELECT * FROM render_outbox WHERE artwork_id=?', [artworkId]);
 }
 
@@ -82,6 +91,7 @@ export async function claimRenderJobs(db, {
   leaseMs = DEFAULT_LEASE_MS,
 } = {}) {
   if (!workerId) throw new Error('workerId is required to claim render jobs');
+  const boundedBatchSize = boundedPositiveInteger(batchSize, DEFAULT_BATCH_SIZE, MAX_BATCH_SIZE);
   const timestamp = iso(now);
   const leaseExpiresAt = iso(new Date(now.getTime() + leaseMs));
   return runInDbTransaction(db, async (tx) => {
@@ -90,7 +100,7 @@ export async function claimRenderJobs(db, {
         AND next_attempt_at <= ?
         AND (lease_expires_at IS NULL OR lease_expires_at < ?)
       ORDER BY next_attempt_at ASC, created_at ASC
-      LIMIT ?`, [timestamp, timestamp, batchSize]);
+      LIMIT ?`, [timestamp, timestamp, boundedBatchSize]);
     const claimed = [];
     for (const candidate of candidates) {
       const updated = await tx.run(`UPDATE render_outbox

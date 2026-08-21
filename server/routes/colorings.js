@@ -6,6 +6,7 @@ import { isUniqueConstraintError } from '../database/sql.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
 import { decodeImageDataUrl, deletePrivateOriginal, publicMediaUrl, readMediaObject, storeMediaObject, storePrivateOriginal } from '../services/media-storage.js';
+import { abuseLimitResponse, consumeAbuseBudget } from '../services/abuse-limiter.js';
 import { renderCanonicalPng, renderCanonicalThumbnail } from '../services/canonical-renderer.js';
 import { validatePublicTemplateComplexity } from '../services/template-complexity.js';
 import { buildContentMetadata } from '../services/content-quality.js';
@@ -98,6 +99,37 @@ import {
 } from '../services/tiled-hazard.js';
 
 const router = Router();
+
+const CREATE_UPLOAD_LIMIT = Number.isSafeInteger(Number(process.env.CREATE_UPLOAD_LIMIT))
+  && Number(process.env.CREATE_UPLOAD_LIMIT) > 0
+  ? Number(process.env.CREATE_UPLOAD_LIMIT)
+  : 10;
+const CREATE_UPLOAD_WINDOW_MS = Number.isSafeInteger(Number(process.env.CREATE_UPLOAD_WINDOW_MS))
+  && Number(process.env.CREATE_UPLOAD_WINDOW_MS) >= 60_000
+  ? Number(process.env.CREATE_UPLOAD_WINDOW_MS)
+  : 10 * 60_000;
+const RENDER_RETRY_LIMIT = Number.isSafeInteger(Number(process.env.RENDER_RETRY_LIMIT))
+  && Number(process.env.RENDER_RETRY_LIMIT) > 0
+  ? Number(process.env.RENDER_RETRY_LIMIT)
+  : 3;
+const RENDER_RETRY_WINDOW_MS = Number.isSafeInteger(Number(process.env.RENDER_RETRY_WINDOW_MS))
+  && Number(process.env.RENDER_RETRY_WINDOW_MS) >= 60_000
+  ? Number(process.env.RENDER_RETRY_WINDOW_MS)
+  : 60 * 60_000;
+// 10 MiB decoded image bytes are accepted by media-storage. This leaves room
+// for the base64 expansion while still failing oversized source strings
+// before the decoder allocates a large buffer.
+const MAX_SOURCE_DATA_URL_CHARS = 14_000_000;
+
+async function deletePrivateOriginalIfUnreferenced(mediaKey, excludedTemplateId = null) {
+  if (!mediaKey) return;
+  const reference = excludedTemplateId
+    ? await get('SELECT id FROM coloring_templates WHERE original_media_key=? AND id<>? LIMIT 1', [mediaKey, excludedTemplateId])
+    : await get('SELECT id FROM coloring_templates WHERE original_media_key=? LIMIT 1', [mediaKey]);
+  if (!reference) {
+    await deletePrivateOriginal(mediaKey).catch((error) => console.warn('Could not delete private original:', error.message));
+  }
+}
 
 async function assertNoOtherActiveSpecialOffer(tx, { userId, templateId, specialId } = {}) {
   const active = await findActiveSpecialProgress(tx, { userId, templateId });
@@ -734,13 +766,15 @@ router.delete('/:id', authMiddleware, asyncRoute(async (req, res) => {
   }
   await run('DELETE FROM coloring_progress WHERE template_id=?', [template.id]);
   await run('DELETE FROM coloring_templates WHERE id=?', [template.id]);
-  await deletePrivateOriginal(template.original_media_key).catch((error) => console.warn('Could not delete original media:', error.message));
+  // Originals are content-addressed and may be shared by duplicate uploads;
+  // only remove the object after the last referencing template is gone.
+  await deletePrivateOriginalIfUnreferenced(template.original_media_key, template.id);
   res.json({ success: true });
 }));
 
 // POST /colorings/create - a private template built in the browser from a user image
 router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
-  const { title, description = '', width, height, palette, cells, tiles = null, tileSize = 32, storageMode = null, previewDataUrl = null, originalDataUrl = null } = req.body;
+  const { title, description = '', width, height, palette, cells, tiles = null, tileSize = 32, storageMode = null, previewDataUrl = null, originalDataUrl = null } = req.body || {};
   const safeTitle = String(title || '').trim().slice(0, 80);
   const safeWidth = Number(width);
   const safeHeight = Number(height);
@@ -757,11 +791,35 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
   if (previewDataUrl !== null && (typeof previewDataUrl !== 'string' || previewDataUrl.length > 300_000 || !/^data:image\/png;base64,/i.test(previewDataUrl) || !decodeImageDataUrl(previewDataUrl))) {
     return res.status(400).json({ error: 'Некорректная миниатюра раскраски' });
   }
+  if (originalDataUrl !== null && (typeof originalDataUrl !== 'string' || originalDataUrl.length > MAX_SOURCE_DATA_URL_CHARS)) {
+    return res.status(413).json({ error: 'Исходное изображение слишком большое', code: 'SOURCE_IMAGE_TOO_LARGE' });
+  }
+  const sourceImage = originalDataUrl === null ? null : decodeImageDataUrl(originalDataUrl);
+  if (originalDataUrl !== null && !sourceImage) {
+    return res.status(400).json({ error: 'Некорректное исходное изображение', code: 'INVALID_SOURCE_IMAGE' });
+  }
+
+  // Creation performs browser conversion and persists a private original, so
+  // it needs a durable per-user budget in addition to the global IP limiter.
+  // Consume after shape validation so malformed probes do not exhaust it.
+  try {
+    await withDbTransaction((tx) => consumeAbuseBudget(tx, {
+      scope: 'colorings:create',
+      actorKey: req.userId,
+      limit: CREATE_UPLOAD_LIMIT,
+      windowMs: CREATE_UPLOAD_WINDOW_MS,
+    }));
+  } catch (error) {
+    if (abuseLimitResponse(res, error)) return;
+    throw error;
+  }
+
   const now = new Date().toISOString();
   const id = `color_${uuid()}`;
-  const originalMediaKey = await storePrivateOriginal(originalDataUrl, req.userId);
-  if (tiledRequested) {
-    try {
+  let originalMediaKey = null;
+  try {
+    originalMediaKey = await storePrivateOriginal(originalDataUrl, req.userId, sourceImage);
+    if (tiledRequested) {
       await withDbTransaction(async (tx) => {
         await insertTiledTemplate(tx, {
           id,
@@ -781,33 +839,36 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
         // The shared tiled insert now generates production hazard rows. The
         // fixture-only flag is not needed for tiled templates.
       });
-    } catch (error) {
-      if (sendChunkContractError(res, error)) return;
-      throw error;
+      return res.status(201).json({ ...parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=?', [id])), source_stored: Boolean(originalMediaKey) });
     }
-    return res.status(201).json({ ...parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=?', [id])), source_stored: Boolean(originalMediaKey) });
-  }
-  await withDbTransaction(async (tx) => {
-    await tx.run(`INSERT INTO coloring_templates (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, req.userId, safeTitle, String(description).slice(0, 280), 'custom', 'custom', safeWidth, safeHeight, JSON.stringify(palette), JSON.stringify(cells), null, originalMediaKey, 'user', 'private', 'active', now, now]);
-    const legacy = generateLegacySparkCells({ templateId: id, width: safeWidth, height: safeHeight, cells });
-    await persistSparkCells(tx, {
-      templateId: id,
-      cells: legacy,
-    });
-    await persistHazardCells(tx, {
-      templateId: id,
-      cells: generateLegacyHazardCells({
+    await withDbTransaction(async (tx) => {
+      await tx.run(`INSERT INTO coloring_templates (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id, req.userId, safeTitle, String(description).slice(0, 280), 'custom', 'custom', safeWidth, safeHeight, JSON.stringify(palette), JSON.stringify(cells), null, originalMediaKey, 'user', 'private', 'active', now, now]);
+      const legacy = generateLegacySparkCells({ templateId: id, width: safeWidth, height: safeHeight, cells });
+      await persistSparkCells(tx, {
         templateId: id,
-        width: safeWidth,
-        height: safeHeight,
-        cells,
-        occupiedIndices: legacy.map((cell) => cell.cell_index),
-      }),
+        cells: legacy,
+      });
+      await persistHazardCells(tx, {
+        templateId: id,
+        cells: generateLegacyHazardCells({
+          templateId: id,
+          width: safeWidth,
+          height: safeHeight,
+          cells,
+          occupiedIndices: legacy.map((cell) => cell.cell_index),
+        }),
+      });
     });
-  });
-  res.status(201).json({ ...parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=?', [id])), source_stored: Boolean(originalMediaKey) });
+    return res.status(201).json({ ...parseTemplate(await get('SELECT * FROM coloring_templates WHERE id=?', [id])), source_stored: Boolean(originalMediaKey) });
+  } catch (error) {
+    // If validation or persistence fails after storage, remove only an
+    // unreferenced object; duplicate uploads may already share this key.
+    await deletePrivateOriginalIfUnreferenced(originalMediaKey, id);
+    if (tiledRequested && sendChunkContractError(res, error)) return;
+    throw error;
+  }
 }));
 
 // GET /colorings/mine - private and catalog templates with the caller's progress
@@ -1014,6 +1075,20 @@ router.get('/:id/result', authMiddleware, asyncRoute(async (req, res) => {
 
 // POST /colorings/:id/render/retry - manually requeue a permanently failed render.
 router.post('/:id/render/retry', authMiddleware, asyncRoute(async (req, res) => {
+  // A dead render can be manually requeued, but each reset reopens the full
+  // bounded render-attempt budget. Keep this recovery path durable and
+  // user-scoped so it cannot become a storage amplification loop.
+  try {
+    await withDbTransaction((tx) => consumeAbuseBudget(tx, {
+      scope: 'colorings:render-retry',
+      actorKey: req.userId,
+      limit: RENDER_RETRY_LIMIT,
+      windowMs: RENDER_RETRY_WINDOW_MS,
+    }));
+  } catch (error) {
+    if (abuseLimitResponse(res, error)) return;
+    throw error;
+  }
   const artwork = await get("SELECT id,render_status FROM artworks WHERE owner_id=? AND source_type='coloring' AND template_id=?", [req.userId, req.params.id]);
   if (!artwork) return res.status(404).json({ error: 'Artwork not found' });
   const reset = await retryRenderJob({ withTransaction: withDbTransaction }, { artworkId: artwork.id, now: new Date() });
