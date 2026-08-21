@@ -149,6 +149,25 @@ test('free templates stay available and premium content stays purchase-only', as
   });
 });
 
+test('active Telegram Stars entitlement participates in canonical premium unlock facts', async () => {
+  const db = await createDb();
+  await insertCollection(db, 'col_xtr_owned', { packType: 'premium', price: 120 });
+  await withTransaction({ mode: 'sqlite', sqlite: db, persistFn: null }, async (tx) => {
+    await tx.run(`INSERT INTO telegram_stars_orders
+      (id,user_id,product_id,currency,amount_xtr,idempotency_key,request_fingerprint,invoice_payload,status,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    ['xtr_order_unlock', 'u_premium', 'col_xtr_owned', 'XTR', 120, 'xtr-unlock-key', 'fp', 'splint:xtr:v1:xtr_order_unlock', 'paid', NOW, NOW]);
+    await tx.run(`INSERT INTO telegram_stars_entitlements
+      (id,order_id,user_id,product_id,status,granted_at)
+      VALUES (?,?,?,?,?,?)`, ['xtr_entitlement_unlock', 'xtr_order_unlock', 'u_premium', 'col_xtr_owned', 'active', NOW]);
+  });
+  const owned = await withTransaction({ mode: 'sqlite', sqlite: db, persistFn: null }, (tx) => getCollectionUnlockState(tx, 'u_premium', { id: 'col_xtr_owned', pack_type: 'premium', price_in_stars: 120 }));
+  assert.equal(owned.state, STATE_OWNED);
+  await withTransaction({ mode: 'sqlite', sqlite: db, persistFn: null }, (tx) => tx.run("UPDATE telegram_stars_entitlements SET status='revoked' WHERE order_id=?", ['xtr_order_unlock']));
+  const revoked = await withTransaction({ mode: 'sqlite', sqlite: db, persistFn: null }, (tx) => getCollectionUnlockState(tx, 'u_premium', { id: 'col_xtr_owned', pack_type: 'premium', price_in_stars: 120 }));
+  assert.equal(revoked.state, STATE_PREMIUM_LOCKED);
+});
+
 test('all rule types enforce exact boundaries and report progress', async () => {
   const db = await createDb();
   await insertTemplate(db, 'tpl_level');

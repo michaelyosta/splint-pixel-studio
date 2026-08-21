@@ -101,6 +101,14 @@ export async function collectProgressionFacts(db, userId) {
     'SELECT template_id FROM template_entitlements WHERE user_id=?',
     [userId],
   );
+  // Telegram Stars captures are the provider-of-truth payment record.  The
+  // active XTR projection participates in the same unlock facts as the
+  // legacy collection/template ownership tables, so Store/Resume/Player do
+  // not need a second access rule. A refunded row disappears from this set.
+  const telegramStarsRows = await db.all(
+    "SELECT product_id FROM telegram_stars_entitlements WHERE user_id=? AND status='active'",
+    [userId],
+  );
   const completedTemplates = await db.all(
     'SELECT template_id FROM artworks WHERE owner_id=? AND is_completed=1 AND template_id IS NOT NULL',
     [userId],
@@ -130,8 +138,14 @@ export async function collectProgressionFacts(db, userId) {
     achievements: new Set(achievementRows.map((row) => row.achievement_id)),
     completed_artworks: Math.max(0, toNumber(completedArtworks?.c, 0)),
     collection_progress: collectionProgress,
-    owned_collections: new Set(ownershipRows.map((row) => row.collection_id)),
-    owned_templates: new Set(entitlementRows.map((row) => row.template_id)),
+    owned_collections: new Set([
+      ...ownershipRows.map((row) => row.collection_id),
+      ...telegramStarsRows.map((row) => row.product_id),
+    ]),
+    owned_templates: new Set([
+      ...entitlementRows.map((row) => row.template_id),
+      ...telegramStarsRows.map((row) => row.product_id),
+    ]),
     completed_templates: new Set(completedTemplates.map((row) => row.template_id)),
   };
 }

@@ -57,7 +57,12 @@ export function createMockTelegramStarsAdapter(_options = {}) {
       assertNonEmpty(input?.telegramPaymentChargeId, 'telegramPaymentChargeId');
       const amountXtr = Number(input.amountXtr);
       if (!Number.isInteger(amountXtr) || amountXtr <= 0) throw new TypeError('amountXtr must be a positive integer');
-      const key = `${input.telegramPaymentChargeId}:${amountXtr}`;
+      // The request key mirrors the idempotency token that a real provider
+      // adapter must pass through to Telegram/support infrastructure. The
+      // charge/amount fallback keeps older local fixtures deterministic.
+      const key = input.idempotencyKey
+        ? `request:${input.idempotencyKey}`
+        : `${input.telegramPaymentChargeId}:${amountXtr}`;
       const existing = refunds.get(key);
       if (existing) return clone(existing);
 

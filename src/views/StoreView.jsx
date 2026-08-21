@@ -13,7 +13,12 @@ import { buildPackDeepLink, shareViaTelegram } from '../lib/telegram';
 import { formatContentMetadataDetail } from '../lib/contentMetadata.js';
 
 function paymentResultIsSuccessful(result) {
-  return result === true || result?.success === true;
+  return Boolean(
+    (result?.success === true || result === true)
+      && (result?.server_confirmed === true
+        || result?.entitlement_status === 'active'
+        || result?.entitlement?.status === 'active'),
+  );
 }
 
 function paymentResultIsCancelled(result) {
@@ -128,7 +133,7 @@ export default function StoreView({
         dispatchCheckout({ type: kind === 'restore' ? 'RESTORE_SUCCESS' : 'SUCCESS', operationId: result.operation_id });
         onTrack(kind === 'restore' ? 'pack_purchase_restored' : 'pack_purchase_confirmed', { collection_id: selected.id });
       } else {
-        dispatchCheckout({ type: 'FAIL', error: result?.error || 'Не удалось подтвердить покупку' });
+        dispatchCheckout({ type: 'FAIL', error: result?.success ? 'Платёж принят, но доступ ещё не подтверждён сервером' : (result?.error || 'Не удалось подтвердить покупку') });
       }
     } catch (paymentError) {
       if (paymentError?.name === 'AbortError' || paymentError?.code === 'CANCELLED') {

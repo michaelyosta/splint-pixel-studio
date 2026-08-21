@@ -56,15 +56,10 @@ export function validateProductionConfiguration(env = process.env) {
   if (env.SEED_DEMO_DATA === 'true') throw new Error('SEED_DEMO_DATA cannot be enabled in production');
 
   if (paymentsMode === 'telegram_stars') {
-    const paymentRequired = [
-      'TELEGRAM_PAYMENTS_WEBHOOK_SECRET',
-      'TELEGRAM_PAYMENT_SUPPORT',
-      'TELEGRAM_PAYMENT_REFUND_CONTACT',
-    ];
-    const missingPayments = paymentRequired.filter((name) => !String(env[name] || '').trim());
-    if (missingPayments.length) {
-      throw new Error(`PAYMENTS_MODE=telegram_stars requires: ${missingPayments.join(', ')}`);
-    }
+    // The provider adapter/webhook is intentionally not mounted in this
+    // bounded slice. Refuse a production boot that could advertise an active
+    // Stars mode until a separate release wires the real Bot API path.
+    throw new Error('PAYMENTS_MODE=telegram_stars is not available in this release; keep production payments disabled');
   }
 
   const required = ['DATABASE_URL', 'S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];

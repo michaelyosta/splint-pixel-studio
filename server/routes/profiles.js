@@ -128,8 +128,14 @@ router.post('/collections/:id/add', authMiddleware, asyncRoute(async (req, res) 
     return res.status(404).json({ error: 'Набор недоступен', code: 'COLLECTION_UNAVAILABLE' });
   }
 
-  if (getPaymentsMode() === 'disabled') {
-    return res.status(503).json({ error: 'Платежи отключены до отдельного product-owner решения', code: 'PAYMENTS_DISABLED' });
+  const paymentsMode = getPaymentsMode();
+  if (paymentsMode !== 'internal_credits') {
+    return res.status(503).json({
+      error: paymentsMode === 'telegram_stars'
+        ? 'Покупки Stars проходят только через подтверждённый Telegram-поток'
+        : 'Платежи отключены до отдельного product-owner решения',
+      code: paymentsMode === 'telegram_stars' ? 'PAYMENTS_PROVIDER_MISMATCH' : 'PAYMENTS_DISABLED',
+    });
   }
 
   try {

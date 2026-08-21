@@ -32,17 +32,9 @@ test('complete production configuration is accepted', () => {
   assert.deepStrictEqual(result.trustProxy, ['10.0.0.0/8', '192.168.10.4']);
 });
 
-test('production Telegram Stars mode requires support and webhook controls', () => {
+test('production Telegram Stars mode remains fail-closed until a release wires the provider', () => {
   const env = { ...validProduction, PAYMENTS_MODE: 'telegram_stars' };
-  assert.throws(() => validateProductionConfiguration(env), /TELEGRAM_PAYMENTS_WEBHOOK_SECRET/);
-
-  const result = validateProductionConfiguration({
-    ...env,
-    TELEGRAM_PAYMENTS_WEBHOOK_SECRET: 'webhook-secret',
-    TELEGRAM_PAYMENT_SUPPORT: '@splint_support',
-    TELEGRAM_PAYMENT_REFUND_CONTACT: 'refunds@splint.example',
-  });
-  assert.equal(result.paymentsMode, 'telegram_stars');
+  assert.throws(() => validateProductionConfiguration(env), /not available in this release/);
 });
 
 test('invalid payment mode is rejected', () => {
