@@ -1,6 +1,6 @@
 # Alpha RC reproducibility evidence
 
-Status: PASS WITH EXPLICIT ENVIRONMENT CAVEATS  
+Status: `PASS — ALPHA RC reproducibility evidence complete with explicit environment caveats`
 Audit date: 2026-08-21  
 Repository: `michaelyosta/splint-pixel-studio`  
 
@@ -17,7 +17,12 @@ integration checkout were not modified.
 | --- | --- | --- |
 | clean install/start/E2E smoke | `57ae86cb81d6c9a4bbe3df9418612ded260d7764` | PASS |
 | PostgreSQL suite after harness fix | `3b1bafb36d55480d25dbaac99ecc9b3e1c8c7020` plus this branch's test changes | PASS |
-| current integration candidate observed during audit | `1bd14d76a9439c8903bf1dcd1e337c983dda5e8e` | local branch, not merged to `main` |
+| current integration candidate before RC docs | `8242b87` | full local regression PASS; not merged to `main` |
+
+The clean-checkout snapshot is intentionally retained as historical evidence;
+the current candidate adds bounded stabilization and verifier fixes on top of
+it. The final release branch SHA is recorded in `ALPHA_RC_1_HANDOFF.md` and in
+the release message.
 
 The clean-install snapshot predates the latest stabilization commits. The
 database evidence was rerun on the current security-hardened base before this
@@ -43,13 +48,13 @@ git diff --check
 
 Results:
 
-* root tests: **453 pass, 0 fail**;
-* server tests: **396 pass, 0 fail, 65 skipped** (provider-specific PostgreSQL/S3
+* root tests: **455 pass, 0 fail**;
+* server tests: **401 pass, 0 fail, 65 skipped** (provider-specific PostgreSQL/S3
   cases are capability-gated when their services are absent);
 * root and server dependency installs: exit 0;
 * build: PASS (1,876 modules; existing main chunk warning, approximately
-  656.10 kB / 198.23 kB gzip);
-* lint: PASS (94 warnings against the configured 100-warning budget);
+  656.93 kB / 198.51 kB gzip);
+* lint: PASS (99 warnings against the configured 100-warning budget);
 * `git diff --check`: PASS.
 
 The root install reported two development-dependency audit findings. The
@@ -98,7 +103,7 @@ public tables.
 After the test-harness correction, the standard PostgreSQL suite finished with:
 
 * **99 pass, 0 fail, 0 skipped**;
-* duration approximately **135,460 ms**;
+* duration approximately **108,018 ms**;
 * the runner uses `--test-concurrency=1` because these tests intentionally share
   one PostgreSQL schema and each file owns reset/fixture state.
 
@@ -126,6 +131,19 @@ E2E_WEB_PORT=5290 E2E_API_PORT=3312 VITE_ALLOW_DEV_AUTH=true \
 Result: **1 passed**. A port collision is an environment prerequisite, not a
 product failure; release automation must reserve or dynamically allocate its
 ports.
+
+## Final integration regression evidence
+
+On the current candidate (`8242b87` before documentation pinning):
+
+```text
+Chromium full suite: 134 passed / 0 failed / 10 explicit skips (38.6 min)
+Accessibility + session evidence: 9 passed / 0 failed (1.7 min)
+```
+
+The ten skips are capability-gated evidence captures and the desktop-only
+physical-touch exclusion; they are listed in the release handoff and do not
+hide a product failure.
 
 ## Hidden dependencies and explicit limits
 

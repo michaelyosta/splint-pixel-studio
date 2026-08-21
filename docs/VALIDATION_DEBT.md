@@ -442,3 +442,31 @@ Ship no production payment switch, keep one showcase pack, keep `classic` as
 Pixelization default, and treat the full legacy Chromium matrix's out-of-scope
 failures as a separate stabilization backlog rather than evidence of a Phase 5
 entitlement or data-loss blocker.
+
+## Alpha RC release-gating debt (2026-08-21)
+
+The local Alpha RC gates are green. The items below are intentionally outside
+what Codex can prove with a disposable browser/database environment.
+
+### Release-blocking before public or production rollout
+
+- Physical Telegram Android/iOS WebView behavior, background/resume, safe-area
+  and native share behavior.
+- A real Telegram Bot API Stars round-trip, refund, provider delivery,
+  operations/support drill, and production credentials.
+- Final price, legal/support policy, deployment networking/IAM, monitoring and
+  public rollout decisions.
+- Real-market retention, conversion, willingness-to-buy, and artistic
+  preference claims.
+
+### Non-blocking for Alpha RC
+
+- Human core-feel and final Spark/Bomb preference (the current provisional
+  baseline remains `spark_choice`; no winner is claimed).
+- Final artistic Pixelization verdict and broad 1024/1200 promotion.
+- Production S3/IAM scale controls, distributed rate-limit telemetry, and
+  hostile public-load cost evidence.
+
+These debts do not represent a known data-loss, payment-bypass, migration, or
+core-journey blocker in the disabled-payment Alpha RC. They become release
+gates only when the corresponding public/production decision is requested.

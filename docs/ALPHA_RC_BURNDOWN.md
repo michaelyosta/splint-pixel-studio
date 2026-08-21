@@ -1,12 +1,37 @@
 # Alpha RC failure burn-down
 
-Status at triage baseline: `87 PASS / 47 FAIL / 10 SKIP` across 144 Chromium
+Status: `CLOSED — ALPHA RC full-suite gate passed`
+
+Historical triage baseline: `87 PASS / 47 FAIL / 10 SKIP` across 144 Chromium
 tests at `1bd14d76a9439c8903bf1dcd1e337c983dda5e8e`.
 
 The release brief's older `102/31/10` result refers to a different suite
 cardinality. The complete observed register is in
 [`ALPHA_RC_FAILURE_TRIAGE.md`](ALPHA_RC_FAILURE_TRIAGE.md); this file is the
 compact tracking view. No screenshot artifact is a closure verifier.
+
+## Final burn-down result (2026-08-21)
+
+```text
+Historical release brief: 102 PASS / 31 FAIL / 10 SKIP
+Expanded triage baseline:  87 PASS / 47 FAIL / 10 SKIP
+Final Chromium suite:     134 PASS / 0 FAIL / 10 SKIP (144 total)
+Evidence subset:            9 PASS / 0 FAIL
+```
+
+All 47 observed baseline IDs (`RC-F001` through `RC-F047`) are closed. The
+closure buckets are:
+
+| Closure bucket | Result |
+|---|---|
+| Real product regressions | Fixed and covered by targeted journey verifiers (creator→Gallery, persisted camera, tiled request readiness) |
+| Flake / stabilization | Deterministic after readiness, onboarding, serial-load, low-zoom, offline-journal, and special-event fixes; full suite PASS |
+| Stale verifier | Updated to explicit preview selection, indexed resolution range, and current session contracts |
+| Intentionally removed behavior | Choice/legacy Bomb expectations retained only as historical contract debt; no product behavior restored |
+| Environment-gated | 10 explicit skips only; no unexplained failure and no failure hidden as a skip |
+
+The final full run, rather than an isolated screenshot or a raised timeout,
+is the closure verifier.
 
 ## Burn-down rules
 
@@ -84,3 +109,7 @@ compact tracking view. No screenshot artifact is a closure verifier.
 The count is intentionally the 47 observed failures, not the historical 31.
 The final Alpha RC rerun should record both test count and result so the two
 baselines cannot be conflated again.
+
+That rerun is now complete. The historical table above remains useful for
+traceability; its `OPEN`/`ISOLATED-PASS` labels describe the pre-fix baseline,
+not the release candidate state.

@@ -1,6 +1,22 @@
 # Alpha RC Chromium failure triage
 
-Status: `TRIAGED — current integration full-suite rerun still required`
+Status: `CLOSED — final integration full-suite rerun passed`
+
+Final closure (2026-08-21): the historical failures below are retained as an
+audit trail, but their baseline `OPEN` labels are superseded by the final
+current-HEAD evidence recorded here:
+
+```text
+Integration SHA before release documentation: 8242b87
+Chromium full suite: 134 passed / 0 failed / 10 explicit skips (144 total)
+Evidence-gated accessibility/session captures: 9 passed / 0 failed
+```
+
+All 31 failures named in the release brief are explained by the expanded
+register and closed by either a production fix, deterministic stabilization,
+or an explicitly aligned/stale/removed contract. No failure was converted to
+a skip. The ten remaining skips are capability-gated evidence captures or the
+desktop-only exclusion of a physical-touch scenario.
 
 This is a failure classification report, not a screenshot refresh and not a
 product-direction decision. No production source was changed in the triage
@@ -157,3 +173,21 @@ claim `0 unexplained failures`.
 No observed failure is environment-gated. The existing ten skips should retain
 their explicit capability reasons and be reported separately by the release
 runner.
+
+## Final classification summary
+
+The full current-HEAD rerun is the closure verifier for the historical
+register. The original baseline contained a mixture of reproduced creator/
+camera regressions, suite-order/readiness races, and verifiers that still
+asserted removed Choice/Bomb or obsolete resolution-slider behavior. The
+journey regressions were fixed and their targeted checks pass; low-zoom and
+offline-journal checks were made deterministic; accessibility, creator,
+special-cell, visual, and stabilization groups now survive the full serial
+browser run. The obsolete contract cases remain documented as stale or
+intentionally removed rather than being restored in product code.
+
+Post-baseline verifier defects discovered during closure were also handled:
+the creator accessibility helper now selects the explicit 1200px ready preview
+without triggering an unintended save, and the tiled client waits for its
+manifest before issuing a first tile request. These fixes are included in the
+candidate history and covered by the final run.

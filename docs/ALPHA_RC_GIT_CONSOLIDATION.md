@@ -13,11 +13,12 @@ local `codex/product-phase-2-autonomous` line, not any single historical Phase
 branch. No reset, clean, force-push, blind rebase, or blind cherry-pick was
 performed. The dirty primary checkout remains untouched.
 
-At the time of the final read-only audit:
+At the time of the final read-only audit, before the release documentation
+commit:
 
 | Ref | SHA | State |
 | --- | --- | --- |
-| `codex/product-phase-2-autonomous` | `1bd14d76a9439c8903bf1dcd1e337c983dda5e8e` | local candidate, 7 commits ahead of its remote tracking ref |
+| `codex/product-phase-2-autonomous` | `8242b87` | local candidate, ahead of its remote tracking ref |
 | `origin/codex/product-phase-2-autonomous` | `57ae86cb81d6c9a4bbe3df9418612ded260d7764` | remote checkpoint, not force-updated |
 | `origin/main` | `68d751e1da35de3bfd92f6bec382f0af830ac502` | shared base, not automatically merged |
 | merge-base(candidate, `origin/main`) | `140f1226f62dbbd220de2b255268564e9df8910d` | common ancestor |
@@ -30,6 +31,11 @@ not a reason to merge or rebase blindly.
 This audit branch was created from the candidate's security checkpoint
 `3b1bafb36d55480d25dbaac99ecc9b3e1c8c7020` so that the PostgreSQL harness fix
 could be developed without touching the shared candidate worktree.
+
+The stabilization candidate subsequently passed the final full Chromium,
+root, server, PostgreSQL, build, lint, and diff gates. The exact release tip,
+remote checkpoint, and `codex/alpha-rc-1` branch are recorded in
+`ALPHA_RC_1_HANDOFF.md`; `origin/main` remains intentionally unmerged.
 
 ## Worktree inventory
 
