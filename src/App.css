@@ -736,6 +736,102 @@ img { user-select: none; }
 .collection-info small { color: var(--app-cyan); font-size: 11px; font-weight: 600; }
 .collection-card > svg { color: var(--app-gold); flex: 0 0 auto; }
 
+/* ── Phase 4 gallery / collection-first shelf ───────────────────── */
+.gallery-page .page-heading,
+.collections-page .page-heading { align-items: center; }
+.gallery-collections-link {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid rgba(43, 217, 254, 0.32);
+  border-radius: 11px;
+  background: rgba(43, 217, 254, 0.07);
+  color: var(--app-cyan);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.gallery-shelf-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-bottom: 14px;
+  padding: 1px;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 15px;
+  background: var(--app-border);
+}
+.gallery-shelf-summary > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 7px;
+  background: var(--app-card);
+  text-align: center;
+}
+.gallery-shelf-summary b { color: var(--app-text-primary); font-size: 18px; line-height: 1; }
+.gallery-shelf-summary small { overflow: hidden; color: var(--app-text-secondary); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.gallery-resume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 13px;
+  border: 1px solid rgba(43, 217, 254, 0.46);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, rgba(43, 217, 254, 0.13), rgba(16, 29, 45, 0.96) 68%);
+  box-shadow: var(--shadow-card);
+}
+.gallery-resume-copy { min-width: 0; flex: 1; }
+.gallery-resume-copy .eyebrow { margin-bottom: 5px; color: var(--app-cyan); }
+.gallery-resume-copy h2 { color: var(--app-text-primary); font-size: 17px; letter-spacing: -0.02em; }
+.gallery-resume-copy p { overflow: hidden; margin-top: 4px; color: var(--app-text-primary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.gallery-resume-copy small { display: flex; align-items: center; gap: 5px; margin-top: 6px; color: var(--app-text-secondary); font-size: 9px; line-height: 1.35; }
+.gallery-resume .primary-button { min-height: 42px; display: inline-flex; align-items: center; gap: 5px; padding-inline: 10px; white-space: nowrap; }
+.gallery-section { margin-bottom: 20px; }
+.gallery-section > .section-heading > span { color: var(--app-text-faint); font-size: 11px; }
+.gallery-row--completed { border-color: rgba(255, 199, 44, 0.24); }
+.gallery-row--completed:hover { border-color: rgba(255, 199, 44, 0.46); }
+.gallery-row-copy { min-width: 0; flex: 1; }
+.gallery-row-copy em { display: block; margin-top: 4px; color: var(--app-text-faint); font-size: 9px; font-style: normal; }
+.gallery-progress.is-complete { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid rgba(255, 199, 44, 0.45); border-radius: 50%; color: var(--app-gold); }
+.mini-palette--completed { border-color: rgba(255, 199, 44, 0.42); color: var(--app-gold); }
+.gallery-footer-actions,
+.collection-footer-actions { display: grid; gap: 8px; margin-top: 6px; }
+.gallery-footer-actions button,
+.collection-footer-actions button {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 13px;
+  background: var(--app-card);
+  color: var(--app-text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.gallery-footer-actions button svg,
+.collection-footer-actions button svg { color: var(--app-cyan); }
+.collections-intro { margin: -5px 0 16px; color: var(--app-text-secondary); font-size: 12px; line-height: 1.4; }
+.collection-card--complete { border-color: rgba(255, 199, 44, 0.34); }
+.collection-card--complete > svg { color: var(--app-gold); }
+.collection-preview { position: relative; display: grid; place-items: center; color: var(--app-gold); }
+.collection-info { display: flex; flex-direction: column; gap: 4px; }
+.collection-progress-track { display: block; height: 4px; overflow: hidden; border-radius: 99px; background: rgba(6, 16, 27, 0.78); }
+.collection-progress-track > i { display: block; height: 100%; min-width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--app-cyan-deep), var(--app-cyan)); transition: width 0.25s ease; }
+.collection-card--complete .collection-progress-track > i { background: linear-gradient(90deg, var(--app-gold), #FFE17A); }
+
 .achievement-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .achievement {
   padding: 13px;

@@ -447,7 +447,7 @@ function App() {
       onOpenUnlockSubject={handleUnlockSubject}
     />;
   } else if (view === 'collections') {
-    content = <CollectionsView collections={home.collections} onOpenCollection={catalog.openCatalogCollection} />;
+    content = <CollectionsView collections={home.collections} mine={catalog.mine} onOpenCollection={catalog.openCatalogCollection} onNavigate={navigatePrimary} />;
   } else if (view === 'achievements') {
     content = <AchievementsView achievements={home.achievements} />;
   } else {
