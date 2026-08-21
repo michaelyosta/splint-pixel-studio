@@ -88,6 +88,13 @@ test.describe('tiled 1200 low zoom', () => {
       network: window.__splintClient?.getNetworkStats?.(),
     }));
 
+    // Do not count the tail of the initial WORK prefetch as an overview
+    // request. This is especially important after the preceding 1200px
+    // scenarios have saturated the serial E2E API worker.
+    await expect.poll(
+      () => page.evaluate(() => Number(window.__splintClient?.getNetworkStats?.()?.activeTileRequests || 0)),
+      { timeout: 60000 },
+    ).toBe(0);
     tileRequests.length = 0;
     const overviewStartedAt = Date.now();
     await pressOverview(page);

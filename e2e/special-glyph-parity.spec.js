@@ -121,6 +121,10 @@ async function waitTiledWork(page) {
     await page.waitForTimeout(1000);
   }
   await expect(page.locator('.progressive-grid-area > canvas')).toBeVisible({ timeout: 30000 });
+  await expect.poll(
+    () => page.evaluate(() => Boolean(window.__splintClient?.getSnapshot?.()?.manifest)),
+    { timeout: 30000 },
+  ).toBe(true);
   if (lod !== 'work') {
     const canvas = page.locator('.progressive-grid-area > canvas');
     await canvas.focus();
@@ -643,12 +647,24 @@ test('tiled reveal claims exactly once and survives reload without duplicate', a
   await waitTiledWork(page);
   await openRevealMode(page);
   await moveToCell(page, 'tiled', Number(spark.cell_index), TILED_GRID);
+  await page.evaluate(async ({ cellIndex, gridWidth, tileSize }) => {
+    const tileX = Math.floor((Number(cellIndex) % gridWidth) / tileSize);
+    const tileY = Math.floor(Math.floor(Number(cellIndex) / gridWidth) / tileSize);
+    const client = window.__splintClient;
+    await client?.loadManifest?.();
+    await client?.fetchTile(tileX, tileY, { force: true });
+    client?.cache?.pin?.(`${tileX}:${tileY}`);
+  }, { cellIndex: Number(spark.cell_index), gridWidth: TILED_GRID, tileSize: TILE });
+  await waitForTile(page, Number(spark.cell_index), TILED_GRID, spark.kind);
   const capture = await claimRequests(page, created.id, 'claim_spark');
   const useCapture = await claimRequests(page, created.id, 'use_spark');
   const canvas = page.locator('.progressive-grid-area > canvas');
   await canvas.press('Enter');
   await expect.poll(() => capture.requests.length, { timeout: 15000 }).toBe(1);
-  await page.waitForTimeout(500);
+  await expect.poll(
+    () => useCapture.requests.length || page.locator('.progressive-grid-special-offer').count(),
+    { timeout: 15000 },
+  ).toBeGreaterThan(0);
   if (useCapture.requests.length) {
     expect(useCapture.requests.at(-1).status()).toBe(200);
     await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
@@ -661,7 +677,8 @@ test('tiled reveal claims exactly once and survives reload without duplicate', a
 
   await page.reload();
   await waitTiledWork(page);
-  await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(useCapture.requests.length ? 0 : 1, { timeout: 15000 });
+  const tiledAfterReload = await (await page.request.get(`/api/colorings/${created.id}/progress`)).json();
+  await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(tiledAfterReload.special_offer ? 1 : 0, { timeout: 15000 });
   await expect(page.locator('[data-special-discovered]')).toHaveCount(0);
 });
 
@@ -679,7 +696,10 @@ test('legacy reveal claims exactly once and survives reload without duplicate', 
   const canvas = page.locator('canvas.coloring-canvas');
   await canvas.press('Enter');
   await expect.poll(() => capture.requests.length, { timeout: 15000 }).toBe(1);
-  await page.waitForTimeout(500);
+  await expect.poll(
+    () => useCapture.requests.length || page.locator('.legacy-grid-special-offer').count(),
+    { timeout: 15000 },
+  ).toBeGreaterThan(0);
   if (useCapture.requests.length) {
     expect(useCapture.requests.at(-1).status()).toBe(200);
     await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
@@ -692,7 +712,8 @@ test('legacy reveal claims exactly once and survives reload without duplicate', 
 
   await page.reload();
   await expect(page.locator('.coloring-session')).toHaveAttribute('data-special-cohort', 'treatment', { timeout: 30000 });
-  await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(useCapture.requests.length ? 0 : 1, { timeout: 15000 });
+  const legacyAfterReload = await (await page.request.get(`/api/colorings/${created.id}/progress`)).json();
+  await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(legacyAfterReload.special_offer ? 1 : 0, { timeout: 15000 });
   await expect(page.locator('[data-special-discovered]')).toHaveCount(0);
 });
 

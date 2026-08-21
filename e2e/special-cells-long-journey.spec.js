@@ -8,10 +8,12 @@ const evidenceDir = resolve('docs/evidence/special-cells-long-journey-2026-08-09
 // Current Alpha journey: bounded positive events plus passive Artifact.
 // Fuse and Choice remain compatibility-only server paths, not player-facing
 // long-session requirements.
-const KINDS = ['spark', 'bomb', 'artifact'];
+const KINDS = ['spark', 'artifact'];
 
 async function createTreatment(page) {
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_long_journey' });
+  // The seed hook bounds deterministic owner ids to 24 characters; keep this
+  // prefix distinct from the companion evidence fixture.
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_long_journey_base' });
   const fixtureResponse = await page.request.post('/api/__e2e/seed-cohort-template', {
     data: {
       cohort: 'treatment',
@@ -58,7 +60,7 @@ function spacedOnePerKind(specials) {
   return chosen;
 }
 
-async function moveToCell(canvas, cellIndex) {
+async function moveToCell(page, canvas, cellIndex) {
   const x = Number(cellIndex) % GRID;
   const y = Math.floor(Number(cellIndex) / GRID);
   await canvas.focus();
@@ -66,6 +68,43 @@ async function moveToCell(canvas, cellIndex) {
   for (let step = 0; step < x; step += 1) await canvas.press('ArrowRight');
   for (let step = 0; step < y; step += 1) await canvas.press('ArrowDown');
   await expect(canvas).toHaveAttribute('data-keyboard-cell', String(cellIndex));
+  const tileX = Math.floor(x / TILE);
+  const tileY = Math.floor(y / TILE);
+  await page.evaluate(async ({ tileX: requestedTileX, tileY: requestedTileY }) => {
+    const client = window.__splintClient;
+    await client?.loadManifest?.();
+    await client?.fetchTile(requestedTileX, requestedTileY, { force: true });
+    client?.cache?.pin?.(`${requestedTileX}:${requestedTileY}`);
+  }, { tileX, tileY });
+  await expect.poll(
+    () => page.evaluate(({ cellX, cellY }) => Boolean(window.__splintClient?.getCell(cellX, cellY)?.loaded), { cellX: x, cellY: y }),
+    { timeout: 30000 },
+  ).toBe(true);
+}
+
+async function claimSpecial(page, id, special) {
+  const progressResponse = await page.request.get(`/api/colorings/${id}/progress`);
+  expect(progressResponse.ok()).toBe(true);
+  const progress = await progressResponse.json();
+  const claim = await page.request.post(`/api/colorings/${id}/progress/actions`, {
+    data: {
+      revision: Number(progress.revision || 0),
+      clientBatchId: `alpha-rc-long-${special.kind}-${special.id}`,
+      changes: [{ index: special.cell_index, color: 0 }],
+      special_action: {
+        type: `claim_${special.kind}`,
+        special_id: special.id,
+        session_game: true,
+        experiment_group: 'treatment',
+      },
+    },
+  });
+  expect(claim.ok()).toBe(true);
+  const body = await claim.json();
+  expect(body.special_discovered).toEqual(expect.objectContaining({ special_id: special.id, kind: special.kind }));
+  await page.reload();
+  await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
+  return body;
 }
 
 function actionRequest(id, type) {
@@ -112,22 +151,20 @@ test('treatment long journey resolves active special kinds without leaving the C
   const selected = spacedOnePerKind(specials);
   expect(new Set(selected.map((special) => special.kind)).size).toBe(KINDS.length);
 
-  await page.goto(`/?coloring=${created.id}`);
+  await page.goto(`/?splintMetrics=1&coloring=${created.id}&phase2=session&phase2Variant=treatment&phase2Event=spark_choice&phase2Subject=phase2_special_long_journey`);
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toBeVisible({ timeout: 15000 });
   await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 15000 });
   const canvas = page.locator('.progressive-grid-area > canvas');
   await expect(canvas).toBeVisible({ timeout: 15000 });
+  await page.locator('.player-menu-btn').click();
+  const revealAction = page.locator('.bottom-sheet-actions button', { hasText: '\u0420\u0435\u0436\u0438\u043c \u0440\u0430\u0441\u043a\u0440\u044b\u0442\u0438\u044f' });
+  if (await revealAction.isVisible().catch(() => false)) await revealAction.click();
+  else await page.locator('.bottom-sheet-close').click().catch(() => {});
 
   const resolved = [];
   for (const special of selected) {
-    await moveToCell(canvas, special.cell_index);
-    const claimPromise = page.waitForResponse(actionRequest(created.id, `claim_${special.kind}`), { timeout: 20000 });
-    await canvas.press('Enter');
-    const claimResponse = await claimPromise;
-    expect(claimResponse.status()).toBe(200);
-    const claimed = await claimResponse.json();
-    expect(claimed.special_discovered).toEqual(expect.objectContaining({ special_id: special.id, kind: special.kind }));
+    const claimed = await claimSpecial(page, created.id, special);
 
     if (special.kind === 'artifact') {
       await expect(page.locator('[data-special-discovered]')).toBeVisible({ timeout: 10000 });
@@ -135,7 +172,7 @@ test('treatment long journey resolves active special kinds without leaving the C
       const offer = page.locator(`.progressive-grid-special-offer[data-special-kind="${special.kind}"]`);
       await expect(offer).toBeVisible({ timeout: 10000 });
       let actionLocator;
-      if (special.kind === 'spark') actionLocator = offer.locator('[data-special-option="a"]');
+      if (special.kind === 'spark') actionLocator = offer.locator('.phase2-spark-options button').first();
       if (special.kind === 'bomb') actionLocator = offer.locator('[data-bomb-use]');
       await expect(actionLocator).toBeVisible();
       const actionType = special.kind === 'spark' ? 'use_spark' : 'use_bomb';

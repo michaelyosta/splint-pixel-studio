@@ -41,13 +41,13 @@ async function createAndOpenBarsColoring(page) {
   await page.getByRole('button', { name: 'Из изображения' }).click();
   await expect(page.locator('.creator-page')).toBeVisible({ timeout: 10000 });
   await page.locator('.file-field input[type="file"]').setInputFiles([fixture]);
-  // The creator control is a discrete preset index; index 3 is 1200x1200.
-  await page.locator('.grid-detail-range').fill('3');
-  await expect(page.locator('button.create-button').first()).toBeEnabled({ timeout: 30000 });
-  await page.locator('button.create-button').first().click();
+  // Select the named preset so the same React path as a user click updates
+  // both the selected resolution and the authoritative preview fingerprint.
+  await page.getByRole('button', { name: 'Сетка 1200 на 1200' }).click();
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 60000 });
+  await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-status', 'ready', { timeout: 120000 });
   const saveButton = page.locator('button', { hasText: 'Сохранить и начать' });
-  await expect(saveButton).toBeVisible({ timeout: 15000 });
+  await expect(saveButton).toBeEnabled({ timeout: 120000 });
   const [response] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/colorings/create')),
     saveButton.click(),

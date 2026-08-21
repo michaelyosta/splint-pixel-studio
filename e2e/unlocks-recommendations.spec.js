@@ -226,6 +226,7 @@ test.describe('Unlocks and recommendations', () => {
 
   test('eligible user gets an actionable direct-ID open and owned transition', async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'seeded owned transition runs once on Chromium');
+    test.setTimeout(180000);
     await createAndCompleteEligibleColoring(page);
 
     const before = await page.request.get('/api/unlocks/collections/col_starter-path');

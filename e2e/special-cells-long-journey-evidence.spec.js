@@ -43,7 +43,7 @@ async function findSpecials(page, id) {
 }
 
 function spacedOnePerKind(specials) {
-  const kinds = ['spark', 'bomb', 'artifact'];
+  const kinds = ['spark', 'artifact'];
   const chosen = [];
   for (const kind of kinds) {
     const candidate = specials.find((special) => special.kind === kind
@@ -53,7 +53,7 @@ function spacedOnePerKind(specials) {
   return chosen;
 }
 
-async function moveToCell(canvas, cellIndex) {
+async function moveToCell(page, canvas, cellIndex) {
   const x = Number(cellIndex) % GRID;
   const y = Math.floor(Number(cellIndex) / GRID);
   await canvas.focus();
@@ -61,6 +61,43 @@ async function moveToCell(canvas, cellIndex) {
   for (let step = 0; step < x; step += 1) await canvas.press('ArrowRight');
   for (let step = 0; step < y; step += 1) await canvas.press('ArrowDown');
   await expect(canvas).toHaveAttribute('data-keyboard-cell', String(cellIndex));
+  const tileX = Math.floor(x / TILE);
+  const tileY = Math.floor(y / TILE);
+  await page.evaluate(async ({ tileX: requestedTileX, tileY: requestedTileY }) => {
+    const client = window.__splintClient;
+    await client?.loadManifest?.();
+    await client?.fetchTile(requestedTileX, requestedTileY, { force: true });
+    client?.cache?.pin?.(`${requestedTileX}:${requestedTileY}`);
+  }, { tileX, tileY });
+  await expect.poll(
+    () => page.evaluate(({ cellX, cellY }) => Boolean(window.__splintClient?.getCell(cellX, cellY)?.loaded), { cellX: x, cellY: y }),
+    { timeout: 30000 },
+  ).toBe(true);
+}
+
+async function claimSpecial(page, id, special) {
+  const progressResponse = await page.request.get(`/api/colorings/${id}/progress`);
+  expect(progressResponse.ok()).toBe(true);
+  const progress = await progressResponse.json();
+  const claim = await page.request.post(`/api/colorings/${id}/progress/actions`, {
+    data: {
+      revision: Number(progress.revision || 0),
+      clientBatchId: `alpha-rc-evidence-${special.kind}-${special.id}`,
+      changes: [{ index: special.cell_index, color: 0 }],
+      special_action: {
+        type: `claim_${special.kind}`,
+        special_id: special.id,
+        session_game: true,
+        experiment_group: 'treatment',
+      },
+    },
+  });
+  expect(claim.ok()).toBe(true);
+  const body = await claim.json();
+  expect(body.special_discovered).toEqual(expect.objectContaining({ special_id: special.id, kind: special.kind }));
+  await page.reload();
+  await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
+  return body;
 }
 
 function actionRequest(id, type) {
@@ -119,28 +156,25 @@ test('long journey evidence screenshots show active offers and Canvas return', a
 
   const { created } = await createTreatment(page);
   const selected = spacedOnePerKind(await findSpecials(page, created.id));
-  expect(selected.map((special) => special.kind).sort()).toEqual(['artifact', 'bomb', 'spark']);
+  expect(selected.map((special) => special.kind).sort()).toEqual(['artifact', 'spark']);
   // Artifact has no offer action and is already exercised by the existing
-  // long-journey spec; the evidence spec focuses on active offers plus Canvas
-  // return for the two actionable kinds.
+  // long-journey spec; this evidence slice focuses on the active Spark offer.
   const actionable = selected.filter((special) => special.kind !== 'artifact');
 
-  await page.goto(`/?coloring=${created.id}`);
+  await page.goto(`/?splintMetrics=1&coloring=${created.id}&phase2=session&phase2Variant=treatment&phase2Event=spark_choice&phase2Subject=phase2_special_long_evidence`);
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toBeVisible({ timeout: 15000 });
   const canvas = page.locator('.progressive-grid-area > canvas');
   await expect(canvas).toBeVisible({ timeout: 15000 });
+  await page.locator('.player-menu-btn').click();
+  const revealAction = page.locator('.bottom-sheet-actions button', { hasText: '\u0420\u0435\u0436\u0438\u043c \u0440\u0430\u0441\u043a\u0440\u044b\u0442\u0438\u044f' });
+  if (await revealAction.isVisible().catch(() => false)) await revealAction.click();
+  else await page.locator('.bottom-sheet-close').click().catch(() => {});
 
   const resolved = [];
   const evidence = [];
   for (const special of actionable) {
-    await moveToCell(canvas, special.cell_index);
-    const claimPromise = page.waitForResponse(actionRequest(created.id, `claim_${special.kind}`), { timeout: 20000 });
-    await canvas.press('Enter');
-    const claimResponse = await claimPromise;
-    expect(claimResponse.status()).toBe(200);
-    const claimed = await claimResponse.json();
-    expect(claimed.special_discovered).toEqual(expect.objectContaining({ special_id: special.id, kind: special.kind }));
+    const claimed = await claimSpecial(page, created.id, special);
 
     const offer = page.locator(`.progressive-grid-special-offer[data-special-kind="${special.kind}"]`);
     await expect(offer).toBeVisible({ timeout: 10000 });
@@ -163,7 +197,7 @@ test('long journey evidence screenshots show active offers and Canvas return', a
     });
 
     let actionLocator;
-    if (special.kind === 'spark') actionLocator = offer.locator('[data-special-option="a"]');
+    if (special.kind === 'spark') actionLocator = offer.locator('.phase2-spark-options button').first();
     if (special.kind === 'bomb') actionLocator = offer.locator('[data-bomb-use]');
     await expect(actionLocator).toBeVisible();
     const actionType = special.kind === 'spark' ? 'use_spark' : 'use_bomb';

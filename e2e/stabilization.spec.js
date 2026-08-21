@@ -2,7 +2,11 @@ import { test, expect } from '@playwright/test';
 
 async function openFirstColoring(page) {
   const firstHomeCard = page.locator('.home-featured-card, .home-art-card').first();
-  await expect(firstHomeCard).toBeVisible({ timeout: 15000 });
+  // The full Alpha matrix serializes several 1200px journeys. Home data can
+  // therefore arrive well after the shell; wait for the actual card instead
+  // of classifying a slow API response as a product regression.
+  await expect(page.locator('.home-page')).toBeVisible({ timeout: 60000 });
+  await expect(firstHomeCard).toBeVisible({ timeout: 60000 });
   await firstHomeCard.click();
 }
 
@@ -105,7 +109,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     // this helper's old 5s probe, which then blocks the next HUD action.  Wait
     // for the actual session first so this verifier observes a settled player
     // rather than racing the onboarding effect.
-    await expect(page.locator('.coloring-session')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.coloring-session')).toBeVisible({ timeout: 60000 });
     const skipBtn = page.locator('.onboarding-card .secondary-button');
     await skipBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     if (await skipBtn.isVisible().catch(() => false)) {
@@ -243,14 +247,14 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     // The player shell mounts before the async coloring session and its
     // onboarding effect. Wait for the settled session before asserting the
     // first-run card; otherwise this verifier races Home -> Player hydration.
-    await expect(page.locator('.coloring-session')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.coloring-session')).toBeVisible({ timeout: 60000 });
     const skipBtn = page.locator('.onboarding-card .secondary-button');
     await expect(skipBtn).toBeVisible({ timeout: 10000 });
     await skipBtn.click();
 
     await page.reload();
     await openFirstColoring(page);
-    await expect(page.locator('.coloring-task-summary')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.coloring-task-summary')).toBeVisible({ timeout: 30000 });
     await expect(page.locator('.onboarding-overlay')).toHaveCount(0);
 
     await page.locator('.player-menu-btn').click();

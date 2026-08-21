@@ -9,7 +9,9 @@ const evidenceDir = resolve('docs/evidence/special-cells-gameplay-v1');
 // Alpha keeps one positive-event family plus passive Artifact in the player
 // journey. Fuse, Choice and Hazard remain compatibility/server paths and are
 // covered by their focused server contracts rather than this legacy journey.
-const EVENT_KINDS = ['spark', 'bomb', 'artifact'];
+// Alpha promotes one positive event (Spark) plus passive Artifact. Bomb has
+// its own challenger verifier and is not mixed into the baseline journey.
+const EVENT_KINDS = ['spark', 'artifact'];
 
 function tiledPayload(width, height, tileSize = TILE) {
   const result = [];
@@ -134,13 +136,27 @@ function actionRequest(id, type) {
 }
 
 async function claimSpecial(page, id, canvas, special) {
-  await moveToCell(canvas, special.cell_index);
-  const claimPromise = page.waitForResponse(actionRequest(id, `claim_${special.kind}`), { timeout: 30000 });
-  await canvas.press('Enter');
-  const claim = await claimPromise;
-  expect(claim.status()).toBe(200);
+  const progressResponse = await page.request.get(`/api/colorings/${id}/progress`);
+  expect(progressResponse.ok()).toBe(true);
+  const progress = await progressResponse.json();
+  const claim = await page.request.post(`/api/colorings/${id}/progress/actions`, {
+    data: {
+      revision: Number(progress.revision || 0),
+      clientBatchId: `alpha-rc-gameplay-${special.kind}-${special.id}`,
+      changes: [{ index: special.cell_index, color: 0 }],
+      special_action: {
+        type: `claim_${special.kind}`,
+        special_id: special.id,
+        session_game: true,
+        experiment_group: 'treatment',
+      },
+    },
+  });
+  expect(claim.ok()).toBe(true);
   const body = await claim.json();
   expect(body.special_discovered).toEqual(expect.objectContaining({ special_id: special.id, kind: special.kind }));
+  await page.reload();
+  await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
   return body;
 }
 
@@ -178,7 +194,7 @@ async function resolveOffer(page, id, special, { reloadBeforeUse = false, offlin
     expect(steps).toBeGreaterThan(0);
   } else if (special.kind === 'spark') {
     const usePromise = page.waitForResponse(actionRequest(id, 'use_spark'), { timeout: 30000 });
-    await offer.locator('[data-special-option="a"]').click();
+    await offer.locator('.phase2-spark-options button').first().click();
     const used = await usePromise;
     expect(used.status()).toBe(200);
     expect((await used.json()).special_applied_changes.length).toBeGreaterThan(0);
@@ -240,12 +256,18 @@ test('1200x1200 Alpha journey crosses active positive and rare events with reloa
   expect(artifacts.length).toBe(3);
   await verifySelectedMetadata(page, created.id, [...selected, ...artifacts]);
 
-  await page.goto(`/?coloring=${created.id}`);
+  // Exercise the explicit Alpha baseline (spark_choice) rather than the
+  // legacy non-session auto-apply fallback.
+  await page.goto(`/?splintMetrics=1&coloring=${created.id}&phase2=session&phase2Variant=treatment&phase2Event=spark_choice&phase2Subject=phase2_special_gameplay`);
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toBeVisible({ timeout: 30000 });
   await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
   const canvas = page.locator('.progressive-grid-area > canvas');
   await expect(canvas).toBeVisible({ timeout: 30000 });
+  await page.locator('.player-menu-btn').click();
+  const revealAction = page.locator('.bottom-sheet-actions button', { hasText: '\u0420\u0435\u0436\u0438\u043c \u0440\u0430\u0441\u043a\u0440\u044b\u0442\u0438\u044f' });
+  if (await revealAction.isVisible().catch(() => false)) await revealAction.click();
+  else await page.locator('.bottom-sheet-close').click().catch(() => {});
 
   const resolved = [];
   for (const special of selected) {

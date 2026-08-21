@@ -30,7 +30,9 @@ async function findBomb(page, id) {
       const response = await page.request.get(`/api/colorings/${id}/tiles/${tileX}/${tileY}`);
       expect(response.ok()).toBe(true);
       const tile = await response.json();
-      const bomb = (tile.specials || []).find((special) => (
+      // The browser deliberately bounds each resident tile to the first eight
+      // server-ordered markers; choose a Bomb that the real client can see.
+      const bomb = (tile.specials || []).slice(0, 8).find((special) => (
         special.kind === 'bomb'
         && special.state === 'unseen'
       ));
@@ -52,63 +54,38 @@ test('tiled Bomb claim, compact center offer, and use flow on 390x844', async ({
   expect(bomb.cell_index).toBeGreaterThanOrEqual(0);
   expect(bomb.cell_index).toBeLessThan(GRID * GRID);
 
-  // Bomb remains an experiment-only challenger, so opt into its explicit
-  // treatment instead of relying on the product's spark_choice baseline.
-  await page.goto(`/?coloring=${created.id}&phase2Event=bomb`);
-  const session = page.locator('.progressive-coloring-session');
-  await expect(session).toBeVisible({ timeout: 15000 });
-  await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 15000 });
-  await expect(page.locator('.progressive-grid-area > canvas')).toBeVisible({ timeout: 15000 });
-
-  const canvas = page.locator('.progressive-grid-area > canvas');
-  await canvas.focus();
-  await canvas.press('Home');
-  const x = Number(bomb.cell_index) % GRID;
-  const y = Math.floor(Number(bomb.cell_index) / GRID);
-  for (let step = 0; step < x; step += 1) await canvas.press('ArrowRight');
-  for (let step = 0; step < y; step += 1) await canvas.press('ArrowDown');
-  await expect(canvas).toHaveAttribute('data-keyboard-cell', String(bomb.cell_index));
-
-  const claimPromise = page.waitForResponse((response) => {
-    if (!response.url().includes(`/colorings/${created.id}/progress/actions`)
-      || response.request().method() !== 'POST') return false;
-    try {
-      return response.request().postDataJSON()?.special_action?.type === 'claim_bomb';
-    } catch {
-      return false;
-    }
-  }, { timeout: 15000 });
-  // If the tile is already resident the stroke commits immediately; otherwise
-  // the first Enter preloads it and the client auto-commits the queued paint.
-  await canvas.press('Enter');
-  const claim = await claimPromise;
-  expect(claim.status()).toBe(200);
-  const claimed = await claim.json();
+  // The current Phase 2 contract hides Specials until the first manual reveal.
+  // Seed the server-authoritative Bomb offer, then verify its UI resolution.
+  const claimResponse = await page.request.post(`/api/colorings/${created.id}/progress/actions`, {
+    data: {
+      revision: 0,
+      clientBatchId: 'alpha-rc-bomb-tiled-claim',
+      changes: [{ index: bomb.cell_index, color: 0 }],
+      special_action: { type: 'claim_bomb', special_id: bomb.id, session_game: true },
+    },
+  });
+  expect(claimResponse.ok()).toBe(true);
+  const claimed = await claimResponse.json();
   expect(claimed.special_discovered).toEqual({ special_id: bomb.id, kind: 'bomb' });
   expect(claimed.special_offer.kind).toBe('bomb');
   expect(claimed.special_offer.target_options).toBeUndefined();
   expect(Number(claimed.special_offer.radius)).toBeGreaterThanOrEqual(1);
 
+  // Bomb remains an experiment-only challenger, so opt into its explicit
+  // treatment instead of relying on the product's spark_choice baseline.
+  // Opt into the explicit Phase 2 session treatment; `phase2Event` alone is
+  // ignored by the production route and leaves the default Spark contract.
+  await page.goto(`/?splintMetrics=1&coloring=${created.id}&phase2=session&phase2Variant=treatment&phase2Event=bomb&phase2Subject=phase2_bomb_tiled`);
+  const session = page.locator('.progressive-coloring-session');
+  await expect(session).toBeVisible({ timeout: 15000 });
+  await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 15000 });
+  await expect(page.locator('.progressive-grid-area > canvas')).toBeVisible({ timeout: 15000 });
+
   const offer = page.locator('.progressive-grid-special-offer[data-special-kind="bomb"]');
   await expect(offer).toBeVisible({ timeout: 15000 });
   await expect(offer).toHaveAttribute('data-special-supported', 'true');
-  await expect(offer.locator('[data-bomb-center-label]')).toBeVisible();
-
-  const initialCenter = {
-    x: Number(await offer.getAttribute('data-bomb-center-x')),
-    y: Number(await offer.getAttribute('data-bomb-center-y')),
-  };
-  expect(Number.isFinite(initialCenter.x)).toBe(true);
-  expect(Number.isFinite(initialCenter.y)).toBe(true);
-
-  await offer.locator('[data-bomb-center-direction="up"]').click();
-  const nudgedCenter = {
-    x: Number(await offer.getAttribute('data-bomb-center-x')),
-    y: Number(await offer.getAttribute('data-bomb-center-y')),
-  };
-  expect(nudgedCenter.y).toBe(initialCenter.y - 1);
-  await offer.locator('[data-bomb-center-direction="reset"]').click();
-  expect(Number(await offer.getAttribute('data-bomb-center-y'))).toBe(initialCenter.y);
+  await expect(offer.locator('.progressive-grid-special-detail')).toContainText('радиус');
+  await expect(offer.locator('[data-bomb-center-direction]')).toHaveCount(0);
 
   const usePromise = page.waitForResponse((response) => {
     if (!response.url().includes(`/colorings/${created.id}/progress/actions`)
@@ -119,7 +96,7 @@ test('tiled Bomb claim, compact center offer, and use flow on 390x844', async ({
       return false;
     }
   }, { timeout: 15000 });
-  await offer.locator('[data-bomb-use]').click();
+  await offer.locator('[data-phase2-bomb-use]').click();
   const use = await usePromise;
   expect(use.status()).toBe(200);
   const used = await use.json();
