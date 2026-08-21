@@ -52,7 +52,9 @@ test('tiled Bomb claim, compact center offer, and use flow on 390x844', async ({
   expect(bomb.cell_index).toBeGreaterThanOrEqual(0);
   expect(bomb.cell_index).toBeLessThan(GRID * GRID);
 
-  await page.goto(`/?coloring=${created.id}`);
+  // Bomb remains an experiment-only challenger, so opt into its explicit
+  // treatment instead of relying on the product's spark_choice baseline.
+  await page.goto(`/?coloring=${created.id}&phase2Event=bomb`);
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toBeVisible({ timeout: 15000 });
   await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 15000 });

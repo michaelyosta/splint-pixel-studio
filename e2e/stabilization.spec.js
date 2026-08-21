@@ -240,8 +240,12 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
   test('8. Onboarding completion persists and can be replayed', async ({ page }) => {
     await page.goto('/');
     await openFirstColoring(page);
+    // The player shell mounts before the async coloring session and its
+    // onboarding effect. Wait for the settled session before asserting the
+    // first-run card; otherwise this verifier races Home -> Player hydration.
+    await expect(page.locator('.coloring-session')).toBeVisible({ timeout: 15000 });
     const skipBtn = page.locator('.onboarding-card .secondary-button');
-    await expect(skipBtn).toBeVisible({ timeout: 5000 });
+    await expect(skipBtn).toBeVisible({ timeout: 10000 });
     await skipBtn.click();
 
     await page.reload();

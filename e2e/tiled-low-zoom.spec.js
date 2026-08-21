@@ -78,9 +78,11 @@ test.describe('tiled 1200 low zoom', () => {
     });
 
     const session = await createAndOpen1200(page);
-    const controls = page.locator('.progressive-grid-controls button');
-    const zoomIn = controls.nth(1);
-    const zoomOut = controls.last();
+    // Overview inserts a "return to target" control before zoom buttons. Use
+    // the semantic labels so this verifier keeps exercising zoom rather than
+    // repeatedly clicking the optional return control.
+    const zoomIn = page.getByRole('button', { name: 'Увеличить' });
+    const zoomOut = page.getByRole('button', { name: 'Уменьшить' });
     const clientStats = () => page.evaluate(() => ({
       cache: window.__splintClient?.getMemoryStats?.(),
       network: window.__splintClient?.getNetworkStats?.(),
