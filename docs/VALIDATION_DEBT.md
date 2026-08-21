@@ -152,3 +152,104 @@ Provisional decision: keep `spark_choice` as the agency-safe baseline in the
 current branch; treat `spark_auto` as the visual red-team candidate, not as a
 winner. Do not expand Bomb targeting until its payoff exceeds its interruption
 cost.
+## PRODUCT-PHASE-4
+
+VD-PHASE4-GALLERY-001
+
+Hypothesis:
+Gallery/collection-first progression creates a calm reason to return for the next artwork beat and completed results.
+
+Status: OPEN — agent evidence sufficient for provisional baseline.
+
+Agent evidence:
+Collection-first Gallery slice, bounded progress helpers, truthful resume copy, and 6 focused tests; root suite 434/434.
+
+Human evidence missing:
+8–12 users comparing Gallery-first return against the previous catalog-first path.
+
+Risk:
+medium.
+
+Blocks:
+Final product claim and public retention conclusions.
+
+Does NOT block:
+Continued Phase 4 implementation or provisional Gallery baseline.
+
+Provisional decision:
+Keep collection-first Gallery and latest unfinished artwork as the primary return object.
+
+VD-PHASE4-CONTENT-001
+
+Hypothesis:
+Honest duration/complexity labels and advisory paintability gates prevent poor-fit artwork from undermining the core loop.
+
+Status: OPEN — production catalog has no exact Pixelization routes yet.
+
+Agent evidence:
+Content-quality audit covers 6 artworks, 0 auto-promoted Pixelization routes, deterministic labels, tiled segmentation, and pass/hold budget checks; focused tests 7/7 and server integration pass.
+
+Human evidence missing:
+Human artistic preference, perceived label accuracy, and exact-resolution Pixelization review on real curated artwork.
+
+Risk:
+medium.
+
+Blocks:
+Production content promotion.
+
+Does NOT block:
+Using the gate and curated metadata in the Phase 4 pilot.
+
+Provisional decision:
+Unknown rows remain classic/unassessed; do not auto-promote R&D evidence.
+
+VD-PHASE4-RESUME-001
+
+Hypothesis:
+Persisting a concrete next reveal beat makes return feel like continuation rather than reopening a generic catalog.
+
+Status: OPEN — device/Telegram validation pending.
+
+Agent evidence:
+Revision-safe nextBeat persistence, Home promise copy, save-point navigation, focused resume tests 7/7, build/lint pass.
+
+Human evidence missing:
+Physical Telegram WebView reload/background/resume and user comprehension of the promise.
+
+Risk:
+medium.
+
+Blocks:
+Final Telegram UX sign-off only.
+
+Does NOT block:
+Further machine-verified Phase 4 work.
+
+Provisional decision:
+Use the next beat as the default resume object without adding XP/streak pressure.
+
+VD-PHASE4-LONGFORM-001
+
+Hypothesis:
+Long artworks are acceptable when segmented into emotional closures with bounded gaps and natural stop points.
+
+Status: OPEN — fixture metadata, not production editorial metadata.
+
+Agent evidence:
+Deterministic 30s/3m/15m pacing harness: first reveal at 17.5s; treatment 15m pilot eligible with 6 player-authored closures, 1 assisted closure, max gap 192.2s.
+
+Human evidence missing:
+Perceived emotional segmentation and fatigue on physical devices.
+
+Risk:
+high for broad long-form rollout, low for bounded pilot.
+
+Blocks:
+Unbounded 1200x1200 promotion.
+
+Does NOT block:
+Controlled, metadata-gated long-form pilot.
+
+Provisional decision:
+Keep long-form gated by segmentation and closure evidence; do not make 1200x1200 the default format.
