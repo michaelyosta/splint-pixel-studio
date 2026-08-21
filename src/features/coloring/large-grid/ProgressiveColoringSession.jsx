@@ -1364,6 +1364,14 @@ export default function ProgressiveColoringSession({
   function markFreeExploration() {
     cancelCameraAnimation();
     cancelAutoAdvance();
+    // A free-exploration gesture owns the camera from this point forward.
+    // Invalidate an in-flight Smart Director request so a late offline/error
+    // response cannot repaint the error banner over the overview or steal the
+    // camera back into a proposed target.
+    guidanceTokenRef.current += 1;
+    clearGuidanceIndexRetry();
+    setErrorNotice(null);
+    setInputNotice(null);
     if (smartStateRef.current === 'freeExploration') return;
     setSmartStateValue('freeExploration');
   }
@@ -1554,6 +1562,10 @@ export default function ProgressiveColoringSession({
         setInputNotice(null);
       }
     } catch (error) {
+      // Free exploration invalidates this request as well as successful
+      // responses. A late offline failure must not resurrect Smart Director's
+      // retry banner after the player has explicitly dismissed it.
+      if (token !== guidanceTokenRef.current) return;
       if (isAbortError(error)) return;
       if (error?.status === 409 && error?.data?.code === 'SPECIAL_ACTIVE_OFFER') return;
       // A failed bootstrap must not leave the user staring at an inert

@@ -84,7 +84,10 @@ test('offline journal replay reconciles an already resident tile after reload', 
       && JSON.parse(localStorage.getItem(key) || '[]').length > 0).length)).toBe(1);
 
   // Reopen online, but hold the replay POST until the stale tile has arrived.
-  await page.context().setOffline(false);
+  // Install the gate before toggling online: the application's `online`
+  // listener flushes the durable journal immediately, so registering the
+  // route afterwards creates a verifier race and can commit before the stale
+  // tile assertion runs.
   let releaseReplay;
   const replayGate = new Promise((resolve) => { releaseReplay = resolve; });
   await page.route(/\/api\/colorings\/[^/]+\/progress\/actions$/, async (route) => {
@@ -93,6 +96,7 @@ test('offline journal replay reconciles an already resident tile after reload', 
     await replayGate;
     return route.continue();
   });
+  await page.context().setOffline(false);
   await page.reload();
   await expect(page.locator('.progressive-coloring-session')).toBeVisible({ timeout: 20000 });
   await page.waitForFunction(() => Boolean(window.__splintClient), null, { timeout: 20000 });
