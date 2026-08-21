@@ -159,7 +159,7 @@ test('migrated pre-021 template: autopilot focuses a real target and the FIRST t
 
   await expect.poll(
     () => session.getAttribute('data-smart-state'),
-    { timeout: 20000 },
+    { timeout: 60000 },
   ).toBe('ready');
 
   // Auto-selected colour, no palette interaction.

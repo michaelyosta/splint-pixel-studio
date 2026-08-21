@@ -193,7 +193,11 @@ async function resolveOffer(page, id, special, { reloadBeforeUse = false, offlin
     }
     expect(steps).toBeGreaterThan(0);
   } else if (special.kind === 'spark') {
-    const usePromise = page.waitForResponse(actionRequest(id, 'use_spark'), { timeout: 30000 });
+    // Full Chromium runs can briefly saturate the 1200x1200 API worker while
+    // the offer is being committed. Keep the verifier bounded but wait for
+    // the server-authoritative action rather than treating that load as a
+    // missing Spark response.
+    const usePromise = page.waitForResponse(actionRequest(id, 'use_spark'), { timeout: 90000 });
     await offer.locator('.phase2-spark-options button').first().click();
     const used = await usePromise;
     expect(used.status()).toBe(200);

@@ -205,8 +205,11 @@ async function zoomOutTo(page, targetZoom) {
 
 function cellToScreen(cellX, cellY, cam, viewportBox) {
   return {
-    x: viewportBox.x + cellX * CELL * cam.zoom + cam.x,
-    y: viewportBox.y + cellY * CELL * cam.zoom + cam.y,
+    // Touch the cell center, not its top-left edge. An endpoint exactly on a
+    // cell boundary is resolved by floor() to the preceding cell and makes
+    // the stroke verifier depend on sub-pixel camera rounding.
+    x: viewportBox.x + (cellX + 0.5) * CELL * cam.zoom + cam.x,
+    y: viewportBox.y + (cellY + 0.5) * CELL * cam.zoom + cam.y,
   };
 }
 

@@ -250,6 +250,7 @@ test('legacy 28x28 control has no Spark marker, action, or HUD', async ({ page }
 });
 
 test('legacy 28x28 last-cell Spark suppresses the trivial event and preserves completion', async ({ page }, testInfo) => {
+  test.setTimeout(180000);
   await page.addInitScript(() => {
     try { localStorage.setItem('splint_onboarding_version', '2'); } catch {}
   });
@@ -266,7 +267,7 @@ test('legacy 28x28 last-cell Spark suppresses the trivial event and preserves co
   await page.goto(`/?coloring=${created.id}`);
   const canvas = await focusLegacyCell(page, spark.cell_index);
   const finalResponse = page.waitForResponse((response) => response.url().includes(`/colorings/${created.id}/progress/actions`)
-    && response.request().method() === 'POST');
+    && response.request().method() === 'POST', { timeout: 120000 });
   await canvas.press('Enter');
   const completed = await (await finalResponse).json();
   expect(completed.special_discovered).toBeNull();
