@@ -16,6 +16,7 @@ const ANALYTICS_EVENTS = new Set([
   'camera_activate_target', 'camera_next_cluster', 'coloring_manual_color_change',
   'coloring_stroke_commit', 'coloring_color_complete',
   'publish', 'share_native', 'share_telegram',
+  'pack_preview_opened', 'pack_opened', 'pack_purchase_confirmed', 'pack_purchase_restored',
   'download_result', 'create_coloring', 'create_manual_coloring', 'like', 'comment',
   'app_open', 'primary_action_seen', 'primary_action_started',
   'first_success', 'goal_completed',

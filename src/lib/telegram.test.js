@@ -4,6 +4,11 @@ import {
   bindTelegramVerticalSwipes,
   disableTelegramVerticalSwipes,
   enableTelegramVerticalSwipes,
+  buildColoringDeepLink,
+  buildPackDeepLink,
+  buildResultDeepLink,
+  getRequestedColoringId,
+  getRequestedPackId,
   getTelegramVerticalSwipeStatus,
   getRequestedColoringId,
   isTelegramVersionAtLeast,
@@ -212,4 +217,39 @@ test('official call that leaves observable state enabled is reported as uncertai
   assert.equal(status.protectionApplied, false);
   assert.equal(status.uncertain, true, 'diagnostics must not claim protection when state stayed enabled');
   cleanup();
+});
+
+test('artwork and pack deep links carry only the bounded route identifiers', () => {
+  const previous = globalThis.window;
+  globalThis.window = {
+    location: { origin: 'https://splint.example', pathname: '/mini-app', search: '' },
+    Telegram: { WebApp: { initDataUnsafe: { start_param: '' } } },
+  };
+  try {
+    assert.equal(buildColoringDeepLink('art/1'), 'https://splint.example/mini-app?coloring=art%2F1');
+    assert.equal(buildColoringDeepLink('art-1', { packId: 'pack-1' }), 'https://splint.example/mini-app?coloring=art-1&pack=pack-1');
+    assert.equal(buildPackDeepLink('pack one'), 'https://splint.example/mini-app?pack=pack+one');
+    assert.equal(buildResultDeepLink({ artworkId: 'art-1', packId: 'pack-1' }), 'https://splint.example/mini-app?coloring=art-1&pack=pack-1');
+  } finally {
+    if (previous === undefined) delete globalThis.window;
+    else globalThis.window = previous;
+  }
+});
+
+test('deep-link readers accept query and Telegram start parameters', () => {
+  const previous = globalThis.window;
+  globalThis.window = {
+    location: { search: '?pack=pack-query' },
+    Telegram: { WebApp: { initDataUnsafe: { start_param: 'coloring_from-start' } } },
+  };
+  try {
+    assert.equal(getRequestedPackId(), 'pack-query');
+    assert.equal(getRequestedColoringId(), 'from-start');
+    globalThis.window.location.search = '';
+    globalThis.window.Telegram.WebApp.initDataUnsafe.start_param = 'pack_from-start';
+    assert.equal(getRequestedPackId(), 'from-start');
+  } finally {
+    if (previous === undefined) delete globalThis.window;
+    else globalThis.window = previous;
+  }
 });

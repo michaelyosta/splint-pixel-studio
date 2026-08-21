@@ -9,6 +9,7 @@ import CreatorView from './views/CreatorView';
 import GalleryView from './views/GalleryView';
 import CollectionsView from './views/CollectionsView';
 import AchievementsView from './views/AchievementsView';
+import StoreView from './views/StoreView';
 import BottomNavigation from './components/BottomNavigation';
 import CreateHub from './components/CreateHub';
 import ManualPixelEditor from './features/creator/ManualPixelEditor';
@@ -24,7 +25,7 @@ import { useCreatorData } from './hooks/useCreatorData';
 import { useColoringSession } from './hooks/useColoringSession';
 import { useDirectorData } from './hooks/useDirectorData';
 import { formatDifficulty } from './lib/catalogMeta';
-import { getRequestedColoringId, hapticSelection } from './lib/telegram';
+import { getRequestedColoringId, getRequestedPackId, hapticSelection } from './lib/telegram';
 import { readCurrentResumeSnapshot } from './lib/resumeState.js';
 import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
 import { resolveSessionGameExperiment } from './features/sessionGame/sessionGameExperiment.js';
@@ -36,10 +37,14 @@ function App() {
   const sessionGameExperiment = useMemo(() => resolveSessionGameExperiment(), []);
   const initialResume = useMemo(() => readCurrentResumeSnapshot(), []);
   const initialRequestedId = useMemo(() => getRequestedColoringId(), []);
+  const initialRequestedPackId = useMemo(() => getRequestedPackId(), []);
   const [view, setView] = useState(() => {
-    if (coreFeelExperiment.enabled || initialRequestedId || initialResume?.route === 'play') return 'play';
+    if (coreFeelExperiment.enabled || initialRequestedId) return 'play';
+    if (initialRequestedPackId) return 'store';
+    if (initialResume?.route === 'play') return 'play';
     return initialResume?.route || 'home';
   });
+  const [requestedPackId, setRequestedPackId] = useState(initialRequestedPackId);
   const [notice, setNotice] = useState(null);
   const [unlockRefreshKey, setUnlockRefreshKey] = useState(0);
   const noticeTimerRef = useRef(null);
@@ -120,11 +125,16 @@ function App() {
   useEffect(() => {
     if (coreFeelExperiment.enabled || resumeHandledRef.current) return;
     const requestedId = getRequestedColoringId();
-    const persisted = requestedId ? null : readCurrentResumeSnapshot();
+    const requestedPack = getRequestedPackId();
+    const persisted = requestedId || requestedPack ? null : readCurrentResumeSnapshot();
     const persistedPlay = persisted?.route === 'play' ? persisted : null;
     const id = requestedId || persistedPlay?.artworkId;
     if (!id) {
       resumeHandledRef.current = true;
+      if (requestedPack) {
+        setRequestedPackId(requestedPack);
+        setView('store');
+      }
       return;
     }
     resumeHandledRef.current = true;
@@ -155,6 +165,11 @@ function App() {
     session.setLockedUnlock(null);
     if (nextView === 'catalog') catalog.resetCatalogScope();
     setView(nextView);
+  }
+
+  function openStore(packId = null) {
+    setRequestedPackId(packId);
+    setView('store');
   }
 
   const nextRecommendation = useMemo(() => {
@@ -448,6 +463,17 @@ function App() {
     />;
   } else if (view === 'collections') {
     content = <CollectionsView collections={home.collections} mine={catalog.mine} onOpenCollection={catalog.openCatalogCollection} onNavigate={navigatePrimary} />;
+  } else if (view === 'store') {
+    content = <StoreView
+      collections={home.collections}
+      unlockSnapshot={unlockData.snapshot}
+      requestedPackId={requestedPackId}
+      onRetry={home.loadCollections}
+      onOpenCollection={catalog.openCatalogCollection}
+      onBack={() => setView('catalog')}
+      onTrack={(event, payload) => metaApi.track(event, payload).catch(() => {})}
+      onNotice={showNotice}
+    />;
   } else if (view === 'achievements') {
     content = <AchievementsView achievements={home.achievements} />;
   } else {
@@ -481,6 +507,7 @@ function App() {
       onOpenPremiumItem={session.openColoring}
       onOpenFreePack={() => { catalog.setCatalogChip('free'); catalog.setCatalogCollection(null); }}
       onPremiumWish={() => showNotice('Желание сохранено — сообщим, когда витрина откроется', 'success')}
+      onOpenStore={openStore}
     />;
   }
 

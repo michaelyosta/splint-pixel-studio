@@ -984,7 +984,10 @@ export function useColoringSession({
     if (!completedPreview) return;
     setSharing(true);
     try {
-      const url = buildColoringDeepLink(template.id);
+      // Keep the result link specific to the artwork and carry its pack when
+      // available, so Telegram recipients land on the same creative object
+      // rather than a generic Home surface.
+      const url = buildColoringDeepLink(template.id, { packId: template.collection_id });
       const text = `Я завершил(а) раскраску «${template.title}» в SPLINT Pixel Studio!`;
       const channel = await shareViaTelegram({ url, text });
       if (channel === 'telegram') metaApi.track('share_telegram', { id: template.id });

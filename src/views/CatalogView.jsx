@@ -36,6 +36,7 @@ export default function CatalogView({
   onToggleFavorite,
   favoriteSavingId,
   onOpenCollection,
+  onOpenStore,
   unlockData,
   onOpenPremiumItem,
   onOpenFreePack,
@@ -122,6 +123,7 @@ export default function CatalogView({
     .filter(matchesSearch)
     .sort((first, second) => new Date(second.added_at || second.created_at || 0) - new Date(first.added_at || first.created_at || 0));
   const freeCollections = collections.filter((collection) => collection.pack_type !== 'premium');
+  const showcaseCollections = collections.filter((collection) => collection.pack_type === 'premium' && collection.price_in_stars > 0).slice(0, 1);
   const premiumEntitlement = findPremiumEntitlement(unlockData?.snapshot, SHOWCASE_PREMIUM_PACK.id);
   const premiumState = unlockData?.snapshotStatus === 'loading' && !unlockData?.snapshot
     ? PREMIUM_PACK_STATES.PREVIEW
@@ -164,7 +166,7 @@ export default function CatalogView({
   </button>)}</div>;
 
   return <section className="page catalog-page catalog-page--redesigned">
-    <div className="page-heading catalog-heading"><div><p className="eyebrow">КАТАЛОГ</p><h1>{catalogCollection ? catalogCollection.title : 'Найдите свою картину'}</h1></div>{catalogCollection && <button className="catalog-reset" type="button" onClick={onResetScope}>Все работы</button>}</div>
+    <div className="page-heading catalog-heading"><div><p className="eyebrow">КАТАЛОГ</p><h1>{catalogCollection ? catalogCollection.title : 'Найдите свою картину'}</h1></div><div className="catalog-heading-actions">{showcaseCollections.length > 0 && onOpenStore && <button className="catalog-store-link" type="button" onClick={() => onOpenStore(showcaseCollections[0].id)} aria-label="Открыть витрину наборов"><Sparkles size={15} /> Витрина</button>}{catalogCollection && <button className="catalog-reset" type="button" onClick={onResetScope}>Все работы</button>}</div></div>
     <label className="catalog-search"><span aria-hidden="true">⌕</span><input value={catalogQuery} onChange={(event) => onChangeQuery(event.target.value)} placeholder="Поиск картин и тем" type="search" /><button type="button" onClick={() => onChangeQuery('')} aria-label="Очистить поиск" hidden={!catalogQuery}>×</button></label>
     <div className="catalog-chips" role="tablist" aria-label="Раздел каталога">{chipItems.map((chip) => <button key={chip.id} type="button" className={catalogChip === chip.id ? 'active' : ''} role="tab" aria-selected={catalogChip === chip.id} onClick={() => { hapticSelection(); onChangeChip(chip.id); }}>{chip.label}</button>)}</div>
 

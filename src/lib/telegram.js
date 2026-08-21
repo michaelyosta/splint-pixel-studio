@@ -213,10 +213,34 @@ export async function shareViaTelegram({ url, text }) {
   return null;
 }
 
-/** Returns a deep link that re-opens this Mini App on a specific coloring. */
-export function buildColoringDeepLink(coloringId) {
+function buildAppDeepLink(params) {
   const base = `${window.location.origin}${window.location.pathname}`;
-  return `${base}?coloring=${encodeURIComponent(coloringId)}`;
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params || {})) {
+    if (value === null || value === undefined || value === '') continue;
+    query.set(key, String(value));
+  }
+  return `${base}${query.toString() ? `?${query.toString()}` : ''}`;
+}
+
+/** Returns a deep link that re-opens this Mini App on a specific artwork. */
+export function buildColoringDeepLink(coloringId, { packId = null } = {}) {
+  return buildAppDeepLink({ coloring: coloringId, pack: packId });
+}
+
+// Artwork terminology is useful for result/share surfaces while preserving
+// the original coloring helper for existing callers.
+export const buildArtworkDeepLink = buildColoringDeepLink;
+
+/** Returns a deep link that opens the bounded showcase/store on one pack. */
+export function buildPackDeepLink(packId) {
+  return buildAppDeepLink({ pack: packId });
+}
+
+/** Builds either an artwork or pack link for a Telegram share object. */
+export function buildResultDeepLink({ artworkId = null, coloringId = null, packId = null } = {}) {
+  if (artworkId || coloringId) return buildColoringDeepLink(artworkId || coloringId, { packId });
+  return buildPackDeepLink(packId);
 }
 
 /** Reads the coloring id requested via `?coloring=`/`?coloringId=` or Telegram start param. */
@@ -226,5 +250,14 @@ export function getRequestedColoringId() {
   if (fromQuery) return fromQuery;
   const startParam = getTelegramWebApp()?.initDataUnsafe?.start_param;
   if (startParam?.startsWith('coloring_')) return startParam.slice('coloring_'.length);
+  return null;
+}
+
+/** Reads the pack id requested via `?pack=` or Telegram start param. */
+export function getRequestedPackId() {
+  const fromQuery = new URLSearchParams(window.location.search).get('pack');
+  if (fromQuery) return fromQuery;
+  const startParam = getTelegramWebApp()?.initDataUnsafe?.start_param;
+  if (startParam?.startsWith('pack_')) return startParam.slice('pack_'.length);
   return null;
 }
