@@ -10,7 +10,6 @@ import {
   getRequestedColoringId,
   getRequestedPackId,
   getTelegramVerticalSwipeStatus,
-  getRequestedColoringId,
   isTelegramVersionAtLeast,
   supportsTelegramVerticalSwipes,
   TELEGRAM_SWIPE_CONTROL_VERSION,
