@@ -33,7 +33,8 @@ function providerError(error, res) {
 function getTelegramId(value) {
   const raw = value?.id ?? value;
   if (raw === undefined || raw === null) return undefined;
-  return String(raw).replace(/^tg_/, '');
+  const normalized = String(raw).trim().replace(/^tg_/, '');
+  return /^\d{1,30}$/.test(normalized) ? normalized : undefined;
 }
 
 export function createTelegramStarsWebhookRouter({ service, webhookSecret } = {}) {

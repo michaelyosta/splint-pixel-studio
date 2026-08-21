@@ -135,6 +135,15 @@ test('a non-mock provider requires a published premium catalog product', async (
   });
   const created = await published.createOrder({ userId: 'tg_123', productId: 'premium', amountXtr: 1, idempotencyKey: 'published-product' });
   assert.equal(created.order.amount_xtr, 120);
+
+  const missingType = createTelegramStarsService({
+    ...base,
+    productResolver: () => ({ id: 'premium', status: 'published', visibility: 'public', price_in_stars: 120 }),
+  });
+  await assert.rejects(
+    () => missingType.createOrder({ userId: 'tg_123', productId: 'premium', amountXtr: 1, idempotencyKey: 'missing-canonical-type' }),
+    (error) => errorCode(error, 'PRODUCT_NOT_PURCHASABLE'),
+  );
 });
 
 test('provider invoice failure leaves a retryable pending order without granting access', async () => {
@@ -201,6 +210,60 @@ test('numeric Telegram update ids normalize and a second pre-checkout query is r
   assert.equal(adapter.getAnswers().at(-1).ok, false);
 });
 
+test('reordered refund without payer id is accepted once by refund_id, regardless of update id', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const { svc } = service(db);
+  const created = await svc.createOrder({ userId: 'tg_123', productId: 'reordered-refund-no-user', amountXtr: 20, idempotencyKey: 'reordered-no-user-order' });
+  const first = await svc.recordRefund({
+    updateId: 3001, refundId: 'stable-refund-id',
+    invoicePayload: created.order.invoice_payload, amountXtr: 20,
+    telegramPaymentChargeId: 'stable-refund-charge', currency: 'XTR',
+  });
+  assert.equal(first.status, 'pending_capture');
+  const replay = await svc.recordRefund({
+    updateId: 3002, refundId: 'stable-refund-id', telegramUserId: 123,
+    invoicePayload: created.order.invoice_payload, amountXtr: 20,
+    telegramPaymentChargeId: 'stable-refund-charge', currency: 'XTR',
+  });
+  assert.equal(replay.idempotent, true);
+  const events = await tx(db, (database) => database.get("SELECT COUNT(*) AS c FROM telegram_stars_events WHERE event_type='refund'"));
+  assert.equal(Number(events.c), 1, 'same provider refund must not create a second event');
+});
+
+test('a new pre-checkout query after payment is rejected, not approved as already paid', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const { svc, adapter } = service(db);
+  const created = await svc.createOrder({ userId: 'tg_123', productId: 'paid-precheckout', amountXtr: 12, idempotencyKey: 'paid-precheckout-order' });
+  await svc.successfulPayment({ userId: 'tg_123', invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 12, telegramPaymentChargeId: 'paid-precheckout-charge' });
+  const result = await svc.preCheckout({
+    userId: 'tg_123', updateId: 3003, preCheckoutQueryId: 'new-after-paid',
+    invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 12,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'ORDER_NOT_PAYABLE');
+  assert.equal(adapter.getAnswers().at(-1).ok, false);
+});
+
+test('stale invoice is rejected and a fresh order keeps the catalog snapshot boundary', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  let now = new Date('2026-08-21T10:00:00.000Z');
+  const { svc } = service(db, undefined, { clock: () => new Date(now) });
+  const created = await svc.createOrder({ userId: 'tg_123', productId: 'expiring-product', amountXtr: 8, idempotencyKey: 'expiring-first' });
+  assert.ok(created.order.invoice_expires_at);
+  assert.equal(created.order.catalog_snapshot.amount_xtr, 8);
+  now = new Date('2026-08-21T10:16:00.000Z');
+  const stale = await svc.preCheckout({
+    userId: 'tg_123', updateId: 3010, preCheckoutQueryId: 'expired-query',
+    invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 8,
+  });
+  assert.equal(stale.code, 'ORDER_EXPIRED');
+  const fresh = await svc.createOrder({ userId: 'tg_123', productId: 'expiring-product', amountXtr: 8, idempotencyKey: 'expiring-fresh' });
+  assert.notEqual(fresh.order.id, created.order.id);
+});
+
 test('a refund delivered before capture is durable and prevents later access', async () => {
   const db = await createDb();
   await seedUser(db);
@@ -232,6 +295,50 @@ test('one-time products reject a second active order even with a new idempotency
     () => svc.createOrder({ userId: 'tg_123', productId: 'one-time-product', amountXtr: 10, idempotencyKey: 'one-time-second' }),
     (error) => errorCode(error, 'PRODUCT_ALREADY_OWNED'),
   );
+});
+
+test('one open checkout per user/product and repurchase after a full refund', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const { svc } = service(db);
+  const first = await svc.createOrder({ userId: 'tg_123', productId: 'repurchasable-product', amountXtr: 10, idempotencyKey: 'repurchase-first' });
+  const duplicateOpen = await svc.createOrder({ userId: 'tg_123', productId: 'repurchasable-product', amountXtr: 10, idempotencyKey: 'repurchase-second' });
+  assert.equal(duplicateOpen.order.id, first.order.id, 'a different request cannot open a second checkout');
+
+  await svc.successfulPayment({ userId: 'tg_123', invoicePayload: first.order.invoice_payload, currency: 'XTR', totalAmount: 10, telegramPaymentChargeId: 'repurchase-charge' });
+  await svc.recordRefund({ userId: 'tg_123', refundId: 'repurchase-refund', telegramPaymentChargeId: 'repurchase-charge', amountXtr: 10, currency: 'XTR' });
+  const repurchase = await svc.createOrder({ userId: 'tg_123', productId: 'repurchasable-product', amountXtr: 10, idempotencyKey: 'repurchase-after-refund' });
+  assert.notEqual(repurchase.order.id, first.order.id, 'full refund/revocation permits a new order');
+});
+
+test('invoice issuance uses a durable lease and never calls the provider twice concurrently', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const adapter = createMockTelegramStarsAdapter();
+  let calls = 0;
+  let release;
+  const entered = new Promise((resolve) => { release = resolve; });
+  const gate = new Promise((resolve) => { adapter.releaseInvoice = resolve; });
+  const original = adapter.createInvoice;
+  adapter.createInvoice = async (input) => {
+    calls += 1;
+    entered.then(() => undefined);
+    if (calls === 1) {
+      release();
+      await gate;
+    }
+    return original.call(adapter, input);
+  };
+  const { svc } = service(db, adapter);
+  const firstPromise = svc.createOrder({ userId: 'tg_123', productId: 'leased-product', amountXtr: 10, idempotencyKey: 'lease-key' });
+  await entered;
+  const concurrent = await svc.createOrder({ userId: 'tg_123', productId: 'leased-product', amountXtr: 10, idempotencyKey: 'lease-key' });
+  assert.equal(concurrent.order.invoice_url, null, 'concurrent caller sees durable pending state while lease is held');
+  assert.equal(calls, 1);
+  adapter.releaseInvoice();
+  const first = await firstPromise;
+  assert.equal(first.order.status, 'invoice_issued');
+  assert.equal(calls, 1);
 });
 
 test('successful_payment grants one entitlement and duplicate/retry cannot double-capture', async () => {
@@ -382,4 +489,22 @@ test('support cases and reconciliation have stable contracts and no entitlement 
   assert.equal(support.idempotent, false);
   assert.equal(replay.idempotent, true);
   assert.equal(buildTelegramStarsSupportContract({ TELEGRAM_PAYMENT_SUPPORT: '@splint_support', TELEGRAM_PAYMENT_REFUND_CONTACT: 'refunds@example.test' }).paysupport_command, '/paysupport');
+});
+
+test('reconciliation surfaces durable refund requests that need provider recovery', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const { svc, adapter } = service(db);
+  const created = await svc.createOrder({ userId: 'tg_123', productId: 'refund-recovery', amountXtr: 8, idempotencyKey: 'refund-recovery-order' });
+  await svc.successfulPayment({ userId: 'tg_123', invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 8, telegramPaymentChargeId: 'refund-recovery-charge' });
+  const originalRefund = adapter.refundStarPayment;
+  adapter.refundStarPayment = async () => { throw new Error('provider unavailable'); };
+  await assert.rejects(
+    () => svc.requestRefund({ userId: 'tg_123', idempotencyKey: 'refund-recovery-request', telegramPaymentChargeId: 'refund-recovery-charge', amountXtr: 8 }),
+    (error) => errorCode(error, 'PROVIDER_UNAVAILABLE'),
+  );
+  adapter.refundStarPayment = originalRefund;
+  adapter.seedCapture({ telegramPaymentChargeId: 'refund-recovery-charge', invoicePayload: created.order.invoice_payload, amountXtr: 8, currency: 'XTR' });
+  const report = await svc.reconcile();
+  assert.ok(report.issues.some((issue) => issue.issue_type === 'refund_request_failed'));
 });

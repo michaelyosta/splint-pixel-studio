@@ -875,11 +875,33 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
 router.get('/mine', authMiddleware, asyncRoute(async (req, res) => {
   const templateRows = await attachViewerCatalogData(await all(`
     SELECT DISTINCT t.* FROM coloring_templates t
+    LEFT JOIN collections c ON c.id=t.collection_id
     LEFT JOIN coloring_progress p ON p.template_id=t.id AND p.user_id=?
     LEFT JOIN coloring_tiled_progress tp ON tp.template_id=t.id AND tp.user_id=?
-    WHERE t.status='active' AND (t.owner_id=? OR p.user_id IS NOT NULL OR tp.user_id IS NOT NULL)
+    WHERE t.status='active'
+      AND (
+        t.owner_id=?
+        OR (
+          (p.user_id IS NOT NULL OR tp.user_id IS NOT NULL)
+          AND (
+            c.pack_type IS NULL OR c.pack_type <> 'premium'
+            OR EXISTS (
+              SELECT 1 FROM telegram_stars_entitlements tse
+               WHERE tse.user_id=? AND tse.product_id=c.id AND tse.status='active'
+            )
+            OR EXISTS (
+              SELECT 1 FROM collection_ownerships co
+               WHERE co.user_id=? AND co.collection_id=c.id
+            )
+            OR EXISTS (
+              SELECT 1 FROM template_entitlements te
+               WHERE te.user_id=? AND te.template_id=t.id
+            )
+          )
+        )
+      )
     ORDER BY t.updated_at DESC
-  `, [req.userId, req.userId, req.userId]), req.userId);
+  `, [req.userId, req.userId, req.userId, req.userId, req.userId, req.userId]), req.userId);
   const templates = templateRows.map(parseTemplate);
   const rows = await Promise.all(templates.map(async (template) => {
     const progress = await get(

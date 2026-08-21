@@ -42,6 +42,11 @@ const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7E]{8,128}$/;
 const MAX_PRODUCT_ID = 200;
 const MAX_MESSAGE = 4_000;
 const MAX_XTR_AMOUNT = 1_000_000;
+// Invoice payloads are short-lived provider intents.  The order itself stays
+// auditable after this deadline, but a new pre-checkout query must not revive
+// an invoice whose catalog snapshot may no longer be current.
+export const TELEGRAM_STARS_INVOICE_TTL_MS = 15 * 60_000;
+export const TELEGRAM_STARS_INVOICE_LEASE_MS = 30_000;
 
 const ERROR_STATUS = Object.freeze({
   PAYMENTS_DISABLED: 503,
@@ -54,6 +59,7 @@ const ERROR_STATUS = Object.freeze({
   EVENT_ID_REUSED: 409,
   ORDER_NOT_PAYABLE: 409,
   ORDER_ALREADY_PAID: 409,
+  ORDER_ALREADY_OPEN: 409,
   CHARGE_ID_REUSED: 409,
   PAYMENT_ALREADY_CAPTURED: 409,
   REFUND_CONFLICT: 409,
@@ -114,6 +120,16 @@ function normalizeUserId(value, telegramUserId) {
   throw fail('INVALID_INPUT', 'userId is required');
 }
 
+function optionalUserId(value, telegramUserId) {
+  if (value !== undefined && value !== null && String(value).trim() !== '') {
+    return normalizeUserId(value, undefined);
+  }
+  if (telegramUserId !== undefined && telegramUserId !== null && String(telegramUserId).trim() !== '') {
+    return normalizeUserId(undefined, telegramUserId);
+  }
+  return null;
+}
+
 export function validateTelegramStarsIdempotencyKey(value) {
   if (value === undefined || value === null) return null;
   if (typeof value !== 'string' || !IDEMPOTENCY_KEY_PATTERN.test(value.trim())) {
@@ -168,6 +184,8 @@ function publicOrder(row) {
     paid_at: row.paid_at || null,
     cancelled_at: row.cancelled_at || null,
     paid_after_cancelled: row.paid_after_cancelled === true || Number(row.paid_after_cancelled) === 1,
+    invoice_expires_at: row.invoice_expires_at || null,
+    catalog_snapshot: parseJson(row.catalog_snapshot_json, null),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -312,8 +330,14 @@ export function createTelegramStarsService(deps = {}) {
       throw fail('PRODUCT_NOT_PURCHASABLE', 'Telegram Stars product is not purchasable');
     }
     const packType = product.packType ?? product.pack_type;
-    if (packType && packType !== 'premium') {
+    // The provider boundary accepts only the canonical public premium
+    // product shape.  Missing fields are not treated as an implicit default:
+    // a resolver that cannot prove the catalog state must fail closed.
+    if (packType !== 'premium') {
       throw fail('PRODUCT_NOT_PURCHASABLE', 'Only premium packs can be purchased with Telegram Stars');
+    }
+    if (product.visibility !== 'public') {
+      throw fail('PRODUCT_NOT_PURCHASABLE', 'Telegram Stars product must be public');
     }
     return product;
   }
@@ -452,34 +476,98 @@ export function createTelegramStarsService(deps = {}) {
   }
 
   async function issueInvoice(orderId) {
+    assertEnabled();
     const createInvoice = adapterMethod(adapter, 'createInvoice');
-    const existing = await withTransaction(async (tx) => readOrder(tx, orderId, mode === 'postgres'));
-    if (!existing) throw fail('ORDER_NOT_FOUND', 'Telegram Stars order not found');
-    if (existing.invoice_url) return { order: publicOrder(existing), idempotent: true };
-    if (!['invoice_pending', 'invoice_issued'].includes(existing.status)) {
-      return { order: publicOrder(existing), idempotent: true };
+    const lease = await withTransaction(async (tx) => {
+      const existing = await readOrder(tx, orderId, mode === 'postgres');
+      if (!existing) throw fail('ORDER_NOT_FOUND', 'Telegram Stars order not found');
+      if (existing.invoice_url) return { row: existing, active: false, complete: true };
+      if (!['invoice_pending', 'invoice_issued'].includes(existing.status)) {
+        return { row: existing, active: false, complete: true };
+      }
+
+      const now = timestamp(clock);
+      const nowMs = Date.parse(now);
+      const leaseUntilMs = Date.parse(existing.invoice_lease_until || '');
+      if (Number.isFinite(leaseUntilMs) && leaseUntilMs > nowMs) {
+        // Another worker owns the provider call. Return the durable pending
+        // row; the caller can retry after the short lease expires.
+        return { row: existing, active: true, complete: false };
+      }
+
+      const token = newId('xtr_invoice_lease');
+      const until = new Date(nowMs + TELEGRAM_STARS_INVOICE_LEASE_MS).toISOString();
+      const claimed = await tx.run(
+        `UPDATE telegram_stars_orders
+            SET invoice_lease_token=?, invoice_lease_until=?, updated_at=?
+          WHERE id=? AND status IN ('invoice_pending','invoice_issued')
+            AND (invoice_lease_until IS NULL OR invoice_lease_until<=?)`,
+        [token, until, now, orderId, now],
+      );
+      const row = await readOrder(tx, orderId);
+      if (claimed.changes !== 1 || row?.invoice_lease_token !== token) {
+        return { row, active: true, complete: false };
+      }
+      return { row, token, active: false, complete: false };
+    });
+
+    if (lease.complete || lease.active) {
+      return { order: publicOrder(lease.row), idempotent: true, pending: lease.active };
     }
 
+    const existing = lease.row;
     const invoice = await createInvoice({
       invoicePayload: existing.invoice_payload,
       productId: existing.product_id,
       currency: TELEGRAM_STARS_CURRENCY,
       amountXtr: Number(existing.amount_xtr),
+      // Real adapters must forward this stable key to Telegram/provider
+      // idempotency where supported. It also makes crash recovery explicit.
+      idempotencyKey: lease.token,
+    }).catch(async (error) => {
+      await withTransaction(async (tx) => tx.run(
+        `UPDATE telegram_stars_orders
+            SET invoice_lease_token=NULL, invoice_lease_until=NULL, updated_at=?
+          WHERE id=? AND invoice_lease_token=?`,
+        [timestamp(clock), orderId, lease.token],
+      ));
+      throw error;
     });
-    if (!invoice || typeof invoice !== 'object') throw fail('PROVIDER_UNAVAILABLE', 'Telegram Stars adapter returned an invalid invoice');
-    const invoiceUrl = asString(invoice.invoiceUrl || invoice.invoice_url, 'invoiceUrl', { max: 2_000 });
+    if (!invoice || typeof invoice !== 'object') {
+      await withTransaction(async (tx) => tx.run(
+        `UPDATE telegram_stars_orders
+            SET invoice_lease_token=NULL, invoice_lease_until=NULL, updated_at=?
+          WHERE id=? AND invoice_lease_token=?`,
+        [timestamp(clock), orderId, lease.token],
+      ));
+      throw fail('PROVIDER_UNAVAILABLE', 'Telegram Stars adapter returned an invalid invoice');
+    }
+    let invoiceUrl;
+    try {
+      invoiceUrl = asString(invoice.invoiceUrl || invoice.invoice_url, 'invoiceUrl', { max: 2_000 });
+    } catch (error) {
+      await withTransaction(async (tx) => tx.run(
+        `UPDATE telegram_stars_orders
+            SET invoice_lease_token=NULL, invoice_lease_until=NULL, updated_at=?
+          WHERE id=? AND invoice_lease_token=?`,
+        [timestamp(clock), orderId, lease.token],
+      ));
+      throw error;
+    }
     const now = timestamp(clock);
 
     const updated = await withTransaction(async (tx) => {
       await tx.run(
         `UPDATE telegram_stars_orders
-            SET invoice_url=?, provider_invoice_id=?, status='invoice_issued', updated_at=?
-          WHERE id=? AND status IN ('invoice_pending','invoice_issued') AND invoice_url IS NULL`,
-        [invoiceUrl, optionalString(invoice.providerInvoiceId || invoice.provider_invoice_id, 'providerInvoiceId', 500), now, orderId],
+            SET invoice_url=?, provider_invoice_id=?, status='invoice_issued',
+                invoice_lease_token=NULL, invoice_lease_until=NULL, updated_at=?
+          WHERE id=? AND status IN ('invoice_pending','invoice_issued')
+            AND invoice_url IS NULL AND invoice_lease_token=?`,
+        [invoiceUrl, optionalString(invoice.providerInvoiceId || invoice.provider_invoice_id, 'providerInvoiceId', 500), now, orderId, lease.token],
       );
       return readOrder(tx, orderId);
     });
-    return { order: publicOrder(updated), idempotent: Boolean(existing.invoice_url || updated?.invoice_url !== invoiceUrl) };
+    return { order: publicOrder(updated), idempotent: Boolean(updated?.invoice_url !== invoiceUrl) };
   }
 
   async function createOrder({ userId: rawUserId, telegramUserId, productId: rawProductId, amountXtr, priceXtr, idempotencyKey }) {
@@ -491,10 +579,32 @@ export function createTelegramStarsService(deps = {}) {
     const key = effectiveIdempotencyKey(idempotencyKey, userId, productId);
     const fingerprint = hash({ operation: 'telegram_stars_order', userId, productId, currency: TELEGRAM_STARS_CURRENCY, amountXtr: amount });
     const now = timestamp(clock);
+    const nowMs = Date.parse(now);
+    const invoiceExpiresAt = new Date(nowMs + TELEGRAM_STARS_INVOICE_TTL_MS).toISOString();
+    const catalogSnapshot = json({
+      id: product?.id ?? product?.productId ?? productId,
+      pack_type: product?.packType ?? product?.pack_type ?? null,
+      visibility: product?.visibility ?? null,
+      published: product?.published === true || product?.status === 'published',
+      amount_xtr: amount,
+      title: product?.title ?? null,
+    }, 'catalogSnapshot');
 
     const created = await withTransaction(async (tx) => {
       const user = await tx.get(lockSql('SELECT id FROM users WHERE id=?', mode), [userId]);
       if (!user) throw fail('ORDER_NOT_FOUND', 'User not found');
+
+      // Expired open invoices are historical cancellations, not an obstacle
+      // to a fresh checkout. A provider capture that arrives later is still
+      // accepted by successfulPayment and reconciled normally.
+      await tx.run(
+        `UPDATE telegram_stars_orders
+            SET status='cancelled', cancelled_at=?, updated_at=?
+          WHERE user_id=? AND product_id=?
+            AND status IN ('invoice_pending','invoice_issued','checkout_pending')
+            AND invoice_expires_at IS NOT NULL AND invoice_expires_at<=?`,
+        [now, now, userId, productId, now],
+      );
 
       const existing = await tx.get(lockSql('SELECT * FROM telegram_stars_orders WHERE user_id=? AND idempotency_key=?', mode), [userId, key]);
       if (existing) {
@@ -512,16 +622,25 @@ export function createTelegramStarsService(deps = {}) {
       const invoicePayload = `splint:xtr:v1:${orderId}`;
       const inserted = await tx.run(
         `INSERT INTO telegram_stars_orders
-          (id,user_id,product_id,currency,amount_xtr,idempotency_key,request_fingerprint,invoice_payload,status,created_at,updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`,
-        [orderId, userId, productId, TELEGRAM_STARS_CURRENCY, amount, key, fingerprint, invoicePayload, 'invoice_pending', now, now],
+          (id,user_id,product_id,currency,amount_xtr,idempotency_key,request_fingerprint,invoice_payload,
+           invoice_expires_at,catalog_snapshot_json,status,created_at,updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`,
+        [orderId, userId, productId, TELEGRAM_STARS_CURRENCY, amount, key, fingerprint, invoicePayload,
+          invoiceExpiresAt, catalogSnapshot, 'invoice_pending', now, now],
       );
       if (inserted.changes === 1) return { row: await tx.get('SELECT * FROM telegram_stars_orders WHERE id=?', [orderId]), idempotent: false };
 
       const raced = await tx.get(lockSql('SELECT * FROM telegram_stars_orders WHERE user_id=? AND idempotency_key=?', mode), [userId, key]);
-      if (!raced) throw new Error('Telegram Stars order insert conflicted without a readable row');
-      assertSameFingerprint(raced, fingerprint, 'idempotency');
-      return { row: raced, idempotent: true };
+      if (raced) {
+        assertSameFingerprint(raced, fingerprint, 'idempotency');
+        return { row: raced, idempotent: true };
+      }
+      const open = await tx.get(
+        lockSql("SELECT * FROM telegram_stars_orders WHERE user_id=? AND product_id=? AND status IN ('invoice_pending','invoice_issued','checkout_pending') ORDER BY created_at ASC LIMIT 1", mode),
+        [userId, productId],
+      );
+      if (open) return { row: open, idempotent: true, alreadyOpen: true };
+      throw new Error('Telegram Stars order insert conflicted without a readable row');
     });
 
     if (created.row.invoice_url) return { success: true, idempotent: created.idempotent, order: publicOrder(created.row) };
@@ -588,6 +707,13 @@ export function createTelegramStarsService(deps = {}) {
           result = { ok: false, code: 'ORDER_USER_MISMATCH', errorMessage: 'Order does not belong to this user' };
         } else if (order.currency !== input.currency || Number(order.amount_xtr) !== shape.amount) {
           result = { ok: false, code: 'ORDER_AMOUNT_MISMATCH', errorMessage: 'Order amount or currency mismatch' };
+        } else if (order.invoice_expires_at && Date.parse(order.invoice_expires_at) <= Date.parse(now)) {
+          await tx.run(
+            `UPDATE telegram_stars_orders SET status='cancelled', cancelled_at=?, updated_at=?
+              WHERE id=? AND status IN ('invoice_pending','invoice_issued','checkout_pending')`,
+            [now, now, order.id],
+          );
+          result = { ok: false, code: 'ORDER_EXPIRED', errorMessage: 'Invoice has expired; create a fresh order' };
         } else if (order.status === 'checkout_pending' && String(order.pre_checkout_query_id || '') === normalizedQueryId) {
           // A provider retry for the same query is safe, but a second query
           // must not receive a second approval for a one-time order.
@@ -595,9 +721,9 @@ export function createTelegramStarsService(deps = {}) {
         } else if (order.status === 'checkout_pending') {
           result = { ok: false, code: 'ORDER_CHECKOUT_IN_PROGRESS', errorMessage: 'Another pre-checkout query is already in progress' };
         } else if (!PRECHECKOUT_STATUSES.has(order.status)) {
-          result = order.status === 'paid'
-            ? { ok: true, code: 'ALREADY_PAID', orderId: order.id }
-            : { ok: false, code: 'ORDER_NOT_PAYABLE', errorMessage: 'Order is no longer payable' };
+          // A new query after capture/refund must never be approved. Only the
+          // exact durable event replay above is idempotent.
+          result = { ok: false, code: 'ORDER_NOT_PAYABLE', errorMessage: 'Order is no longer payable' };
         } else {
           const update = await tx.run(
             `UPDATE telegram_stars_orders
@@ -782,12 +908,18 @@ export function createTelegramStarsService(deps = {}) {
 
   async function recordRefund(input = {}) {
     assertEnabled();
-    const userId = normalizeUserId(input.userId, input.telegramUserId);
+    // Telegram refund/reversal updates are not guaranteed to carry the
+    // original payer. Resolve the owner from the captured charge when it is
+    // available; before capture, keep a durable provider tombstone and bind
+    // it during successful_payment.
+    const userId = optionalUserId(input.userId, input.telegramUserId);
     const { payload, amount, chargeId } = validateProviderShape({ ...input, amountXtr: input.amountXtr, totalAmount: input.amountXtr }, { requireCharge: true, requireRefund: true });
     const refundId = asString(input.refundId, 'refundId', { max: 256 });
     const updateId = optionalProviderUpdateId(input.updateId ?? input.providerUpdateId);
-    const eventKey = updateId ? `update:${updateId}` : `refund:${refundId}`;
-    const fingerprint = hash({ event: 'refund', userId, payload, currency: input.currency, amount, chargeId, refundId });
+    // refund_id is the provider's stable identity. Do not key this event by
+    // update_id: Telegram may redeliver the same refund under a new update id.
+    const eventKey = `refund:${refundId}`;
+    const fingerprint = hash({ event: 'refund', payload, currency: input.currency, amount, chargeId, refundId });
     const rawEventJson = json(safeProviderEvent(input));
     const now = timestamp(clock);
 
@@ -812,7 +944,7 @@ export function createTelegramStarsService(deps = {}) {
         });
         return inserted ? (eventResult(inserted) || pending) : { ...pending, idempotent: false };
       }
-      if (payment.user_id !== userId) throw fail('INVALID_PROVIDER_DATA', 'Refund user does not own the payment');
+      if (userId && payment.user_id !== userId) throw fail('INVALID_PROVIDER_DATA', 'Refund user does not own the payment');
       if (payment.currency !== input.currency || payment.amount_xtr !== payment.order_amount) throw fail('INVALID_PROVIDER_DATA', 'Stored payment data is inconsistent');
       if (amount > Number(payment.amount_xtr) - Number(payment.refunded_amount_xtr)) throw fail('REFUND_EXCEEDS_CAPTURE', 'Refund amount exceeds the captured amount');
 
@@ -1072,6 +1204,33 @@ export function createTelegramStarsService(deps = {}) {
         if (!providerByCharge.has(local.telegram_payment_charge_id)) {
           addIssue({ issue_type: 'local_payment_missing_provider_capture', severity: 'warning', charge: local.telegram_payment_charge_id, orderId: local.order_id, details: { localStatus: local.status } });
         }
+      }
+
+      // A process can die after the provider accepts a refund but before the
+      // local `recordRefund` transaction marks the request applied. Keep this
+      // recovery state visible to operators instead of silently treating it
+      // as success; retrying the same request key is safe because the adapter
+      // receives that durable key.
+      const refundRequests = await tx.all(
+        `SELECT rr.id,rr.payment_id,rr.request_key,rr.status,rr.amount_xtr,
+                p.telegram_payment_charge_id
+           FROM telegram_stars_refund_requests rr
+           JOIN telegram_stars_payments p ON p.id=rr.payment_id
+          WHERE rr.status IN ('submitted','failed')`,
+      );
+      for (const request of refundRequests) {
+        addIssue({
+          issue_type: request.status === 'submitted' ? 'refund_request_recovery_pending' : 'refund_request_failed',
+          severity: 'critical',
+          charge: request.telegram_payment_charge_id,
+          paymentId: request.payment_id,
+          details: {
+            requestId: request.id,
+            requestKey: request.request_key,
+            status: request.status,
+            amountXtr: Number(request.amount_xtr),
+          },
+        });
       }
 
       const now = timestamp(clock);
