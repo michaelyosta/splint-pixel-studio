@@ -145,6 +145,27 @@ The ten skips are capability-gated evidence captures and the desktop-only
 physical-touch exclusion; they are listed in the release handoff and do not
 hide a product failure.
 
+## Current-tip clean-checkout smoke
+
+To remove ambiguity from the historical clean-install snapshot, the release
+tip `2e5eba6` was checked out into a new disposable worktree after the RC
+documentation commit. From that directory:
+
+```text
+npm ci --ignore-scripts
+npm ci --prefix server --ignore-scripts
+SQLITE_DB_PATH=<new-temp-db> npm --prefix server run migrate
+SQLITE_DB_PATH=<same-db> npm --prefix server run migrate
+PAYMENTS_MODE=disabled ALLOW_DEV_AUTH=true SEED_DEMO_DATA=true npm --prefix server start
+GET /health 200; GET /ready 200; GET /live 200
+```
+
+Results: both installs exited `0`; SQLite reported **28 applied / 0 skipped**
+then **0 applied / 28 skipped**; the server booted, seeded its disposable
+database, and returned healthy/ready/live responses. The process was stopped
+cleanly and the temporary worktree/database were not used by the integration
+checkout.
+
 ## Hidden dependencies and explicit limits
 
 * A fresh checkout needs both root and `server` dependency installs; this is
