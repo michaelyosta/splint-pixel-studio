@@ -477,6 +477,10 @@ function App() {
       onToggleFavorite={catalog.toggleTemplateFavorite}
       favoriteSavingId={catalog.favoriteSavingId}
       onOpenCollection={catalog.openCatalogCollection}
+      unlockData={unlockData}
+      onOpenPremiumItem={session.openColoring}
+      onOpenFreePack={() => { catalog.setCatalogChip('free'); catalog.setCatalogCollection(null); }}
+      onPremiumWish={() => showNotice('Желание сохранено — сообщим, когда витрина откроется', 'success')}
     />;
   }
 

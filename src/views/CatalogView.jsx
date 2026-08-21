@@ -2,6 +2,13 @@ import { BookOpen, Flame, Heart, Sparkles, Star } from 'lucide-react';
 import { formatDifficulty, MOODS, THEMES } from '../lib/catalogMeta';
 import { prefetchColoring } from '../lib/coloringPrefetch';
 import { hapticImpact, hapticSelection } from '../lib/telegram';
+import {
+  PREMIUM_PACK_STATES,
+  SHOWCASE_PREMIUM_PACK,
+  findPremiumEntitlement,
+  resolvePremiumPackState,
+} from '../lib/premiumPack.js';
+import PremiumPackView, { PremiumPackTeaser } from '../features/premium/PremiumPackView.jsx';
 
 export default function CatalogView({
   templates,
@@ -29,6 +36,10 @@ export default function CatalogView({
   onToggleFavorite,
   favoriteSavingId,
   onOpenCollection,
+  unlockData,
+  onOpenPremiumItem,
+  onOpenFreePack,
+  onPremiumWish,
 }) {
   const renderCatalogLegacy = () => {
     const progressMap = {};
@@ -111,6 +122,15 @@ export default function CatalogView({
     .filter(matchesSearch)
     .sort((first, second) => new Date(second.added_at || second.created_at || 0) - new Date(first.added_at || first.created_at || 0));
   const freeCollections = collections.filter((collection) => collection.pack_type !== 'premium');
+  const premiumEntitlement = findPremiumEntitlement(unlockData?.snapshot, SHOWCASE_PREMIUM_PACK.id);
+  const premiumState = unlockData?.snapshotStatus === 'loading' && !unlockData?.snapshot
+    ? PREMIUM_PACK_STATES.PREVIEW
+    : resolvePremiumPackState({
+      pack: SHOWCASE_PREMIUM_PACK,
+      entitlement: premiumEntitlement,
+      snapshotStatus: unlockData?.snapshotStatus || 'error',
+      paymentsMode: import.meta.env.VITE_PAYMENTS_MODE || 'disabled',
+    });
   const currentTemplates = catalogChip === 'popular' ? popularTemplates
     : catalogChip === 'new' ? newestTemplates
     : catalogChip === 'free' ? searchedTemplates
@@ -121,6 +141,7 @@ export default function CatalogView({
     { id: 'popular', label: 'Популярное' },
     { id: 'new', label: 'Новинки' },
     { id: 'free', label: 'Бесплатно' },
+    { id: 'premium', label: 'Витрина' },
   ];
   const progressById = new Map(mine.map((item) => [item.id, item.progress?.percent || 0]));
 
@@ -154,9 +175,18 @@ export default function CatalogView({
         <div className="catalog-section-heading"><div><p className="eyebrow">НОВИНКИ</p><h2>Свежие картины</h2></div><button type="button" onClick={() => onChangeChip('new')}>Смотреть все</button></div>
         {renderArtworkGrid(newestTemplates.slice(0, 4), 'Новые работы')}
         {freeCollections.length > 0 && <><div className="catalog-section-heading"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Соберите свою полку</h2></div></div>{renderCollectionGrid(freeCollections.slice(0, 4), 'Коллекции')}</>}
+        <div className="catalog-section-heading"><div><p className="eyebrow">КУРАТОРСКАЯ ВИТРИНА</p><h2>Следующий красивый альбом</h2></div></div>
+        <PremiumPackTeaser pack={SHOWCASE_PREMIUM_PACK} state={premiumState} onOpen={() => onChangeChip('premium')} />
       </>}
 
-      {catalogChip === 'premium' ? <section className="catalog-empty catalog-unavailable" data-catalog-unavailable="true"><p className="eyebrow">КАТАЛОГ</p><h2>Контент сейчас недоступен</h2><p>Вернитесь к бесплатным работам.</p><button className="secondary-button" type="button" onClick={() => onChangeChip('all')}>К бесплатным работам</button></section> : catalogChip !== 'all' || catalogCollection ? <>
+      {catalogChip === 'premium' ? <PremiumPackView
+        pack={SHOWCASE_PREMIUM_PACK}
+        state={premiumState}
+        onBack={() => onChangeChip('all')}
+        onOpenItem={onOpenPremiumItem}
+        onOpenFree={onOpenFreePack}
+        onSaveWish={onPremiumWish}
+      /> : catalogChip !== 'all' || catalogCollection ? <>
         <div className="catalog-section-heading catalog-section-heading--single"><div><p className="eyebrow">{catalogChip === 'popular' ? 'ПОПУЛЯРНОЕ' : catalogChip === 'new' ? 'НОВИНКИ' : catalogChip === 'free' ? 'БЕСПЛАТНО' : 'КОЛЛЕКЦИЯ'}</p><h2>{catalogCollection ? catalogCollection.title : `${currentTemplates.length} работ`}</h2></div></div>
         {renderArtworkGrid(visibleTemplates, 'Картины каталога')}
         {!visibleTemplates.length && <p className="catalog-empty">По этому запросу ничего не найдено.</p>}

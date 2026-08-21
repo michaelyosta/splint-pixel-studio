@@ -14,6 +14,7 @@ export default function UnlockLockedView({
   onBack,
   onBrowse,
   onContinue,
+  onPremium,
 }) {
   if (!unlock) return null;
   const premium = unlock.state === UNLOCK_STATES.PREMIUM_LOCKED;
@@ -78,7 +79,13 @@ export default function UnlockLockedView({
 
       <div className="unlock-locked-actions">
         {premium ? (
-          <p className="unlock-locked-unavailable">Этот контент сейчас недоступен.</p>
+          <>
+            <button className="primary-button" type="button" onClick={onPremium}>
+              <ArrowRight size={17} aria-hidden="true" />
+              Посмотреть набор
+            </button>
+            <p className="unlock-locked-unavailable">Покупка пока не подключена. Можно посмотреть preview и сохранить желание.</p>
+          </>
         ) : readyNow ? (
           <button className="primary-button" type="button" onClick={onBrowse}>
             <ArrowRight size={17} aria-hidden="true" />
