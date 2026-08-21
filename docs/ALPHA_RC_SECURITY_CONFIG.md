@@ -58,6 +58,15 @@ surface was added.
   embedded credentials. Local HTTP MinIO remains a DEV/TEST concern.
 - **Verifier:** `server/test/config.test.js`.
 
+### RC-SEC-006 — Environment-name casing could bypass strict production boot
+
+- **Risk:** `NODE_ENV=PRODUCTION` was treated as non-production by the strict
+  validator, which could leave wildcard CORS and local-storage defaults active
+  in a deployment with a casing typo.
+- **Fix:** production detection now normalizes the environment name before
+  applying the strict configuration gate.
+- **Verifier:** `server/test/config.test.js`.
+
 The legacy `SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE` flag is also rejected by the
 production validator. Special QA overrides and diagnostics already require an
 exact `development`/`test` environment, explicit dev auth, and an allowlisted

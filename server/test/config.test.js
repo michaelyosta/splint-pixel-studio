@@ -32,6 +32,11 @@ test('complete production configuration is accepted', () => {
   assert.deepStrictEqual(result.trustProxy, ['10.0.0.0/8', '192.168.10.4']);
 });
 
+test('production configuration is case-insensitive for the environment name', () => {
+  const result = validateProductionConfiguration({ ...validProduction, NODE_ENV: 'PRODUCTION' });
+  assert.equal(result.isProduction, true);
+});
+
 test('production Telegram Stars mode remains fail-closed until a release wires the provider', () => {
   const env = { ...validProduction, PAYMENTS_MODE: 'telegram_stars' };
   assert.throws(() => validateProductionConfiguration(env), /not available in this release/);

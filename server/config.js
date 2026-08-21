@@ -69,7 +69,8 @@ function validateProductionS3Endpoint(value) {
 }
 
 export function validateProductionConfiguration(env = process.env) {
-  if (env.NODE_ENV !== 'production') {
+  const nodeEnv = String(env.NODE_ENV || '').trim().toLowerCase();
+  if (nodeEnv !== 'production') {
     return { isProduction: false, allowedOrigins: [], trustProxy: false };
   }
 
