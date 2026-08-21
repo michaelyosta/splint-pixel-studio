@@ -318,6 +318,14 @@ export function createTelegramStarsService(deps = {}) {
   }
 
   async function resolveServerAmount({ userId, productId, amountXtr, priceXtr }) {
+    // A provider-facing service must never allow a client-supplied amount to
+    // become the order price.  The mock adapter is the only intentionally
+    // permissive boundary: it exists for deterministic local contract tests
+    // and has no path to Telegram or a real entitlement.  Every other adapter
+    // requires an injected catalog resolver before an order can be created.
+    if (typeof priceResolver !== 'function' && adapter?.providerName !== 'telegram_stars_mock') {
+      throw fail('INVALID_INPUT', 'A server price resolver is required for Telegram Stars orders');
+    }
     const resolved = typeof priceResolver === 'function'
       ? await priceResolver({ userId, productId })
       : (priceXtr ?? amountXtr);

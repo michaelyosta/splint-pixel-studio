@@ -90,6 +90,26 @@ test('order price is server-derived and create/retry/idempotency are durable', a
   assert.deepEqual(stored, { amount_xtr: 120, invoice_payload: first.order.invoice_payload, status: 'invoice_issued' });
 });
 
+test('a non-mock provider cannot fall back to a client-supplied Stars price', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const realShapedAdapter = {
+    async createInvoice() { return { invoiceUrl: 'https://provider.invalid/invoice' }; },
+  };
+  const svc = createTelegramStarsService({
+    enabled: true,
+    adapter: realShapedAdapter,
+    mode: 'sqlite',
+    withTransaction: (callback) => tx(db, callback),
+  });
+
+  await assert.rejects(
+    () => svc.createOrder({ userId: 'tg_123', productId: 'premium', amountXtr: 1, idempotencyKey: 'price-boundary' }),
+    (error) => errorCode(error, 'INVALID_INPUT') && /server price resolver/i.test(error.message),
+  );
+  assert.equal((await tx(db, (database) => database.get('SELECT COUNT(*) AS c FROM telegram_stars_orders'))).c, 0);
+});
+
 test('provider invoice failure leaves a retryable pending order without granting access', async () => {
   const db = await createDb();
   await seedUser(db);
