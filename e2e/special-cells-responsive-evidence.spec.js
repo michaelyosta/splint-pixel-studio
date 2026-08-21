@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { test, expect } from '@playwright/test';
 import { generateSpecialCells } from '../server/services/tiled-specials.js';
 import { generateHazardCells } from '../server/services/tiled-hazard.js';
+import { tiledPayload } from './input-gesture-helpers.js';
 
 const GRID = 160;
 const TILE = 32;
