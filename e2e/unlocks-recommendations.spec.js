@@ -183,7 +183,9 @@ test.describe('Unlocks and recommendations', () => {
 
     await page.getByRole('button', { name: 'Каталог', exact: true }).first().click();
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.catalog-chips')).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
+    // Phase 5 deliberately exposes one bounded showcase entry in the Catalog;
+    // premium artwork itself must still stay out of the free collection list.
+    await expect(page.locator('.catalog-chips')).not.toContainText(/Premium|Премиум|Stars|купить|покупк/i);
   });
 
   test('premium direct ID shows a neutral unavailable state without payment CTA', async ({ page }) => {
@@ -197,13 +199,16 @@ test.describe('Unlocks and recommendations', () => {
     await expect(locked.locator('[role="progressbar"]')).toHaveCount(0);
     await expect(locked).not.toContainText(/\d+%/);
     await expect(locked).toContainText('Контент сейчас недоступен');
-    await expect(locked).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
+    // The unavailable state may explain that purchase is not connected yet;
+    // it must not present a production payment CTA or claim ownership.
+    await expect(locked).not.toContainText(/Premium|Премиум|Stars|витрин/i);
+    await expect(locked).toContainText('Покупка пока не подключена');
     await expect(locked.getByRole('button', { name: /Как купить Premium/i })).toHaveCount(0);
     await expect(locked.getByRole('button', { name: 'В каталог', exact: true })).toBeVisible();
 
     await locked.getByRole('button', { name: 'В каталог', exact: true }).click();
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.catalog-chips')).not.toContainText(/Premium|Премиум|Stars|витрин/i);
+    await expect(page.locator('.catalog-chips')).not.toContainText(/Premium|Премиум|Stars/i);
   });
 
   test('eligible user gets an actionable direct-ID open and owned transition', async ({ page, browserName }) => {
