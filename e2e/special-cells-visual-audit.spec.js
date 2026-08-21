@@ -11,13 +11,6 @@ const widths = [
 ];
 const evidenceDir = resolve('docs', 'evidence', 'special-cells-visual-audit-2026-08-12');
 
-function screenPoint(cellX, cellY, camera, box) {
-  return {
-    x: box.x + cellX * TILE * camera.zoom + camera.x + (TILE / 2) * camera.zoom,
-    y: box.y + cellY * TILE * camera.zoom + camera.y + (TILE / 2) * camera.zoom,
-  };
-}
-
 async function seedTreatment(page, label) {
   const userId = `e2e_visual_audit_${label}`;
   await page.context().setExtraHTTPHeaders({ 'X-User-Id': userId });
@@ -37,12 +30,21 @@ async function dismissOnboarding(page) {
   if (await skip.isVisible().catch(() => false)) await skip.click({ force: true });
 }
 
-async function waitForWork(page) {
+async function waitForWork(page, { storedOffer = false } = {}) {
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
-  await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 30000 });
   await expect(session).toHaveAttribute('data-lod-mode', 'work', { timeout: 30000 });
-  await expect(page.locator('.progressive-grid-guide')).toBeVisible({ timeout: 15000 });
+  if (storedOffer) {
+    await expect(page.locator('.progressive-grid-special-offer[data-special-kind="spark"]')).toBeVisible({ timeout: 30000 });
+  } else {
+    await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 30000 });
+  }
+  // A persisted Spark offer intentionally replaces the normal Smart guide;
+  // asserting both would make this evidence test depend on an obsolete HUD
+  // state rather than the current offer contract.
+  if (!storedOffer) {
+    await expect(page.locator('.progressive-grid-guide')).toBeVisible({ timeout: 15000 });
+  }
   await page.waitForTimeout(450);
 }
 
@@ -118,29 +120,25 @@ async function fetchTargetSpark(page, id, state, specialId) {
   };
 }
 
-async function claimSpark(page, spark) {
-  const area = page.locator('.progressive-grid-area');
-  const box = await area.boundingBox();
-  const camera = {
-    x: Number(await area.getAttribute('data-camera-x')),
-    y: Number(await area.getAttribute('data-camera-y')),
-    zoom: Number(await area.getAttribute('data-camera-zoom')),
-  };
-  const point = screenPoint(spark.x, spark.y, camera, box);
-  expect(point.y).toBeGreaterThanOrEqual(box.y);
-  expect(point.y).toBeLessThanOrEqual(box.y + box.height);
-  const touch = await page.context().newCDPSession(page);
-  const claimResponse = page.waitForResponse((response) => {
-    if (!response.url().includes('/progress/actions') || response.request().method() !== 'POST') return false;
-    try { return response.request().postDataJSON()?.special_action?.type === 'claim_spark'; } catch { return false; }
-  }, { timeout: 30000 });
-  await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: point.x, y: point.y }] });
-  await page.waitForTimeout(50);
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: point.x + 1, y: point.y }] });
-  await page.waitForTimeout(50);
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  const response = await claimResponse;
+async function claimSpark(page, id, spark) {
+  // The production Phase 2 contract deliberately hides Special markers until
+  // the first manual segment reveal. This visual-only audit already verifies
+  // the responsive Canvas/treatment presentation, so use the server action to
+  // enter the persisted offer state deterministically instead of bypassing the
+  // current arming rule with a synthetic touch.
+  const response = await page.request.post(`/api/colorings/${id}/progress/actions`, {
+    data: {
+      revision: 0,
+      clientBatchId: `visual-audit-claim-${spark.specialId}`,
+      changes: [{ index: spark.y * GRID + spark.x, color: 0 }],
+      special_action: {
+        type: 'claim_spark',
+        special_id: spark.specialId,
+        session_game: true,
+        experiment_group: 'treatment',
+      },
+    },
+  });
   expect(response.status()).toBe(200);
   return response.json();
 }
@@ -153,7 +151,10 @@ async function auditWidth(page, size, index, { reducedMotion = false } = {}) {
     (response) => response.url().includes(`/colorings/${id}/guidance`) && response.ok(),
     { timeout: 30000 },
   );
-  await page.goto(`/?coloring=${id}`);
+  // The evidence captures the explicit Phase 2 session treatment. Without
+  // this query the ordinary cohort path intentionally uses the non-session
+  // automatic Spark contract, so it cannot expose the two player choices.
+  await page.goto(`/?coloring=${id}&phase2=session&phase2Variant=treatment&phase2Event=spark_choice&phase2Subject=phase2_visual_${size.width}_${index}`);
   await dismissOnboarding(page);
   await waitForWork(page);
   const initial = await readState(page);
@@ -162,22 +163,28 @@ async function auditWidth(page, size, index, { reducedMotion = false } = {}) {
   expect(initial.target.minY).toBeLessThanOrEqual(initial.target.maxY);
   const initialGuidance = await (await initialGuidanceResponse).json();
   expect(initialGuidance.reason).toBe('INITIAL_TARGET');
-  expect(initialGuidance.special_id).toBeTruthy();
   const spark = await fetchTargetSpark(page, id, initial, initialGuidance.special_id);
   const initialPath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}01-initial-work.png`);
   await page.screenshot({ path: initialPath, fullPage: false });
 
-  const claimed = await claimSpark(page, spark);
+  const claimed = await claimSpark(page, id, spark);
+  await page.reload();
+  await dismissOnboarding(page);
+  await waitForWork(page, { storedOffer: true });
   const offer = page.locator('.progressive-grid-special-offer[data-special-kind="spark"]');
   await expect(offer).toBeVisible({ timeout: 15000 });
-  const previewLocators = await offer.locator('[data-spark-target-preview]').all();
+  const previewLocators = await offer.locator('[data-phase2-spark-option]').all();
   expect(previewLocators).toHaveLength(2);
   const previews = [];
   for (const preview of previewLocators) {
+    const optionId = await preview.getAttribute('data-phase2-spark-option');
+    const serverOption = claimed.special_offer.target_options.find((option) => option.option_id === optionId);
+    expect(serverOption, `visible Spark option ${optionId} must be server-backed`).toBeTruthy();
+    await expect(preview).toContainText(String(serverOption.estimated_cells));
     previews.push({
-      option: await preview.getAttribute('data-spark-target-option'),
-      bounds: await preview.getAttribute('data-spark-bounds'),
-      estimatedCells: Number(await preview.getAttribute('data-spark-estimated-cells')),
+      option: optionId,
+      bounds: [serverOption.bounds.min_x, serverOption.bounds.min_y, serverOption.bounds.max_x, serverOption.bounds.max_y].join(','),
+      estimatedCells: Number(serverOption.estimated_cells),
     });
   }
   for (const option of claimed.special_offer.target_options.slice(0, 2)) {
@@ -199,32 +206,33 @@ async function auditWidth(page, size, index, { reducedMotion = false } = {}) {
     if (!response.url().includes('/progress/actions') || response.request().method() !== 'POST') return false;
     try { return response.request().postDataJSON()?.special_action?.type === 'use_spark'; } catch { return false; }
   }, { timeout: 30000 });
-  await offer.locator('[data-special-option="a"]').click();
+  await offer.locator('[data-phase2-spark-option]').first().click();
   const used = await (await useResponse).json();
   expect(used.special_applied_changes.length).toBe(Number(claimed.special_offer.target_options[0].estimated_cells));
   expect(used.special_applied_changes.length).toBeLessThanOrEqual(144);
   const wave = page.locator('[data-special-wave]');
   await expect(wave).toBeVisible({ timeout: 15000 });
-  await expect(wave).toHaveAttribute('data-special-wave-kind', 'spark');
+  await expect(wave).toHaveAttribute('data-special-wave-kind', 'spark_choice');
   await expect(wave).toHaveAttribute('data-special-wave-cells', String(used.special_applied_changes.length));
   const wavePath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}03-spark-wave.png`);
   await page.screenshot({ path: wavePath, fullPage: false });
   await expect(offer).toHaveCount(0, { timeout: 15000 });
 
-  const canvas = page.locator('.progressive-grid-area > canvas').first();
-  await canvas.focus();
-  await canvas.press('Shift+ArrowDown');
-  await expect(page.locator('[data-return-target]')).toBeVisible({ timeout: 10000 });
-  const freeState = await readState(page);
-  expect(freeState.returnTarget).toBe(true);
-  const returnPath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}04-free-exploration.png`);
-  await page.screenshot({ path: returnPath, fullPage: false });
-  await page.locator('[data-return-target]').click();
+  // Phase 2 now pauses on an explicit ownership beat after the wave. The old
+  // audit pressed into free exploration and expected a return-target HUD,
+  // which was replaced by the current "next fragment" continuation contract.
+  const nextBeat = page.locator('[data-session-game-next-beat]');
+  await expect(nextBeat).toBeVisible({ timeout: 15000 });
+  await expect(nextBeat.locator('[data-session-game-continue]')).toBeVisible();
+  const nextBeatState = await readState(page);
+  const nextBeatPath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}04-next-beat.png`);
+  await page.screenshot({ path: nextBeatPath, fullPage: false });
+  await nextBeat.locator('[data-session-game-continue]').click();
   await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-smart-state', 'ready', { timeout: 20000 });
-  await expect(page.locator('[data-return-target]')).toHaveCount(0);
+  await expect(nextBeat).toHaveCount(0);
   const returned = await readState(page);
   expect(returned.targetInsideCanvas).toBe(true);
-  const returnedPath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}05-return-smart-target.png`);
+  const returnedPath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}05-next-smart-target.png`);
   await page.screenshot({ path: returnedPath, fullPage: false });
   return {
     size,
@@ -234,13 +242,13 @@ async function auditWidth(page, size, index, { reducedMotion = false } = {}) {
     spark: { x: spark.x, y: spark.y, specialId: spark.specialId },
     preview: previews,
     appliedCells: used.special_applied_changes.length,
-    freeState,
+    nextBeatState,
     returned,
-    screenshots: [initialPath, offerPath, wavePath, returnPath, returnedPath].map((path) => relative(resolve('.'), path).replaceAll('\\', '/')),
+    screenshots: [initialPath, offerPath, wavePath, nextBeatPath, returnedPath].map((path) => relative(resolve('.'), path).replaceAll('\\', '/')),
   };
 }
 
-test('fresh treatment visual audit covers responsive Spark flow and Smart return', async ({ page, browserName }) => {
+test('fresh treatment visual audit covers responsive Spark flow and next-beat continuation', async ({ page, browserName }) => {
   test.skip(browserName === 'webkit', 'Canvas audit targets Chromium');
   test.setTimeout(360000);
   mkdirSync(evidenceDir, { recursive: true });

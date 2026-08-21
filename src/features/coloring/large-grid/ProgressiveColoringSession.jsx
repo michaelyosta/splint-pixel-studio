@@ -1517,8 +1517,9 @@ export default function ProgressiveColoringSession({
     tileKey = null,
     recent = null,
     immediate = false,
+    allowAfterSessionBeat = false,
   } = {}) {
-    if (specialOffer || sessionGameNextBeatReady) {
+    if (specialOffer || (sessionGameNextBeatReady && !allowAfterSessionBeat)) {
       cancelAutoAdvance();
       return;
     }
@@ -1542,7 +1543,7 @@ export default function ProgressiveColoringSession({
       if (token !== guidanceTokenRef.current) return;
       if (isStaleGuidance(plan, committedRevisionRef.current)) {
         window.setTimeout(() => {
-          void fetchAndApplyGuidance({ reason, color, targetColor, tileKey, recent, immediate });
+          void fetchAndApplyGuidance({ reason, color, targetColor, tileKey, recent, immediate, allowAfterSessionBeat });
         }, 350);
         return;
       }
@@ -1616,6 +1617,7 @@ export default function ProgressiveColoringSession({
       reason: GUIDANCE_REASON.SAME_COLOR_NEXT,
       color: smartPlanRef.current?.selectedColor ?? selectedColorRef.current,
       recent: recentTargetsRef.current,
+      allowAfterSessionBeat: true,
     });
   }
 
