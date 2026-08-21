@@ -115,6 +115,28 @@ export function isCreatorPreviewCurrent(batchId, currentBatchId) {
   return Number(batchId) === Number(currentBatchId);
 }
 
+export function buildCreatorPreviewError(previous = {}, error = null) {
+  return {
+    ...previous,
+    status: 'error',
+    progress: 0,
+    stage: null,
+    error: {
+      code: error?.code || 'PREVIEW_FAILED',
+      message: error?.message || 'Не удалось построить выбранное превью',
+    },
+    // A failed recompute must never leave a stale result looking usable.
+    pixel: null,
+    numbered: null,
+    palette: [],
+    metrics: null,
+    insights: null,
+    pipelineVersion: null,
+    resultFingerprint: null,
+    previewPixelFingerprint: null,
+  };
+}
+
 export function deriveCreatorPreviewInsights({ width, height, palette = [], cells = [], metrics = {} } = {}) {
   const totalCells = Math.max(0, Number(width) * Number(height));
   const colorsUsed = cells.length ? new Set(cells).size : palette.length;

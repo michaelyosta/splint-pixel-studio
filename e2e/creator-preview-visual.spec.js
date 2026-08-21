@@ -12,6 +12,11 @@ async function openCreator(page) {
   await page.getByText('Создать').first().click();
   await page.getByRole('button', { name: 'Из изображения' }).click();
   await page.locator('.file-field input[type="file"]').setInputFiles(sourceImage);
+  // The current creator contract computes only the recommended 512x512
+  // preview after upload. Other resolutions are explicit, user-selected
+  // comparisons so an expensive preview is never built invisibly in the
+  // background. Select 192 before asserting its evidence is ready.
+  await page.getByRole('button', { name: 'Сетка 192 на 192' }).click();
   await expect(page.locator('.creator-preview-option[data-resolution="192"]')).toHaveAttribute('data-status', 'ready', { timeout: 60000 });
   await expect(page.locator('.creator-number-preview img')).toBeVisible();
 }

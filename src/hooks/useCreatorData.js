@@ -3,6 +3,7 @@ import { api, metaApi } from '../api/client';
 import { buildColoringFromImage } from '../lib/pixelColoring';
 import {
   CREATOR_PREVIEW_RESOLUTIONS,
+  buildCreatorPreviewError,
   buildCreatorPreviewCacheKey,
   deriveCreatorPreviewInsights,
   isCreatorPreviewCurrent,
@@ -176,6 +177,11 @@ export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNaviga
     }));
   }
 
+  function markPreviewError(resolution, error, batchId) {
+    if (error?.name === 'AbortError' || !isCreatorPreviewCurrent(batchId, creatorComputeRef.current)) return;
+    setPreviewOption(resolution, (previous) => buildCreatorPreviewError(previous, error));
+  }
+
   async function loadSourcePreview(sourceFile, crop, batchId) {
     const objectUrl = URL.createObjectURL(sourceFile);
     try {
@@ -264,7 +270,10 @@ export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNaviga
       if (!creatorPreviews.original) await loadSourcePreview(sourceFile, crop, activeBatch);
       await computeResolution(sourceFile, selectedResolution, activeBatch, { retain: true });
     } catch (error) {
-      if (error?.name !== 'AbortError') showNotice(error.message || 'Не удалось обработать изображение', 'error');
+      markPreviewError(selectedResolution, error, activeBatch);
+      if (error?.name !== 'AbortError' && isCreatorPreviewCurrent(activeBatch, creatorComputeRef.current)) {
+        showNotice(error.message || 'Не удалось обработать изображение', 'error');
+      }
     } finally {
       if (isCreatorPreviewCurrent(activeBatch, creatorComputeRef.current)) setCreatorComputing(false);
     }
@@ -300,7 +309,10 @@ export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNaviga
     setCreatorComputing(true);
     computeResolution(creatorFileRef.current, resolution, batchId, { retain: true })
       .catch((error) => {
-        if (error?.name !== 'AbortError') showNotice(error.message || 'Не удалось построить выбранный вариант', 'error');
+        markPreviewError(resolution, error, batchId);
+        if (error?.name !== 'AbortError' && isCreatorPreviewCurrent(batchId, creatorComputeRef.current)) {
+          showNotice(error.message || 'Не удалось построить выбранный вариант', 'error');
+        }
       })
       .finally(() => {
         if (isCreatorPreviewCurrent(batchId, creatorComputeRef.current)) setCreatorComputing(false);
