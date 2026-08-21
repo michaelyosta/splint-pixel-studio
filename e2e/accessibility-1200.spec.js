@@ -17,16 +17,21 @@ async function createAndOpenTiledColoring(page) {
   await page.getByRole('button', { name: 'Из изображения' }).click();
   await expect(page.locator('.creator-page')).toBeVisible({ timeout: 10000 });
   await page.locator('.file-field input[type="file"]').setInputFiles([fixture]);
-  await page.locator('.grid-detail-range').fill('18');
-  await expect(page.locator('button.create-button').first()).toBeEnabled({ timeout: 15000 });
-  await page.locator('button.create-button').first().click();
-  await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 45000 });
+  // The resolution control is an indexed 0..3 selector; choose the
+  // labelled 1200 option instead of relying on the old pixel-count value.
+  await page.getByRole('button', { name: 'Сетка 1200 на 1200' }).click();
+  // Selecting a resolution starts its preview computation.  Do not click the
+  // save button before that computation finishes: it becomes disabled while
+  // the tiled payload is being built and the old test raced that transition.
+  await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 120000 });
   const saveButton = page.locator('button', { hasText: 'Сохранить и начать' });
-  await expect(saveButton).toBeVisible({ timeout: 15000 });
-  const [response] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes('/colorings/create')),
-    saveButton.click(),
-  ]);
+  await expect(saveButton).toBeVisible({ timeout: 45000 });
+  await expect(saveButton).toBeEnabled({ timeout: 120000 });
+  const responsePromise = page.waitForResponse((r) => r.url().includes('/colorings/create'));
+  // The save action switches the client route immediately after the response;
+  // avoid Playwright waiting on a button that is intentionally detached.
+  await saveButton.click({ noWaitAfter: true });
+  const response = await responsePromise;
   expect(response.status()).toBe(201);
   const created = await response.json();
   await expect(page.locator('.creator-success-page')).toBeVisible({ timeout: 15000 });
