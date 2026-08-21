@@ -8,6 +8,7 @@ import { asyncRoute } from '../middleware/asyncRoute.js';
 import { decodeImageDataUrl, deletePrivateOriginal, publicMediaUrl, readMediaObject, storeMediaObject, storePrivateOriginal } from '../services/media-storage.js';
 import { renderCanonicalPng, renderCanonicalThumbnail } from '../services/canonical-renderer.js';
 import { validatePublicTemplateComplexity } from '../services/template-complexity.js';
+import { buildContentMetadata } from '../services/content-quality.js';
 import { rewardVerifiedPainting, rewardVerifiedTiledPainting } from '../services/progression.js';
 import { grantPaintingAchievements, touchDailyStreak } from '../services/progression-achievements.js';
 import { assertTemplateAccessible, STATE_PREMIUM_LOCKED } from '../services/unlock-service.js';
@@ -311,6 +312,10 @@ function catalogSummary(row) {
   const { cells, ...template } = parsed;
   return {
     ...template,
+    // Keep this metadata bounded and advisory: no full raster is exposed to
+    // catalog callers, and an unassessed style never silently opts into the
+    // paintable creator pipeline.
+    content_metadata: buildContentMetadata(parsed),
     total_cells: parsed.storage_mode === 'tiled'
       ? parsed.width * parsed.height
       : cells?.length || 0,
@@ -900,6 +905,7 @@ router.get('/:id', authMiddleware, asyncRoute(async (req, res) => {
   [req.userId, template.id, new Date().toISOString()]);
   res.json({
     ...template,
+    content_metadata: buildContentMetadata(template),
     unlock_state: detailAccess.state,
     unlock_reason_code: detailAccess.reason_code,
     unlock_granted: detailAccess.granted || false,

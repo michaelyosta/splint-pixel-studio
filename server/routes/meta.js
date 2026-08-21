@@ -6,6 +6,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
 import { getDailyChallengeStatus, getUserProgression, getWeeklyChallengeStatus } from '../services/progression.js';
 import { assertCollectionAccessible } from '../services/unlock-service.js';
+import { buildContentMetadata } from '../services/content-quality.js';
 
 const router = Router();
 // Only events actually emitted by the client are accepted here. Keep this in
@@ -137,7 +138,11 @@ function publicTemplateSummary(row) {
   delete template.original_media_key;
   delete template.palette_json;
   delete template.cells_json;
-  return { ...template, total_cells: totalCells };
+  return {
+    ...template,
+    content_metadata: buildContentMetadata(template),
+    total_cells: totalCells,
+  };
 }
 
 function parseSafeTemplate(row) {
