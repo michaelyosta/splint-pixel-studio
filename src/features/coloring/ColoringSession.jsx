@@ -135,6 +135,10 @@ export default function ColoringSession({
   const coreFeelActive = isCoreFeelReference(coreFeelExperiment, template);
   const enhancedCoreFeel = coreFeelActive && coreFeelExperiment.variant?.enhanced;
   const artifactProgress = progress?.artifact_progress || null;
+  // The server derives the Artifact total from the actual artwork. Reuse it
+  // for discovery and persistent surfaces instead of assuming three
+  // fragments exist in every fixture.
+  const artifactTotal = Math.max(0, Number(artifactProgress?.total || 3));
   const activeSpecial = specialOffer
     ? specialCells.find((special) => special.id === specialOffer.special_id)
     : null;
@@ -1444,7 +1448,7 @@ export default function ColoringSession({
           <div className="progressive-grid-special-offer legacy-grid-special-offer" role="status" data-special-discovered>
             <span className="progressive-grid-special-title">
               {specialDiscovered.kind === 'artifact'
-                ? `Артефакт: фрагмент ${specialDiscovered.artifact_fragments || 1}/3`
+                ? `Артефакт: фрагмент ${specialDiscovered.artifact_fragments || 1}/${artifactTotal}`
                 : specialDiscovered.kind === 'hazard' && specialDiscovered.missed
                   ? 'Опасность пропущена: небольшая локальная пауза'
                   : `${specialDiscovered.kind || 'Spark'} найден`}
@@ -1458,10 +1462,10 @@ export default function ColoringSession({
             role="status"
             data-artifact-progress
             data-artifact-fragments={String(artifactProgress.fragments)}
-            data-artifact-total={String(artifactProgress.total || 3)}
+            data-artifact-total={String(artifactTotal)}
           >
             <span className="progressive-grid-special-title">
-              {`Артефакт: ${artifactProgress.complete ? 'собран' : `фрагмент ${artifactProgress.fragments}/${artifactProgress.total || 3}`}`}
+              {`Артефакт: ${artifactProgress.complete ? 'собран' : `фрагмент ${artifactProgress.fragments}/${artifactTotal}`}`}
             </span>
           </div>
         )}

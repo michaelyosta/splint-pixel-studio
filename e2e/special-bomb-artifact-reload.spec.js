@@ -105,15 +105,19 @@ test('Artifact fragment progress renders persistently after /progress reload', a
   expect(claimedResponse.ok()).toBe(true);
   const claimed = await claimedResponse.json();
   expect(claimed.artifact_progress.fragments).toBe(1);
+  const artifactTotal = String(claimed.artifact_progress.total);
+  expect(Number(artifactTotal)).toBeGreaterThan(0);
 
   await page.goto(`/?coloring=${created.id}`);
   await expect(page.locator('.progressive-coloring-session')).toBeVisible({ timeout: 20000 });
   const chip = page.locator('[data-artifact-progress]');
   await expect(chip).toBeVisible({ timeout: 20000 });
-  await expect(chip).toContainText('1/3');
+  await expect(chip).toHaveAttribute('data-artifact-total', artifactTotal);
+  await expect(chip).toContainText(`1/${artifactTotal}`);
 
   await page.reload();
   await expect(page.locator('.progressive-coloring-session')).toBeVisible({ timeout: 20000 });
   await expect(chip).toBeVisible({ timeout: 20000 });
-  await expect(chip).toContainText('1/3');
+  await expect(chip).toHaveAttribute('data-artifact-total', artifactTotal);
+  await expect(chip).toContainText(`1/${artifactTotal}`);
 });

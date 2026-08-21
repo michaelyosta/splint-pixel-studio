@@ -853,6 +853,11 @@ export default function ProgressiveColoringSession({
     && (!sessionGameActive || sessionGameTreatment);
   const specialDiagnostics = progress?.special_diagnostics || null;
   const artifactProgress = progress?.artifact_progress || null;
+  // Artifact availability is artwork-specific (small fixtures can expose
+  // fewer than the usual three fragments). Keep every transient and
+  // persistent surface on the server-authoritative total so discovery cannot
+  // briefly contradict the progress chip after a claim or reload.
+  const artifactTotal = Math.max(0, Number(artifactProgress?.total || 3));
 
   useEffect(() => {
     if (!specialTreatment || !hasVisibleSpecialMarker
@@ -3127,7 +3132,9 @@ export default function ProgressiveColoringSession({
             <span className="progressive-grid-artifact-reveal-glyph" aria-hidden="true">✦</span>
             <span>
               <b>{artifactReveal.complete ? 'Артефакт собран' : 'Найден фрагмент истории'}</b>
-              <small>{artifactReveal.complete ? 'Три находки сложились в одну редкость' : `Фрагмент ${artifactReveal.fragments} из 3`}</small>
+              <small>{artifactReveal.complete
+                ? `${artifactTotal} находки сложились в одну редкость`
+                : `Фрагмент ${artifactReveal.fragments} из ${artifactTotal}`}</small>
             </span>
           </div>
         )}
@@ -3138,10 +3145,10 @@ export default function ProgressiveColoringSession({
             data-special-discovered
             data-artifact-progress={specialDiscovered.kind === 'artifact' ? '' : undefined}
             data-artifact-fragments={specialDiscovered.kind === 'artifact' ? String(specialDiscovered.artifact_fragments || 1) : undefined}
-            data-artifact-total={specialDiscovered.kind === 'artifact' ? '3' : undefined}
+            data-artifact-total={specialDiscovered.kind === 'artifact' ? String(artifactTotal) : undefined}
           >
             {specialDiscovered.kind === 'artifact'
-              ? `Артефакт: фрагмент ${specialDiscovered.artifact_fragments || 1}/3`
+              ? `Артефакт: фрагмент ${specialDiscovered.artifact_fragments || 1}/${artifactTotal}`
               : specialDiscovered.kind === 'hazard' && specialDiscovered.missed
                 ? 'Опасность пропущена: небольшая локальная пауза'
                 : `${specialDiscovered.kind || 'Spark'} найден`}
@@ -3155,11 +3162,11 @@ export default function ProgressiveColoringSession({
             data-artifact-progress
             data-special-discovered=""
             data-artifact-fragments={String(artifactProgress.fragments)}
-            data-artifact-total={String(artifactProgress.total || 3)}
+            data-artifact-total={String(artifactTotal)}
           >
             {artifactProgress.complete
               ? `Артефакт собран`
-              : `Артефакт: фрагмент ${artifactProgress.fragments}/${artifactProgress.total || 3}`}
+              : `Артефакт: фрагмент ${artifactProgress.fragments}/${artifactTotal}`}
           </div>
         )}
         {DIAGNOSTICS_ENABLED && diagnostics && (
