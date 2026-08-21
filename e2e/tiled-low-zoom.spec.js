@@ -92,9 +92,18 @@ test.describe('tiled 1200 low zoom', () => {
     // request. This is especially important after the preceding 1200px
     // scenarios have saturated the serial E2E API worker.
     await expect.poll(
-      () => page.evaluate(() => Number(window.__splintClient?.getNetworkStats?.()?.activeTileRequests || 0)),
+      () => page.evaluate(() => {
+        const stats = window.__splintClient?.getNetworkStats?.();
+        const snapshot = window.__splintClient?.getSnapshot?.();
+        return Number(stats?.activeTileRequests || 0) === 0
+          && (snapshot?.pendingTiles?.length || 0) === 0;
+      }),
       { timeout: 60000 },
-    ).toBe(0);
+    ).toBe(true);
+    // Let a completed work plan settle before measuring overview requests;
+    // under serial API load a plan can enqueue its last promise one tick
+    // after activeTileRequests reaches zero.
+    await page.waitForTimeout(500);
     tileRequests.length = 0;
     const overviewStartedAt = Date.now();
     await pressOverview(page);

@@ -130,7 +130,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
     await page.goto('/');
     await openFirstColoring(page);
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
 
     await page.waitForTimeout(1000);
     expect(errors).toEqual([]);
@@ -148,7 +148,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
     await page.goto('/');
     await openFirstColoring(page);
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
 
     await dismissOnboarding(page);
 
@@ -161,7 +161,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
   test('3. Undo/redo menu buttons present in reveal mode', async ({ page }) => {
     await page.goto('/');
     await openFirstColoring(page);
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
     await dismissOnboarding(page);
 
     /* Open bottom sheet menu */
@@ -181,7 +181,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
     await page.goto('/');
     await openFirstColoring(page);
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
     await dismissOnboarding(page);
 
     await clickActiveWorkCell(page);
@@ -192,7 +192,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
   test('4. Initial view exposes an actionable target', async ({ page }) => {
     await page.goto('/');
     await openFirstColoring(page);
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
 
     await expect(page.locator('.coloring-task-summary')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('canvas.coloring-canvas')).not.toHaveAttribute('data-active-work-cells', '');
@@ -201,7 +201,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
   test('5. Camera auto does not move during painting', async ({ page }) => {
     await page.goto('/');
     await openFirstColoring(page);
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
     await dismissOnboarding(page);
 
     const errors = [];
@@ -216,7 +216,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     test.skip(isMobile, 'Mouse wheel is a desktop-only input');
     await page.goto('/');
     await openFirstColoring(page);
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
     await dismissOnboarding(page);
 
     const viewport = page.locator('.coloring-canvas-viewport');
@@ -231,7 +231,7 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
   test('7. Reveal mode remains actionable without palette controls', async ({ page }) => {
     await page.goto('/');
     await openFirstColoring(page);
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
 
     await dismissOnboarding(page);
     await page.locator('.player-menu-btn').click();

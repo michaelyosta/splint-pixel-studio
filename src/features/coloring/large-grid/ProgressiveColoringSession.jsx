@@ -2283,7 +2283,16 @@ export default function ProgressiveColoringSession({
     if (pendingCellRef.current?.key === key) return;
     pendingCellRef.current = { key, cell };
     setInputNotice('Загружаем фрагмент поля…');
-    client.fetchTile(cell.tileX, cell.tileY)
+    // Keyboard/touch input can arrive in the small window between the canvas
+    // mounting and the manifest request settling. fetchTile intentionally
+    // throws when called before a manifest exists; turn that lifecycle edge
+    // into the same bounded queue used for a normal tile miss instead of an
+    // uncaught event-handler error.
+    const tileRequest = Promise.resolve().then(() => {
+      if (client.getSnapshot().manifest) return client.fetchTile(cell.tileX, cell.tileY);
+      return client.loadManifest().then(() => client.fetchTile(cell.tileX, cell.tileY));
+    });
+    tileRequest
       .then(() => {
         if (pendingCellRef.current?.key !== key) return;
         const queuedCell = pendingCellRef.current.cell;

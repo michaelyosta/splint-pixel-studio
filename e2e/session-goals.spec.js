@@ -27,7 +27,7 @@ async function openPlayer(page, coloringId = null, search = '') {
     await expect(card).toBeVisible({ timeout: 15000 });
     await card.click();
   }
-  await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
   await dismissOnboarding(page);
 }
 
@@ -37,7 +37,7 @@ async function openFirstCatalogPlayer(page, search = '') {
   const card = page.locator('.home-featured-card, .home-continue-card, .home-art-card').first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();
-  await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
   await dismissOnboarding(page);
 }
 

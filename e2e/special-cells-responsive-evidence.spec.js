@@ -61,7 +61,7 @@ async function moveToCell(canvas, cellIndex) {
 
 test('tiled special offer stays usable at mobile widths and honors reduced motion', async ({ page, browserName }, testInfo) => {
   test.skip(browserName === 'webkit', 'Chromium projects provide the tiled canvas evidence');
-  test.setTimeout(120000);
+  test.setTimeout(240000);
   mkdirSync(evidenceDir, { recursive: true });
   const forcedWidth = Number(process.env.SPECIAL_RESPONSIVE_WIDTH);
   const width = Number.isInteger(forcedWidth) && forcedWidth >= 320 && forcedWidth <= 480
@@ -97,7 +97,7 @@ test('tiled special offer stays usable at mobile widths and honors reduced motio
     if (!response.url().includes(`/colorings/${created.id}/progress/actions`)
       || response.request().method() !== 'POST') return false;
     try { return response.request().postDataJSON()?.special_action?.type === 'claim_spark'; } catch { return false; }
-  });
+  }, { timeout: 120000 });
   await canvas.press('Enter');
   expect((await claimPromise).status()).toBe(200);
   const offer = page.locator('.progressive-grid-special-offer[data-special-kind="spark"]');

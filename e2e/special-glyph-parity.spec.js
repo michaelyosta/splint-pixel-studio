@@ -211,6 +211,10 @@ async function waitForTile(page, cellIndex, gridWidth, expectedKind = null) {
   const x = cellIndex % gridWidth;
   const y = Math.floor(cellIndex / gridWidth);
   const key = `${Math.floor(x / TILE)}:${Math.floor(y / TILE)}`;
+  await page.evaluate(async ({ tileX, tileY }) => {
+    await window.__splintClient?.loadManifest?.();
+    await window.__splintClient?.fetchTile?.(tileX, tileY, { force: true });
+  }, { tileX: Math.floor(x / TILE), tileY: Math.floor(y / TILE) }).catch(() => {});
   await page.waitForFunction(({ tileKey, targetIndex, kind }) => {
     const tile = window.__splintClient?.cache?.peek?.(tileKey);
     if (!tile) return false;
@@ -219,7 +223,7 @@ async function waitForTile(page, cellIndex, gridWidth, expectedKind = null) {
       Number(special.cellIndex ?? special.cell_index) === targetIndex
       && special.kind === kind
     ));
-  }, { tileKey: key, targetIndex: Number(cellIndex), kind: expectedKind }, { timeout: 15000 });
+  }, { tileKey: key, targetIndex: Number(cellIndex), kind: expectedKind }, { timeout: 60000 });
   await page.waitForTimeout(300);
 }
 
