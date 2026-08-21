@@ -2,9 +2,11 @@
 
 Status: **SUCCESS_WITH_VALIDATION_DEBT**
 
-This handoff covers the autonomous Phase 2 session slice and the bounded Phase
-3 reveal-ceremony slice. It does not claim that human enjoyment, retention, or
-the final Special-event winner has been proven.
+This handoff covers the autonomous Phase 2 session slice, bounded Phase 3
+reveal-ceremony slice, gallery/content Phase 4 slice, and bounded Phase 5
+product-preparation slice. It does not claim that human enjoyment, retention,
+real Telegram payment delivery, or the final Special-event winner has been
+proven.
 
 ## 1. Phases completed
 
@@ -14,9 +16,14 @@ the final Special-event winner has been proven.
   measurement hooks.
 - Bounded Product Phase 3: Canvas-first fragment/Special/artwork reveal
   ceremony with reduced-motion fallback.
+- Product Phase 4: collection-first Gallery, curated showcase journey, honest
+  content metadata, resume/closure contracts, and bounded sharing groundwork.
+- Bounded Product Phase 5: one premium pack, disabled-by-default Stars/XTR
+  provider contract, server entitlement hardening, Store state model, artwork
+  deep links, and P0/P1 upload/render safeguards.
 
-Phase 4/5 were not started: no progression expansion, packs, Stars, social, or
-marketplace work was added.
+No production payment, marketplace, internal currency, social feed, or new
+Special Cell was added.
 
 ## 2. Decisions now in force
 
@@ -68,15 +75,18 @@ recommendations remain unavailable by design.
 
 ## 6. Progression, content, and business
 
-No new progression, content marketplace, currency, social feed, or payment path
-was built. Existing backend infrastructure remains intact. The next product
-decision should be made only after the core-feel and event comparison debt is
-reduced; monetization is not the current bottleneck.
+Gallery/collection-first progression and one curated showcase pack now exist as
+bounded product surfaces. The XTR implementation is mock/provider-shaped and
+disabled by default; it does not launch payments or add a currency economy.
+Content quality remains metadata-gated, with `classic` Pixelization as the safe
+default and two exact-resolution provisional routes. See
+`docs/PRODUCT_PHASE_5_HANDOFF.md` for the complete Phase 5 contract.
 
 ## 7. Verification evidence
 
-- Root tests: **417 passed / 0 failed**.
-- Server suite snapshot: **363 passed / 65 skipped / 0 failed**.
+- Earlier Phase 2/3 snapshot: root **417 passed / 0 failed** and server
+  **363 passed / 65 skipped / 0 failed**; current Phase 5 counts are maintained
+  in `docs/PRODUCT_PHASE_5_HANDOFF.md`.
 - Reveal ceremony unit tests: **4 passed**.
 - Fresh Phase 2 Chromium slice: **4 passed / 0 failed**, including the manual
   first-reveal page-error guard and ceremony assertion.
@@ -132,8 +142,6 @@ input, build, or E2E checks.
 
 ## 12. Next recommended milestone
 
-Run the bounded human/device comparison on the current preview. If the ceremony
-and one event pass the authorship/calmness bar, lock the winner and proceed to a
-small visual-identity pass. If they do not, cut the event before adding any
-progression or monetization.
-
+Run the bounded human/device and provider-sandbox review on the current preview
+when the owner is ready. Do not enable production Stars, choose a final price,
+or start a new functional phase until those release decisions are explicit.

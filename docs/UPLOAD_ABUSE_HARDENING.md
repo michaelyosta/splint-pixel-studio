@@ -1,6 +1,8 @@
 # Upload abuse hardening roadmap
 
-Status: future production plan. This pass does not change upload behavior.
+Status: bounded Phase 5 safeguards implemented; deployment-scale controls remain
+an explicit production roadmap. The current slice changes upload admission and
+render retry behavior only within conservative, server-owned budgets.
 
 ## Current controls
 
@@ -16,18 +18,27 @@ Status: future production plan. This pass does not change upload behavior.
 - public legacy templates pass the component/checkerboard/merge-cost budget;
 - render jobs already have an outbox instead of relying only on the request.
 
-These controls limit one request, but they do not limit cumulative storage,
-duplicate content, account farms, or repeated expensive tiled generation.
+Phase 5 additionally enforces a durable per-user create budget, a render-retry
+budget, owner-scoped SHA-256 original keys, safe shared-object deletion,
+bounded render-outbox claims/leases/retries, and deterministic canonical render
+objects. These controls limit obvious cost amplification without pretending to
+be a complete public anti-abuse platform. They do not yet provide deployment-
+level quotas, device reputation, perceptual-hash moderation, or full cost
+telemetry.
 
 ## Threats and prioritized controls
 
 ### P0 — per-account creation budget and endpoint backpressure
 
-Add a dedicated limiter for `/colorings/create`, keyed by authenticated user
-and secondarily by IP. Start with a conservative rolling quota plus a small
-burst allowance. Before storing the original or opening the template
-transaction, reject when the account exceeds active-template count, daily
-create count, stored-original bytes, or outstanding render jobs.
+Status: **implemented in bounded form**. `/colorings/create` reserves a
+durable actor-keyed window (default 10 shaped attempts per 10 minutes) before
+expensive work; render retries have a separate default budget of 3 per hour.
+The values are intentionally conservative pilot defaults and still require
+operational tuning before public launch.
+
+Remaining before public scale: extend the bounded limiter with active-template
+count, daily create count, stored-original bytes, and outstanding render-job
+quotas, plus deployment-wide backpressure and an operational kill switch.
 
 Verifier: concurrent create integration tests prove 429/quota responses, no
 orphan object is written on rejection, and ordinary progress traffic is not
@@ -35,26 +46,38 @@ charged to the upload budget.
 
 ### P0 — resource reservation and cleanup
 
-Reserve estimated cells, original bytes, and one render slot atomically before
-processing. Mark the reservation complete only after template and object keys
-commit. Expire abandoned reservations and sweep orphaned originals. Deletion
-must decrement/account bytes idempotently.
+Status: **partially implemented**. Input/file bounds, owner-scoped object
+keys, safe deletion, bounded outbox claims, leases, and retry caps are live;
+crash-recovery reservation sweeps and deployment-wide storage quotas remain
+roadmap items.
+
+Remaining before public scale: reserve estimated cells, original bytes, and one
+render slot atomically before processing; expire abandoned reservations and
+sweep orphaned originals. The current slice already bounds inputs, keys,
+leases, retries, and deletion but does not claim a full reservation ledger.
 
 Verifier: crash-after-upload and crash-before-DB-commit fixtures leave either
 one recoverable reservation or a swept object, never unmetered storage.
 
 ### P1 — exact-content deduplication
 
-Compute SHA-256 over validated original bytes and a canonical template digest
-over dimensions, palette, and cell/tile payload. Reuse an owner-scoped object
-when identical input is uploaded again; across owners, store only a shared
-opaque blob reference if privacy and deletion semantics are explicit. Do not
-expose whether another user owns the same image.
+Status: **implemented for owner-scoped original bytes**. SHA-256 keys prevent
+the same owner from multiplying original objects; cross-owner perceptual
+deduplication is intentionally deferred until privacy and false-positive
+evidence exists.
+
+The current slice computes SHA-256 over validated original bytes and reuses an
+owner-scoped object when identical input is uploaded again. Remaining before
+public scale: decide whether a canonical template digest or cross-owner opaque
+blob reference is safe; do not expose whether another user owns the same image.
 
 Verifier: repeated uploads do not multiply object bytes or render work, while
 two owners cannot read one another's private metadata or infer ownership.
 
 ### P1 — format-complete image validation
+
+Status: **partially implemented**. PNG receives structural/dimension checks;
+JPEG/WebP and animation/decompression-bomb validation remain release debt.
 
 PNG currently receives structural/dimension validation; JPEG/WebP only receive
 container signatures. Decode every accepted format with a bounded image
@@ -65,6 +88,10 @@ Verifier: malformed, truncated, oversized-pixel, huge-EXIF, animated, and
 decompression-bomb fixtures fail before object storage.
 
 ### P1 — bounded tiled complexity and job cost
+
+Status: **roadmap**. The current 1200 path is tile-bounded and the render
+outbox is capped, but a streaming cost admission model and global queue
+backpressure are not claimed as complete.
 
 Apply a streaming/tile-aware complexity budget to tiled maps instead of
 building a 1.44M-cell full array. Price a job by cells, colors, estimated

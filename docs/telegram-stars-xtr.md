@@ -4,9 +4,10 @@ Status: implemented as a provider-shaped, mock-only contract; production activat
 
 The XTR path is isolated from the existing internal-credits ledger. The state machine lives in
 `server/services/telegram-stars.js`, the only shipped provider adapter is
-`server/services/telegram-stars-mock-adapter.js`, and migrations `026_telegram_stars_xtr.sql`
-and `027_telegram_stars_product_guards.sql` (plus SQLite counterparts) create the durable order,
-event, payment, entitlement, refund, reconciliation, support, and active-product guard records.
+`server/services/telegram-stars-mock-adapter.js`, and migrations `026_telegram_stars_xtr.sql`,
+`027_telegram_stars_product_guards.sql`, and `028_telegram_stars_invoice_safety.sql` (plus SQLite
+counterparts) create the durable order, event, payment, entitlement, refund, reconciliation,
+support, active-product guard, invoice-lease, and refund-deduplication records.
 
 `server/routes/telegram-stars.js` contains an unmounted webhook factory for
 `/pre-checkout`, `/successful-payment`, and `/refund`. It requires the Telegram secret-token
@@ -83,16 +84,19 @@ without logging Telegram init data, bot tokens, or arbitrary raw update bodies.
 
 `reconcile()` compares the provider adapter's captured-charge list with local payments and stores a
 run plus immutable issue facts. It flags provider captures missing locally, local payments missing
-from the provider list, duplicate charge IDs, amount/currency mismatches, and payload mismatches.
-Reconciliation never auto-grants an entitlement and never silently changes an order; operators must
-resolve a critical issue through the payment/support runbook.
+from the provider list, duplicate charge IDs, amount/currency mismatches, payload mismatches, and
+submitted/failed refund recovery facts. Reconciliation never auto-grants an entitlement and never
+silently changes an order; operators must resolve a critical issue through the payment/support
+runbook. Provider-side refund status polling remains a release-operations follow-up until a real
+adapter exists.
 
 ## Test coverage
 
 `server/test/telegram-stars.test.js` exercises disabled-by-default behavior, server pricing and
 product validation, numeric update ids, one-shot pre-checkout, duplicate and delayed captures,
 reordered refunds, active-product uniqueness, charge-ID reuse, partial/full refunds, support
-idempotency, and reconciliation anomalies (16 tests). These are mock/provider-contract tests only.
+idempotency, invoice leases/TTL, open-order uniqueness, refund deduplication, repurchase after
+refund, and reconciliation anomalies (**22 tests**). These are mock/provider-contract tests only.
 They do not certify Telegram WebView, Telegram Bot API delivery, real Stars balances, refund SLA,
 production credentials, or payment activation.
 

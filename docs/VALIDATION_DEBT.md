@@ -390,7 +390,7 @@ Status:
 OPEN — machine adversarial coverage is strong; real Telegram provider delivery is not wired.
 
 Agent evidence:
-Independent red-team reproduced numeric update-id rejection, client-price fallback, legacy-credit bypass risk, duplicate pre-checkout approval, refund-before-capture loss, duplicate product orders, and UI callback optimism. The integration now normalizes numeric update ids, requires a non-mock server product/price resolver, fails closed in production, gates legacy credits, makes pre-checkout one-shot, persists pending refund tombstones, projects active XTR access into canonical unlock facts, enforces one active product entitlement, forwards durable refund idempotency keys, and requires server-confirmed entitlement in the Store reducer. Targeted XTR tests: 16/16; canonical unlock test: PASS.
+Independent red-team reproduced numeric update-id rejection, client-price fallback, legacy-credit bypass risk, duplicate pre-checkout approval, refund-before-capture loss, duplicate product orders, refund double-counting, invoice issuance races, stale invoices, revoked `/colorings/mine` exposure, and UI callback optimism. The integration now normalizes numeric update ids, requires a non-mock server product/price resolver, fails closed in production, gates legacy credits, makes pre-checkout one-shot, persists pending refund tombstones, deduplicates provider refunds, enforces invoice leases/TTL and one open order, projects active XTR access into canonical unlock facts, filters revoked premium content, enforces one active product entitlement, forwards durable refund idempotency keys, and requires server-confirmed entitlement in the Store reducer. Targeted XTR tests: 22/22; combined HTTP/unlock/Stars: 47/47.
 
 Human evidence missing:
 Verified Telegram Bot API webhook delivery, provider sandbox/refund behavior, process-crash recovery with the real adapter, and production operations/support ownership.
@@ -405,4 +405,40 @@ Does NOT block:
 Continued local/agent testing, Store/entitlement UX work, or a disabled-by-default build.
 
 Provisional decision:
-Keep the XTR route unmounted and `PAYMENTS_MODE=disabled`; do not accept `stars_balance` or client callbacks as payment authority.
+Keep the XTR route unmounted and `PAYMENTS_MODE=disabled`; do not accept `stars_balance` or client callbacks as payment authority. Provider-side refund polling, real webhook identity derivation, and crash recovery with a real Bot API adapter remain release debt.
+
+VD-PHASE5-FINAL-001
+
+Hypothesis:
+The bounded Phase 5 slice is ready for controlled internal product/operations
+review without claiming a public monetization launch.
+
+Status: OPEN — machine evidence complete; real-world evidence intentionally
+missing.
+
+Agent evidence:
+Premium showcase, authoritative metadata surfaces, disabled-by-default Store
+states, server-authoritative XTR mock lifecycle, adversarial fixes, bounded
+upload safeguards, artwork/pack deep links, and exact-resolution Pixelization
+recommendations are integrated on `codex/product-phase-2-autonomous`.
+
+Human evidence missing:
+Physical Telegram Android/iOS WebView and recipient re-entry; real provider
+sandbox/payment/refund delivery; human pack appeal, price sensitivity,
+retention, and artistic Pixelization preference; hostile public-load cost and
+operational alerting evidence.
+
+Risk: HIGH for public launch, LOW for the disabled/local slice.
+
+Blocks:
+Production Stars activation, final price, public distribution/retention
+claims, and legal/operations sign-off.
+
+Does NOT block:
+Further reversible internal review and controlled pilot preparation.
+
+Provisional decision:
+Ship no production payment switch, keep one showcase pack, keep `classic` as
+Pixelization default, and treat the full legacy Chromium matrix's out-of-scope
+failures as a separate stabilization backlog rather than evidence of a Phase 5
+entitlement or data-loss blocker.
