@@ -272,7 +272,7 @@ test('PostgreSQL runMigrations is idempotent', { skip: !databaseUrl }, async (t)
     migrationsDir: join(serverDir, 'migrations'),
   });
   assert.equal(result2.applied, 0, 'Second run should apply zero migrations');
-  assert.equal(result2.skipped, 26, 'Second run should skip all 26 migrations');
+  assert.equal(result2.skipped, 27, 'Second run should skip all 27 migrations');
 });
 
 test('PostgreSQL schema_migrations contains correct versions and checksums', { skip: !databaseUrl }, async (t) => {
@@ -297,8 +297,8 @@ test('PostgreSQL schema_migrations contains correct versions and checksums', { s
   const versions = result.rows.map((r) => r.version);
   const checksums = result.rows.map((r) => r.checksum);
 
-  assert.deepStrictEqual(versions, ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025', '026'], 'Must contain exactly 001-026');
-  assert.equal(checksums.length, 26, 'All migrations have checksums');
+  assert.deepStrictEqual(versions, ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018', '019', '020', '021', '022', '023', '024', '025', '026', '027'], 'Must contain exactly 001-027');
+  assert.equal(checksums.length, 27, 'All migrations have checksums');
   for (const cs of checksums) {
     assert.ok(cs && cs.length > 0, `Checksum must be non-empty, got: ${cs}`);
   }
