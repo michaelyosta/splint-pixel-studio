@@ -5,6 +5,8 @@
  * creates per-cell structures.
  */
 
+import { CONTENT_METADATA_SCHEMA_VERSION } from './contentMetadata.js';
+
 export const UNLOCK_STATES = Object.freeze({
   AVAILABLE: 'available',
   OWNED: 'owned',
@@ -131,6 +133,44 @@ export function recommendationDetail(item) {
     ? `${Number(item.width)}×${Number(item.height)}`
     : '';
   return [minutes, size].filter(Boolean).join(' · ');
+}
+
+// Recommendations are intentionally a small view model, but content metadata
+// is not optional presentation garnish: it is the server's contract for
+// duration/complexity labels. Preserve only the bounded, known sections so a
+// malformed response cannot smuggle a large object into the Home surface.
+function copyMetadataSection(section, fields) {
+  if (!section || typeof section !== 'object' || Array.isArray(section)) return null;
+  const result = {};
+  for (const field of fields) {
+    if (section[field] !== undefined && section[field] !== null) result[field] = section[field];
+  }
+  return result;
+}
+
+function normalizeRecommendationContentMetadata(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  if (value.schema_version !== CONTENT_METADATA_SCHEMA_VERSION) return null;
+  const duration = copyMetadataSection(value.duration, [
+    'band', 'label', 'minutes', 'total_cells', 'session_mode', 'confidence', 'source', 'item_count',
+  ]);
+  const complexity = copyMetadataSection(value.complexity, [
+    'band', 'label', 'score', 'confidence', 'source', 'gate', 'item_count',
+  ]);
+  if (!duration?.label || !complexity?.label) return null;
+  const style = copyMetadataSection(value.style, [
+    'route', 'status', 'confidence', 'label', 'policy', 'source',
+  ]);
+  if (style && Array.isArray(value.style.reasons)) style.reasons = value.style.reasons.slice(0, 8).map(String);
+  const qualityGate = copyMetadataSection(value.quality_gate, ['status', 'blocking', 'item_count']);
+  if (qualityGate && Array.isArray(value.quality_gate.reasons)) qualityGate.reasons = value.quality_gate.reasons.slice(0, 8).map(String);
+  return {
+    schema_version: CONTENT_METADATA_SCHEMA_VERSION,
+    duration,
+    complexity,
+    ...(style ? { style } : {}),
+    ...(qualityGate ? { quality_gate: qualityGate } : {}),
+  };
 }
 
 function safeArray(value) {
@@ -353,6 +393,9 @@ export function prepareRecommendations(items, { limit = 8 } = {}) {
       score: safeNumber(item.score, 0),
       unlock_state: item.unlock_state || null,
       unlock_reason_code: item.unlock_reason_code || null,
+      // Keep authoritative labels available to the renderer. Do not derive
+      // replacements from est_minutes/difficulty when the field is absent.
+      content_metadata: normalizeRecommendationContentMetadata(item.content_metadata),
     });
     if (result.length >= max) break;
   }

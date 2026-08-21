@@ -47,6 +47,24 @@ The focused checks live in `src/lib/premiumPack.test.js` and cover the pack
 gate, noisy-item rejection, every state, entitlement lookup, and the rule that
 a payment intent cannot manufacture ownership.
 
+## Server projection and preview fallback
+
+The `/meta/collections` projection is authoritative for the showcase
+collection's identity, price, count, and aggregate `content_metadata`. The
+Catalog merges that bounded projection into the client showcase before
+rendering the teaser/detail header; the Store already renders the projection
+directly. This keeps duration/complexity labels consistent wherever the
+collection metadata is available.
+
+The current API does not expose per-item preview metadata or a collection image
+for the locked showcase. The two item IDs and their short editorial labels
+therefore remain an explicit, bounded preview fixture, and the hero uses
+`/assets/catalog/astro-whale-pixel.png` only as an image fallback while the
+server `image_url` is empty. The contract is covered by the showcase projection
+test; once a server-owned item preview projection exists, it should replace
+the fixture rather than silently maintain a second set of authoritative
+duration/complexity values.
+
 ## Pilot signals
 
 The prototype is designed to measure intent without pretending to sell:

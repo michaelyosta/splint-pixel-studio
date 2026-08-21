@@ -130,6 +130,7 @@ test.describe('Unlocks and recommendations', () => {
 
     const cards = strip.locator('[data-recommendation-id]');
     await expect(cards).toHaveCount(count);
+    await expect(strip.locator('[data-content-metadata="authoritative"]')).toHaveCount(count);
     for (let index = 0; index < count; index += 1) {
       const reason = await cards.nth(index).getAttribute('data-reason-code');
       expect(RECOMMENDATION_CODES.has(reason)).toBe(true);
@@ -209,6 +210,18 @@ test.describe('Unlocks and recommendations', () => {
     await locked.getByRole('button', { name: 'В каталог', exact: true }).click();
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('.catalog-chips')).not.toContainText(/Premium|Премиум|Stars/i);
+  });
+
+  test('catalog showcase stays fail-closed without a mounted payment adapter', async ({ page }) => {
+    await openHome(page);
+    await page.locator('.home-explore-row').getByRole('button', { name: 'Каталог', exact: true }).click();
+    await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
+    await page.locator('.catalog-chips').getByRole('tab', { name: 'Витрина', exact: true }).click();
+    const showcase = page.locator('[data-premium-pack="true"]');
+    await expect(showcase).toBeVisible({ timeout: 10000 });
+    await expect(showcase).toHaveAttribute('data-premium-state', 'unavailable');
+    await expect(showcase.getByRole('button', { name: /Запросить доступ/i })).toHaveCount(0);
+    await expect(showcase.locator('[data-premium-primary-action="true"]')).toContainText(/Сохранить желание|Желание сохранено/);
   });
 
   test('eligible user gets an actionable direct-ID open and owned transition', async ({ page, browserName }) => {

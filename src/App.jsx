@@ -468,6 +468,11 @@ function App() {
       collections={home.collections}
       unlockSnapshot={unlockData.snapshot}
       requestedPackId={requestedPackId}
+      // No browser-side invoice adapter is mounted yet. Keep the product
+      // surface explicitly fail-closed even if a local env accidentally sets
+      // VITE_PAYMENTS_MODE; the future Stars adapter must pass server proof
+      // through onPurchase/onRestore before this prop can be enabled.
+      paymentsMode="disabled"
       onRetry={home.loadCollections}
       onOpenCollection={catalog.openCatalogCollection}
       onBack={() => setView('catalog')}
@@ -507,6 +512,9 @@ function App() {
       onOpenPremiumItem={session.openColoring}
       onOpenFreePack={() => { catalog.setCatalogChip('free'); catalog.setCatalogCollection(null); }}
       onPremiumWish={() => showNotice('Желание сохранено — сообщим, когда витрина откроется', 'success')}
+      // Keep the Catalog showcase fail-closed until a server-confirmed
+      // purchase adapter is mounted alongside StoreView.
+      paymentsMode="disabled"
       onOpenStore={openStore}
     />;
   }

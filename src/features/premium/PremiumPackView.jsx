@@ -35,6 +35,8 @@ function stateClass(state) {
 }
 
 function packMetadata(pack) {
+  const serverMetadata = formatContentMetadataDetail(pack);
+  if (serverMetadata.assessed) return serverMetadata;
   const items = Array.isArray(pack?.items) ? pack.items : [];
   return {
     line: formatPackContentMetadata(pack),

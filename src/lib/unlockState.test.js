@@ -15,6 +15,7 @@ import {
   recommendationReasonText,
   UNLOCK_STATES,
 } from './unlockState.js';
+import { formatContentMetadataDetail } from './contentMetadata.js';
 
 test('every stable reason code maps to concise Russian title and text', () => {
   for (const code of Object.values(REASON_CODES)) {
@@ -249,6 +250,36 @@ test('prepareRecommendations dedupes, excludes locked, and caps the list', () =>
   const capped = prepareRecommendations(Array.from({ length: 50 }, (_, index) => ({ id: `x${index}`, title: `X ${index}` })));
   assert.equal(capped.length, 8);
   assert.equal(prepareRecommendations(null).length, 0);
+});
+
+test('prepareRecommendations preserves bounded authoritative content metadata for the UI', () => {
+  const prepared = prepareRecommendations([{
+    id: 'metadata-item',
+    title: 'Metadata item',
+    reason_code: RECOMMENDATION_REASONS.COLD_START,
+    content_metadata: {
+      schema_version: 'content-metadata.v1',
+      duration: { band: 'long', label: 'Длинная · по сегментам', minutes: 18, source: 'grid-size-segmented-contract' },
+      complexity: { band: 'focused', label: 'Сосредоточенная', score: 42, source: 'dimensions-and-editorial-difficulty' },
+      style: { route: 'classic', status: 'human-review', label: 'Classic · нужна проверка', reasons: Array.from({ length: 20 }, () => 'bounded') },
+      quality_gate: { status: 'review', blocking: false, reasons: Array.from({ length: 20 }, () => 'bounded') },
+      cells: Array.from({ length: 1000 }, () => 1),
+    },
+  }], { limit: 1 });
+
+  assert.equal(prepared.length, 1);
+  assert.equal(formatContentMetadataDetail(prepared[0]).line, 'Длинная · по сегментам · Сосредоточенная');
+  assert.equal(prepared[0].content_metadata.style.reasons.length, 8);
+  assert.equal(prepared[0].content_metadata.quality_gate.reasons.length, 8);
+  assert.equal(Object.hasOwn(prepared[0].content_metadata, 'cells'), false);
+
+  const invalid = prepareRecommendations([{
+    id: 'invalid-metadata',
+    title: 'Invalid metadata',
+    content_metadata: { schema_version: 'content-metadata.v0', duration: { label: 'fake' }, complexity: { label: 'fake' } },
+  }], { limit: 1 });
+  assert.equal(invalid[0].content_metadata, null);
+  assert.match(formatContentMetadataDetail(invalid[0]).line, /Метаданные не проверены/);
 });
 
 test('locked payload detection covers direct-ID 403 shapes', () => {

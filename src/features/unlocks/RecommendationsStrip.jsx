@@ -1,8 +1,35 @@
 import { LoaderCircle, RefreshCw, Sparkles } from 'lucide-react';
 import {
-  recommendationDetail,
   recommendationReasonText,
 } from '../../lib/unlockState';
+import { formatContentMetadataDetail } from '../../lib/contentMetadata.js';
+
+function RecommendationCard({ item, onOpen }) {
+  const metadata = formatContentMetadataDetail(item);
+  return <article className="recommendation-card">
+    <button
+      type="button"
+      className="recommendation-card-open"
+      data-recommendation-id={item.id}
+      data-reason-code={item.reason_code}
+      onClick={() => onOpen?.(item)}
+      aria-label={`Открыть ${item.title}: ${recommendationReasonText(item.reason_code)}`}
+    >
+      <span
+        className="recommendation-preview"
+        style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : undefined}
+        aria-hidden="true"
+      >
+        {!item.preview_url && <Sparkles size={20} />}
+      </span>
+      <span className="recommendation-copy">
+        <b>{item.title}</b>
+        <small>{recommendationReasonText(item.reason_code)}</small>
+        <em data-content-metadata={metadata.assessed ? 'authoritative' : 'unassessed'}>{metadata.line}</em>
+      </span>
+    </button>
+  </article>;
+}
 
 export default function RecommendationsStrip({
   items = [],
@@ -49,31 +76,7 @@ export default function RecommendationsStrip({
       )}
       {status === 'ready' && visible.length > 0 && (
         <div className="recommendations-scroll" data-recommendations-count={visible.length} aria-label="Персональные рекомендации">
-          {visible.map((item) => (
-            <article className="recommendation-card" key={item.id}>
-              <button
-                type="button"
-                className="recommendation-card-open"
-                data-recommendation-id={item.id}
-                data-reason-code={item.reason_code}
-                onClick={() => onOpen?.(item)}
-                aria-label={`Открыть ${item.title}: ${recommendationReasonText(item.reason_code)}`}
-              >
-                <span
-                  className="recommendation-preview"
-                  style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : undefined}
-                  aria-hidden="true"
-                >
-                  {!item.preview_url && <Sparkles size={20} />}
-                </span>
-                <span className="recommendation-copy">
-                  <b>{item.title}</b>
-                  <small>{recommendationReasonText(item.reason_code)}</small>
-                  <em>{recommendationDetail(item)}</em>
-                </span>
-              </button>
-            </article>
-          ))}
+          {visible.map((item) => <RecommendationCard key={item.id} item={item} onOpen={onOpen} />)}
         </div>
       )}
       <span className="sr-only" role="status" aria-live="polite">

@@ -7,6 +7,7 @@ import {
   evaluatePremiumPackQuality,
   findPremiumEntitlement,
   isCuratedPremiumPack,
+  mergeShowcasePackServerProjection,
   packTotalMinutes,
   resolvePremiumPackState,
 } from './premiumPack.js';
@@ -63,5 +64,31 @@ test('entitlement lookup is bounded to collection and template subjects', () => 
   };
   assert.equal(findPremiumEntitlement(snapshot)?.subject_id, SHOWCASE_PREMIUM_PACK.id);
   assert.equal(findPremiumEntitlement({ collections: [] }), null);
+});
+
+test('showcase preview merges server metadata and keeps the explicit image fallback', () => {
+  const serverProjection = {
+    id: SHOWCASE_PREMIUM_PACK.id,
+    title: 'Премиум-галерея',
+    pack_type: 'premium',
+    price_in_stars: 120,
+    image_url: null,
+    total_count: 2,
+    content_metadata: {
+      schema_version: 'content-metadata.v1',
+      duration: { band: 'medium', label: 'Средняя · около 6 мин · подборка' },
+      complexity: { band: 'focused', label: 'Сосредоточенная · подборка' },
+      quality_gate: { status: 'review' },
+    },
+  };
+  const merged = mergeShowcasePackServerProjection(SHOWCASE_PREMIUM_PACK, serverProjection);
+  assert.equal(merged.id, SHOWCASE_PREMIUM_PACK.id);
+  assert.equal(merged.price_in_stars, 120);
+  assert.equal(merged.content_metadata.duration.label, 'Средняя · около 6 мин · подборка');
+  assert.equal(merged.image_url, SHOWCASE_PREMIUM_PACK.image_url);
+  assert.deepEqual(merged.items.map((item) => item.id), ['color_premium_whale', 'color_premium_dragon']);
+
+  const unrelated = mergeShowcasePackServerProjection(SHOWCASE_PREMIUM_PACK, { ...serverProjection, id: 'other-pack', price_in_stars: 1 });
+  assert.equal(unrelated, SHOWCASE_PREMIUM_PACK);
 });
 

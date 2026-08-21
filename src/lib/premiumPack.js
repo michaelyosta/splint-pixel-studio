@@ -160,6 +160,28 @@ export function findPremiumEntitlement(snapshot, packId = SHOWCASE_PREMIUM_PACK.
   return subjects.find((subject) => String(subject?.subject_id || '') === String(packId)) || null;
 }
 
+/**
+ * Merge the bounded server collection projection into the client showcase.
+ * The server owns price and aggregate content metadata; the client keeps its
+ * curated item copy and falls back to its preview image while the collection
+ * endpoint has no image URL. A mismatched collection is ignored rather than
+ * allowing an unrelated row to rewrite the showcase.
+ */
+export function mergeShowcasePackServerProjection(pack = SHOWCASE_PREMIUM_PACK, collection = null) {
+  if (!collection || typeof collection !== 'object' || String(collection.id || '') !== String(pack?.id || '')) return pack;
+  const serverPrice = Number(collection.price_in_stars);
+  const serverMetadata = collection.content_metadata && typeof collection.content_metadata === 'object'
+    && collection.content_metadata.schema_version === 'content-metadata.v1'
+    ? collection.content_metadata
+    : null;
+  return {
+    ...pack,
+    ...(Number.isFinite(serverPrice) && serverPrice >= 0 ? { price_in_stars: serverPrice } : {}),
+    ...(serverMetadata ? { content_metadata: serverMetadata } : {}),
+    image_url: safeText(collection.image_url) || pack.image_url,
+  };
+}
+
 function normalizePaymentMode(mode) {
   const normalized = safeText(mode).toLowerCase();
   return KNOWN_PAYMENT_MODES.has(normalized) ? normalized : 'disabled';

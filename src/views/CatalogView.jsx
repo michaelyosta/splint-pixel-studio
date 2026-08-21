@@ -7,6 +7,7 @@ import {
   PREMIUM_PACK_STATES,
   SHOWCASE_PREMIUM_PACK,
   findPremiumEntitlement,
+  mergeShowcasePackServerProjection,
   resolvePremiumPackState,
 } from '../lib/premiumPack.js';
 import PremiumPackView, { PremiumPackTeaser } from '../features/premium/PremiumPackView.jsx';
@@ -42,6 +43,7 @@ export default function CatalogView({
   onOpenPremiumItem,
   onOpenFreePack,
   onPremiumWish,
+  paymentsMode = 'disabled',
 }) {
   const renderCatalogLegacy = () => {
     const progressMap = {};
@@ -125,14 +127,15 @@ export default function CatalogView({
     .sort((first, second) => new Date(second.added_at || second.created_at || 0) - new Date(first.added_at || first.created_at || 0));
   const freeCollections = collections.filter((collection) => collection.pack_type !== 'premium');
   const showcaseCollections = collections.filter((collection) => collection.pack_type === 'premium' && collection.price_in_stars > 0).slice(0, 1);
+  const premiumPack = mergeShowcasePackServerProjection(SHOWCASE_PREMIUM_PACK, showcaseCollections[0]);
   const premiumEntitlement = findPremiumEntitlement(unlockData?.snapshot, SHOWCASE_PREMIUM_PACK.id);
   const premiumState = unlockData?.snapshotStatus === 'loading' && !unlockData?.snapshot
     ? PREMIUM_PACK_STATES.PREVIEW
     : resolvePremiumPackState({
-      pack: SHOWCASE_PREMIUM_PACK,
+      pack: premiumPack,
       entitlement: premiumEntitlement,
       snapshotStatus: unlockData?.snapshotStatus || 'error',
-      paymentsMode: import.meta.env.VITE_PAYMENTS_MODE || 'disabled',
+      paymentsMode,
     });
   const currentTemplates = catalogChip === 'popular' ? popularTemplates
     : catalogChip === 'new' ? newestTemplates
@@ -180,11 +183,11 @@ export default function CatalogView({
         {renderArtworkGrid(newestTemplates.slice(0, 4), 'Новые работы')}
         {freeCollections.length > 0 && <><div className="catalog-section-heading"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Соберите свою полку</h2></div></div>{renderCollectionGrid(freeCollections.slice(0, 4), 'Коллекции')}</>}
         <div className="catalog-section-heading"><div><p className="eyebrow">КУРАТОРСКАЯ ВИТРИНА</p><h2>Следующий красивый альбом</h2></div></div>
-        <PremiumPackTeaser pack={SHOWCASE_PREMIUM_PACK} state={premiumState} onOpen={() => onChangeChip('premium')} />
+        <PremiumPackTeaser pack={premiumPack} state={premiumState} onOpen={() => onChangeChip('premium')} />
       </>}
 
       {catalogChip === 'premium' ? <PremiumPackView
-        pack={SHOWCASE_PREMIUM_PACK}
+        pack={premiumPack}
         state={premiumState}
         onBack={() => onChangeChip('all')}
         onOpenItem={onOpenPremiumItem}
