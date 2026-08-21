@@ -92,7 +92,7 @@ resolve a critical issue through the payment/support runbook.
 `server/test/telegram-stars.test.js` exercises disabled-by-default behavior, server pricing and
 product validation, numeric update ids, one-shot pre-checkout, duplicate and delayed captures,
 reordered refunds, active-product uniqueness, charge-ID reuse, partial/full refunds, support
-idempotency, and reconciliation anomalies (15 tests). These are mock/provider-contract tests only.
+idempotency, and reconciliation anomalies (16 tests). These are mock/provider-contract tests only.
 They do not certify Telegram WebView, Telegram Bot API delivery, real Stars balances, refund SLA,
 production credentials, or payment activation.
 
