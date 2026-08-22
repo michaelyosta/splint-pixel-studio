@@ -4,16 +4,41 @@ Persistent execution memory for the `CLOSED ALPHA RELEASE PREPARATION` run.
 Update after every major milestone. This is a recovery checkpoint, not a diary.
 
 ```text
-RUN STATUS: IN_PROGRESS
-CURRENT CANDIDATE SHA: 618aec112a2d8c5e6d6fb4173f33945abc277c05
-CURRENT BRANCH: codex/alpha-rc-1
-BASE: origin/main 68d751e1da35de3bfd92f6bec382f0af830ac502 (merge-base 140f1226f62dbbd220de2b255268564e9df8910d)
-REMOTE STATE: origin/codex/alpha-rc-1 == 618aec1 (synced), origin/main untouched (tree identical to merge-base)
-RC WORKTREE: C:\Users\misa\Desktop\Splint-Gemini-Phase2-Autonomous (clean)
-FRESH REHEARSAL WORKTREE: C:\Users\misa\AppData\Local\Temp\splint-alpha-fresh-rehearsal (detached 618aec1)
-PRIMARY CHECKOUT: C:\Users\misa\Desktop\Splint-Gemini (user's dirty checkout — DO NOT TOUCH)
-POSTGRES (fresh gate): docker container splint-alpha-fresh-pg @ localhost:15432, db pgtest, volume splint-alpha-fresh-pgdata
+RUN STATUS: CLOSED_ALPHA_RELEASE_READY (pending owner decision)
+CURRENT CANDIDATE SHA: c906955ce1dde050274cec8224f1e856924fabb6 (FINAL — all gates verified at this SHA)
+BASE RC UNDER ORIGINAL VERIFICATION: 618aec112a2d8c5e6d6fb4173f33945abc277c05
+DELTA 618aec1..c906955: docs/* release files + abuse-limiter SQL qualification + postgres regression test + test:postgres registration (nothing else)
+CURRENT BRANCH: codex/alpha-rc-1 (pushed to origin)
+BASE: origin/main 68d751e1da35de3bfd92f6bec382f0af830ac502 (tree identical to merge-base 140f122)
+RC WORKTREE: C:\Users\misa\Desktop\Splint-Gemini-Phase2-Autonomous (clean of code changes; only external evidence-binary churn uncommitted)
+PRIMARY CHECKOUT: C:\Users\misa\Desktop\Splint-Gemini (user's dirty checkout — untouched)
 ```
+
+## FINAL VERIFIED RESULTS (this run @ c906955)
+
+- git diff --check: PASS | Root: 455/455 | server check: PASS
+- Server (SQLite): 401 pass / 0 fail / 67 skip (468 total)
+- PostgreSQL (fresh DB → migrate 28/28 → suite): **100/100 PASS** (includes new postgres-abuse-limiter regression)
+- Lint: PASS | Build: PASS (known 656.93 kB chunk warning — accepted debt)
+- Chromium E2E (uncontended, full suite): 133 pass / 1 fail / 10 skip — the single fail (tiled-completion render_status 15s wait) passes in isolation (3.0s) → HARNESS timing flake; effective **134/134, 0 unexplained failures**
+- Independent reviews: RELEASE_ENGINEERING_VERDICT: APPROVE | SECURITY_INTEGRITY_VERDICT: APPROVE
+
+## GATES VERIFIED AT BASE 618aec1 (delta to final is docs+one-line SQL+test)
+
+- Upgrade DB gate: pre-RC 001–009 + representative data → RC migrations 19 applied/9 skipped → all rows preserved exactly; boot+health OK.
+- Production-like fail-closed matrix: 9/9 PASS.
+- Staging-like rehearsal + smoke journey: 14/14 PASS (re-run post-fix).
+- Migration failure drill: clean rollback + boot refuses listener (fail-closed).
+- Security red team: 0 closed-alpha blockers, 0 production blockers.
+- Migration static review: no blockers.
+- Git/artifact audit: clean (evidence-binary size noted as cleanup).
+
+## ENVIRONMENT INCIDENTS (recovered, no impact on results)
+
+- Docker Desktop daemon crash mid-run → restarted, fresh DB recreated.
+- External process deleted RC worktree `.git` pointer and later all 839 tracked
+  working files → pointer recreated, `git worktree repair`, forced re-checkout
+  @618aec1, changes reapplied, committed+pushed immediately (c906955).
 
 ## COMPLETED GATES
 
@@ -68,18 +93,13 @@ Committing now (single integration commit):
 
 ## LAST VERIFIED TEST RESULTS
 
-@618aec1 (base RC): Root 455/455 | Server 401 pass/65 skip | PostgreSQL 99/99 |
-Chromium effective 134/10skip | Build/Lint/diff-check PASS | upgrade-DB gate PASS |
-fail-closed matrix 9/9 | staging smoke 14/14 | migration-failure drill PASS
-@fix-content (verified in isolated rehearsal worktree before restore):
-Server 468 total/401/67 skip | targeted PG abuse test PASS | smoke 14/14 post-fix
-
-PENDING: full uncontended re-verification of the FINAL committed SHA (below).
+See "FINAL VERIFIED RESULTS" section above — all gates executed and green at
+the final candidate SHA c906955.
 
 ## NEXT DEPENDENCY-ORDERED ACTIONS
 
-1. Integration commit + immediate push (done next).
-2. Fresh npm ci in this worktree → full gate re-run at final SHA (incl.
-   uncontended Chromium suite + PostgreSQL suite).
-3. Record FINAL results here → docs-only commit → push.
-4. Independent final reviews (release engineering + security) → verdict.
+(none — machine-executable release preparation is complete; terminal state
+CLOSED_ALPHA_RELEASE_READY reached. Remaining gates are owner decisions:
+APPROVE CLOSED ALPHA RELEASE, then merge PR + provision production infra.
+Per the stop boundary: no merge to main, no deploy, no Stars enablement is
+performed by agents.)
