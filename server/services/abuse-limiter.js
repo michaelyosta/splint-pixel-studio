@@ -23,7 +23,7 @@ export async function consumeAbuseBudget(tx, { scope, actorKey, limit, windowMs 
     INSERT INTO abuse_counters (scope,actor_key,bucket_start,attempts)
     VALUES (?,?,?,1)
     ON CONFLICT (scope,actor_key,bucket_start)
-    DO UPDATE SET attempts=attempts+1
+    DO UPDATE SET attempts=abuse_counters.attempts+1
     RETURNING attempts
   `, [scope, actorKey, bucketStart]);
   const attempts = Number(counter?.attempts || 0);

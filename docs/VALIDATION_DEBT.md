@@ -470,3 +470,44 @@ what Codex can prove with a disposable browser/database environment.
 These debts do not represent a known data-loss, payment-bypass, migration, or
 core-journey blocker in the disabled-payment Alpha RC. They become release
 gates only when the corresponding public/production decision is requested.
+
+## Closed Alpha Release Preparation run (2026-08-22)
+
+Machine-executable release preparation was completed against the Alpha RC
+(evidence: `docs/RELEASE_RUN_STATE.md`, `docs/CLOSED_ALPHA_RELEASE_CHECKLIST.md`,
+`docs/CLOSED_ALPHA_RELEASE_HANDOFF.md`). New findings from that run:
+
+### Fixed during the run (no longer debt)
+
+- PRODUCT: PostgreSQL abuse-budget upsert ambiguity broke every create/upload
+  route on Postgres (SQLite-only coverage had hidden it). Fixed with a
+  qualified-reference upsert and a dedicated PostgreSQL regression test.
+
+### Added non-blocking debt
+
+- OPS-RATELIMIT-001: default `RATE_LIMIT_MAX=100/min` is per-IP; Telegram
+  users behind shared NATs can exhaust it. Deployment must size it for the
+  alpha cohort. Frontend loading gates currently show no visible failure
+  surface on sustained 429s (player stays on «Загружаем…»).
+- OBS-ERRORLOG-001: the global 500 handler logs only an error class; add
+  message-level (secret-free) logging so Creator/payment 500s are diagnosable
+  from production logs alone.
+- HARNESS-PORT-001: cross-file integration test port ranges can collide
+  (32100–32599 vs 32400–32699 overlap) — rare parallel-suite flake; test-only
+  cleanup, deliberately untouched during release freeze.
+- HARNESS-E2E-TIMING-001: some Special Cells visual specs are timing-sensitive
+  under machine load; they pass in isolation and uncontended runs.
+
+### Still blocking public/production (unchanged)
+
+- Physical Telegram Android/iOS validation.
+- Real Telegram Bot API Stars round-trip, refunds, support drill, production
+  credentials/IAM.
+- Price, legal/support policy, monitoring, rollout decisions.
+- Real-market retention/conversion/artistic claims.
+
+### Still non-blocking product validation (unchanged)
+
+- Human core-feel and final Spark/Bomb preference (`spark_choice` remains the
+  provisional baseline; no winner claimed).
+- Final artistic Pixelization verdict; broad 1024/1200 promotion.
