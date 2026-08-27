@@ -249,9 +249,14 @@ test.describe('Client accessibility release gates', () => {
         const box = element.getBoundingClientRect();
         return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
       };
-      const overflowText = Array.from(document.querySelectorAll(
+      const overflowDetails = Array.from(document.querySelectorAll(
         '.player-topbar-title, .coloring-task-summary, .coloring-dock-actions, .hud-btn, .color-swatch',
-      )).filter((element) => element.scrollWidth > element.clientWidth + 1).length;
+      )).filter((element) => element.scrollWidth > element.clientWidth + 1).map((element) => ({
+        selector: `.${element.className.split(/\s+/).filter(Boolean).join('.')}`,
+        text: element.textContent?.trim(),
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+      }));
       const palette = rect('.coloring-dock');
       const actions = rect('.coloring-dock-actions');
       const summary = rect('.coloring-task-summary');
@@ -259,7 +264,8 @@ test.describe('Client accessibility release gates', () => {
       return {
         innerWidth: window.innerWidth,
         scrollWidth: document.documentElement.scrollWidth,
-        overflowText,
+        overflowText: overflowDetails.length,
+        overflowDetails,
         paletteInViewport: palette ? palette.left >= 0 && palette.right <= window.innerWidth : null,
         actionsInViewport: actions ? actions.left >= 0 && actions.right <= window.innerWidth : null,
         summaryInViewport: summary ? summary.left >= 0 && summary.right <= window.innerWidth : null,
@@ -267,7 +273,7 @@ test.describe('Client accessibility release gates', () => {
       };
     });
     expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.innerWidth + 1);
-    expect(metrics.overflowText).toBe(0);
+    expect(metrics.overflowDetails).toEqual([]);
     expect(metrics.paletteInViewport).toBe(true);
     expect(metrics.actionsInViewport).toBe(true);
     expect(metrics.summaryInViewport).toBe(true);
