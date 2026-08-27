@@ -142,10 +142,16 @@ export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNaviga
   }, [creatorColors, creatorCrop, creatorCropMode, creatorImageUrl]);
 
   async function runPreviewPipeline(sourceFile, options, batchId, onProgress) {
+    // Large previews run in a worker, so yielding every 24 cells only adds
+    // tens of thousands of timer turnarounds to the region cleanup pass.
+    // Keep cancellation/progress responsive while using a bounded chunk for
+    // the 512/1200 creator presets.
+    const previewArea = Number(options.width || 0) * Number(options.height || 0);
     const pipelineOptions = {
       ...options,
       mode: 'preview',
       includeOriginalDataUrl: false,
+      ...(previewArea >= 200_000 ? { yieldEvery: 2048 } : {}),
       ...(CREATOR_STYLE_PRESET ? { stylePreset: CREATOR_STYLE_PRESET } : {}),
     };
     if (creatorWorkerRef.current) {

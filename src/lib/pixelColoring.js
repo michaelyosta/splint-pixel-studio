@@ -1238,14 +1238,20 @@ export async function buildColoringFromImage(file, options = {}) {
       return closestIndex;
     });
   const smoothedCells = yieldChunk
-    ? await cleanUpSmallRegionsAsync(
-      await smoothCellsAsync(cells, width, height, paletteRgb, yieldEvery, pipelineContext.checkCancelled),
-      width,
-      height,
-      paletteRgb,
-      yieldEvery,
-      pipelineContext.checkCancelled,
-    )
+    ? width * height >= 200_000
+      // At the 512/1200 presets, per-region cleanup allocates a Map/stack for
+      // hundreds of thousands of cells and can keep a preview computing for
+      // minutes. The worker already provides cancellation; retain the
+      // bounded smoothing pass and omit that allocation-heavy cleanup here.
+      ? await smoothCellsAsync(cells, width, height, paletteRgb, yieldEvery, pipelineContext.checkCancelled)
+      : await cleanUpSmallRegionsAsync(
+        await smoothCellsAsync(cells, width, height, paletteRgb, yieldEvery, pipelineContext.checkCancelled),
+        width,
+        height,
+        paletteRgb,
+        yieldEvery,
+        pipelineContext.checkCancelled,
+      )
     : cleanUpSmallRegions(smoothCells(cells, width, height, paletteRgb), width, height, paletteRgb);
   const palette = paletteRgb.map(([red, green, blue]) => normalizeHex(red, green, blue));
   pipelineContext.checkCancelled();
