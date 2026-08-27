@@ -54,13 +54,13 @@ jobs:
           DATABASE_URL: postgresql://splint:splint_test@localhost:5432/splint_test
 
   e2e:
-    name: e2e (${{ matrix.shard }}/4)
+    name: e2e (${{ matrix.shard }}/8)
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -70,4 +70,4 @@ jobs:
       - run: npm ci
       - run: npm --prefix server ci
       - run: npx playwright install --with-deps chromium webkit
-      - run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
+      - run: npm run test:e2e -- --shard=${{ matrix.shard }}/8
