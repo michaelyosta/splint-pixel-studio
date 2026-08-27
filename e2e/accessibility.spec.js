@@ -240,6 +240,8 @@ test.describe('Client accessibility release gates', () => {
     await page.setViewportSize({ width: 360, height: 800 });
     await openFirstCatalogPlayer(page);
     await waitForGuidedCanvas(page);
+    await page.evaluate(() => document.fonts?.ready ?? Promise.resolve());
+    await page.waitForTimeout(100);
     const metrics = await page.evaluate(() => {
       const rect = (selector) => {
         const element = document.querySelector(selector);

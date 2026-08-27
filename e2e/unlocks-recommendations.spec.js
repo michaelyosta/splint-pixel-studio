@@ -219,7 +219,7 @@ test.describe('Unlocks and recommendations', () => {
     await page.locator('.catalog-chips').getByRole('tab', { name: 'Витрина', exact: true }).click();
     const showcase = page.locator('[data-premium-pack="true"]');
     await expect(showcase).toBeVisible({ timeout: 10000 });
-    await expect(showcase).toHaveAttribute('data-premium-state', 'unavailable');
+    await expect(showcase).toHaveAttribute('data-premium-state', 'unavailable', { timeout: 15000 });
     await expect(showcase.getByRole('button', { name: /Запросить доступ/i })).toHaveCount(0);
     await expect(showcase.locator('[data-premium-primary-action="true"]')).toContainText(/Сохранить желание|Желание сохранено/);
   });

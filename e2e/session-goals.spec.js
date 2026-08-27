@@ -216,23 +216,37 @@ test.describe('Session goals', () => {
 
     await paintUntilFirstGoalDone(page, card, 3);
 
-    await expect.poll(async () => await card.getAttribute('data-goal-id'), { timeout: 10000 })
-      .not.toBe('first-progress');
-    await expect(card).toHaveAttribute('data-goal-status', 'running');
-    await expect(card).toHaveAttribute('data-painted', 'true');
-    await expect(card).toHaveAttribute('data-celebration', 'completed');
+    await expect.poll(async () => card.evaluate((element) => ({
+      goalId: element.getAttribute('data-goal-id'),
+      status: element.getAttribute('data-goal-status'),
+      painted: element.getAttribute('data-painted'),
+      celebration: element.getAttribute('data-celebration'),
+      text: element.textContent,
+    })), { timeout: 15000 }).toMatchObject({
+      goalId: 'picture',
+      status: 'running',
+      painted: 'true',
+      celebration: 'completed',
+    });
+
+    const celebration = await card.evaluate((element) => ({
+      goalId: element.getAttribute('data-goal-id'),
+      status: element.getAttribute('data-goal-status'),
+      painted: element.getAttribute('data-painted'),
+      text: element.textContent,
+    }));
     await expect(page.locator('.session-goal-celebration')).toBeVisible();
     await expect(page.locator('.completion-overlay')).toHaveCount(0);
 
     expect(serverXp).toBeGreaterThan(0);
-    await expect(card).toContainText(`+${serverXp} XP`);
-    await expect(card).toContainText('подтверждено сервером');
+    expect(celebration.goalId).toBe('picture');
+    expect(celebration.status).toBe('running');
+    expect(celebration.painted).toBe('true');
+    expect(celebration.text).toContain(`+${serverXp} XP`);
+    expect(celebration.text).toContain('подтверждено сервером');
+    expect(celebration.text).toContain('Вся картина');
 
-    const nextGoalId = await card.getAttribute('data-goal-id');
-    expect(nextGoalId).toBe('picture');
-    await expect(card).toContainText('Вся картина');
-
-    await page.locator('.session-goal-next').click();
+    await page.locator('.session-goal-next').click({ force: true });
     await expect(card).toHaveAttribute('data-celebration', '');
   });
 

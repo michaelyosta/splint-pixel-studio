@@ -27,7 +27,7 @@ const child = spawn(process.execPath, ['index.js'], {
     SQLITE_DB_PATH: runtimeDb,
     MEDIA_STORAGE_ROOT: mediaDir,
     STORAGE_DRIVER: 'local',
-    RATE_LIMIT_MAX: '1000',
+    RATE_LIMIT_MAX: '10000',
     RENDER_OUTBOX_ENABLED: 'true',
     RENDER_OUTBOX_POLL_MS: '50',
     ALLOW_DEV_AUTH: 'true',
