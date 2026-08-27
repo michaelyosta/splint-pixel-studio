@@ -1384,7 +1384,7 @@ export default function ProgressiveColoringSession({
     }
   }
 
-  async function applyGuidancePlan(plan, { immediate = false } = {}) {
+  async function applyGuidancePlan(plan, { immediate = false, forceTarget = false } = {}) {
     if (!plan || specialOffer) return false;
     if (isStaleGuidance(plan, committedRevisionRef.current)) {
       window.setTimeout(() => {
@@ -1392,6 +1392,7 @@ export default function ProgressiveColoringSession({
           reason: plan.reason,
           color: plan.selectedColor,
           immediate,
+          forceTarget,
         });
       }, 350);
       return false;
@@ -1453,6 +1454,7 @@ export default function ProgressiveColoringSession({
             reason: plan.reason,
             color: plan.selectedColor,
             immediate,
+            forceTarget,
           });
         }, delay);
       } else {
@@ -1486,7 +1488,13 @@ export default function ProgressiveColoringSession({
     // the dependency that unlocks the route.
     setSmartStateValue('loadingTarget');
     try {
-      await clientRef.current.fetchTile(plan.target.tile_x, plan.target.tile_y);
+      // Only an explicit Smart Guidance retry bypasses the tile backoff. All
+      // ordinary guidance loads keep the fetchTile/backoff contract.
+      if (forceTarget) {
+        await clientRef.current.retryTile(plan.target.tile_x, plan.target.tile_y);
+      } else {
+        await clientRef.current.fetchTile(plan.target.tile_x, plan.target.tile_y);
+      }
     } catch (error) {
       // A cancelled request is a race (new plan, camera change, unmount),
       // not a failure: the newer plan owns the state machine.
@@ -1526,6 +1534,7 @@ export default function ProgressiveColoringSession({
     tileKey = null,
     recent = null,
     immediate = false,
+    forceTarget = false,
     allowAfterSessionBeat = false,
   } = {}) {
     if (specialOffer || (sessionGameNextBeatReady && !allowAfterSessionBeat)) {
@@ -1552,11 +1561,20 @@ export default function ProgressiveColoringSession({
       if (token !== guidanceTokenRef.current) return;
       if (isStaleGuidance(plan, committedRevisionRef.current)) {
         window.setTimeout(() => {
-          void fetchAndApplyGuidance({ reason, color, targetColor, tileKey, recent, immediate, allowAfterSessionBeat });
+          void fetchAndApplyGuidance({
+            reason,
+            color,
+            targetColor,
+            tileKey,
+            recent,
+            immediate,
+            forceTarget,
+            allowAfterSessionBeat,
+          });
         }, 350);
         return;
       }
-      const applied = await applyGuidancePlan(plan, { immediate });
+      const applied = await applyGuidancePlan(plan, { immediate, forceTarget });
       if (applied) {
         setErrorNotice(null);
         setInputNotice(null);
@@ -1585,6 +1603,7 @@ export default function ProgressiveColoringSession({
       color: smartPlanRef.current?.selectedColor ?? null,
       recent: recentTargetsRef.current,
       immediate: true,
+      forceTarget: true,
     });
   }
 
