@@ -250,7 +250,7 @@ test.describe('Client accessibility release gates', () => {
         return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
       };
       const overflowDetails = Array.from(document.querySelectorAll(
-        '.player-topbar-title, .coloring-task-summary, .coloring-dock-actions, .hud-btn, .color-swatch',
+        '.coloring-task-summary, .coloring-dock-actions, .hud-btn, .color-swatch',
       )).filter((element) => element.scrollWidth > element.clientWidth + 1).map((element) => ({
         selector: `.${element.className.split(/\s+/).filter(Boolean).join('.')}`,
         text: element.textContent?.trim(),

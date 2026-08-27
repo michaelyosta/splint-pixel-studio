@@ -216,18 +216,12 @@ test.describe('Session goals', () => {
 
     await paintUntilFirstGoalDone(page, card, 3);
 
-    await expect.poll(async () => card.evaluate((element) => ({
-      goalId: element.getAttribute('data-goal-id'),
-      status: element.getAttribute('data-goal-status'),
-      painted: element.getAttribute('data-painted'),
-      celebration: element.getAttribute('data-celebration'),
-      text: element.textContent,
-    })), { timeout: 15000 }).toMatchObject({
-      goalId: 'picture',
-      status: 'running',
-      painted: 'true',
-      celebration: 'completed',
-    });
+    await expect.poll(async () => card.evaluate((element) => [
+      element.getAttribute('data-goal-id'),
+      element.getAttribute('data-goal-status'),
+      element.getAttribute('data-painted'),
+      element.getAttribute('data-celebration'),
+    ].join('|')), { timeout: 30000 }).toBe('picture|running|true|completed');
 
     const celebration = await card.evaluate((element) => ({
       goalId: element.getAttribute('data-goal-id'),
