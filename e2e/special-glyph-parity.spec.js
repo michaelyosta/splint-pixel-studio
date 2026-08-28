@@ -207,6 +207,36 @@ async function centerCell(page, surface, cellIndex, gridWidth) {
   throw new Error(`Could not center cell ${cellIndex} on ${surface}; camera=${JSON.stringify(finalCamera)}`);
 }
 
+function projectCell(cellIndex, gridWidth, camera) {
+  const worldX = ((Number(cellIndex) % gridWidth) + 0.5) * TILE;
+  const worldY = ((Math.floor(Number(cellIndex) / gridWidth)) + 0.5) * TILE;
+  const x = worldX * camera.zoom + camera.x;
+  const y = worldY * camera.zoom + camera.y;
+  const margin = 8;
+  return {
+    x,
+    y,
+    visible: Number.isFinite(x) && Number.isFinite(y)
+      && x >= margin
+      && x <= camera.box.width - margin
+      && y >= margin
+      && y <= camera.box.height - margin,
+  };
+}
+
+async function ensureTargetVisible(page, surface, cellIndex, gridWidth) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const camera = await readCamera(page, surface);
+    const projection = projectCell(cellIndex, gridWidth, camera);
+    if (projection.visible) return camera;
+    await centerCell(page, surface, cellIndex, gridWidth);
+  }
+  const camera = await readCamera(page, surface);
+  const projection = projectCell(cellIndex, gridWidth, camera);
+  expect(projection.visible, `Target cell ${cellIndex} is outside the ${surface} canvas after bounded recenter: ${JSON.stringify({ camera, projection })}`).toBe(true);
+  return camera;
+}
+
 async function waitForTile(page, cellIndex, gridWidth, expectedKind = null) {
   const x = cellIndex % gridWidth;
   const y = Math.floor(cellIndex / gridWidth);
@@ -465,6 +495,7 @@ async function captureGlyph(page, surface, special, gridWidth, width, {
   await centerCell(page, surface, Number(special.cell_index), gridWidth);
   if (surface === 'tiled') {
     await waitForTile(page, Number(special.cell_index), gridWidth, special.kind);
+    await ensureTargetVisible(page, surface, Number(special.cell_index), gridWidth);
   }
   const signature = await markerSignature(page, surface, Number(special.cell_index), gridWidth, special.kind);
   assertMarkerShape(signature, `${surface}-${theme}-${reveal ? 'reveal-' : ''}${reducedMotion ? 'reduced-' : ''}${width}: `);
@@ -619,6 +650,7 @@ test('tiled glyph masks are distinct, hidden in overview, and readable at low zo
   const canvas = page.locator('.progressive-grid-area > canvas');
   await centerCell(page, 'tiled', Number(selected[0].cell_index), TILED_GRID);
   await waitForTile(page, Number(selected[0].cell_index), TILED_GRID, selected[0].kind);
+  await ensureTargetVisible(page, 'tiled', Number(selected[0].cell_index), TILED_GRID);
   await canvas.focus();
   // Keep this in low-zoom WORK rather than driving into the runtime floor
   // (MIN_ZOOM=0.08), so the assertion exercises the readable transition.

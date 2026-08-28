@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { test, expect } from '@playwright/test';
 import { generateSpecialCells } from '../server/services/tiled-specials.js';
 import { generateHazardCells } from '../server/services/tiled-hazard.js';
-import { tiledPayload } from './input-gesture-helpers.js';
+import { tiledPayload, waitForTiledCellLoaded } from './input-gesture-helpers.js';
 
 const GRID = 160;
 const TILE = 32;
@@ -49,7 +49,7 @@ function firstSpark(templateId) {
   return [...generated, ...hazards].find((cell) => cell.kind === 'spark');
 }
 
-async function moveToCell(canvas, cellIndex) {
+async function moveToCell(page, canvas, cellIndex) {
   const x = Number(cellIndex) % GRID;
   const y = Math.floor(Number(cellIndex) / GRID);
   await canvas.focus();
@@ -57,6 +57,15 @@ async function moveToCell(canvas, cellIndex) {
   for (let step = 0; step < x; step += 1) await canvas.press('ArrowRight');
   for (let step = 0; step < y; step += 1) await canvas.press('ArrowDown');
   await expect(canvas).toHaveAttribute('data-keyboard-cell', String(cellIndex), { timeout: 30000 });
+  const tileX = Math.floor(x / TILE);
+  const tileY = Math.floor(y / TILE);
+  await page.evaluate(async ({ tileX: requestedTileX, tileY: requestedTileY }) => {
+    const client = window.__splintClient;
+    await client?.loadManifest?.();
+    await client?.fetchTile?.(requestedTileX, requestedTileY, { force: true });
+    client?.cache?.pin?.(`${requestedTileX}:${requestedTileY}`);
+  }, { tileX, tileY });
+  await waitForTiledCellLoaded(page, x, y);
 }
 
 test('tiled special offer stays usable at mobile widths and honors reduced motion', async ({ page, browserName }, testInfo) => {
@@ -92,7 +101,7 @@ test('tiled special offer stays usable at mobile widths and honors reduced motio
     await expect(area).toHaveAttribute('data-reduced-motion', 'true');
   }
 
-  await moveToCell(canvas, spark.cell_index);
+  await moveToCell(page, canvas, spark.cell_index);
   const claimPromise = page.waitForResponse((response) => {
     if (!response.url().includes(`/colorings/${created.id}/progress/actions`)
       || response.request().method() !== 'POST') return false;

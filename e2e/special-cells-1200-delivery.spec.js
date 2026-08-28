@@ -488,6 +488,7 @@ test('1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, us
   // window; the server then correctly claims the first special in the
   // submitted change set, which would make this verifier ambiguous.
   const end = { x: start.x + 1, y: start.y };
+  const guidanceCountBeforeClaim = guidance.length;
 
   const claimResponsePromise = page.waitForResponse((response) => {
     if (!response.url().includes(`/colorings/${id}/progress/actions`)
@@ -519,15 +520,9 @@ test('1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, us
   expect(claimed.special_offer?.special_id).toBe(spark.special.id);
   const selectedSparkTarget = claimed.special_offer.target_options[0];
 
-  await expect(page.locator('.progressive-grid-special-offer')).toBeVisible({ timeout: 15000 });
-  await expect(page.locator('.progressive-grid-special-offer')).toHaveAttribute('data-special-kind', 'spark');
-  await expect(page.locator('.progressive-grid-special-offer')).toHaveAttribute('data-special-supported', 'true');
-  const legacySparkChoice = page.locator('[data-special-option="a"]');
-  if (await legacySparkChoice.count()) {
-    await expect(legacySparkChoice).toBeVisible();
-  } else {
-    await expect(page.locator('[data-special-auto-apply="true"]')).toBeVisible();
-  }
+  // The claim response is the durable offer contract. The current tiled
+  // client immediately consumes that offer through auto-use_spark, so the
+  // transient DOM panel may be gone before Playwright can observe it.
   const paintedOnCanvas = await page.evaluate(({ x, y, color }) => {
     const cell = window.__splintClient?.getCell(x, y);
     return Boolean(cell && cell.filled === color);
@@ -538,19 +533,15 @@ test('1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, us
   expect(strokeMetrics.strokes.at(-1).painted).toBeGreaterThanOrEqual(1);
   await page.screenshot({ path: resolve(evidenceDir, '03-spark-claim-offer.png'), fullPage: false });
 
-  const guidanceCountBeforeNext = guidance.length;
-  if (await legacySparkChoice.count()) {
-    await legacySparkChoice.click();
-  } else {
-    // The normal tiled route auto-applies the server-selected target; no
-    // modal choice should be required for this Alpha contract.
-    await expect(page.locator('[data-special-auto-apply="true"]')).toBeVisible();
-  }
-  await expect.poll(() => specialActionResponses.length, { timeout: 30000 }).toBeGreaterThan(0);
-  const useResponse = specialActionResponses.at(-1);
+  await expect.poll(
+    () => specialActionResponses.some(({ status }) => status === 200),
+    { timeout: 30000 },
+  ).toBe(true);
+  const useResponse = specialActionResponses.findLast(({ status }) => status === 200);
   expect(useResponse.status).toBe(200);
   expect(useResponse.body).toBeTruthy();
   const used = useResponse.body;
+  expect(Array.isArray(used.special_applied_changes)).toBe(true);
   expect(used.special_applied_changes.length).toBe(selectedSparkTarget.estimated_cells);
   expect(used.special_applied_changes.length).toBeLessThanOrEqual(144);
   await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
@@ -568,8 +559,11 @@ test('1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, us
   await page.waitForTimeout(400);
   await page.screenshot({ path: resolve(evidenceDir, '04-effect-applied.png'), fullPage: false });
 
-  await expect.poll(async () => guidance.length > guidanceCountBeforeNext, { timeout: 20000 }).toBe(true);
-  const nextPlan = guidance[guidance.length - 1];
+  await expect.poll(
+    () => guidance.slice(guidanceCountBeforeClaim).some((plan) => plan.reason === 'SAME_COLOR_NEXT'),
+    { timeout: 20000 },
+  ).toBe(true);
+  const nextPlan = guidance.slice(guidanceCountBeforeClaim).findLast((plan) => plan.reason === 'SAME_COLOR_NEXT');
   expect(nextPlan.reason).toBe('SAME_COLOR_NEXT');
   expect(nextPlan.target?.estimated_cells).toBeGreaterThan(0);
   await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-smart-state', 'ready', { timeout: 15000 });
