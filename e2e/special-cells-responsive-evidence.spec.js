@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect } from '@playwright/test';
@@ -9,8 +10,8 @@ const GRID = 160;
 const TILE = 32;
 const evidenceDir = resolve('docs/evidence/special-cells-responsive');
 
-async function createTreatment(page) {
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_responsive' });
+async function createTreatment(page, userId) {
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': userId });
   const fixtureResponse = await page.request.post('/api/__e2e/seed-cohort-template', {
     data: {
       cohort: 'treatment',
@@ -23,6 +24,10 @@ async function createTreatment(page) {
   expect(fixture.cohort).toBe('treatment');
   expect(fixture.storage).toBe('tiled');
   expect(fixture.size).toEqual({ width: GRID, height: GRID });
+  expect(fixture.user_id).toBe(userId);
+  if (Object.prototype.hasOwnProperty.call(fixture, 'reused')) {
+    expect(fixture.reused).toBe(false);
+  }
   const progressResponse = await page.request.get(`/api/colorings/${fixture.id}/progress`);
   const progress = await progressResponse.json();
   expect(progress.specials_experiment_group).toBe('treatment');
@@ -88,7 +93,11 @@ test('tiled special offer stays usable at mobile widths and honors reduced motio
     try { localStorage.setItem('splint_onboarding_version', '2'); } catch {}
   });
 
-  const created = await createTreatment(page);
+  // The seed route truncates user IDs to 24 characters when deriving its
+  // deterministic fixture ID. Keep the fresh token first so every project
+  // and run gets an independent template/progress namespace after truncation.
+  const userId = `${randomUUID().replaceAll('-', '')}_special_responsive_${testInfo.project.name}`;
+  const created = await createTreatment(page, userId);
   const spark = firstSpark(created.id);
   expect(spark).toBeTruthy();
   await page.goto(`/?coloring=${created.id}&splintMetrics=1`);
@@ -102,6 +111,28 @@ test('tiled special offer stays usable at mobile widths and honors reduced motio
   }
 
   await moveToCell(page, canvas, spark.cell_index);
+  const cellX = Number(spark.cell_index) % GRID;
+  const cellY = Math.floor(Number(spark.cell_index) / GRID);
+  const preEnterState = await page.evaluate(({ x, y }) => {
+    const area = document.querySelector('.progressive-grid-area');
+    const targetCanvas = area?.querySelector('canvas:not(.progressive-grid-minimap-canvas)');
+    const cell = window.__splintClient?.getCell?.(x, y);
+    const selectedColor = [...document.querySelectorAll('.color-swatch')]
+      .findIndex((swatch) => swatch.getAttribute('data-state') === 'selected');
+    return {
+      loaded: Boolean(cell?.loaded),
+      filled: cell?.filled ?? null,
+      target: cell?.target ?? null,
+      selectedColor: selectedColor === -1 ? null : selectedColor,
+      activeElementIsCanvas: document.activeElement === targetCanvas,
+      keyboardCell: targetCanvas?.getAttribute('data-keyboard-cell') ?? null,
+    };
+  }, { x: cellX, y: cellY });
+  expect(preEnterState.loaded).toBe(true);
+  expect(preEnterState.filled).toBe(-1);
+  expect(preEnterState.target).toBe(preEnterState.selectedColor);
+  expect(preEnterState.activeElementIsCanvas).toBe(true);
+  expect(preEnterState.keyboardCell).toBe(String(spark.cell_index));
   const claimPromise = page.waitForResponse((response) => {
     if (!response.url().includes(`/colorings/${created.id}/progress/actions`)
       || response.request().method() !== 'POST') return false;
