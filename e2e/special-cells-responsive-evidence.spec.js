@@ -52,11 +52,6 @@ function firstSpark(templateId) {
 async function moveToCell(page, canvas, cellIndex) {
   const x = Number(cellIndex) % GRID;
   const y = Math.floor(Number(cellIndex) / GRID);
-  await canvas.focus();
-  await canvas.press('Home');
-  for (let step = 0; step < x; step += 1) await canvas.press('ArrowRight');
-  for (let step = 0; step < y; step += 1) await canvas.press('ArrowDown');
-  await expect(canvas).toHaveAttribute('data-keyboard-cell', String(cellIndex), { timeout: 30000 });
   const tileX = Math.floor(x / TILE);
   const tileY = Math.floor(y / TILE);
   await page.evaluate(async ({ tileX: requestedTileX, tileY: requestedTileY }) => {
@@ -66,6 +61,11 @@ async function moveToCell(page, canvas, cellIndex) {
     client?.cache?.pin?.(`${requestedTileX}:${requestedTileY}`);
   }, { tileX, tileY });
   await waitForTiledCellLoaded(page, x, y);
+  await canvas.focus();
+  await canvas.press('Home');
+  for (let step = 0; step < x; step += 1) await canvas.press('ArrowRight');
+  for (let step = 0; step < y; step += 1) await canvas.press('ArrowDown');
+  await expect(canvas).toHaveAttribute('data-keyboard-cell', String(cellIndex), { timeout: 30000 });
 }
 
 test('tiled special offer stays usable at mobile widths and honors reduced motion', async ({ page, browserName }, testInfo) => {
