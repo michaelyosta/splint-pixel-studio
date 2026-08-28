@@ -117,7 +117,15 @@ test.describe('Unlocks and recommendations', () => {
   });
 
   test('cold-start recommendations render stable reason text in bounded cards', async ({ page }) => {
+    const unlockResponse = page.waitForResponse(
+      (response) => response.url().includes('/api/unlocks/me'),
+    );
+    const recommendationsResponse = page.waitForResponse(
+      (response) => response.url().includes('/api/colorings/recommendations'),
+    );
     await openHome(page);
+    expect((await unlockResponse).status()).toBe(200);
+    expect((await recommendationsResponse).status()).toBe(200);
     const strip = page.locator('[data-recommendations="true"]');
     await expect(strip).toBeVisible();
     await expect(page.locator('[data-recommendations-status="loading"]')).toHaveCount(0, { timeout: 15000 });

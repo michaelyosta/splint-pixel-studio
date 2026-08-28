@@ -8,20 +8,27 @@ import {
 } from '../../lib/unlockState';
 
 function applyEnvelope(setStatus, setError, setData, envelope, normalize) {
-  if (!envelope.ok) {
+  if (!envelope?.ok) {
     setStatus('error');
-    setError(envelope.error);
+    setError(envelope?.error || new Error('Unlock data request failed'));
     return;
   }
-  setError(null);
-  setData(normalize(envelope.data));
-  setStatus('ready');
+  try {
+    setError(null);
+    setData(normalize(envelope.data));
+    setStatus('ready');
+  } catch (error) {
+    setStatus('error');
+    setError(error);
+  }
 }
 
 /**
  * Loads the bounded unlock snapshot and recommendations through a single
- * deduped cache. Callers get deterministic loading/ready/error states and an
- * explicit refresh for post-completion invalidation.
+ * deduped cache. Each resource settles independently so one response cannot
+ * strand the other resource in loading. Callers get deterministic
+ * loading/ready/error states and an explicit refresh for post-completion
+ * invalidation.
  */
 export function useUnlockData({
   enabled = true,
@@ -45,27 +52,69 @@ export function useUnlockData({
   const [recommendationsStatus, setRecommendationsStatus] = useState('loading');
   const [recommendationsError, setRecommendationsError] = useState(null);
   const loadKeyRef = useRef(0);
+  const mountedRef = useRef(false);
 
-  const load = useCallback(async ({ force = false } = {}) => {
-    if (!enabled) return;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      loadKeyRef.current += 1;
+    };
+  }, []);
+
+  const load = useCallback(({ force = false } = {}) => {
+    if (!enabled) return Promise.resolve();
     const key = ++loadKeyRef.current;
     setSnapshotStatus('loading');
+    setSnapshotError(null);
     setRecommendationsStatus('loading');
+    setRecommendationsError(null);
     const store = storeRef.current;
-    const [snapshotEnvelope, recommendationsEnvelope] = await Promise.all([
-      store.getSnapshot({ force }),
-      store.getRecommendations({ force }),
+    const isCurrent = () => mountedRef.current && key === loadKeyRef.current;
+
+    const settle = async (read, setStatus, setError, setData, normalize) => {
+      try {
+        const envelope = await read();
+        if (!isCurrent()) return;
+        applyEnvelope(setStatus, setError, setData, envelope, normalize);
+      } catch (error) {
+        if (!isCurrent()) return;
+        setStatus('error');
+        setError(error);
+      }
+    };
+
+    return Promise.all([
+      settle(
+        () => store.getSnapshot({ force }),
+        setSnapshotStatus,
+        setSnapshotError,
+        setSnapshot,
+        normalizeSnapshot,
+      ),
+      settle(
+        () => store.getRecommendations({ force }),
+        setRecommendationsStatus,
+        setRecommendationsError,
+        setRecommendations,
+        (data) => prepareRecommendations(data?.recommendations || [], { limit }),
+      ),
     ]);
-    if (key !== loadKeyRef.current) return;
-    applyEnvelope(setSnapshotStatus, setSnapshotError, setSnapshot, snapshotEnvelope, normalizeSnapshot);
-    applyEnvelope(setRecommendationsStatus, setRecommendationsError, setRecommendations, recommendationsEnvelope, (data) => (
-      prepareRecommendations(data?.recommendations || [], { limit })
-    ));
   }, [enabled, limit]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      loadKeyRef.current += 1;
+      setSnapshotStatus('ready');
+      setSnapshotError(null);
+      setRecommendationsStatus('ready');
+      setRecommendationsError(null);
+      return undefined;
+    }
     load({ force: refreshKey > 0 });
+    return () => {
+      loadKeyRef.current += 1;
+    };
   }, [enabled, refreshKey, load]);
 
   const journey = useMemo(() => buildJourneyView(snapshot), [snapshot]);
