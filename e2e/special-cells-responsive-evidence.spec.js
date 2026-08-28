@@ -91,7 +91,7 @@ test('tiled special offer stays usable at mobile widths and honors reduced motio
   const created = await createTreatment(page);
   const spark = firstSpark(created.id);
   expect(spark).toBeTruthy();
-  await page.goto(`/?coloring=${created.id}`);
+  await page.goto(`/?coloring=${created.id}&splintMetrics=1`);
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
   const area = page.locator('.progressive-grid-area');
