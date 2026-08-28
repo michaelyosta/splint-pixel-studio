@@ -391,19 +391,35 @@ export default function ColoringSession({
     }
   }
 
-  function armFocusWatchdog(token, reason) {
+  function armFocusWatchdog(token, reason, recoverFocus) {
     clearFocusWatchdog();
-    focusWatchdogRef.current = setTimeout(() => {
-      if (transitionTokenRef.current !== token || routeStateRef.current.status !== 'focusingTarget') return;
+    const timer = setTimeout(() => {
+      if (
+        focusWatchdogRef.current !== timer
+        || transitionTokenRef.current !== token
+        || routeStateRef.current.status !== 'focusingTarget'
+      ) return;
+      focusWatchdogRef.current = null;
+
+      // A delayed RAF is a camera problem, not permission to discard the
+      // active route. Force the same transaction to its already planned
+      // camera; the completion callback still owns the token guard.
+      const recovered = recoverFocus?.() === true;
+      if (
+        recovered
+        || transitionTokenRef.current !== token
+        || routeStateRef.current.status !== 'focusingTarget'
+      ) return;
+
       transitionTokenRef.current += 1;
       routeStateRef.current = {
         ...routeStateRef.current,
-        status: 'freeExploration',
+        status: 'error',
         reason: `${reason}:focus_timeout`,
       };
       syncRouteDisplay();
-      focusOverview();
     }, 1500);
+    focusWatchdogRef.current = timer;
   }
 
   function prepareTarget(candidate, options = {}) {
@@ -507,10 +523,12 @@ export default function ColoringSession({
       allTargetCellsVisible: true,
     };
     syncRouteDisplay();
-    armFocusWatchdog(token, reason);
 
-    const committed = commitFocusOnWindow(cameraTransition, force, (actualCamera) => {
-      if (transitionTokenRef.current !== token) return;
+    const completeFocus = (actualCamera) => {
+      if (
+        transitionTokenRef.current !== token
+        || routeStateRef.current.status !== 'focusingTarget'
+      ) return;
       clearFocusWatchdog();
       const actualReadiness = ensureActionableViewport({
         activeTarget,
@@ -541,7 +559,14 @@ export default function ColoringSession({
         unfilledCount: activeTarget.workCells.length,
         visibleRemaining: actualReadiness.visibleUnfilledCells,
       });
-    });
+    };
+    const recoverFocus = () => {
+      if (transitionTokenRef.current !== token || routeStateRef.current.status !== 'focusingTarget') return false;
+      return commitFocusOnWindow({ ...cameraTransition, immediate: true }, true, completeFocus);
+    };
+    armFocusWatchdog(token, reason, recoverFocus);
+
+    const committed = commitFocusOnWindow(cameraTransition, force, completeFocus);
 
     if (!committed) {
       clearFocusWatchdog();
@@ -593,10 +618,12 @@ export default function ColoringSession({
       allTargetCellsVisible: true,
     };
     syncRouteDisplay();
-    armFocusWatchdog(token, reason);
 
-    const committed = commitFocusOnWindow(cameraTransition, true, (actualCamera) => {
-      if (transitionTokenRef.current !== token) return;
+    const completeFocus = (actualCamera) => {
+      if (
+        transitionTokenRef.current !== token
+        || routeStateRef.current.status !== 'focusingTarget'
+      ) return;
       clearFocusWatchdog();
       const actualReadiness = ensureActionableViewport({
         activeTarget: target,
@@ -622,7 +649,14 @@ export default function ColoringSession({
             reason: `${reason}:${actualReadiness.reason}`,
           };
       syncRouteDisplay();
-    });
+    };
+    const recoverFocus = () => {
+      if (transitionTokenRef.current !== token || routeStateRef.current.status !== 'focusingTarget') return false;
+      return commitFocusOnWindow({ ...cameraTransition, immediate: true }, true, completeFocus);
+    };
+    armFocusWatchdog(token, reason, recoverFocus);
+
+    const committed = commitFocusOnWindow(cameraTransition, true, completeFocus);
     if (!committed) {
       clearFocusWatchdog();
       transitionTokenRef.current += 1;
