@@ -274,6 +274,11 @@ test('legacy 28x28 last-cell Spark suppresses the trivial event and preserves co
   await paintLegacyBatches(page, created.id, other, 0, 'legacy-last-cell');
 
   await page.goto(`/?coloring=${created.id}`);
+  await waitForColoringSessionReady(
+    page,
+    { 'data-special-cohort': 'treatment' },
+    'legacy last-cell Spark',
+  );
   const canvas = await focusLegacyCell(page, spark.cell_index);
   const finalResponse = page.waitForResponse((response) => response.url().includes(`/colorings/${created.id}/progress/actions`)
     && response.request().method() === 'POST', { timeout: 120000 });
