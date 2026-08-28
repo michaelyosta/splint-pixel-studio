@@ -400,11 +400,30 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
       expect(Number(tile.filled[localIndex]), `server must have cell ${cell.x} filled`).toBe(activeColor);
     }
 
-    // A second stroke starts immediately — no finalization hitch, no wait.
+    // A second stroke starts immediately after its target tile is resident —
+    // no finalization hitch or timing wait is involved in the gesture.
     const secondY = paintY + 4;
     const secondXStart = Math.min(line.lineStart + 40, line.runEnd - 12);
     const secondStart = cellToScreen(secondXStart, secondY, cam, viewportBox);
     const secondEnd = cellToScreen(secondXStart + 12, secondY, cam, viewportBox);
+    const secondCell = await mapScreenToCell(page, secondStart.x, secondStart.y);
+    expect(secondCell).toBeTruthy();
+    const secondTile = {
+      tileX: Math.floor(secondCell.x / CELL),
+      tileY: Math.floor(secondCell.y / CELL),
+    };
+    await page.evaluate(({ tileX, tileY }) => (
+      window.__splintClient.fetchTile(tileX, tileY).then(() => undefined)
+    ), secondTile);
+    const secondState = await page.evaluate(({ x, y }) => {
+      const cell = window.__splintClient.getCell(x, y);
+      return {
+        loaded: cell?.loaded ?? false,
+        filled: cell?.filled ?? null,
+        target: cell?.target ?? null,
+      };
+    }, secondCell);
+    expect(secondState).toEqual({ loaded: true, filled: -1, target: activeColor });
     await dragTouchStroke(page, touchSession, [
       { x: secondStart.x, y: secondStart.y },
       { x: secondEnd.x, y: secondEnd.y },
