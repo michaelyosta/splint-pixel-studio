@@ -1,4 +1,5 @@
 import { mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { test, expect } from '@playwright/test';
 
@@ -12,8 +13,22 @@ const TILE = 32;
 const GLYPH_GRID_SIZE = 12;
 const evidenceDir = resolve('docs/evidence/special-glyph-parity');
 
-async function createLegacy(page, { cohort = 'treatment', allKinds = true } = {}) {
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_legacy' });
+function legacyFixtureOwnerId(testInfo) {
+  const identity = [
+    testInfo.project.name,
+    testInfo.testId,
+    testInfo.repeatEachIndex,
+    testInfo.retry,
+  ].join(':');
+  return `e2e_legacy_${createHash('sha256').update(identity).digest('hex')}`;
+}
+
+async function createLegacy(page, {
+  cohort = 'treatment',
+  allKinds = true,
+  ownerId = 'user_special_glyph_legacy',
+} = {}) {
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': ownerId });
   const fixtureResponse = await page.request.post('/api/__e2e/seed-cohort-template', {
     data: {
       cohort,
@@ -26,6 +41,7 @@ async function createLegacy(page, { cohort = 'treatment', allKinds = true } = {}
   expect(fixture.cohort).toBe(cohort);
   expect(fixture.storage).toBe('legacy');
   expect(fixture.size).toEqual({ width: LEGACY_GRID, height: LEGACY_GRID });
+  expect(fixture.id).toContain(`tpl_cohort_e2e_${ownerId.slice(0, 24)}_`);
   const progressResponse = await page.request.get(`/api/colorings/${fixture.id}/progress`);
   expect(progressResponse.ok()).toBe(true);
   const progress = await progressResponse.json();
@@ -724,15 +740,22 @@ test('tiled reveal claims exactly once and survives reload without duplicate', a
   await expect(page.locator('[data-special-discovered]')).toHaveCount(0);
 });
 
-test('legacy reveal claims exactly once and survives reload without duplicate', async ({ page }) => {
+test('legacy reveal claims exactly once and survives reload without duplicate', async ({ page }, testInfo) => {
   test.setTimeout(120000);
-  const { created, progress } = await createLegacy(page);
+  const ownerId = legacyFixtureOwnerId(testInfo);
+  const { created, progress } = await createLegacy(page, { ownerId, allKinds: false });
   const spark = progress.specials.find((special) => special.kind === 'spark');
   expect(spark).toBeTruthy();
   await openColoring(page, created.id, { width: 390 });
   await expect(page.locator('.coloring-session')).toHaveAttribute('data-special-cohort', 'treatment', { timeout: 30000 });
   await openRevealMode(page);
   await moveToCell(page, 'legacy', Number(spark.cell_index), LEGACY_GRID);
+  const beforeClaim = await readProgress(page, created.id);
+  expect(beforeClaim.specials.find((special) => special.id === spark.id)).toMatchObject({
+    state: 'unseen',
+    filled: -1,
+  });
+  expect(beforeClaim.filled[Number(spark.cell_index)]).toBe(-1);
   const capture = await claimRequests(page, created.id, 'claim_spark');
   const useCapture = await claimRequests(page, created.id, 'use_spark');
   const canvas = page.locator('canvas.coloring-canvas');
