@@ -196,55 +196,64 @@ test.describe('1200x1200 accessibility and bounded-input gates', () => {
     expect(cameraAfterJump.x !== cameraAfterZone.x || cameraAfterJump.y !== cameraAfterZone.y).toBe(true);
     expect(cameraAfterJump.zoom).toBeGreaterThanOrEqual(1);
 
-    // Touch painting: a real mobile interaction must commit a cell the same
-    // way the keyboard path does. The palette color is chosen from the cell
-    // under the current camera center so the tap is never a wrong-color tap.
-    const viewportBox = await gridArea.boundingBox();
-    const centerX = viewportBox.x + viewportBox.width / 2;
-    const centerY = viewportBox.y + viewportBox.height / 2;
-    const cellFromCamera = async () => {
-      const cam = {
-        x: Number(await gridArea.getAttribute('data-camera-x')),
-        y: Number(await gridArea.getAttribute('data-camera-y')),
-        zoom: Number(await gridArea.getAttribute('data-camera-zoom')),
-      };
-      const worldX = (centerX - viewportBox.x - cam.x) / cam.zoom / 32;
-      const worldY = (centerY - viewportBox.y - cam.y) / cam.zoom / 32;
-      return {
-        x: Math.floor(worldX),
-        y: Math.floor(worldY),
-        tileX: Math.floor(Math.floor(worldX) / 32),
-        tileY: Math.floor(Math.floor(worldY) / 32),
-      };
-    };
-    let touchColor;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const cell = await cellFromCamera();
-      const tileResponse = await page.request.get(`/api/colorings/${id}/tiles/${cell.tileX}/${cell.tileY}`);
-      expect(tileResponse.ok()).toBe(true);
-      const tile = await tileResponse.json();
-      const localIndex = (cell.y % 32) * 32 + (cell.x % 32);
-      if (Number(tile.filled[localIndex]) === -1) {
-        touchColor = Number(tile.cells[localIndex]);
-        break;
-      }
-      await page.keyboard.press('+');
-    }
+    // Touch painting: return to the already selected Smart Guidance target
+    // before dispatching a real mobile gesture. READY is the app contract
+    // that the target tile has been fetched and the immediate camera settle
+    // is complete, so this does not depend on a guessed viewport-center cell
+    // or on a page.request response that Playwright cannot observe on `page`.
+    const returnToTarget = session.getByRole('button', { name: 'Вернуться к цели' });
+    await expect(returnToTarget).toBeVisible();
+    await returnToTarget.click();
+    await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 15000 });
+    await expect(session).toHaveAttribute('data-special-offer-kind', '');
+
+    const touchTargetX = Number(await session.getAttribute('data-smart-target-x'));
+    const touchTargetY = Number(await session.getAttribute('data-smart-target-y'));
+    const touchColor = Number(await session.getAttribute('data-smart-color'));
+    expect(Number.isInteger(touchTargetX)).toBe(true);
+    expect(Number.isInteger(touchTargetY)).toBe(true);
     expect(Number.isInteger(touchColor)).toBe(true);
-    const checkedLabel = await palette.getByRole('radio', { checked: true }).textContent();
-    if (Number(checkedLabel.trim()) - 1 !== touchColor) {
-      await palette.getByRole('radio').nth(touchColor).focus();
-      await page.keyboard.press('Enter');
-      await expect(palette.getByRole('radio', { checked: true })).toHaveAttribute('data-state', 'selected');
-    }
-    // Make sure the tapped tile is resident before dispatching a real touch:
-    // an unloaded tile would only queue the paint until its fetch resolves.
-    const finalCell = await cellFromCamera();
-    await page.waitForResponse(
-      (response) => response.url().includes(`/tiles/${finalCell.tileX}/${finalCell.tileY}`) && response.ok(),
-      { timeout: 10000 },
-    ).catch(() => {});
-    await page.waitForTimeout(300);
+    const touchTileX = Math.floor(touchTargetX / 32);
+    const touchTileY = Math.floor(touchTargetY / 32);
+    const touchTileResponse = await page.request.get(`/api/colorings/${id}/tiles/${touchTileX}/${touchTileY}`);
+    expect(touchTileResponse.ok()).toBe(true);
+    const touchTile = await touchTileResponse.json();
+    const touchLocalIndex = (touchTargetY % 32) * 32 + (touchTargetX % 32);
+    expect(Number(touchTile.filled[touchLocalIndex])).toBe(-1);
+    expect(Number(touchTile.cells[touchLocalIndex])).toBe(touchColor);
+    expect((touchTile.specials || []).some((special) => Number(special.local_index) === touchLocalIndex)).toBe(false);
+
+    const viewportBox = await gridArea.boundingBox();
+    const touchCamera = {
+      x: Number(await gridArea.getAttribute('data-camera-x')),
+      y: Number(await gridArea.getAttribute('data-camera-y')),
+      zoom: Number(await gridArea.getAttribute('data-camera-zoom')),
+    };
+    const centerX = viewportBox.x + touchCamera.x + (touchTargetX + 0.5) * 32 * touchCamera.zoom;
+    const centerY = viewportBox.y + touchCamera.y + (touchTargetY + 0.5) * 32 * touchCamera.zoom;
+    await canvas.focus();
+    await expect(canvas).toBeFocused();
+    const touchSurface = await page.evaluate(({ x, y }) => {
+      const canvasElement = document.querySelector('.progressive-grid-area canvas');
+      const hit = document.elementFromPoint(x, y);
+      return {
+        activeCanvas: document.activeElement === canvasElement,
+        hitCanvas: hit === canvasElement,
+        hitTag: hit?.tagName || '',
+      };
+    }, { x: centerX, y: centerY });
+    expect(touchSurface.activeCanvas).toBe(true);
+    expect(touchSurface.hitCanvas).toBe(true);
+    expect(touchSurface.hitTag).toBe('CANVAS');
+    await page.evaluate(() => {
+      const area = document.querySelector('.progressive-grid-area');
+      window.__a11yTouchEvents = [];
+      for (const type of ['pointerdown', 'pointerup', 'pointercancel']) {
+        area.addEventListener(type, (event) => {
+          window.__a11yTouchEvents.push({ type, pointerId: event.pointerId, pointerType: event.pointerType });
+        });
+      }
+    });
     const touchProgressAction = page.waitForResponse(
       (response) => response.url().includes('/progress/actions') && response.request().method() === 'POST',
     );
@@ -264,14 +273,16 @@ test.describe('1200x1200 accessibility and bounded-input gates', () => {
     expect(touchSaved.status()).toBe(200);
     const touchSavedBody = await touchSaved.json();
     expect(touchSavedBody.completed_cells).toBeGreaterThan(0);
-    await expect.poll(async () => {
-      const cell = await cellFromCamera();
-      const tileResponse = await page.request.get(`/api/colorings/${id}/tiles/${cell.tileX}/${cell.tileY}`);
-      if (!tileResponse.ok()) return false;
-      const tile = await tileResponse.json();
-      const localIndex = (cell.y % 32) * 32 + (cell.x % 32);
-      return Number(tile.filled[localIndex]) === touchColor;
-    }, { timeout: 5000 }).toBe(true);
+    const touchEvents = await page.evaluate(() => window.__a11yTouchEvents || []);
+    const touchDown = touchEvents.find((event) => event.type === 'pointerdown');
+    const touchUp = touchEvents.find((event) => event.type === 'pointerup');
+    expect(touchDown?.pointerType).toBe('touch');
+    expect(touchUp?.pointerType).toBe('touch');
+    expect(touchUp?.pointerId).toBe(touchDown?.pointerId);
+    const persistedTileResponse = await page.request.get(`/api/colorings/${id}/tiles/${touchTileX}/${touchTileY}`);
+    expect(persistedTileResponse.ok()).toBe(true);
+    const persistedTile = await persistedTileResponse.json();
+    expect(Number(persistedTile.filled[touchLocalIndex])).toBe(touchColor);
 
     // One-finger navigation mode: a drag pans the canvas instead of painting.
     const navButton = session.getByRole('button', { name: 'Режим перемещения' });
