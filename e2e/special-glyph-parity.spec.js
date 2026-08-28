@@ -551,6 +551,12 @@ async function claimRequests(page, id, type) {
   return { requests, handler };
 }
 
+async function readProgress(page, id) {
+  const response = await page.request.get(`/api/colorings/${id}/progress`);
+  expect(response.ok()).toBe(true);
+  return response.json();
+}
+
 test.beforeEach(async ({ page }, testInfo) => {
   await page.route('https://telegram.org/js/telegram-web-app.js', async (route) => {
     await route.fulfill({
@@ -732,24 +738,55 @@ test('legacy reveal claims exactly once and survives reload without duplicate', 
   const canvas = page.locator('canvas.coloring-canvas');
   await canvas.press('Enter');
   await expect.poll(() => capture.requests.length, { timeout: 15000 }).toBe(1);
-  await expect.poll(
-    () => useCapture.requests.length || page.locator('.legacy-grid-special-offer').count(),
-    { timeout: 15000 },
-  ).toBeGreaterThan(0);
-  if (useCapture.requests.length) {
-    expect(useCapture.requests.at(-1).status()).toBe(200);
-    await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
+  expect(capture.requests).toHaveLength(1);
+  const claimResponse = capture.requests[0];
+  expect(claimResponse.status()).toBe(200);
+  const claimed = await claimResponse.json();
+  expect(claimed.special_offer).toMatchObject({
+    kind: 'spark',
+    special_id: String(spark.id),
+    offer_token: expect.any(String),
+  });
+  expect(claimed.special_offer.auto_apply).toEqual(expect.any(Boolean));
+
+  if (claimed.special_offer.auto_apply === true) {
+    await expect.poll(() => useCapture.requests.length, { timeout: 15000 }).toBe(1);
+    expect(useCapture.requests).toHaveLength(1);
+    const useResponse = useCapture.requests[0];
+    expect(useResponse.status()).toBe(200);
+    const used = await useResponse.json();
+    expect(used.special_applied_changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ index: expect.any(Number), color: expect.any(Number) }),
+    ]));
+
+    const persistedAfterUse = await readProgress(page, created.id);
+    expect(persistedAfterUse.special_offer).toBeNull();
+    expect(persistedAfterUse.revision).toBe(used.revision);
+    for (const change of used.special_applied_changes) {
+      expect(persistedAfterUse.filled[change.index]).toBe(change.color);
+    }
+    await expect(page.locator('.legacy-grid-special-offer[data-special-kind="spark"]')).toHaveCount(0, { timeout: 15000 });
   } else {
-    await expect(page.locator('.legacy-grid-special-offer')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(1);
+    const stableOffer = page.locator('.legacy-grid-special-offer[data-special-kind="spark"]');
+    await expect.poll(async () => {
+      const persisted = await readProgress(page, created.id);
+      return persisted.special_offer?.offer_token === claimed.special_offer.offer_token;
+    }, { timeout: 15000 }).toBe(true);
+    expect(useCapture.requests).toHaveLength(0);
+    await expect(stableOffer).toBeVisible({ timeout: 15000 });
+    await expect(stableOffer).toHaveCount(1);
+    expect(await stableOffer.getAttribute('data-special-auto-apply')).not.toBe('true');
   }
   page.off('response', capture.handler);
   page.off('response', useCapture.handler);
 
   await page.reload();
   await expect(page.locator('.coloring-session')).toHaveAttribute('data-special-cohort', 'treatment', { timeout: 30000 });
-  const legacyAfterReload = await (await page.request.get(`/api/colorings/${created.id}/progress`)).json();
-  await expect(page.locator('.legacy-grid-special-offer')).toHaveCount(legacyAfterReload.special_offer ? 1 : 0, { timeout: 15000 });
+  const legacyAfterReload = await readProgress(page, created.id);
+  await expect(page.locator('.legacy-grid-special-offer[data-special-kind="spark"]')).toHaveCount(
+    legacyAfterReload.special_offer ? 1 : 0,
+    { timeout: 15000 },
+  );
   await expect(page.locator('[data-special-discovered]')).toHaveCount(0);
 });
 
