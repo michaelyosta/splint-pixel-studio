@@ -227,7 +227,9 @@ test.describe('Session goals', () => {
 
     let celebration;
     await expect.poll(async () => {
-      celebration = await card.evaluate((element, expectedServerXp) => {
+      celebration = await page.evaluate((expectedServerXp) => {
+        const element = document.querySelector('.session-goal-card');
+        if (!element?.isConnected) return { connected: false };
         const celebrationElement = element.querySelector('.session-goal-celebration');
         const celebrationText = celebrationElement?.textContent || '';
         const cardText = element.textContent || '';
