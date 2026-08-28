@@ -20,7 +20,7 @@
     "reset:demo": "node reset-demo.js",
     "check": "node scripts/check.js",
     "backfill:guidance": "node scripts/backfill-tiled-guidance.mjs",
-    "test": "node --test \"test/*.test.js\"",
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
     "test:sqlite": "node --test \"test/*.test.js\"",
     "backup:postgres": "node scripts/backup-postgres.mjs",
     "restore:postgres": "node scripts/restore-postgres.mjs",
