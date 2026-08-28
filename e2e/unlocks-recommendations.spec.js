@@ -179,7 +179,8 @@ test.describe('Unlocks and recommendations', () => {
     await expect(page.locator('.collection-list')).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
 
     await page.getByRole('button', { name: 'Профиль', exact: true }).first().click();
-    await expect(page.locator('.profile-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.profile-page--redesigned')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.profile-collection-list')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('.profile-collection-list')).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
 
     await page.getByRole('button', { name: 'Каталог', exact: true }).first().click();

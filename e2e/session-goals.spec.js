@@ -227,13 +227,28 @@ test.describe('Session goals', () => {
 
     let celebration;
     await expect.poll(async () => {
-      celebration = await card.evaluate((element) => ({
-        goalId: element.getAttribute('data-goal-id'),
-        status: element.getAttribute('data-goal-status'),
-        painted: element.getAttribute('data-painted'),
-        celebration: element.getAttribute('data-celebration'),
-        text: element.textContent,
-      }));
+      celebration = await card.evaluate((element, expectedServerXp) => {
+        const celebrationElement = element.querySelector('.session-goal-celebration');
+        const celebrationText = celebrationElement?.textContent || '';
+        const cardText = element.textContent || '';
+        const parsedServerXp = Number(expectedServerXp);
+        const serverXpReady = Number.isFinite(parsedServerXp) && parsedServerXp > 0;
+        return {
+          goalId: element.getAttribute('data-goal-id'),
+          status: element.getAttribute('data-goal-status'),
+          painted: element.getAttribute('data-painted'),
+          celebration: element.getAttribute('data-celebration'),
+          celebrationPresent: Boolean(celebrationElement),
+          celebrationVisible: Boolean(celebrationElement?.getClientRects().length),
+          celebrationText,
+          celebrationTextReady: celebrationText.trim().length > 0,
+          text: cardText,
+          serverXp: expectedServerXp,
+          serverXpReady,
+          serverXpText: serverXpReady && cardText.includes(`+${parsedServerXp} XP`),
+          confirmedText: cardText.includes('подтверждено сервером'),
+        };
+      }, serverXp);
       return celebration;
     }, {
       timeout: 30000,
@@ -243,8 +258,13 @@ test.describe('Session goals', () => {
       status: 'running',
       painted: 'true',
       celebration: 'completed',
+      celebrationPresent: true,
+      celebrationVisible: true,
+      celebrationTextReady: true,
+      serverXpReady: true,
+      serverXpText: true,
+      confirmedText: true,
     });
-    await expect(page.locator('.session-goal-celebration')).toBeVisible();
     await expect(page.locator('.completion-overlay')).toHaveCount(0);
 
     expect(serverXp).toBeGreaterThan(0);
