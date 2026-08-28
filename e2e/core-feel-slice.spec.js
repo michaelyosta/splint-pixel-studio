@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { createTouchSession, sendTouch } from './input-gesture-helpers.js';
+import {
+  createTouchSession,
+  sendTouch,
+  waitForColoringSessionReady,
+} from './input-gesture-helpers.js';
 
 function freshSubject(variant, projectName) {
   const project = projectName.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 10);
@@ -85,7 +89,11 @@ for (const variant of ['a', 'b', 'c']) {
     const userId = freshSubject(variant, testInfo.project.name);
     await page.goto(`/?coreFeel=${variant}&coreSubject=${userId}`);
 
-    await expect(page.locator('.coloring-session')).toHaveAttribute('data-core-feel-variant', variant);
+    await waitForColoringSessionReady(
+      page,
+      { 'data-core-feel-variant': variant },
+      `core feel ${variant}`,
+    );
     await expect(page.locator('[data-core-feel-hint]')).toContainText('светлому контуру');
     await expect(page.locator('.onboarding-overlay')).toHaveCount(0);
     await expect(page.locator('.session-goal-card')).toHaveCount(0);
@@ -130,7 +138,11 @@ for (const variant of ['a', 'b', 'c']) {
 test('control keeps the existing flat/automatic behavior for comparison', async ({ page }, testInfo) => {
   const userId = freshSubject('control', testInfo.project.name);
   await page.goto(`/?coreFeel=control&coreSubject=${userId}`);
-  await expect(page.locator('.coloring-session')).toHaveAttribute('data-core-feel-variant', 'control');
+  await waitForColoringSessionReady(
+    page,
+    { 'data-core-feel-variant': 'control' },
+    'core feel control',
+  );
   await expect(page.locator('[data-core-feel-hint]')).toHaveCount(0);
   await expect(page.locator('[data-core-feel-ownership-pause]')).toHaveCount(0);
 });
@@ -141,7 +153,7 @@ test('manual pinch/pan pauses direction without forfeiting the authored reveal',
   await page.goto(`/?coreFeel=b&coreSubject=${userId}`);
   const viewport = page.locator('.coloring-canvas-viewport');
   await expect(viewport).toBeVisible();
-  await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'ready');
+  await waitForColoringSessionReady(page, { 'data-route-status': 'ready' }, 'core feel pinch');
   const box = await viewport.boundingBox();
   const before = {
     x: Number(await viewport.getAttribute('data-camera-x')),
@@ -176,7 +188,7 @@ test('partial manual progress reloads into a meaningful resume action', async ({
   const userId = freshSubject('b_resume', testInfo.project.name);
   const url = `/?coreFeel=b&coreSubject=${userId}`;
   await page.goto(url);
-  await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'ready');
+  await waitForColoringSessionReady(page, { 'data-route-status': 'ready' }, 'core feel resume initial');
   const saved = page.waitForResponse((response) => (
     response.url().includes('/api/colorings/color_astro-whale/progress/actions')
     && response.request().method() === 'POST'
@@ -185,12 +197,12 @@ test('partial manual progress reloads into a meaningful resume action', async ({
   const firstIndex = await clickFirstActiveCell(page);
   await saved;
   await page.reload();
-  await expect(page.locator('.coloring-session')).toHaveAttribute('data-core-feel-variant', 'b');
+  await waitForColoringSessionReady(page, { 'data-core-feel-variant': 'b' }, 'core feel resume reload');
   await expect(page.locator('canvas.coloring-canvas')).not.toHaveAttribute(
     'data-active-work-cells',
     new RegExp(`(^|,)${firstIndex}(,|$)`),
   );
-  await expect(page.locator('.coloring-session')).toHaveAttribute('data-route-status', 'ready');
+  await waitForColoringSessionReady(page, { 'data-route-status': 'ready' }, 'core feel resume ready');
   const resumeEvent = page.waitForRequest((request) => {
     if (!request.url().endsWith('/api/meta/analytics') || request.method() !== 'POST') return false;
     try {

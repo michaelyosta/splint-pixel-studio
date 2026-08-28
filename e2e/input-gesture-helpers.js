@@ -89,6 +89,32 @@ export async function waitForTiledReady(page, id) {
   await page.waitForTimeout(400);
 }
 
+const COLORING_SESSION_READINESS_MAX_MS = 30_000;
+
+export async function waitForColoringSessionReady(page, expectedAttributes, label = 'coloring session') {
+  await expect.poll(() => page.evaluate(() => {
+    const session = document.querySelector('.coloring-session');
+    const attributes = session
+      ? Object.fromEntries(Array.from(session.attributes)
+        .filter(({ name }) => name.startsWith('data-'))
+        .map(({ name, value }) => [name, value]))
+      : {};
+    return {
+      documentReadyState: document.readyState,
+      present: Boolean(session),
+      visible: Boolean(session?.getClientRects().length),
+      attributes,
+    };
+  }), {
+    timeout: COLORING_SESSION_READINESS_MAX_MS,
+    message: `${label}: bounded .coloring-session readiness exceeded ${COLORING_SESSION_READINESS_MAX_MS}ms; expected data attributes ${JSON.stringify(expectedAttributes)}. The last DOM snapshot is shown in Received.`,
+  }).toMatchObject({
+    present: true,
+    visible: true,
+    attributes: expectedAttributes,
+  });
+}
+
 export async function readTiledCamera(page) {
   const area = page.locator('.progressive-grid-area');
   return {

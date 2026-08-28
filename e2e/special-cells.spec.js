@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createHash } from 'node:crypto';
+import { waitForColoringSessionReady } from './input-gesture-helpers.js';
 
 function tiledPayload(width, height, tileSize = 32) {
   const result = [];
@@ -187,7 +188,11 @@ test('legacy 28x28 treatment discovers Spark in the real canvas and continues', 
   });
 
   await page.goto(`/?coloring=${created.id}`);
-  await expect(page.locator('.coloring-session')).toHaveAttribute('data-special-cohort', 'treatment');
+  await waitForColoringSessionReady(
+    page,
+    { 'data-special-cohort': 'treatment' },
+    'legacy treatment Spark',
+  );
   const canvas = await focusLegacyCell(page, spark.cell_index);
   const claimResponse = page.waitForResponse((response) => response.url().includes(`/colorings/${created.id}/progress/actions`)
     && response.request().method() === 'POST'
@@ -239,7 +244,11 @@ test('legacy 28x28 control has no Spark marker, action, or HUD', async ({ page }
   });
   expect(progress.specials).toEqual([]);
   await page.goto(`/?coloring=${created.id}`);
-  await expect(page.locator('.coloring-session')).toHaveAttribute('data-special-cohort', 'control');
+  await waitForColoringSessionReady(
+    page,
+    { 'data-special-cohort': 'control' },
+    'legacy control Spark',
+  );
   const canvas = await focusLegacyCell(page, 435);
   const responsePromise = page.waitForResponse((response) => response.url().includes(`/colorings/${created.id}/progress/actions`)
     && response.request().method() === 'POST');
@@ -308,7 +317,11 @@ test('legacy Artifact progress remains visible after a real /progress reload', a
   const artifactTotal = String(claimed.artifact_progress.total);
 
   await page.goto(`/?coloring=${fixture.created.id}`);
-  await expect(page.locator('.coloring-session')).toHaveAttribute('data-special-cohort', 'treatment');
+  await waitForColoringSessionReady(
+    page,
+    { 'data-special-cohort': 'treatment' },
+    'legacy treatment Artifact reload',
+  );
   await expect(page.locator('[data-artifact-progress]')).toHaveAttribute('data-artifact-fragments', '1');
   await expect(page.locator('[data-artifact-progress]')).toHaveAttribute('data-artifact-total', artifactTotal);
 });

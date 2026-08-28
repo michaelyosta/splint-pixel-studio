@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { waitForColoringSessionReady } from './input-gesture-helpers.js';
 
 async function primeLocalStorage(page) {
   await page.addInitScript(() => {
@@ -169,9 +170,17 @@ test.describe('Session goals', () => {
         && Number(stored.data.elapsedMs) >= pausedElapsed;
     }, { timeout: 5000 }).toBe(true);
 
-    // The active interval is paused; elapsed must stay frozen while offline.
-    await page.waitForTimeout(1200);
-    expect(Number(await card.getAttribute('data-elapsed-ms'))).toBe(pausedElapsed);
+    // The active interval is paused; sample it for a bounded interval without
+    // relying on an unbounded arbitrary sleep.
+    const pausedAt = Date.now();
+    await expect.poll(async () => (
+      Number(await card.getAttribute('data-elapsed-ms')) === pausedElapsed
+      && Date.now() - pausedAt >= 1000
+    ), {
+      timeout: 3000,
+      intervals: [250, 250, 250, 250, 250, 250],
+      message: `offline goal timer did not remain at ${pausedElapsed}ms for the bounded observation window`,
+    }).toBe(true);
 
     const stored = await readStoredSession(page);
     expect(stored).toBeTruthy();
@@ -216,19 +225,25 @@ test.describe('Session goals', () => {
 
     await paintUntilFirstGoalDone(page, card, 3);
 
-    await expect.poll(async () => card.evaluate((element) => [
-      element.getAttribute('data-goal-id'),
-      element.getAttribute('data-goal-status'),
-      element.getAttribute('data-painted'),
-      element.getAttribute('data-celebration'),
-    ].join('|')), { timeout: 30000 }).toBe('picture|running|true|completed');
-
-    const celebration = await card.evaluate((element) => ({
-      goalId: element.getAttribute('data-goal-id'),
-      status: element.getAttribute('data-goal-status'),
-      painted: element.getAttribute('data-painted'),
-      text: element.textContent,
-    }));
+    let celebration;
+    await expect.poll(async () => {
+      celebration = await card.evaluate((element) => ({
+        goalId: element.getAttribute('data-goal-id'),
+        status: element.getAttribute('data-goal-status'),
+        painted: element.getAttribute('data-painted'),
+        celebration: element.getAttribute('data-celebration'),
+        text: element.textContent,
+      }));
+      return celebration;
+    }, {
+      timeout: 30000,
+      message: 'completed first session goal snapshot did not reach the expected server-backed celebration state',
+    }).toMatchObject({
+      goalId: 'picture',
+      status: 'running',
+      painted: 'true',
+      celebration: 'completed',
+    });
     await expect(page.locator('.session-goal-celebration')).toBeVisible();
     await expect(page.locator('.completion-overlay')).toHaveCount(0);
 
@@ -236,6 +251,7 @@ test.describe('Session goals', () => {
     expect(celebration.goalId).toBe('picture');
     expect(celebration.status).toBe('running');
     expect(celebration.painted).toBe('true');
+    expect(celebration.celebration).toBe('completed');
     expect(celebration.text).toContain(`+${serverXp} XP`);
     expect(celebration.text).toContain('подтверждено сервером');
     expect(celebration.text).toContain('Вся картина');
@@ -289,7 +305,7 @@ test.describe('Session goals', () => {
 
     const player = page.locator('.player-page');
     await expect(player).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.coloring-session')).toHaveAttribute('data-core-feel-variant', 'b');
+    await waitForColoringSessionReady(page, { 'data-core-feel-variant': 'b' }, 'core feel goal override');
     await expect(player).toHaveAttribute('data-session-goals-mode', 'control');
     await expect(player).toHaveAttribute('data-session-goals-visible', 'false');
     await expect(page.locator('.session-goal-card')).toHaveCount(0);
