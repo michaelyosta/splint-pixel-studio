@@ -1,4 +1,5 @@
 import { useMemo, useRef } from 'react';
+import { formatPaletteState } from '../../lib/accessibility.js';
 
 const LONG_PRESS_MS = 450;
 
@@ -40,11 +41,21 @@ export default function ColoringPalette({ template, filled, selectedColor, onSel
   }
 
   return (
-    <div className="palette" aria-label="Палитра цветов">
+    <div className="palette" role="radiogroup" aria-label="Палитра цветов">
       {colorInfo.map((info) => (
         <button
           key={info.index}
           className={`color-swatch ${selectedColor === info.index ? 'selected' : ''} ${info.completed ? 'completed' : ''}`}
+          role="radio"
+          aria-checked={selectedColor === info.index}
+          aria-label={formatPaletteState({
+            index: info.index,
+            remaining: info.remaining,
+            selected: selectedColor === info.index,
+            completed: info.completed,
+            disabled,
+          })}
+          data-state={disabled ? 'disabled' : info.completed ? 'completed' : selectedColor === info.index ? 'selected' : 'available'}
           onClick={() => {
             if (disabled) return;
             if (suppressClickRef.current) {

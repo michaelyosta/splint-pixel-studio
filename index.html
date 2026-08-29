@@ -7,10 +7,20 @@
     <meta name="theme-color" content="#070D16" />
     <title>Splint Pixel Studio — пиксельные раскраски по номерам</title>
     <meta name="description" content="Splint Pixel Studio — уютная студия пиксельных раскрасок по номерам внутри Telegram Mini App." />
+    <style>
+      html, body { background: #04080E; }
+      body { margin: 0; min-height: 100vh; color: #E8F5FA; font-family: system-ui, sans-serif; }
+      #root { min-height: 100vh; }
+      .boot-shell { min-height: 100vh; display: grid; place-items: center; background: #04080E; color: #9BB4C2; }
+      .boot-shell__card { display: grid; gap: 10px; justify-items: center; padding: 28px; text-align: center; }
+      .boot-shell__mark { width: 42px; height: 42px; border: 2px solid #2BD9FE; border-radius: 12px; box-shadow: 0 0 28px rgba(43,217,254,.24); }
+      .boot-shell__title { color: #E8F5FA; font-weight: 700; letter-spacing: .16em; }
+      .boot-shell__status { font-size: 13px; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <div id="root"><div class="boot-shell" data-boot-shell role="status" aria-live="polite"><div class="boot-shell__card"><span class="boot-shell__mark" aria-hidden="true"></span><span class="boot-shell__title">SPLINT</span><span class="boot-shell__status">Восстанавливаем последнюю сессию…</span></div></div></div>
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

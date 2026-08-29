@@ -1,5 +1,7 @@
 # Benchmark больших сеток
 
+> Статус: исторический benchmark от 01.08.2026. Вывод «оставить лимит 160×160» устарел: с тех пор добавлены миграции `017–022`, tiled-контракт для сеток до `1200×1200` и tiled-плеер с E2E. Актуальное состояние — [GRID_TILED_CHECKPOINT.md](GRID_TILED_CHECKPOINT.md), [TILED_PLAYER_UX_CHECKPOINT.md](TILED_PLAYER_UX_CHECKPOINT.md), [TILED_STROKE_ENGINE.md](TILED_STROKE_ENGINE.md).
+
 Дата проверки: 01.08.2026  
 Checkout: `main` + существующая незакоммиченная рабочая копия  
 Commit исходного кода: `782110afe05bb98936afd64a96c74171f658b306`

@@ -1,6 +1,41 @@
 # Реестр findings: повторная проверка
 
-## Текущий снимок
+## Текущий снимок (08.08.2026)
+
+Проверено на HEAD `37180e0ca2b0e793ad42814d7a7f7df760b4872a` (ветка `codex/tiled-player-1200`); baseline `main` — `origin/main` `68d751e1da35de3bfd92f6bec382f0af830ac502`. Снимок от 01.08.2026 ниже сохранён как история.
+
+| Статус | Количество |
+|---|---:|
+| resolved | 12 |
+| partially_resolved | 3 |
+| open | 0 |
+| requires_environment_validation | 1 |
+| in_progress | 0 |
+
+| ID | Текущий статус | Проверяемое доказательство | Остаточный риск |
+|---|---|---|---|
+| SEC-001 | resolved | Root/server audits 0 vulnerabilities; local MinIO media lifecycle. | cloud S3/IAM/XML edge cases |
+| SEC-002 | resolved | Прямой unlock запрещён; API test ожидает 403. | real game-event smoke |
+| SEC-003 | partially_resolved | actions проверяют каждый цвет по серверному шаблону; PUT отключён. | автоматизация допустимых действий |
+| SEC-004 | resolved | Canonical renderer + render outbox; `resultDataUrl` не сохраняется как artwork. | production storage runtime |
+| SEC-005 | partially_resolved | `safeLocalPath`, PNG decode/dimension/pixel limits, MinIO canonical media tests. | cloud ACL/retry/lifecycle |
+| SEC-006 | partially_resolved | Global IP limiter + durable `abuse_counters` для comments/messages; route limits для posts/follows/reports. | не все routes покрыты persistent per-actor policy |
+| SEC-007 | resolved | Future `auth_date` отклоняется. | real Telegram WebView |
+| SEC-008 | resolved | Allowlist + 4096-byte payload limit. | нет отдельной user quota |
+| SEC-009 | resolved | Production CORS/proxy validation и тесты. | actual domain/proxy |
+| SEC-010 | resolved | Telegram-owned profile refresh при каждом входе. | real WebView lifecycle |
+| SEC-011 | resolved | `/meta/streak/touch` возвращает 403. | — |
+| SEC-012 | requires_environment_validation | Production config требует Telegram/PG/S3/proxy; disposable PG/MinIO прошли. | production deployment |
+| SEC-013 | resolved | Reporting dedupe/limit/audit; PostgreSQL concurrency проходил на disposable. | production topology |
+| SEC-014 | resolved | `/users` role-guarded; public DTO без финансовых полей. | deployed PG |
+| SEC-015 | resolved | Non-owner artworks ограничены active public posts. | deployed PG |
+| SEC-016 | resolved | `requireActiveUser()` блокирует banned accounts. | multi-instance production |
+
+OPS-006 → `resolved`: повторный seed идемпотентен, obsolete catalog помечается `hidden`; тесты — `server/test/database.test.js` и `server/test/postgres-demo-seed.test.js`.
+
+Локальные проверки 08.08.2026: `npm test` — `283/283` при изолированном прогоне (timing-флаки `createBoundedAnnouncer` один раз упал при параллельной нагрузке, изолированно 5/5); `npm --prefix server test` — `295` total, `229 passed`, `65 skipped`, `1 failed` (`server/test/director.test.js`, «director exclude keeps the current artwork out of the next action»); lint `93/100`, build зелёный. Миграции — `001–022`. E2E в этом проходе не запускался; последние зафиксированные E2E-гейты — [TILED_PLAYER_UX_CHECKPOINT.md](TILED_PLAYER_UX_CHECKPOINT.md).
+
+## Текущий снимок (01.08.2026, исторический)
 
 Проверено 01.08.2026 на `main`, commit `782110afe05bb98936afd64a96c74171f658b306`. PR [#10](https://github.com/michaelyosta/splint-pixel-studio/pull/10) уже смержен через `bf70ef3`; старые строки о draft PR сохранены ниже как история и не описывают текущий main.
 
@@ -158,3 +193,19 @@
 - Дефолтные E2E-порты перенесены с dev-портов 5173/3001 на 5190/3012, поэтому штатный `npm run test:e2e` не конфликтует с обычными `npm run dev` и `npm run dev:api`.
 - Подтверждение на Windows: `npm run test:e2e` — **107 passed, 4 skipped, 0 failed**, exit 0 за 4,5 минуты. Skips — desktop-only wheel/free-exploration сценарии на двух мобильных профилях.
 - До merge этой ветки `FUNC-001` и `OPS-004` сохраняют статус `in_progress` относительно `main`; после merge обычный E2E запуск может стать обязательным CI-gate.
+
+## RC verification addendum (2026-08-02, historical)
+
+This addendum supersedes stale historical snapshots above. The current external verdict is `infrastructure_rc_partially_verified`.
+
+| Area | Current evidence | Remaining risk |
+|---|---|---|
+| Canonical completion/media | Server-side template+progress rendering, forged-client-result regression, deterministic artwork/thumbnail retry, publish readiness, plain canonical S3 key resolution, and disposable object recovery smoke are verified | no durable render outbox; production IAM/CDN/retention pending |
+| Durable progress | Journal scoping, bounded replay, flush/dispose ordering, and shutdown rejection are unit-tested | real Telegram/mobile lifecycle pending |
+| Migrations 010-014 | PostgreSQL clean/repeat/legacy/checksum paths passed; 14 applied then 14 skipped | Production-sized lock/data rehearsal pending |
+| Social and abuse | PostgreSQL CAS, payment/message concurrency, report concurrency, rollback and abuse SQL tests passed | Multi-instance scale and shared production store calibration pending |
+| External gates | Disposable PostgreSQL/MinIO, media sweep, database and object backup/restore, `/live`, readiness, and POSIX graceful shutdown passed | Telegram WebView, production credentials/IAM/retention, target-runtime deployment behavior |
+
+Exact results: root 201 passed; clean server aggregate 223 total with 167 passed and 56 skipped; external PostgreSQL 91 passed, 0 skipped; MinIO/S3 2 passed; E2E 110 passed, 4 skipped; syntax 44 files; lint 89 warnings/100; audits 0 vulnerabilities. See [remediation/FINAL_REPORT.md](remediation/FINAL_REPORT.md) and [remediation/EXTERNAL_VALIDATION.md](remediation/EXTERNAL_VALIDATION.md).
+
+The historical findings and counts above are retained for audit traceability only and are not current release evidence.

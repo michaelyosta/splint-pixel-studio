@@ -1,0 +1,100 @@
+{
+  "capturedAt": "2026-08-09T18:14:57.531Z",
+  "project": "chromium",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "fixture": {
+    "template_id": "color_f4ac5e1d-b638-46b9-9e03-a3f069033fb5",
+    "grid": "160x160"
+  },
+  "resolved": [
+    {
+      "kind": "spark",
+      "special_id": "sc_0e2461d921229b73",
+      "cell_index": 300
+    },
+    {
+      "kind": "bomb",
+      "special_id": "sc_9799e6b14af14098",
+      "cell_index": 4768
+    },
+    {
+      "kind": "fuse",
+      "special_id": "sc_2a3c19c0e32f9468",
+      "cell_index": 10054
+    },
+    {
+      "kind": "choice",
+      "special_id": "sc_6b8e837d6cef094c",
+      "cell_index": 637
+    }
+  ],
+  "evidence": [
+    {
+      "kind": "spark",
+      "phase": "offer",
+      "offer_kind": "spark",
+      "offer_in_viewport": true,
+      "canvas_in_viewport": true,
+      "canvas_count": 1
+    },
+    {
+      "kind": "spark",
+      "phase": "canvas-return",
+      "offers": 0,
+      "discoveredChip": 1,
+      "canvasVisible": true,
+      "canvasInViewport": true
+    },
+    {
+      "kind": "bomb",
+      "phase": "offer",
+      "offer_kind": "bomb",
+      "offer_in_viewport": true,
+      "canvas_in_viewport": true,
+      "canvas_count": 1
+    },
+    {
+      "kind": "bomb",
+      "phase": "canvas-return",
+      "offers": 0,
+      "discoveredChip": 1,
+      "canvasVisible": true,
+      "canvasInViewport": true
+    },
+    {
+      "kind": "fuse",
+      "phase": "offer",
+      "offer_kind": "fuse",
+      "offer_in_viewport": true,
+      "canvas_in_viewport": true,
+      "canvas_count": 1
+    },
+    {
+      "kind": "fuse",
+      "phase": "canvas-return",
+      "offers": 0,
+      "discoveredChip": 1,
+      "canvasVisible": true,
+      "canvasInViewport": true
+    },
+    {
+      "kind": "choice",
+      "phase": "offer",
+      "offer_kind": "choice",
+      "offer_in_viewport": true,
+      "canvas_in_viewport": true,
+      "canvas_count": 1
+    },
+    {
+      "kind": "choice",
+      "phase": "canvas-return",
+      "offers": 0,
+      "discoveredChip": 1,
+      "canvasVisible": true,
+      "canvasInViewport": true
+    }
+  ]
+}

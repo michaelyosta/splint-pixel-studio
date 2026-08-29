@@ -5,6 +5,8 @@ import { all, get, run } from '../db.js';
 import { authMiddleware, hasProfanity, hasUrl } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
 import { createReport, sendReportError } from '../services/reporting.js';
+import { getDb } from '../db.js';
+import { isUniqueConstraintError } from '../database/sql.js';
 
 const router = Router();
 
@@ -34,6 +36,7 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
   if (!artwork) return res.status(404).json({ error: 'Работа не найдена' });
   if (artwork.owner_id !== userId) return res.status(403).json({ error: 'Эту работу нельзя опубликовать: она принадлежит другому автору' });
   if (!artwork.is_completed) return res.status(400).json({ error: 'Работа ещё не завершена' });
+  if (artwork.render_status && artwork.render_status !== 'ready') return res.status(409).json({ error: 'Результат ещё обрабатывается', code: 'ARTWORK_NOT_READY' });
 
   const alreadyPublished = await get("SELECT id FROM posts WHERE artwork_id=? AND status!='deleted'", [artworkId]);
   if (alreadyPublished) return res.status(409).json({ error: 'Вы уже публиковали эту работу' });
@@ -59,11 +62,18 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
   const id  = `post_${uuid()}`;
   const type = postType || (artwork.collection_id ? 'collection_art' : 'user_art');
 
-  await run(`INSERT INTO posts (id,author_id,artwork_id,achievement_id,post_type,title,caption,
-    comments_enabled,visibility,status,like_count,comment_count,published_at,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, userId, artworkId, null, type, title || artwork.title, clean,
-     commentsEnabled ? 1 : 0, 'public', 'active', 0, 0, now, now, now]);
+  try {
+    await run(`INSERT INTO posts (id,author_id,artwork_id,achievement_id,post_type,title,caption,
+      comments_enabled,visibility,status,like_count,comment_count,published_at,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id, userId, artworkId, null, type, title || artwork.title, clean,
+       commentsEnabled ? 1 : 0, 'public', 'active', 0, 0, now, now, now]);
+  } catch (error) {
+    if (isUniqueConstraintError(error, getDb().mode)) {
+      return res.status(409).json({ error: 'Эта работа уже опубликована', code: 'ARTWORK_ALREADY_PUBLISHED' });
+    }
+    throw error;
+  }
 
   const post = await get('SELECT * FROM posts WHERE id=?', [id]);
   res.status(201).json(await enrichPost(post, userId));

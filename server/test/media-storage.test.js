@@ -2,6 +2,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 const originalStorageRoot = process.env.MEDIA_STORAGE_ROOT;
@@ -60,6 +61,25 @@ describe('media-storage local driver safety', () => {
     await mod.deletePrivateOriginal(mediaKey);
   });
 
+  it('deduplicates identical private originals for one owner', async () => {
+    const first = await mod.storePrivateOriginal(validDataUrl, 'user_duplicate');
+    const second = await mod.storePrivateOriginal(validDataUrl, 'user_duplicate');
+    assert.equal(second, first, 'identical uploads must reuse the content-addressed key');
+    const files = await readdir(join(testDir, 'originals', 'user_duplicate'));
+    assert.equal(files.length, 1, 'duplicate uploads must leave one object');
+    await mod.deletePrivateOriginal(first);
+  });
+
+  it('reads and deletes a canonical object through its database key', async () => {
+    const key = 'artworks/user_test/canonical.png';
+    const body = Buffer.from('canonical-object');
+    const stored = await mod.storeMediaObject({ key, body, contentType: 'image/png' });
+    assert.equal(stored, `local://${key}`);
+    assert.deepEqual(await mod.readMediaObject(key), body);
+    await mod.deleteMediaObject(key);
+    await assert.rejects(mod.readMediaObject(key));
+  });
+
   it('double delete does not throw', async () => {
     const mediaKey = await mod.storePrivateOriginal(validDataUrl, 'user_test2');
     await mod.deletePrivateOriginal(mediaKey);
@@ -77,6 +97,13 @@ describe('media-storage local driver safety', () => {
   it('rejects invalid data URL', async () => {
     await assert.rejects(
       mod.storePrivateOriginal('not-a-data-url', 'user_test'),
+      { message: 'Unsupported or oversized source image' },
+    );
+  });
+
+  it('rejects a malformed image with a valid data URL prefix', async () => {
+    await assert.rejects(
+      mod.storePrivateOriginal('data:image/png;base64,not-a-real-png', 'user_test'),
       { message: 'Unsupported or oversized source image' },
     );
   });

@@ -13,6 +13,16 @@ const port = 31901;
 const baseUrl = `http://127.0.0.1:${port}`;
 const validPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
+async function stopServer(server) {
+  if (server.exitCode !== null) return;
+  const exited = new Promise((resolve) => server.once('exit', resolve));
+  server.kill();
+  await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 5_000)),
+  ]);
+}
+
 async function request(path, { userId = 'user_pixelhunter', method = 'GET', body } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
     method,
@@ -32,7 +42,7 @@ test('coloring progress can become a social post', async (t) => {
   });
 
   t.after(async () => {
-    server.kill();
+    await stopServer(server);
     await rm(directory, { recursive: true, force: true });
   });
 
@@ -51,6 +61,12 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(catalog.response.status, 200);
   assert.equal(catalog.json.length, 6);
   assert.ok(catalog.json.every((item) => item.preview_url.includes('/assets/catalog/')));
+  assert.ok(catalog.json.every((item) => item.content_metadata?.schema_version === 'content-metadata.v1'));
+  assert.ok(catalog.json.every((item) => item.content_metadata?.duration?.label && item.content_metadata?.complexity?.label));
+  const collections = await request('/meta/collections');
+  assert.equal(collections.response.status, 200);
+  assert.ok(collections.json.length > 0);
+  assert.ok(collections.json.every((collection) => collection.content_metadata?.schema_version === 'content-metadata.v1'));
 
   const me = await request('/users/me');
   assert.equal(me.response.status, 200);
@@ -74,6 +90,24 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(validAnalytics.response.status, 200);
   const smartEngineAnalytics = await request('/meta/analytics', { method: 'POST', body: { event: 'camera_activate_target', payload: { templateId: 'catalog_fox' } } });
   assert.equal(smartEngineAnalytics.response.status, 200);
+  for (const event of ['special_cell_discovered', 'powerup_received', 'powerup_used', 'special_action_selected']) {
+    const specialAnalytics = await request('/meta/analytics', {
+      method: 'POST',
+      body: {
+        event,
+        payload: {
+          template_id: 'catalog_fox',
+          session_id: 'fixture-session',
+          special_id: 'sc_fixture',
+          kind: 'spark',
+          action: 'use_spark',
+          revision: 1,
+          experiment_group: 'treatment',
+        },
+      },
+    });
+    assert.equal(specialAnalytics.response.status, 200, `${event} must remain accepted`);
+  }
 
   const publicProfile = await request('/users/user_lenaart/profile');
   assert.equal(publicProfile.response.status, 200);
@@ -83,11 +117,12 @@ test('coloring progress can become a social post', async (t) => {
 
   const custom = await request('/colorings/create', {
     method: 'POST',
-    body: { title: 'Private import', width: 8, height: 8, palette: ['#102030', '#00b5d8'], cells: Array.from({ length: 64 }, (_, index) => index % 2), previewDataUrl: validPng, originalDataUrl: validPng },
+    body: { title: 'Private import', width: 8, height: 8, palette: ['#102030', '#00b5d8'], cells: Array(64).fill(0), previewDataUrl: validPng, originalDataUrl: validPng },
   });
   assert.equal(custom.response.status, 201);
   assert.equal(custom.json.visibility, 'private');
   assert.equal(custom.json.source_stored, true);
+  assert.equal(custom.json.preview_url, null, 'new user previews must not be persisted as base64 in the database');
 
   const maxGrid = await request('/colorings/create', {
     method: 'POST',
@@ -103,18 +138,53 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(maxGrid.json.width, 160);
   assert.equal(maxGrid.json.height, 160);
 
+  const tiledGrid = await request('/colorings/create', {
+    method: 'POST',
+    body: {
+      title: 'Tiled preview contract',
+      width: 32,
+      height: 32,
+      palette: ['#102030', '#00b5d8'],
+      storageMode: 'tiled',
+      tileSize: 32,
+      tiles: [{ x: 0, y: 0, width: 32, height: 32, cells: Array(32 * 32).fill(0) }],
+      previewDataUrl: validPng,
+    },
+  });
+  assert.equal(tiledGrid.response.status, 201);
+  assert.equal(tiledGrid.json.preview_url, validPng);
+  const tiledManifest = await request(`/colorings/${tiledGrid.json.id}/manifest`);
+  assert.equal(tiledManifest.response.status, 200);
+  assert.equal(tiledManifest.json.template.preview_url, validPng);
+  const tiledProgress = await request(`/colorings/${tiledGrid.json.id}/progress`);
+  assert.equal(tiledProgress.response.status, 200);
+  assert.equal(tiledProgress.json.completion_reward_xp, 0);
+
   const tooLargeGrid = await request('/colorings/create', {
     method: 'POST',
     body: { title: 'Too large', width: 161, height: 161, palette: ['#102030', '#00b5d8'], cells: Array(161 * 161).fill(0) },
   });
-  assert.equal(tooLargeGrid.response.status, 400);
+  assert.equal(tooLargeGrid.response.status, 422);
+  assert.equal(tooLargeGrid.json.code, 'INCOMPLETE_TILED_TEMPLATE');
+
+  const tooComplex = await request('/colorings/create', {
+    method: 'POST',
+    body: { title: 'Checkerboard import', width: 8, height: 8, palette: ['#102030', '#00b5d8'], cells: Array.from({ length: 64 }, (_, index) => index % 2) },
+  });
+  assert.equal(tooComplex.response.status, 201);
+
+  const rejectedPublication = await request(`/colorings/${tooComplex.json.id}/visibility`, {
+    method: 'PATCH',
+    body: { visibility: 'public' },
+  });
+  assert.equal(rejectedPublication.response.status, 422);
+  assert.equal(rejectedPublication.json.code, 'TEMPLATE_TOO_COMPLEX');
 
   const published = await request(`/colorings/${custom.json.id}/visibility`, {
     method: 'PATCH',
     body: { visibility: 'public' },
   });
   assert.equal(published.response.status, 200);
-  assert.equal(published.json.visibility, 'public');
 
   const ownerRating = await request(`/colorings/${custom.json.id}/rating`, {
     method: 'PUT',
@@ -149,6 +219,7 @@ test('coloring progress can become a social post', async (t) => {
 
   const template = await request(`/colorings/${catalog.json[0].id}`);
   assert.equal(template.response.status, 200);
+  assert.equal(template.json.content_metadata?.schema_version, 'content-metadata.v1');
   const progress = await request(`/colorings/${catalog.json[0].id}/progress`);
   assert.equal(progress.json.percent, 0);
 
@@ -181,12 +252,28 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(completed.json.percent, 100);
   assert.ok(completed.json.artwork_id);
 
+  const finalChanges = template.json.cells.slice(-64).map((color, index) => ({ index: template.json.cells.length - 64 + index, color }));
+  const replay = await request(`/colorings/${catalog.json[0].id}/progress/actions`, {
+    method: 'POST',
+    body: { changes: finalChanges, revision: revision - 1, resultDataUrl: validPng },
+  });
+  assert.equal(replay.response.status, 200);
+  assert.equal(replay.json.idempotent, true);
+  assert.equal(replay.json.artwork_id, completed.json.artwork_id, 'replayed completion must not create a second artwork');
+
   const post = await request('/posts/create', {
     method: 'POST',
     body: { artworkId: completed.json.artwork_id, title: 'Test completion', caption: 'Painted in an integration test', commentsEnabled: true },
   });
   assert.equal(post.response.status, 201);
-  assert.equal(post.json.artwork.image_url, validPng);
+  assert.match(post.json.artwork.image_url, /^\/media\/artworks\//);
+  assert.doesNotMatch(post.json.artwork.image_url, /^data:image\//);
+
+  const duplicatePost = await request('/posts/create', {
+    method: 'POST',
+    body: { artworkId: completed.json.artwork_id, title: 'Duplicate publication attempt' },
+  });
+  assert.equal(duplicatePost.response.status, 409);
 
   const comment = await request(`/posts/${post.json.id}/comments`, {
     userId: 'user_lenaart',
@@ -199,8 +286,10 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(liked.json.is_liked, true);
 
   const feed = await request('/feed/recommended', { userId: 'user_lenaart' });
-  const feedPost = feed.json.find((item) => item.id === post.json.id);
+  const feedPost = feed.json.items.find((item) => item.id === post.json.id);
   assert.ok(feedPost);
+  assert.match(feedPost.artwork.image_url, /^\/media\/thumbnails\//);
+  assert.doesNotMatch(JSON.stringify(feedPost), /data:image\//);
   assert.equal(feedPost.comment_count, 1);
   assert.equal(feedPost.is_liked, true);
 

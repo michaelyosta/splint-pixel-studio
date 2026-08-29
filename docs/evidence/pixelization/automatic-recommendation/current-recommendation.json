@@ -1,0 +1,434 @@
+{
+  "schemaVersion": "pixelization-recommendation.v1",
+  "policyVersion": "pixelization-routing-v1",
+  "generatedAt": "2026-08-20T17:11:51.561Z",
+  "source": {
+    "schemaVersion": "pixelization-evaluation-run.v2",
+    "generatedAt": "2026-08-20T17:11:39.295Z",
+    "gitCommit": "091a9c683919a1a0808f1af6d58cb9d9b6272b28",
+    "manifest": "scripts/pixelization-eval/corpus/representative-candidate-corpus.json"
+  },
+  "logicalResolution": {
+    "note": "Each recommendation applies to the exact logical width×height pair. A render/preview scale must not be treated as extra paintable logical detail.",
+    "paintableLimit": "paintable-v1 is bounded at 512×512 logical cells; larger requests remain classic unless a separately evaluated pipeline exists."
+  },
+  "renderResolution": {
+    "previewWidth": 320,
+    "previewHeight": 320,
+    "note": "Preview dimensions affect presentation only. They do not change the returned logical cells, predicted effort or paintability."
+  },
+  "policy": {
+    "minEffortImprovementRelative": -0.1,
+    "maxEffortRegressionRelative": 0.05,
+    "maxEdgeRecallDrop": 0.03,
+    "maxEdgePrecisionDrop": 0.03,
+    "maxMeanDeltaEIncrease": 0.75,
+    "maxTinyAreaIncrease": 0.005,
+    "maxTransitionRatioIncrease": 0.01
+  },
+  "counts": {
+    "classic": 12,
+    "paintable": 2
+  },
+  "statusCounts": {
+    "human-review": 12,
+    "provisional-positive": 2
+  },
+  "humanReviewCount": 12,
+  "entries": [
+    {
+      "image": "animal-iguana-venezuela",
+      "category": "animal",
+      "width": 192,
+      "height": 192,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "effort-regression",
+          "boundary-fragmentation-increase"
+        ],
+        "deltas": {
+          "effortRelative": 0.40588235294117647,
+          "edgeRecall": 0.08836206896551724,
+          "edgePrecision": -0.006718361945983298,
+          "meanDeltaE": -0.11611397790046674,
+          "tinyAreaRatio": -0.00021701388888888855,
+          "transitionRatio": 0.01886998254799302,
+          "regions4Relative": 0.42857142857142855,
+          "runtimeRelative": -0.17618222614946236
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "animal-iguana-venezuela",
+      "category": "animal",
+      "width": 512,
+      "height": 512,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "edge-recall-drop"
+        ],
+        "deltas": {
+          "effortRelative": -0.701796728345401,
+          "edgeRecall": -0.09634449630361464,
+          "edgePrecision": 0.01260026828522176,
+          "meanDeltaE": -0.4889751844059447,
+          "tinyAreaRatio": -0.00772857666015625,
+          "transitionRatio": -0.02433953033268102,
+          "regions4Relative": -0.703494623655914,
+          "runtimeRelative": -0.04541134217901154
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "gradient-golden-gate-fog",
+      "category": "gradient",
+      "width": 192,
+      "height": 192,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "edge-recall-drop"
+        ],
+        "deltas": {
+          "effortRelative": -0.17857142857142858,
+          "edgeRecall": -0.03525804803270316,
+          "edgePrecision": -0.021032973656930076,
+          "meanDeltaE": -0.011735953444763858,
+          "tinyAreaRatio": -0.0008409288194444444,
+          "transitionRatio": -0.00008180628272251578,
+          "regions4Relative": -0.1941747572815534,
+          "runtimeRelative": -0.001127719962157055
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "gradient-golden-gate-fog",
+      "category": "gradient",
+      "width": 512,
+      "height": 512,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "edge-recall-drop"
+        ],
+        "deltas": {
+          "effortRelative": -0.49344978165938863,
+          "edgeRecall": -0.052892357240183374,
+          "edgePrecision": -0.019390012307459736,
+          "meanDeltaE": 0.034538172239876985,
+          "tinyAreaRatio": -0.00075531005859375,
+          "transitionRatio": -0.001064472235812134,
+          "regions4Relative": -0.5033407572383074,
+          "runtimeRelative": -0.07625131817071809
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "illustration-paint-brush",
+      "category": "simple-illustration",
+      "width": 192,
+      "height": 192,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "paintable",
+        "status": "provisional-positive",
+        "confidence": "medium",
+        "reasons": [
+          "effort-improvement-within-guardrails"
+        ],
+        "deltas": {
+          "effortRelative": -0.2915129151291513,
+          "edgeRecall": -0.02681827933919756,
+          "edgePrecision": 0.020735517376803125,
+          "meanDeltaE": 0.18612799953916692,
+          "tinyAreaRatio": -0.00393337673611111,
+          "transitionRatio": -0.0030677356020942376,
+          "regions4Relative": -0.2964352720450281,
+          "runtimeRelative": 0.0017389073928082892
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "illustration-paint-brush",
+      "category": "simple-illustration",
+      "width": 512,
+      "height": 512,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "edge-recall-drop"
+        ],
+        "deltas": {
+          "effortRelative": -0.316588785046729,
+          "edgeRecall": -0.05542986425339369,
+          "edgePrecision": 0.01259520966522154,
+          "meanDeltaE": 0.04310472859037873,
+          "tinyAreaRatio": -0.002285003662109375,
+          "transitionRatio": -0.001943569593933464,
+          "regions4Relative": -0.3182618907809748,
+          "runtimeRelative": -0.11812499585800892
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "landscape-utah-dunes",
+      "category": "landscape",
+      "width": 192,
+      "height": 192,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "boundary-fragmentation-increase"
+        ],
+        "deltas": {
+          "effortRelative": -0.021505376344086023,
+          "edgeRecall": 0.1392136025504782,
+          "edgePrecision": 0.0049613119942503725,
+          "meanDeltaE": -0.289929895842862,
+          "tinyAreaRatio": -0.0010036892361111112,
+          "transitionRatio": 0.011248363874345552,
+          "regions4Relative": -0.023809523809523808,
+          "runtimeRelative": -0.014554171210208822
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "landscape-utah-dunes",
+      "category": "landscape",
+      "width": 512,
+      "height": 512,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "paintable",
+        "status": "provisional-positive",
+        "confidence": "medium",
+        "reasons": [
+          "effort-improvement-within-guardrails"
+        ],
+        "deltas": {
+          "effortRelative": -0.511400651465798,
+          "edgeRecall": 0.04720336243129647,
+          "edgePrecision": -0.0134249147115032,
+          "meanDeltaE": -0.38600064743718576,
+          "tinyAreaRatio": -0.0006256103515625,
+          "transitionRatio": 0.005291783879647752,
+          "regions4Relative": -0.5268456375838926,
+          "runtimeRelative": -0.172955038927482
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "object-palm-wine-cup",
+      "category": "object",
+      "width": 192,
+      "height": 192,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "effort-regression"
+        ],
+        "deltas": {
+          "effortRelative": 0.22448979591836735,
+          "edgeRecall": 0.045263157894736894,
+          "edgePrecision": -0.017990841487901088,
+          "meanDeltaE": -0.2140165668113494,
+          "tinyAreaRatio": -0.0003255208333333333,
+          "transitionRatio": 0.004253926701570682,
+          "regions4Relative": 0.275,
+          "runtimeRelative": -0.006235302392288858
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "object-palm-wine-cup",
+      "category": "object",
+      "width": 512,
+      "height": 512,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "edge-precision-drop"
+        ],
+        "deltas": {
+          "effortRelative": -0.34074074074074073,
+          "edgeRecall": -0.008760402978537085,
+          "edgePrecision": -0.036384119959389144,
+          "meanDeltaE": -0.24997846456813022,
+          "tinyAreaRatio": -0.000324249267578125,
+          "transitionRatio": 0.003629143224070451,
+          "regions4Relative": -0.36507936507936506,
+          "runtimeRelative": -0.2493105596194735
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "portrait-jessica-meir",
+      "category": "portrait",
+      "width": 192,
+      "height": 192,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "edge-recall-drop"
+        ],
+        "deltas": {
+          "effortRelative": -0.4704225352112676,
+          "edgeRecall": -0.03815513626834388,
+          "edgePrecision": -0.000107744270350707,
+          "meanDeltaE": -0.08547420874917089,
+          "tinyAreaRatio": -0.008978949652777778,
+          "transitionRatio": -0.005099258289703312,
+          "regions4Relative": -0.4764621968616263,
+          "runtimeRelative": -0.3317212606160886
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "portrait-jessica-meir",
+      "category": "portrait",
+      "width": 512,
+      "height": 512,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "edge-recall-drop"
+        ],
+        "deltas": {
+          "effortRelative": -0.6869432425553575,
+          "edgeRecall": -0.12073404185094727,
+          "edgePrecision": 0.03373211539313836,
+          "meanDeltaE": -0.3139077413584346,
+          "tinyAreaRatio": -0.008525848388671875,
+          "transitionRatio": -0.019076412671232883,
+          "regions4Relative": -0.6885204081632653,
+          "runtimeRelative": -0.24894903242872504
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "silhouette-rat",
+      "category": "strong-silhouette",
+      "width": 192,
+      "height": 192,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "edge-recall-drop"
+        ],
+        "deltas": {
+          "effortRelative": -0.5839112343966713,
+          "edgeRecall": -0.0979410127991096,
+          "edgePrecision": -0.017232183015594926,
+          "meanDeltaE": -0.29847266598113054,
+          "tinyAreaRatio": -0.013264973958333334,
+          "transitionRatio": -0.0031086387434555024,
+          "regions4Relative": -0.5912921348314607,
+          "runtimeRelative": -0.07455848948966697
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    },
+    {
+      "image": "silhouette-rat",
+      "category": "strong-silhouette",
+      "width": 512,
+      "height": 512,
+      "baselineAdapter": "classic",
+      "candidateAdapter": "paintable",
+      "recommendation": {
+        "decision": "classic",
+        "status": "human-review",
+        "confidence": "low",
+        "reasons": [
+          "edge-recall-drop"
+        ],
+        "deltas": {
+          "effortRelative": -0.6452955870108243,
+          "edgeRecall": -0.10795273075694667,
+          "edgePrecision": -0.019776578486443222,
+          "meanDeltaE": -0.633630771882622,
+          "tinyAreaRatio": -0.003368377685546875,
+          "transitionRatio": 0.006912380748532294,
+          "regions4Relative": -0.6501677852348994,
+          "runtimeRelative": -0.10195285821372058
+        }
+      },
+      "source": "paired-comparison",
+      "panel": null
+    }
+  ],
+  "warnings": []
+}

@@ -140,6 +140,17 @@ export async function withDbTransaction(callback) {
   return withTransaction({ mode, pool, sqlite, persistFn: persist }, callback);
 }
 
+export async function closeDb() {
+  if (mode === 'sqlite') {
+    persist();
+    sqlite?.close();
+  }
+  if (mode === 'postgres') await pool?.end();
+  mode = null;
+  sqlite = null;
+  pool = null;
+}
+
 const ZONE_PRESETS = {
   'color_neon-cat': ['Фон ночного города', 'Уши и мордочка', 'Неоновые глаза', 'Передние лапы', 'Хвост с подсветкой', 'Звёздная пыль'],
   'color_astro-whale': ['Звёздное небо', 'Голова кита', 'Тело и плавники', 'Хвост-комета', 'Созвездия вокруг', 'Глубокий космос'],
@@ -177,7 +188,7 @@ export function buildZones(template) {
 
 export const ACHIEVEMENTS = [
   { id: 'ach_first_pixel', title: 'Первый мазок', description: 'Закрасьте первый пиксель.', category: 'ritual', icon: 'sparkles', rarity: 'common' },
-  { id: 'ach_first_zone', title: 'Зона закрыта', description: 'Завершите первый участок раскраски.', category: 'ritual', icon: 'target', rarity: 'common' },
+  { id: 'ach_first_zone', title: 'Зона закрыта', description: 'Завершите первую раскраску.', category: 'ritual', icon: 'target', rarity: 'common' },
   { id: 'ach_daily_3', title: 'Трёхдневка', description: 'Раскрашивайте 3 дня подряд.', category: 'streak', icon: 'flame', rarity: 'rare' },
   { id: 'ach_daily_7', title: 'Неделя ритма', description: 'Серия из 7 дней подряд.', category: 'streak', icon: 'flame', rarity: 'epic' },
   { id: 'ach_style_night', title: 'Ночной страж', description: 'Завершите 3 ночных раскраски.', category: 'style', icon: 'moon', rarity: 'rare' },
@@ -191,6 +202,138 @@ export const COLLECTIONS = [
   { id: 'col_night-city', title: 'Ночной город', pack_type: 'free', rarity: 'common', total_artworks: 6, image_url: '/assets/catalog/neon-cat-pixel.png' },
   { id: 'col_cozy-forest', title: 'Уютный лес', pack_type: 'free', rarity: 'common', total_artworks: 6, image_url: '/assets/catalog/lantern-fox-pixel.png' },
   { id: 'col_space', title: 'Космос', pack_type: 'free', rarity: 'rare', total_artworks: 6, image_url: '/assets/catalog/astro-whale-pixel.png' },
+];
+
+// Server-authoritative unlockable content seeded by bootstrapSystemData.
+// These rows use source_type='unlockable' so the legacy editorial catalog
+// stays byte-compatible; discovery happens through /unlocks and
+// /colorings/recommendations. Premium collections keep the existing
+// collection_ownerships purchase path and can never be granted by
+// progression rules.
+const UNLOCKABLE_COLLECTIONS = [
+  {
+    id: 'col_starter-path',
+    title: 'Путь новичка',
+    pack_type: 'free',
+    rarity: 'common',
+    total_artworks: 2,
+    price_in_stars: 0,
+    image_url: null,
+    description: 'Открывается прогрессией: второй уровень и первая завершённая раскраска.',
+    rules: [
+      { rule_type: 'level', target_value: '2', rule_order: 1 },
+      { rule_type: 'completed_artworks', target_value: '1', rule_order: 2 },
+    ],
+  },
+  {
+    id: 'col_premium-gallery',
+    title: 'Премиум-галерея',
+    pack_type: 'premium',
+    rarity: 'epic',
+    total_artworks: 2,
+    price_in_stars: 120,
+    image_url: null,
+    description: 'Покупается только за Stars. Прогрессия не обходит платный доступ.',
+    rules: [],
+  },
+  {
+    id: 'col_master-gallery',
+    title: 'Мастерская галерея',
+    pack_type: 'free',
+    rarity: 'rare',
+    total_artworks: 1,
+    price_in_stars: 0,
+    image_url: null,
+    description: 'Открывается после полного прохождения коллекции Путь новичка.',
+    rules: [
+      { rule_type: 'collection_completion', target_value: 'col_starter-path', rule_order: 1 },
+    ],
+  },
+];
+
+const UNLOCKABLE_TEMPLATES = [
+  {
+    id: 'color_starter_night',
+    title: 'Ночной огонь',
+    description: 'Тёплая ночная раскраска для первого шага.',
+    category: 'animals',
+    difficulty: 'easy',
+    theme: 'night-city',
+    mood: 'focus',
+    est_minutes: 4,
+    collection_id: 'col_starter-path',
+    width: 16,
+    height: 16,
+  },
+  {
+    id: 'color_starter_forest',
+    title: 'Лесной шаг',
+    description: 'Спокойный лесной сюжет.',
+    category: 'nature',
+    difficulty: 'easy',
+    theme: 'forest',
+    mood: 'calm',
+    est_minutes: 4,
+    collection_id: 'col_starter-path',
+    width: 16,
+    height: 16,
+  },
+  {
+    id: 'color_premium_whale',
+    title: 'Звёздный кит',
+    description: 'Премиум-раскраска в космической галерее.',
+    category: 'animals',
+    difficulty: 'medium',
+    theme: 'space',
+    mood: 'focus',
+    est_minutes: 6,
+    collection_id: 'col_premium-gallery',
+    width: 24,
+    height: 24,
+  },
+  {
+    id: 'color_premium_dragon',
+    title: 'Чайный дракон',
+    description: 'Премиум-раскраска с морским сюжетом.',
+    category: 'fantasy',
+    difficulty: 'medium',
+    theme: 'sea',
+    mood: 'calm',
+    est_minutes: 6,
+    collection_id: 'col_premium-gallery',
+    width: 24,
+    height: 24,
+  },
+  {
+    id: 'color_streak_badge',
+    title: 'Знак трёхдневной серии',
+    description: 'Открывается после трёх дней подряд.',
+    category: 'featured',
+    difficulty: 'easy',
+    theme: 'featured',
+    mood: 'calm',
+    est_minutes: 3,
+    collection_id: null,
+    width: 16,
+    height: 16,
+  },
+  {
+    id: 'color_master_dream',
+    title: 'Сон мастера',
+    description: 'Финальная раскраска в теме космоса.',
+    category: 'fantasy',
+    difficulty: 'hard',
+    theme: 'space',
+    mood: 'focus',
+    est_minutes: 9,
+    collection_id: 'col_master-gallery',
+    width: 32,
+    height: 32,
+  },
+];
+
+const UNLOCKABLE_TEMPLATE_RULES = [
+  { subject_type: 'template', subject_id: 'color_streak_badge', rule_type: 'streak', target_value: '3', rule_order: 1 },
 ];
 
 export async function bootstrapSystemData() {
@@ -240,6 +383,8 @@ export async function bootstrapSystemData() {
     [zones.length, template.collection_id || null, template.theme || 'featured', template.mood || 'calm', template.est_minutes || 3, template.daily_featured || 0, template.added_at || now, template.id]);
   }
 
+  await seedUnlockableContent(now);
+
   const brokenArtworks = await all("SELECT * FROM artworks WHERE image_url LIKE 'data:image/%' AND LENGTH(image_url) < 100");
   for (const artwork of brokenArtworks) {
     const template = artwork.template_id ? await get('SELECT preview_url FROM coloring_templates WHERE id=?', [artwork.template_id]) : null;
@@ -248,6 +393,59 @@ export async function bootstrapSystemData() {
     } else {
       await run("UPDATE posts SET status='deleted', updated_at=? WHERE artwork_id=?", [now, artwork.id]);
     }
+  }
+}
+
+async function seedUnlockableContent(now) {
+  const unlockAddedAt = '2026-07-01T00:00:00.000Z';
+  for (const collection of UNLOCKABLE_COLLECTIONS) {
+    await run(`INSERT INTO collections
+      (id,title,pack_type,rarity,total_artworks,price_in_stars,image_url,owner_id,status,visibility,description)
+      VALUES (?,?,?,?,?,?,?,NULL,'published','public',?)
+      ON CONFLICT(id) DO UPDATE SET
+        title=excluded.title, pack_type=excluded.pack_type, rarity=excluded.rarity,
+        total_artworks=excluded.total_artworks, price_in_stars=excluded.price_in_stars,
+        image_url=excluded.image_url, status='published', visibility='public',
+        description=excluded.description`,
+    [collection.id, collection.title, collection.pack_type, collection.rarity,
+      collection.total_artworks, collection.price_in_stars, collection.image_url, collection.description]);
+
+    for (const rule of collection.rules) {
+      await run(`INSERT INTO unlock_rules
+        (subject_type,subject_id,rule_type,target_value,rule_order,created_at)
+        VALUES (?,?,?,?,?,?)
+        ON CONFLICT (subject_type,subject_id,rule_type,target_value) DO UPDATE SET
+          rule_order=excluded.rule_order`,
+      ['collection', collection.id, rule.rule_type, rule.target_value, rule.rule_order, now]);
+    }
+  }
+
+  const palette = JSON.stringify(['#102030', '#00b5d8']);
+  for (const template of UNLOCKABLE_TEMPLATES) {
+    const cells = JSON.stringify(Array(template.width * template.height).fill(0));
+    await run(`INSERT INTO coloring_templates
+      (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,mood,theme,est_minutes,collection_id,daily_featured,added_at,created_at,updated_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,'unlockable','public','active',?,?,?,?,0,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET
+        title=excluded.title, description=excluded.description, category=excluded.category,
+        difficulty=excluded.difficulty, width=excluded.width, height=excluded.height,
+        palette_json=excluded.palette_json, cells_json=excluded.cells_json,
+        visibility='public', status='active', mood=excluded.mood, theme=excluded.theme,
+        est_minutes=excluded.est_minutes, collection_id=excluded.collection_id,
+        daily_featured=0, added_at=excluded.added_at, updated_at=excluded.updated_at`,
+    [template.id, null, template.title, template.description, template.category,
+      template.difficulty, template.width, template.height, palette, cells,
+      template.mood, template.theme, template.est_minutes, template.collection_id,
+      unlockAddedAt, now, now]);
+  }
+
+  for (const rule of UNLOCKABLE_TEMPLATE_RULES) {
+    await run(`INSERT INTO unlock_rules
+      (subject_type,subject_id,rule_type,target_value,rule_order,created_at)
+      VALUES (?,?,?,?,?,?)
+      ON CONFLICT (subject_type,subject_id,rule_type,target_value) DO UPDATE SET
+        rule_order=excluded.rule_order`,
+    [rule.subject_type, rule.subject_id, rule.rule_type, rule.target_value, rule.rule_order, now]);
   }
 }
 

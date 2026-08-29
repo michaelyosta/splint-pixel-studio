@@ -54,6 +54,12 @@ test('Async error handling', async (t) => {
     assert.equal(json.status, 'ok');
   });
 
+  await t.test('Liveness does not depend on database or object storage', async () => {
+    const response = await fetch(`${baseUrl}/live`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { status: 'alive' });
+  });
+
   await t.test('Error inside authMiddleware returns 500 without stack trace', async () => {
     const response = await fetch(`${baseUrl}/users/me`, {
       headers: { 'Content-Type': 'application/json', 'X-Test-Auth-Error': 'true' },

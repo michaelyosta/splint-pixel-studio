@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSaveQueue } from './progressSaveQueue.js';
+import {
+  createSaveQueue,
+  isIdempotentReplay,
+  isTerminalSpecialError,
+  mergeLegacyFilled,
+  offerFromProgress,
+} from './progressSaveQueue.js';
+
+function withoutBatch(call) {
+  const { clientBatchId: _clientBatchId, ...rest } = call;
+  return rest;
+}
 
 function nop() {}
 
@@ -32,7 +43,7 @@ test('Basic save calls putProgress with correct data', async () => {
   await tick(500);
 
   assert.equal(calls.length, 1, 'One API call made');
-  assert.deepEqual(calls[0], { filled: [0, 1, 2], revision: 0, resultDataUrl: 'data:test' });
+  assert.deepEqual(withoutBatch(calls[0]), { filled: [0, 1, 2], revision: 0, resultDataUrl: 'data:test' });
   assert.ok(capturedProgress, 'onProgress called');
   assert.deepEqual(savingStates, [true, false], 'saving went true then false');
   queue.dispose();
@@ -99,7 +110,7 @@ test('Last pending snapshot is not lost', async () => {
   await tick(600);
 
   assert.equal(calls.length, 2, 'Two saves total (first + coalesced latest)');
-  assert.deepEqual(calls[1], { filled: [4], revision: 1, resultDataUrl: 'data:latest' }, 'Latest snapshot sent with updated revision');
+  assert.deepEqual(withoutBatch(calls[1]), { filled: [4], revision: 1, resultDataUrl: 'data:latest' }, 'Latest snapshot sent with updated revision');
   queue.dispose();
 });
 
@@ -131,7 +142,7 @@ test('Multiple pending snapshots coalesce into latest', async () => {
   await tick(600);
 
   assert.equal(calls.length, 2, 'Exactly 2 calls (first + coalesced latest)');
-  assert.deepEqual(calls[1], { filled: [4], revision: 1, resultDataUrl: null }, 'Latest sent with updated revision');
+  assert.deepEqual(withoutBatch(calls[1]), { filled: [4], revision: 1, resultDataUrl: null }, 'Latest sent with updated revision');
   queue.dispose();
 });
 
@@ -348,7 +359,7 @@ test('Error of one snapshot does not block newer pending snapshot', async () => 
   await tick(600);
 
   assert.ok(calls.length >= 2, 'Second save was processed after first error');
-  assert.deepEqual(calls[calls.length - 1], { filled: [2], revision: 0, resultDataUrl: null });
+  assert.deepEqual(withoutBatch(calls[calls.length - 1]), { filled: [2], revision: 0, resultDataUrl: null });
   queue.dispose();
 });
 
@@ -390,7 +401,7 @@ test('Rapid changes before debounce only send latest', async () => {
   await tick(500);
 
   assert.equal(calls.length, 1, 'One call after rapid changes');
-  assert.deepEqual(calls[0], { filled: [4], revision: 0, resultDataUrl: null });
+  assert.deepEqual(withoutBatch(calls[0]), { filled: [4], revision: 0, resultDataUrl: null });
   queue.dispose();
 });
 
@@ -702,5 +713,413 @@ test('Stale success updates serverRevision even when UI is newer', async () => {
 
   assert.equal(calls.length, 2, 'Pending sent');
   assert.equal(calls[1].revision, 10, 'Pending used revision=10 from stale success');
+  queue.dispose();
+});
+
+test('legacy conflict merge applies local edits only where the server still matches base', () => {
+  const local = [1, 2, 3, 4];
+  const base = [0, 0, 0, 0];
+  const server = [9, 0, 0, 8];
+  const merged = mergeLegacyFilled({ local, base, server });
+  // index 0: server changed to 9 -> newer server wins
+  // index 1: server still base and local changed -> local wins
+  // index 2: server still base and local changed -> local wins
+  // index 3: server changed to 8 -> newer server wins
+  assert.deepEqual(merged, [9, 2, 3, 8]);
+});
+
+test('legacy conflict merge keeps server values for unchanged local cells', () => {
+  const merged = mergeLegacyFilled({
+    local: [0, 2, 0],
+    base: [0, 0, 0],
+    server: [7, 7, 7],
+  });
+  assert.deepEqual(merged, [7, 7, 7]);
+});
+
+test('legacy conflict merge ignores records without a base snapshot', () => {
+  const merged = mergeLegacyFilled({
+    local: [1, 2],
+    base: null,
+    server: [7, 8],
+  });
+  assert.deepEqual(merged, [7, 8], 'no base means no local stale overwrite');
+});
+
+test('legacy conflict merge rejects mismatched snapshot lengths', () => {
+  const merged = mergeLegacyFilled({
+    local: [1, 2, 3],
+    base: [0, 0, 0],
+    server: [7, 8],
+  });
+  assert.deepEqual(merged, [7, 8], 'server shape wins when lengths differ');
+});
+
+test('conflict retry merges against journal baseFilled and preserves specialAction', async () => {
+  const calls = [];
+  const journal = {
+    put: async () => {},
+    remove: async () => {},
+    list: async () => [{
+      key: 'batch-merge',
+      clientBatchId: 'batch-merge',
+      baseFilled: [0, 0, 0, 0],
+    }],
+  };
+  const queue = createSaveQueue({
+    putProgress: async (payload) => {
+      calls.push(payload);
+      if (calls.length === 1) {
+        const error = new Error('Conflict');
+        error.status = 409;
+        error.data = { progress: { revision: 5, filled: [9, 0, 0, 8] } };
+        throw error;
+      }
+      return { revision: 6 };
+    },
+    getResultDataUrl: () => 'data:merge',
+    onProgress: nop,
+    onNotice: nop,
+    onSaving: nop,
+    journal,
+  });
+
+  queue.reset(0);
+  queue.queueSave([1, 2, 3, 4], {
+    clientBatchId: 'batch-merge',
+    specialAction: { type: 'claim_spark', special_id: 'sc_x' },
+  });
+  await tick(500);
+  await tick(600);
+
+  assert.equal(calls.length, 2, 'original + one conflict retry');
+  assert.deepEqual(calls[1].filled, [9, 2, 3, 8], 'retry uses safe three-way merge');
+  assert.equal(calls[1].resultDataUrl, 'data:merge');
+  assert.deepEqual(calls[1].specialAction, { type: 'claim_spark', special_id: 'sc_x' });
+  queue.dispose();
+});
+
+test('conflict retry never stale-overwrites when journal has no baseFilled', async () => {
+  const calls = [];
+  const journal = {
+    put: async () => {},
+    remove: async () => {},
+    list: async () => [{
+      key: 'batch-old',
+      clientBatchId: 'batch-old',
+    }],
+  };
+  const queue = createSaveQueue({
+    putProgress: async (payload) => {
+      calls.push(payload);
+      if (calls.length === 1) {
+        const error = new Error('Conflict');
+        error.status = 409;
+        error.data = { progress: { revision: 5, filled: [7, 8] } };
+        throw error;
+      }
+      return { revision: 6 };
+    },
+    getResultDataUrl: () => null,
+    onProgress: nop,
+    onNotice: nop,
+    onSaving: nop,
+    journal,
+  });
+
+  queue.reset(0);
+  queue.queueSave([1, 2], {
+    clientBatchId: 'batch-old',
+    specialAction: { type: 'claim_spark', special_id: 'sc_x' },
+  });
+  await tick(500);
+  await tick(600);
+
+  assert.deepEqual(calls[1].filled, [7, 8], 'newer server snapshot wins for legacy records');
+  assert.deepEqual(calls[1].specialAction, { type: 'claim_spark', special_id: 'sc_x' }, 'specialAction is preserved');
+  queue.dispose();
+});
+
+test('flushAndDispose waits for the durable journal write and records its scope', async () => {
+  let releaseJournal;
+  const journalWritten = new Promise((resolve) => { releaseJournal = resolve; });
+  let journalRecord;
+  let apiCalls = 0;
+  const journal = {
+    put: async (record) => {
+      journalRecord = record;
+      await journalWritten;
+    },
+    remove: async () => {},
+    list: async () => [],
+  };
+  const queue = createSaveQueue({
+    putProgress: async () => { apiCalls += 1; return { revision: 1 }; },
+    getResultDataUrl: () => null,
+    onProgress: nop,
+    onNotice: nop,
+    onSaving: nop,
+    journal,
+    templateId: 'template-1',
+    userScope: 'user-1',
+  });
+
+  queue.reset(0);
+  queue.queueSave([1], { baseFilled: [0] });
+  const flush = queue.flushAndDispose();
+  await tick(20);
+  assert.equal(apiCalls, 0, 'API must wait for the journal acknowledgement');
+  assert.equal(journalRecord.templateId, 'template-1');
+  assert.equal(journalRecord.userScope, 'user-1');
+  assert.deepEqual(journalRecord.baseFilled, [0], 'journal keeps the acknowledged baseline for conflict merge');
+  releaseJournal();
+  await flush;
+  assert.equal(apiCalls, 1);
+  queue.queueSave([2]);
+  await tick(20);
+  assert.equal(apiCalls, 1, 'new snapshots are blocked after shutdown');
+});
+
+  test('pagehide suspend does not dispose; pageshow resume replays the journal once and accepts new saves', async () => {
+    const calls = [];
+    const records = new Map();
+    const journal = {
+      put: async (record) => { records.set(record.key, record); },
+      remove: async (key) => {
+        for (const [recordKey, record] of records) {
+          if (recordKey === key || record.clientBatchId === key) records.delete(recordKey);
+        }
+      },
+      list: async () => [...records.values()],
+    };
+    let releasePut;
+    const putGate = new Promise((resolve) => { releasePut = resolve; });
+    const queue = createSaveQueue({
+      putProgress: async (payload) => {
+        calls.push(payload);
+        await putGate;
+        return { revision: 1, filled: payload.filled };
+      },
+      getResultDataUrl: () => null,
+      onProgress: nop,
+      onNotice: nop,
+      onSaving: nop,
+      journal,
+      templateId: 'template-1',
+      userScope: 'user-1',
+    });
+
+    queue.reset(0);
+    queue.queueSave([1], {
+      clientBatchId: 'batch-hidden',
+      specialAction: { type: 'use_spark', special_id: 'sc_x' },
+    });
+    const hidden = queue.suspend();
+    await tick(30);
+  assert.equal(calls.length, 1, 'pagehide flush starts the durable snapshot');
+  assert.equal(calls[0].specialAction.special_id, 'sc_x', 'special action is preserved in the hidden flush');
+  assert.ok(hidden instanceof Promise, 'suspend returns the in-flight drain promise');
+
+    queue.queueSave([2], { clientBatchId: 'batch-while-hidden' });
+    await tick(30);
+    assert.equal(calls.length, 1, 'suspended queue rejects new saves while hidden');
+
+    const shown = queue.resume({ serverRevision: 0 });
+    await tick(30);
+    assert.equal(calls.length, 1, 'the still-in-flight journal record is not replayed twice');
+
+  releasePut();
+  await hidden;
+  assert.equal(await shown, true, 'resume accepts the queue again');
+  await queue.flush();
+    assert.equal(queue.isDisposed(), false, 'pagehide must not permanently dispose the queue');
+    assert.equal(records.size, 0, 'resume drains the interrupted journal record');
+
+    queue.queueSave([3], { clientBatchId: 'batch-after-show' });
+    await queue.flush();
+    assert.equal(calls.length, 2, 'queue accepts and flushes new saves after pageshow resume');
+    assert.deepEqual(calls[1].filled, [3]);
+    assert.equal(records.size, 0, 'new save is acknowledged and removed after resume');
+    queue.dispose();
+  });
+
+  test('resume after an ordinary unload dispose stays inert', async () => {
+    const journal = {
+      put: async () => {},
+      remove: async () => {},
+      list: async () => [],
+    };
+    const queue = createSaveQueue({
+      putProgress: async () => ({ revision: 1 }),
+      getResultDataUrl: () => null,
+      onProgress: nop,
+      onNotice: nop,
+      onSaving: nop,
+      journal,
+    });
+    queue.dispose();
+    assert.equal(await queue.resume({ serverRevision: 0 }), false);
+    assert.equal(queue.isDisposed(), true);
+  });
+
+// в”Ђв”Ђ Special replay/offer/poison helpers в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+
+test('idempotent replay flag suppresses repeat special analytics', () => {
+  assert.equal(isIdempotentReplay({ idempotent: true }), true);
+  assert.equal(isIdempotentReplay({ idempotent: false }), false);
+  assert.equal(isIdempotentReplay({ special_offer: { special_id: 'sc_x' } }), false);
+  assert.equal(isIdempotentReplay(null), false);
+});
+
+test('progress special_offer restores the UI offer and null clears stale UI', () => {
+  const offer = { special_id: 'sc_x', target_options: [{ option_id: 'a' }] };
+  assert.equal(offerFromProgress({ special_offer: offer }), offer);
+  assert.equal(offerFromProgress({ special_offer: null }), null);
+  assert.equal(offerFromProgress({ revision: 4 }), null);
+  assert.equal(offerFromProgress(null), null);
+});
+
+test('terminal special 409 codes are recognized; ordinary conflicts are not', () => {
+  for (const code of [
+    'SPECIAL_OFFER_STALE',
+    'SPECIAL_CLAIM_INVALID',
+    'SPECIAL_TARGET_STALE',
+    'SPECIAL_TARGET_EMPTY',
+    'SPECIAL_COHORT_CONTROL',
+  ]) {
+    const error = new Error(code);
+    error.status = 409;
+    error.data = { code };
+    assert.equal(isTerminalSpecialError(error), true, code);
+  }
+
+  const cas = new Error('Conflict');
+  cas.status = 409;
+  cas.data = { progress: { revision: 3 } };
+  assert.equal(isTerminalSpecialError(cas), false, 'CAS conflict remains retryable');
+
+  const unknown = new Error('Unknown');
+  unknown.status = 409;
+  unknown.data = { code: 'SOME_OTHER_CODE' };
+  assert.equal(isTerminalSpecialError(unknown), false);
+
+  const offline = new Error('Network is unavailable');
+  offline.status = 0;
+  assert.equal(isTerminalSpecialError(offline), false);
+});
+
+test('terminal special 409 drops the journal entry without retry and rejects once', async () => {
+  const calls = [];
+  const removed = [];
+  const notices = [];
+  const rejected = [];
+  const journal = {
+    put: async () => {},
+    remove: async (key) => { removed.push(key); },
+    list: async () => [],
+  };
+  const queue = createSaveQueue({
+    putProgress: async () => {
+      calls.push('put');
+      const error = new Error('Spark offer is no longer available');
+      error.status = 409;
+      error.data = { code: 'SPECIAL_OFFER_STALE' };
+      throw error;
+    },
+    getResultDataUrl: () => null,
+    onProgress: nop,
+    onNotice: (message) => { notices.push(message); },
+    onSpecialRejected: (error) => { rejected.push(error.data.code); },
+    onSaving: nop,
+    journal,
+  });
+
+  queue.reset(0);
+  queue.queueSave([1], {
+    clientBatchId: 'batch-poison',
+    specialAction: { type: 'use_spark', special_id: 'sc_x' },
+  });
+  await tick(500);
+  await tick(600);
+
+  assert.equal(calls.length, 1, 'terminal special is never retried');
+  assert.equal(removed.length, 1, 'durable journal record is dropped');
+  assert.deepEqual(rejected, ['SPECIAL_OFFER_STALE'], 'bounded rejection surfaced');
+  assert.deepEqual(notices, [], 'ordinary error notice is not emitted');
+
+  await queue.recover({ templateId: 'template-1', serverRevision: 0 });
+  await tick(500);
+  assert.equal(calls.length, 1, 'poisoned entry is not replayed after recovery');
+  queue.dispose();
+});
+
+test('terminal special 409 adopts server progress when the payload includes it', async () => {
+  const removed = [];
+  const progressCalls = [];
+  const journal = {
+    put: async () => {},
+    remove: async (key) => { removed.push(key); },
+    list: async () => [],
+  };
+  const queue = createSaveQueue({
+    putProgress: async () => {
+      const error = new Error('Spark offer is no longer available');
+      error.status = 409;
+      error.data = {
+        code: 'SPECIAL_OFFER_STALE',
+        progress: { revision: 7, filled: [1, 2, 3], percent: 40 },
+      };
+      throw error;
+    },
+    getResultDataUrl: () => null,
+    onProgress: (progress) => { progressCalls.push(progress); },
+    onNotice: nop,
+    onSpecialRejected: nop,
+    onSaving: nop,
+    journal,
+  });
+
+  queue.reset(2);
+  queue.queueSave([9], {
+    clientBatchId: 'batch-adopt',
+    specialAction: { type: 'skip_spark', special_id: 'sc_x' },
+  });
+  await tick(500);
+  await tick(600);
+
+  assert.equal(removed.length, 1);
+  assert.equal(progressCalls.length, 1, 'server progress adopted');
+  assert.equal(progressCalls[0].revision, 7);
+  assert.equal(progressCalls[0].filled[0], 1);
+  queue.dispose();
+});
+
+test('non-terminal failure keeps the journal entry for a later retry', async () => {
+  const calls = [];
+  const removed = [];
+  const journal = {
+    put: async () => {},
+    remove: async (key) => { removed.push(key); },
+    list: async () => [],
+  };
+  const queue = createSaveQueue({
+    putProgress: async () => {
+      calls.push('put');
+      throw new Error('Network failure');
+    },
+    getResultDataUrl: () => null,
+    onProgress: nop,
+    onNotice: nop,
+    onSaving: nop,
+    journal,
+  });
+
+  queue.reset(0);
+  queue.queueSave([1], { clientBatchId: 'batch-network' });
+  await tick(500);
+  await tick(600);
+
+  assert.equal(calls.length, 1);
+  assert.equal(removed.length, 0, 'network/offline entry stays durable');
   queue.dispose();
 });

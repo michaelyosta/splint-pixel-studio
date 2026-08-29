@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { deletePrivateOriginal, storePrivateOriginal } from '../services/media-storage.js';
+import { deleteMediaObject, deletePrivateOriginal, readMediaObject, storeMediaObject, storePrivateOriginal } from '../services/media-storage.js';
 
 const requiredS3Env = ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];
 const hasS3IntegrationConfig = process.env.STORAGE_DRIVER === 's3'
@@ -36,4 +36,17 @@ test('S3: private original is uploaded and deleted', { skip: !hasS3IntegrationCo
     client.send(new HeadObjectCommand({ Bucket: bucket, Key: key })),
     (error) => error?.$metadata?.httpStatusCode === 404 || error?.name === 'NotFound',
   );
+});
+
+test('S3: canonical media write/read/delete is idempotent by key', { skip: !hasS3IntegrationConfig }, async () => {
+  const key = 'artworks/s3_integration_test/canonical.png';
+  const body = Buffer.from('canonical-test-object');
+  const first = await storeMediaObject({ key, body, contentType: 'image/png' });
+  const second = await storeMediaObject({ key, body, contentType: 'image/png' });
+  assert.equal(first, second);
+  assert.deepEqual(await readMediaObject(first), body);
+  assert.deepEqual(await readMediaObject(key), body, 'plain canonical key must resolve through configured S3');
+  await deleteMediaObject(first);
+  await deleteMediaObject(key);
+  assert.equal(await readMediaObject(first).catch(() => null), null);
 });

@@ -1,0 +1,421 @@
+{
+  "capturedAt": "2026-08-12T17:02:46.610Z",
+  "project": "chromium",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "grid": {
+    "width": 1200,
+    "height": 1200,
+    "tileSize": 32,
+    "palette": [
+      "#101820",
+      "#ffffff",
+      "#ff6b6b",
+      "#2bd9fe"
+    ]
+  },
+  "fixture": {
+    "template_id": "tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200",
+    "total_cells": 1440000
+  },
+  "initial_target": {
+    "reason": "INITIAL_TARGET",
+    "target": {
+      "tile_x": 18,
+      "tile_y": 18,
+      "color": 0,
+      "anchor_x": 602,
+      "anchor_y": 599,
+      "bounds": {
+        "min_x": 596,
+        "min_y": 593,
+        "max_x": 607,
+        "max_y": 604,
+        "width": 12,
+        "height": 12
+      },
+      "estimated_cells": 144
+    },
+    "session": {
+      "smartState": "ready",
+      "lodMode": "work",
+      "color": "0",
+      "targetTile": "18:18",
+      "targetX": "602",
+      "targetY": "599",
+      "minX": "596",
+      "minY": "593",
+      "maxX": "607",
+      "maxY": "604"
+    }
+  },
+  "spark": {
+    "id": "sc_early_4bc6159cd33e7dbe",
+    "kind": "spark",
+    "cell_index": 719402,
+    "x": 602,
+    "y": 599,
+    "tile_x": 18,
+    "tile_y": 18,
+    "stroke_run": {
+      "color": 0,
+      "startX": 599,
+      "endX": 605
+    }
+  },
+  "claim": {
+    "revision": 1,
+    "special_discovered": {
+      "special_id": "sc_early_4bc6159cd33e7dbe",
+      "kind": "spark"
+    },
+    "offer_kind": "spark",
+    "offer_options": [
+      {
+        "option_id": "a",
+        "color": 0,
+        "estimated_cells": 144,
+        "bounds": {
+          "min_x": 596,
+          "min_y": 587,
+          "max_x": 607,
+          "max_y": 598,
+          "width": 12,
+          "height": 12
+        }
+      },
+      {
+        "option_id": "b",
+        "color": 0,
+        "estimated_cells": 144,
+        "bounds": {
+          "min_x": 608,
+          "min_y": 593,
+          "max_x": 619,
+          "max_y": 604,
+          "width": 12,
+          "height": 12
+        }
+      }
+    ],
+    "stroke_metrics": {
+      "strokes": [
+        {
+          "startedAt": 16034.20000000298,
+          "endedAt": 16215.90000000596,
+          "durationMs": 181.70000000298023,
+          "events": 2,
+          "rasterized": 2,
+          "unique": 2,
+          "painted": 2,
+          "wrong": false,
+          "unloaded": 0,
+          "maxEventMs": 0.5,
+          "first": 719401,
+          "last": 719402,
+          "color": 0,
+          "finalizeMs": 3.5999999940395355
+        }
+      ],
+      "pointerEvents": 2,
+      "livePaints": 1
+    }
+  },
+  "effect": {
+    "revision": 2,
+    "change_count": 144,
+    "cap": 144,
+    "first_change": {
+      "index": 704996,
+      "color": 0
+    }
+  },
+  "second_target": {
+    "reason": "SAME_COLOR_NEXT",
+    "target": {
+      "anchor_x": 608,
+      "anchor_y": 600,
+      "bounds": {
+        "min_x": 608,
+        "min_y": 594,
+        "max_x": 619,
+        "max_y": 605,
+        "width": 12,
+        "height": 12
+      },
+      "estimated_cells": 144,
+      "tile_x": 19,
+      "tile_y": 18,
+      "color": 0
+    },
+    "session": {
+      "smartState": "ready",
+      "lodMode": "work",
+      "color": "0",
+      "targetTile": "19:18",
+      "targetX": "608",
+      "targetY": "600",
+      "minX": "608",
+      "minY": "594",
+      "maxX": "619",
+      "maxY": "605"
+    }
+  },
+  "tile_loading": {
+    "ready_request_count": 12,
+    "final_request_count": 24,
+    "ready_client": {
+      "cache": {
+        "tiles": 12,
+        "maxTiles": 48,
+        "cells": 12288,
+        "bytes": 49152,
+        "pinnedTiles": 4
+      },
+      "network": {
+        "viewportPlans": 2,
+        "overviewPlans": 1,
+        "workPlans": 1,
+        "tileFetches": 12,
+        "tileFetchSuccesses": 12,
+        "tileFetchFailures": 0,
+        "abortedRequests": 0,
+        "dedupedTileRequests": 0,
+        "cacheHits": 1,
+        "cacheMisses": 12,
+        "activeTileRequests": 0,
+        "peakConcurrentTileRequests": 11
+      },
+      "snapshot": {
+        "status": "ready",
+        "manifest": {
+          "schemaVersion": 1,
+          "schema_version": 1,
+          "templateId": "tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200",
+          "template_id": "tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200",
+          "contentRevision": "2026-08-12T17:02:06.497Z",
+          "content_revision": "2026-08-12T17:02:06.497Z",
+          "template": {
+            "id": "tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200",
+            "title": "Cohort treatment fixture",
+            "description": "e2e deterministic cohort fixture",
+            "category": "custom",
+            "difficulty": "custom",
+            "theme": "featured",
+            "mood": "calm",
+            "collection_id": null,
+            "preview_url": null,
+            "palette": [
+              "#101820",
+              "#ffffff",
+              "#ff6b6b",
+              "#3ecf8e",
+              "#f7c948",
+              "#8ab4f8"
+            ],
+            "width": 1200,
+            "height": 1200
+          },
+          "grid": {
+            "width": 1200,
+            "height": 1200,
+            "tileSize": 32,
+            "tile_size": 32,
+            "columns": 38,
+            "rows": 38,
+            "tilesX": 38,
+            "tilesY": 38,
+            "tiles_x": 38,
+            "tiles_y": 38,
+            "count": 1444,
+            "totalCells": 1440000
+          },
+          "progress": {
+            "revision": 0,
+            "completed_cells": 0,
+            "total_cells": 1440000,
+            "percent": 0,
+            "completed_at": null
+          },
+          "links": {
+            "tile": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/tiles/{tile_x}/{tile_y}",
+            "chunk": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/chunks/{tile_x}/{tile_y}",
+            "guidance": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/guidance",
+            "manifest": null,
+            "progress": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/progress",
+            "progress_actions": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/progress/actions"
+          },
+          "writeContract": {
+            "method": "POST",
+            "path": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/progress/actions",
+            "revision_field": "revision",
+            "change_shape": {
+              "index": "global row-major cell index",
+              "color": "palette index or -1 to clear"
+            },
+            "max_changes": 64,
+            "idempotency": {
+              "body_field": "clientBatchId",
+              "header": "Idempotency-Key",
+              "replay": "same key and payload returns idempotent=true"
+            },
+            "conflict_status": 409
+          }
+        },
+        "lastError": null,
+        "cache": {
+          "tiles": 12,
+          "maxTiles": 48,
+          "cells": 12288,
+          "bytes": 49152,
+          "pinnedTiles": 4
+        },
+        "pendingTiles": [],
+        "tileErrors": {},
+        "tileRetries": {},
+        "network": {
+          "viewportPlans": 2,
+          "overviewPlans": 1,
+          "workPlans": 1,
+          "tileFetches": 12,
+          "tileFetchSuccesses": 12,
+          "tileFetchFailures": 0,
+          "abortedRequests": 0,
+          "dedupedTileRequests": 0,
+          "cacheHits": 1,
+          "cacheMisses": 12,
+          "activeTileRequests": 0,
+          "peakConcurrentTileRequests": 11
+        }
+      }
+    },
+    "final_client": {
+      "cache": {
+        "tiles": 12,
+        "maxTiles": 48,
+        "cells": 12288,
+        "bytes": 49152,
+        "pinnedTiles": 4
+      },
+      "network": {
+        "viewportPlans": 2,
+        "overviewPlans": 1,
+        "workPlans": 1,
+        "tileFetches": 12,
+        "tileFetchSuccesses": 12,
+        "tileFetchFailures": 0,
+        "abortedRequests": 0,
+        "dedupedTileRequests": 0,
+        "cacheHits": 2,
+        "cacheMisses": 12,
+        "activeTileRequests": 0,
+        "peakConcurrentTileRequests": 11
+      },
+      "snapshot": {
+        "status": "ready",
+        "manifest": {
+          "schemaVersion": 1,
+          "schema_version": 1,
+          "templateId": "tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200",
+          "template_id": "tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200",
+          "contentRevision": "2026-08-12T17:02:06.497Z",
+          "content_revision": "2026-08-12T17:02:06.497Z",
+          "template": {
+            "id": "tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200",
+            "title": "Cohort treatment fixture",
+            "description": "e2e deterministic cohort fixture",
+            "category": "custom",
+            "difficulty": "custom",
+            "theme": "featured",
+            "mood": "calm",
+            "collection_id": null,
+            "preview_url": null,
+            "palette": [
+              "#101820",
+              "#ffffff",
+              "#ff6b6b",
+              "#3ecf8e",
+              "#f7c948",
+              "#8ab4f8"
+            ],
+            "width": 1200,
+            "height": 1200
+          },
+          "grid": {
+            "width": 1200,
+            "height": 1200,
+            "tileSize": 32,
+            "tile_size": 32,
+            "columns": 38,
+            "rows": 38,
+            "tilesX": 38,
+            "tilesY": 38,
+            "tiles_x": 38,
+            "tiles_y": 38,
+            "count": 1444,
+            "totalCells": 1440000
+          },
+          "progress": {
+            "revision": 0,
+            "completed_cells": 0,
+            "total_cells": 1440000,
+            "percent": 0,
+            "completed_at": null
+          },
+          "links": {
+            "tile": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/tiles/{tile_x}/{tile_y}",
+            "chunk": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/chunks/{tile_x}/{tile_y}",
+            "guidance": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/guidance",
+            "manifest": null,
+            "progress": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/progress",
+            "progress_actions": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/progress/actions"
+          },
+          "writeContract": {
+            "method": "POST",
+            "path": "/colorings/tpl_cohort_e2e_e2e_special_1200_treatme_treatment_0_1200x1200/progress/actions",
+            "revision_field": "revision",
+            "change_shape": {
+              "index": "global row-major cell index",
+              "color": "palette index or -1 to clear"
+            },
+            "max_changes": 64,
+            "idempotency": {
+              "body_field": "clientBatchId",
+              "header": "Idempotency-Key",
+              "replay": "same key and payload returns idempotent=true"
+            },
+            "conflict_status": 409
+          }
+        },
+        "lastError": null,
+        "cache": {
+          "tiles": 12,
+          "maxTiles": 48,
+          "cells": 12288,
+          "bytes": 49152,
+          "pinnedTiles": 4
+        },
+        "pendingTiles": [],
+        "tileErrors": {},
+        "tileRetries": {},
+        "network": {
+          "viewportPlans": 2,
+          "overviewPlans": 1,
+          "workPlans": 1,
+          "tileFetches": 12,
+          "tileFetchSuccesses": 12,
+          "tileFetchFailures": 0,
+          "abortedRequests": 0,
+          "dedupedTileRequests": 0,
+          "cacheHits": 2,
+          "cacheMisses": 12,
+          "activeTileRequests": 0,
+          "peakConcurrentTileRequests": 11
+        }
+      }
+    }
+  },
+  "guidance_plan_count": 3
+}

@@ -16,7 +16,15 @@ dist-ssr
 !.env.example
 server/splint.db.bin
 server/splint-preview.db.bin
+server/*.db.bin
+*.sqlite
+*.sqlite3
 server/uploads/
+uploads/
+server/backups/
+backups/
+minio-data/
+.minio/
 server/*.log
 assets/*.pid
 assets/*_pid.txt
@@ -28,6 +36,14 @@ assets/*_pid.txt
 test-results/
 playwright-report/
 blob-report/
+coverage/
+*.trace.zip
+*.webm
+*.mp4
+*.dump
+*.dump.sha256
+.test-tmp/
+server/.test-tmp/
 
 # Editor directories and files
 .vscode/*

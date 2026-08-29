@@ -1,0 +1,40 @@
+{
+  "capturedAt": "2026-08-09T18:03:55.478Z",
+  "project": "Mobile Pixel",
+  "viewport": {
+    "width": 412,
+    "height": 844
+  },
+  "fixture": {
+    "template_id": "color_4494e2b0-215d-4bbe-a609-7bf8218e637b",
+    "grid": "160x160"
+  },
+  "available_specials": 40,
+  "resolved": [
+    {
+      "kind": "spark",
+      "special_id": "sc_eb8d0be512badfa8",
+      "cell_index": 1710
+    },
+    {
+      "kind": "bomb",
+      "special_id": "sc_eb327340e47fadd1",
+      "cell_index": 1933
+    },
+    {
+      "kind": "fuse",
+      "special_id": "sc_f34e47699458d7e9",
+      "cell_index": 8771
+    },
+    {
+      "kind": "choice",
+      "special_id": "sc_b34be5a5f7c79693",
+      "cell_index": 305
+    },
+    {
+      "kind": "artifact",
+      "special_id": "sc_f6dcce2f67b84aad",
+      "cell_index": 13014
+    }
+  ]
+}

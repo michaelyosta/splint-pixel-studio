@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo, useEffect, useEffectEvent, useLayoutEffect } from 'react';
+import { useId, useState, useCallback, useRef, useMemo, useEffect, useEffectEvent, useLayoutEffect } from 'react';
 import ColoringCanvas from './ColoringCanvas.jsx';
 import ColoringPalette from './ColoringPalette.jsx';
 import ColoringHud from './ColoringHud.jsx';
@@ -13,7 +13,23 @@ import {
   computeVisibleUnfilledCount, createActiveTarget, ensureActionableViewport,
   isTargetConsideredDone, normalizeSafeArea, resolveColorTransition, resolveNextOutcome,
 } from './engine/routeTargeting.js';
+import { createBoundedAnnouncer } from '../../lib/accessibility.js';
+import {
+  autoSparkActionForOffer,
+  autoSparkActionKey,
+  submitAutoSparkAction,
+} from '../../lib/specialCellsGameplay.js';
+import {
+  getCoreFeelFragmentForColor,
+  getNextCoreFeelFragment,
+  isCoreFeelReference,
+} from '../coreFeel/coreFeelExperiment.js';
+import { playCoreFeelFeedback } from '../coreFeel/coreFeelFeedback.js';
+import { isSessionGameSpecialAllowed } from '../sessionGame/sessionGameExperiment.js';
 import './coloring.css';
+
+const LARGE_ROUTE_DIMENSION = 160;
+const ROUTE_TILE_SIZE = 32;
 
 function createRouteState() {
   return {
@@ -34,11 +50,28 @@ function safeAreasEqual(first, second) {
     && first.left === second.left;
 }
 
+function candidateForCells(cells, templateWidth, zoom = 1) {
+  const minX = Math.min(...cells.map((index) => index % templateWidth));
+  const maxX = Math.max(...cells.map((index) => index % templateWidth));
+  const minY = Math.min(...cells.map((index) => Math.floor(index / templateWidth)));
+  const maxY = Math.max(...cells.map((index) => Math.floor(index / templateWidth)));
+  return {
+    cells,
+    centerX: (minX + maxX + 1) / 2,
+    centerY: (minY + maxY + 1) / 2,
+    zoom,
+    cellCount: cells.length,
+    bounds: { minX, maxX, minY, maxY, width: maxX - minX + 1, height: maxY - minY + 1 },
+  };
+}
+
 export default function ColoringSession({
   template,
   progress,
   selectedColor,
   onSelectColor,
+  resumeSnapshot = null,
+  onResumeStateChange,
   onSaveProgress,
   onFirstPaint,
   onWrongCell,
@@ -55,18 +88,93 @@ export default function ColoringSession({
   onFillAt,
   onOpenMenu,
   onTrack,
+  specialCells = [],
+  specialCohort = 'control',
+  specialOffer = null,
+  specialDiscovered = null,
+  onSpecialAction,
+  onVisibleSpecialKinds,
+  coreFeelExperiment = null,
+  onCoreFeelStop,
+  sessionGameExperiment = null,
 }) {
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const containerRef = useRef(null);
   const filledRef = useRef(progress?.filled || []);
   const [localFilled, setLocalFilled] = useState(progress?.filled || []);
   const [peekColor, setPeekColor] = useState(null);
+  const [coreFeelBeat, setCoreFeelBeat] = useState(null);
+  const [coreFeelHintVisible, setCoreFeelHintVisible] = useState(true);
+  const firstCoreFeelStrokeAtRef = useRef(null);
+  const activeCoreFeelFragmentRef = useRef(null);
   const windowsRef = useRef([]);
   const visitedTargetsRef = useRef(new Set());
   const routeStateRef = useRef(createRouteState());
   const [routeDisplay, setRouteDisplay] = useState(createRouteState());
   const lastColorRef = useRef(selectedColor);
   const transitionTokenRef = useRef(0);
+  const focusWatchdogRef = useRef(null);
+  const largeRouteIndexRef = useRef(null);
+  const liveStatusId = useId();
+  const [liveStatus, setLiveStatus] = useState('');
+  const liveStatusRef = useRef(null);
+  if (liveStatusRef.current === null) {
+    liveStatusRef.current = createBoundedAnnouncer({ onAnnounce: setLiveStatus });
+  }
+  const announcedTargetKeyRef = useRef('');
+  const claimedSpecialsRef = useRef(new Set());
+  const resumedTargetRef = useRef(resumeSnapshot?.smartTarget || null);
+  const persistedTargetIdRef = useRef(null);
+  const autoSparkOfferKeyRef = useRef('');
+  const autoSparkBlockedKeyRef = useRef('');
+  const [autoSparkRetryKey, setAutoSparkRetryKey] = useState('');
+  const [autoSparkAttempt, setAutoSparkAttempt] = useState(0);
+  const sessionGameActive = Boolean(sessionGameExperiment?.enabled);
+  const specialTreatment = specialCohort === 'treatment'
+    && (!sessionGameActive || sessionGameExperiment.variantId === 'treatment');
+  const coreFeelActive = isCoreFeelReference(coreFeelExperiment, template);
+  const enhancedCoreFeel = coreFeelActive && coreFeelExperiment.variant?.enhanced;
+  const artifactProgress = progress?.artifact_progress || null;
+  // The server derives the Artifact total from the actual artwork. Reuse it
+  // for discovery and persistent surfaces instead of assuming three
+  // fragments exist in every fixture.
+  const artifactTotal = Math.max(0, Number(artifactProgress?.total || 3));
+  const activeSpecial = specialOffer
+    ? specialCells.find((special) => special.id === specialOffer.special_id)
+    : null;
+
+  useEffect(() => {
+    const action = autoSparkActionForOffer(specialOffer);
+    if (sessionGameActive) return;
+    if (!action || typeof onSpecialAction !== 'function') {
+      if (!specialOffer) {
+        autoSparkOfferKeyRef.current = '';
+        autoSparkBlockedKeyRef.current = '';
+        setAutoSparkRetryKey('');
+      }
+      return;
+    }
+    const key = autoSparkActionKey(action);
+    if (autoSparkBlockedKeyRef.current === key) return;
+    if (autoSparkOfferKeyRef.current === key) return;
+    autoSparkOfferKeyRef.current = key;
+    setAutoSparkRetryKey('');
+    void submitAutoSparkAction(onSpecialAction, action).then((accepted) => {
+      if (autoSparkOfferKeyRef.current !== key || accepted) return;
+      autoSparkOfferKeyRef.current = '';
+      autoSparkBlockedKeyRef.current = key;
+      setAutoSparkRetryKey(key);
+    });
+  }, [sessionGameActive, specialOffer, onSpecialAction, autoSparkAttempt]);
+
+  function retryAutoSpark() {
+    const key = autoSparkActionKey(autoSparkActionForOffer(specialOffer));
+    if (!key || autoSparkRetryKey !== key) return;
+    autoSparkOfferKeyRef.current = '';
+    autoSparkBlockedKeyRef.current = '';
+    setAutoSparkRetryKey('');
+    setAutoSparkAttempt((attempt) => attempt + 1);
+  }
 
   const safeArea = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
   const [safeAreaState, setSafeAreaState] = useState(safeArea.current);
@@ -81,7 +189,13 @@ export default function ColoringSession({
     pauseAuto, resumeAuto, focusOverview, prepareFocusOnWindow, commitFocusOnWindow,
     cancelAnimation, beginInteraction, endInteraction, setSafeArea,
     lastCenterRef, prevCenterRef,
-  } = useSmartCamera(template, containerSize.width, containerSize.height);
+  } = useSmartCamera(
+    template,
+    containerSize.width,
+    containerSize.height,
+    resumeSnapshot?.camera,
+    (nextCamera) => onResumeStateChange?.({ camera: nextCamera }),
+  );
 
   const hudSizeRef = useRef({ width: 0, height: 0 });
 
@@ -122,6 +236,14 @@ export default function ColoringSession({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    claimedSpecialsRef.current = new Set();
+    setCoreFeelBeat(null);
+    setCoreFeelHintVisible(true);
+    firstCoreFeelStrokeAtRef.current = null;
+    activeCoreFeelFragmentRef.current = null;
+  }, [template?.id]);
+
   const windowsGenerationRef = useRef(0);
   const [windowsGeneration, setWindowsGeneration] = useState(0);
 
@@ -129,6 +251,55 @@ export default function ColoringSession({
 
   const computeWorkingWindows = useCallback((filled, color) => {
     if (!template || !filled?.length) return [];
+    if (enhancedCoreFeel && color != null) {
+      const authored = getCoreFeelFragmentForColor(template, filled, color);
+      if (authored?.cells.length) {
+        activeCoreFeelFragmentRef.current = authored;
+        return [candidateForCells(authored.cells, template.width, 1)];
+      }
+    }
+    // Large maps must not enter the whole-image BFS route. Route by bounded
+    // 32×32 windows and let the renderer load only the actionable region.
+    if (template.width > LARGE_ROUTE_DIMENSION || template.height > LARGE_ROUTE_DIMENSION) {
+      const key = `${template.id}:${template.width}:${template.height}:${template.cells.length}`;
+      let index = largeRouteIndexRef.current;
+      if (index?.key !== key || index.cellsRef !== template.cells) {
+        const allByTile = new Map();
+        for (let cellIndex = 0; cellIndex < template.cells.length; cellIndex += 1) {
+          const x = cellIndex % template.width;
+          const y = Math.floor(cellIndex / template.width);
+          const tileX = Math.floor(x / ROUTE_TILE_SIZE);
+          const tileY = Math.floor(y / ROUTE_TILE_SIZE);
+          const tileKey = `${tileX}:${tileY}`;
+          let bucket = allByTile.get(tileKey);
+          if (!bucket) {
+            bucket = { tileX, tileY, cells: [] };
+            allByTile.set(tileKey, bucket);
+          }
+          bucket.cells.push(cellIndex);
+        }
+        index = { key, cellsRef: template.cells, all: [...allByTile.values()] };
+        largeRouteIndexRef.current = index;
+      }
+      return index.all.map((source) => {
+        const cells = source.cells.filter((cellIndex) => (
+          filled[cellIndex] === -1 && (color == null || template.cells[cellIndex] === color)
+        ));
+        if (!cells.length) return null;
+        const minX = source.tileX * ROUTE_TILE_SIZE;
+        const minY = source.tileY * ROUTE_TILE_SIZE;
+        const maxX = Math.min(template.width - 1, minX + ROUTE_TILE_SIZE - 1);
+        const maxY = Math.min(template.height - 1, minY + ROUTE_TILE_SIZE - 1);
+        return {
+          cells,
+          centerX: (minX + maxX + 1) / 2,
+          centerY: (minY + maxY + 1) / 2,
+          zoom: 1,
+          cellCount: cells.length,
+          bounds: { minX, maxX, minY, maxY, width: maxX - minX + 1, height: maxY - minY + 1 },
+        };
+      }).filter(Boolean);
+    }
     const clusters = color != null
       ? findClusters(template, filled, color)
       : findUnfilledClusters(template, filled);
@@ -143,7 +314,7 @@ export default function ColoringSession({
       allWindows.push(...wins);
     }
     return allWindows;
-  }, [template, containerSize.width, containerSize.height, safeAreaState]);
+  }, [template, containerSize.width, containerSize.height, safeAreaState, enhancedCoreFeel]);
 
   const workingWindows = useMemo(
     () => {
@@ -161,7 +332,7 @@ export default function ColoringSession({
     if (selectedColor !== lastColorRef.current) {
       lastColorRef.current = selectedColor;
       if (interactionMode !== 'reveal') {
-        cancelAnimation();
+        if (routeStateRef.current.status !== 'focusingTarget') cancelAnimation();
         windowsGenerationRef.current += 1;
         setWindowsGeneration(windowsGenerationRef.current);
       }
@@ -174,12 +345,17 @@ export default function ColoringSession({
     if (arraysEqual(newFilled, filledRef.current)) {
       return;
     }
-    cancelAnimation();
+    if (routeStateRef.current.status !== 'focusingTarget') cancelAnimation();
     filledRef.current = newFilled;
     setLocalFilled(newFilled);
     windowsGenerationRef.current += 1;
     setWindowsGeneration(windowsGenerationRef.current);
   }, [progress?.filled, cancelAnimation]);
+
+  useEffect(() => {
+    resumedTargetRef.current = resumeSnapshot?.smartTarget || null;
+    persistedTargetIdRef.current = null;
+  }, [resumeSnapshot?.smartTarget, template.id]);
 
   function hasUnfilledCells() {
     if (!template) return false;
@@ -188,21 +364,62 @@ export default function ColoringSession({
 
   function syncRouteDisplay() {
     setRouteDisplay({ ...routeStateRef.current });
+    const target = routeStateRef.current.target;
+    if (target && target.id !== persistedTargetIdRef.current) {
+      persistedTargetIdRef.current = target.id;
+      onResumeStateChange?.({
+        smartTargetRevision: progress?.revision,
+        smartTarget: {
+          kind: 'legacy',
+          targetId: target.id,
+          color: target.color,
+          // Avoid persisting a truncated target: the resume validator must
+          // either revalidate the complete region or request fresh guidance.
+          workCells: Array.isArray(target.workCells) && target.workCells.length <= 4096
+            ? target.workCells
+            : null,
+          templateVersion: target.templateVersion,
+        },
+      });
+    }
   }
 
-  function candidateForCells(cells, zoom = 1) {
-    const minX = Math.min(...cells.map((index) => index % template.width));
-    const maxX = Math.max(...cells.map((index) => index % template.width));
-    const minY = Math.min(...cells.map((index) => Math.floor(index / template.width)));
-    const maxY = Math.max(...cells.map((index) => Math.floor(index / template.width)));
-    return {
-      cells,
-      centerX: (minX + maxX + 1) / 2,
-      centerY: (minY + maxY + 1) / 2,
-      zoom,
-      cellCount: cells.length,
-      bounds: { minX, maxX, minY, maxY, width: maxX - minX + 1, height: maxY - minY + 1 },
-    };
+  function clearFocusWatchdog() {
+    if (focusWatchdogRef.current != null) {
+      clearTimeout(focusWatchdogRef.current);
+      focusWatchdogRef.current = null;
+    }
+  }
+
+  function armFocusWatchdog(token, reason, recoverFocus) {
+    clearFocusWatchdog();
+    const timer = setTimeout(() => {
+      if (
+        focusWatchdogRef.current !== timer
+        || transitionTokenRef.current !== token
+        || routeStateRef.current.status !== 'focusingTarget'
+      ) return;
+      focusWatchdogRef.current = null;
+
+      // A delayed RAF is a camera problem, not permission to discard the
+      // active route. Force the same transaction to its already planned
+      // camera; the completion callback still owns the token guard.
+      const recovered = recoverFocus?.() === true;
+      if (
+        recovered
+        || transitionTokenRef.current !== token
+        || routeStateRef.current.status !== 'focusingTarget'
+      ) return;
+
+      transitionTokenRef.current += 1;
+      routeStateRef.current = {
+        ...routeStateRef.current,
+        status: 'error',
+        reason: `${reason}:focus_timeout`,
+      };
+      syncRouteDisplay();
+    }, 1500);
+    focusWatchdogRef.current = timer;
   }
 
   function prepareTarget(candidate, options = {}) {
@@ -233,7 +450,7 @@ export default function ColoringSession({
 
     if (!readiness.actionable && readiness.reason === 'partial_target_visibility') {
       const smaller = activation.target.workCells
-        .map((cell) => candidateForCells([cell], focusCandidate.zoom))
+        .map((cell) => candidateForCells([cell], template.width, focusCandidate.zoom))
         .find((single) => {
           const singleActivation = createActiveTarget(template, single, targetColor, filled, {
             width: containerSize.width,
@@ -307,8 +524,12 @@ export default function ColoringSession({
     };
     syncRouteDisplay();
 
-    const committed = commitFocusOnWindow(cameraTransition, force, (actualCamera) => {
-      if (transitionTokenRef.current !== token) return;
+    const completeFocus = (actualCamera) => {
+      if (
+        transitionTokenRef.current !== token
+        || routeStateRef.current.status !== 'focusingTarget'
+      ) return;
+      clearFocusWatchdog();
       const actualReadiness = ensureActionableViewport({
         activeTarget,
         progress: filledRef.current,
@@ -330,7 +551,7 @@ export default function ColoringSession({
             reason: `${reason}:${actualReadiness.reason}`,
           };
       syncRouteDisplay();
-      if (actualReadiness.actionable && onTrack) onTrack('camera_activate_target', {
+      if (actualReadiness.actionable && onTrack && !coreFeelActive) onTrack('camera_activate_target', {
         templateId: template?.id,
         targetId,
         reason,
@@ -338,9 +559,17 @@ export default function ColoringSession({
         unfilledCount: activeTarget.workCells.length,
         visibleRemaining: actualReadiness.visibleUnfilledCells,
       });
-    });
+    };
+    const recoverFocus = () => {
+      if (transitionTokenRef.current !== token || routeStateRef.current.status !== 'focusingTarget') return false;
+      return commitFocusOnWindow({ ...cameraTransition, immediate: true }, true, completeFocus);
+    };
+    armFocusWatchdog(token, reason, recoverFocus);
+
+    const committed = commitFocusOnWindow(cameraTransition, force, completeFocus);
 
     if (!committed) {
+      clearFocusWatchdog();
       transitionTokenRef.current += 1;
       routeStateRef.current = previous.route;
       visitedTargetsRef.current = previous.visited;
@@ -361,7 +590,7 @@ export default function ColoringSession({
   function refocusExistingTarget(current, reason) {
     const target = current?.target;
     if (!target?.workCells?.length) return { ok: false, reason: 'no_active_target' };
-    const candidate = candidateForCells(target.workCells);
+    const candidate = candidateForCells(target.workCells, template.width);
     const cameraTransition = prepareFocusOnWindow(candidate, false);
     if (!cameraTransition) return { ok: false, reason: 'invalid_camera_plan' };
     const plannedReadiness = ensureActionableViewport({
@@ -390,8 +619,12 @@ export default function ColoringSession({
     };
     syncRouteDisplay();
 
-    const committed = commitFocusOnWindow(cameraTransition, true, (actualCamera) => {
-      if (transitionTokenRef.current !== token) return;
+    const completeFocus = (actualCamera) => {
+      if (
+        transitionTokenRef.current !== token
+        || routeStateRef.current.status !== 'focusingTarget'
+      ) return;
+      clearFocusWatchdog();
       const actualReadiness = ensureActionableViewport({
         activeTarget: target,
         progress: filledRef.current,
@@ -416,8 +649,16 @@ export default function ColoringSession({
             reason: `${reason}:${actualReadiness.reason}`,
           };
       syncRouteDisplay();
-    });
+    };
+    const recoverFocus = () => {
+      if (transitionTokenRef.current !== token || routeStateRef.current.status !== 'focusingTarget') return false;
+      return commitFocusOnWindow({ ...cameraTransition, immediate: true }, true, completeFocus);
+    };
+    armFocusWatchdog(token, reason, recoverFocus);
+
+    const committed = commitFocusOnWindow(cameraTransition, true, completeFocus);
     if (!committed) {
+      clearFocusWatchdog();
       transitionTokenRef.current += 1;
       routeStateRef.current = current;
       syncRouteDisplay();
@@ -436,7 +677,9 @@ export default function ColoringSession({
     for (const win of wins) {
       const unfilled = win.cells.reduce((c, idx) => c + (filled[idx] === -1 ? 1 : 0), 0);
       if (unfilled === 0) continue;
-      let score = scoreTargetQuality(win, template, filled);
+      let score = template.width > LARGE_ROUTE_DIMENSION || template.height > LARGE_ROUTE_DIMENSION
+        ? unfilled * 10
+        : scoreTargetQuality(win, template, filled);
       const dx = win.centerX - viewCenterX;
       const dy = win.centerY - viewCenterY;
       score -= Math.sqrt(dx * dx + dy * dy) * 0.05;
@@ -507,6 +750,7 @@ export default function ColoringSession({
     if (outcome.type === 'artwork_complete') {
       routeStateRef.current = { ...routeStateRef.current, status: 'artworkComplete', reason: `${reason}:complete` };
       syncRouteDisplay();
+      liveStatusRef.current?.announce('Картина готова');
       return { ok: true, complete: true };
     }
     routeStateRef.current = { ...routeStateRef.current, status: 'error', reason: `${reason}:${outcome.reason}` };
@@ -515,6 +759,34 @@ export default function ColoringSession({
   }
 
   function handleNextCluster() {
+    if (enhancedCoreFeel && coreFeelBeat?.status === 'revealed') {
+      const next = getNextCoreFeelFragment(template, filledRef.current, coreFeelBeat.fragment.id);
+      if (!next) {
+        setCoreFeelBeat({ ...coreFeelBeat, status: 'complete' });
+        return;
+      }
+      onSelectColor(next.color);
+      visitedTargetsRef.current = new Set();
+      windowsGenerationRef.current += 1;
+      setWindowsGeneration(windowsGenerationRef.current);
+      const result = activateTarget(candidateForCells(next.cells, template.width, 1), {
+        immediate: false,
+        force: true,
+        reason: 'core-feel:player-next',
+        markVisited: true,
+        targetColor: next.color,
+      });
+      if (result.ok) {
+        activeCoreFeelFragmentRef.current = next;
+        setCoreFeelBeat(null);
+        onTrack?.('core_feel_next_beat_selected', {
+          id: template.id,
+          variant: coreFeelExperiment.variantId,
+          fragment: next.id,
+        });
+      }
+      return;
+    }
     resumeAuto();
     const result = applyNextOutcome(buildNextOutcome(), 'manual-next', true);
     if (result.ok && onTrack) onTrack('camera_next_cluster', { templateId: template?.id });
@@ -590,14 +862,29 @@ export default function ColoringSession({
   }
 
   function handleColorSelect(colorIndex) {
-    transitionToColor(colorIndex);
+    const result = transitionToColor(colorIndex);
+    if (result?.ok && !result.unchanged) {
+      liveStatusRef.current?.announce(`Выбран цвет ${colorIndex + 1}`);
+    }
   }
 
   useEffect(() => {
     return () => {
+      if (focusWatchdogRef.current != null) clearTimeout(focusWatchdogRef.current);
+      liveStatusRef.current?.destroy();
       transitionTokenRef.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    if (routeDisplay.status !== 'ready' || !routeDisplay.target) return;
+    const key = `${routeDisplay.targetId}:${routeDisplay.generation}`;
+    if (key === announcedTargetKeyRef.current) return;
+    announcedTargetKeyRef.current = key;
+    liveStatusRef.current?.announce(
+      `Участок: цвет ${routeDisplay.target.color + 1}, осталось ${routeDisplay.targetRemaining} клеток`,
+    );
+  }, [routeDisplay]);
 
   const initializeRoute = useEffectEvent(() => {
     if (!containerSize.width || !containerSize.height) return;
@@ -619,7 +906,7 @@ export default function ColoringSession({
         if (interactionMode !== 'reveal') {
           const nextColor = findRewardingColor(template, filledRef.current, selectedColor);
           if (nextColor !== undefined && nextColor !== selectedColor) onSelectColor(nextColor);
-          else routeStateRef.current = { ...routeStateRef.current, status: 'error', reason: 'initial:no_actionable_target' };
+          else routeStateRef.current = { ...routeStateRef.current, status: 'freeExploration', reason: 'initial:no_actionable_target' };
           syncRouteDisplay();
         }
       } else {
@@ -634,9 +921,24 @@ export default function ColoringSession({
     safeArea.current = sa;
     setSafeArea(sa);
     visitedTargetsRef.current = new Set();
-    const best = findBestInitialTarget(wins);
+    const savedTarget = resumedTargetRef.current;
+    const canRestoreTarget = savedTarget?.kind === 'legacy'
+      && Array.isArray(savedTarget.workCells)
+      && savedTarget.workCells.length
+      && Number(resumeSnapshot?.smartTargetRevision) === Number(progress?.revision)
+      && savedTarget.color != null;
+    const best = canRestoreTarget
+      ? candidateForCells(savedTarget.workCells, template.width)
+      : findBestInitialTarget(wins);
     if (best) {
-      const result = activateTarget(best, { immediate: true, force: false, reason: 'initial', markVisited: true });
+      const result = activateTarget(best, {
+        immediate: true,
+        force: false,
+        reason: canRestoreTarget ? 'resume' : 'initial',
+        markVisited: true,
+        targetColor: canRestoreTarget ? savedTarget.color : undefined,
+      });
+      resumedTargetRef.current = null;
       if (!result.ok) {
         routeStateRef.current = { ...routeStateRef.current, status: 'error', reason: `initial:${result.reason}` };
         syncRouteDisplay();
@@ -703,6 +1005,7 @@ export default function ColoringSession({
     );
 
     if (!targetDone) return;
+    if (enhancedCoreFeel) return;
     applyNextOutcome(buildNextOutcome(rs.targetId), 'auto-advance', false);
   }
 
@@ -737,19 +1040,57 @@ export default function ColoringSession({
     }
     filledRef.current = nextFilled;
     setLocalFilled(nextFilled);
-    if (onSaveProgress) onSaveProgress(nextFilled, operation);
-    if (onTrack) onTrack('coloring_stroke_commit', { templateId: template.id, color: stroke.color, cells: stroke.indices.length });
+    const special = specialTreatment
+      ? specialCells.find((special) => ['spark', 'bomb', 'fuse', 'choice', 'artifact', 'hazard'].includes(special.kind)
+        && isSessionGameSpecialAllowed(sessionGameExperiment, special.kind)
+        && special.state === 'unseen'
+        && !claimedSpecialsRef.current.has(special.id)
+        && operation.changes.some((change) => change.index === Number(special.cell_index)
+          && change.to === template.cells[change.index]))
+      : null;
+    const specialAction = special ? {
+      type: `claim_${special.kind}`,
+      special_id: special.id,
+      cell_index: Number(special.cell_index),
+      session_game: sessionGameActive,
+      experiment_group: 'treatment',
+    } : null;
+    if (special) claimedSpecialsRef.current.add(special.id);
+    if (onSaveProgress) onSaveProgress(nextFilled, operation, specialAction);
+    // The PARB experiment intentionally measures authored outcomes instead of
+    // emitting one generic analytics event for every tap/stroke.
+    if (onTrack && !coreFeelActive) {
+      onTrack('coloring_stroke_commit', { templateId: template.id, color: stroke.color, cells: stroke.indices.length });
+    }
+    // A single-cell tap already has direct visual feedback. Reserve the calm
+    // stroke cue for a continuous gesture so tap-heavy play does not buzz.
+    if (enhancedCoreFeel) {
+      if (stroke.indices.length >= 2) playCoreFeelFeedback('stroke', coreFeelExperiment);
+    } else {
+      try {
+        window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
+      } catch {
+        // Haptics are optional.
+      }
+    }
     if (interactionMode !== 'reveal') {
       const remainingForColor = template.cells.reduce((count, target, ci) =>
         count + (target === stroke.color && nextFilled[ci] === -1 ? 1 : 0), 0);
       if (remainingForColor === 0) {
         if (onTrack) onTrack('coloring_color_complete', { templateId: template.id, color: stroke.color });
+        try {
+          window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+        } catch {
+          // Haptics are optional.
+        }
         const nextColor = findRewardingColor(template, nextFilled, stroke.color);
         if (nextColor !== undefined) onSelectColor(nextColor);
       }
     }
     const rs = routeStateRef.current;
-    if (rs.target && autoState === AUTO_STATE.ACTIVE) {
+    // Manual camera exploration must not make the authored fragment lose its
+    // reveal. Outside the experiment, preserve the existing AUTO-only route.
+    if (rs.target && (autoState === AUTO_STATE.ACTIVE || enhancedCoreFeel)) {
       const visRem = computeVisibleUnfilledCount(
         rs.target, camera, template, nextFilled,
         containerSize.width, containerSize.height, safeArea.current,
@@ -761,18 +1102,58 @@ export default function ColoringSession({
         targetRemaining: tgtRem,
       };
       syncRouteDisplay();
+      if (enhancedCoreFeel && tgtRem === 0 && coreFeelBeat?.targetId !== rs.targetId) {
+        const fragment = activeCoreFeelFragmentRef.current;
+        const finishedFragment = fragment || {
+              id: `target-${rs.targetId}`,
+              label: 'Фрагмент',
+              prompt: 'Продолжить раскрытие',
+              color: rs.target.color,
+              cells: rs.target.workCells,
+            };
+        const nextFragment = getNextCoreFeelFragment(template, nextFilled, finishedFragment.id);
+        setCoreFeelHintVisible(false);
+        setCoreFeelBeat({
+          id: `${finishedFragment.id}:${Date.now()}`,
+          status: 'revealed',
+          targetId: rs.targetId,
+          fragment: finishedFragment,
+          nextFragment,
+          revealedAt: Date.now(),
+        });
+        playCoreFeelFeedback('fragment', coreFeelExperiment);
+        onTrack?.('core_feel_manual_fragment_reveal', {
+          id: template.id,
+          variant: coreFeelExperiment.variantId,
+          fragment: finishedFragment.id,
+          cells: rs.target.workCells.length,
+          time_to_reveal_ms: firstCoreFeelStrokeAtRef.current
+            ? Date.now() - firstCoreFeelStrokeAtRef.current
+            : Date.now() - stroke.startedAt,
+          assisted_cells: 0,
+        });
+        liveStatusRef.current?.announce(`${finishedFragment.label} раскрыт. Можно продолжить к следующему фрагменту или остановиться.`);
+      }
       if (visRem === 0 && tgtRem > 0) {
       }
     }
-  }, [template, onSaveProgress, onSelectColor, interactionMode, onTrack, autoState, camera, containerSize]);
+  // Route persistence is a mutable session side effect; keeping the callback
+  // stable would require moving the whole route machine into a reducer.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template, onSaveProgress, onSelectColor, interactionMode, onTrack, autoState, camera, containerSize, specialCells, specialTreatment, coreFeelActive, enhancedCoreFeel, coreFeelExperiment, coreFeelBeat]);
 
   const handleWrongCell = useCallback(() => {
+    liveStatusRef.current?.announce('Неправильный цвет для этой клетки');
     if (onWrongCell) onWrongCell();
   }, [onWrongCell]);
 
   const handleFirstPaint = useCallback(() => {
+    if (coreFeelActive) {
+      setCoreFeelHintVisible(false);
+      firstCoreFeelStrokeAtRef.current ||= Date.now();
+    }
     if (onFirstPaint) onFirstPaint();
-  }, [onFirstPaint]);
+  }, [onFirstPaint, coreFeelActive]);
 
   function enterFreeExploration() {
     const current = routeStateRef.current;
@@ -780,6 +1161,7 @@ export default function ColoringSession({
     pauseAuto();
     routeStateRef.current = { ...current, status: 'freeExploration', reason: 'manual_exploration' };
     syncRouteDisplay();
+    liveStatusRef.current?.announce('Свободный просмотр. Shift со стрелками двигает поле, 0 показывает обзор.');
   }
 
   function handleOverview() {
@@ -789,6 +1171,16 @@ export default function ColoringSession({
     routeStateRef.current = { ...current, status: 'freeExploration', reason: 'overview' };
     syncRouteDisplay();
     focusOverview();
+    liveStatusRef.current?.announce('Показан обзор всей картины.');
+  }
+
+  function handleCanvasResetView() {
+    const current = routeStateRef.current;
+    if (current?.target) handleOverview();
+    else {
+      pauseAuto();
+      focusOverview();
+    }
   }
 
   function returnToTarget() {
@@ -796,7 +1188,7 @@ export default function ColoringSession({
     if (!current.target) return;
     const cells = current.target.workCells;
     resumeAuto();
-    const candidate = candidateForCells(cells);
+    const candidate = candidateForCells(cells, template.width);
     const result = activateTarget(candidate, {
       immediate: false,
       force: true,
@@ -836,7 +1228,8 @@ export default function ColoringSession({
 
   return (
     <div
-      className="coloring-session"
+      className={`coloring-session${coreFeelBeat?.status === 'revealed' ? ' core-feel-reveal-active' : ''}`}
+      data-artwork-id={template.id}
       data-route-status={routeDisplay.status}
       data-target-id={routeDisplay.targetId || ''}
       data-target-color={routeDisplay.target?.color ?? ''}
@@ -845,10 +1238,13 @@ export default function ColoringSession({
       data-safe-right={safeAreaState.right}
       data-safe-bottom={safeAreaState.bottom}
       data-safe-left={safeAreaState.left}
+      data-special-cohort={specialCohort}
+      data-core-feel-variant={coreFeelActive ? coreFeelExperiment.variantId : ''}
+      data-core-feel-camera={coreFeelActive ? coreFeelExperiment.variant.cameraStyle : ''}
     >
       <div className="coloring-canvas-container" ref={containerRef} style={ambilight ? { '--ambilight': ambilight } : undefined}>
         {['ready', 'freeExploration'].includes(routeDisplay.status) && routeDisplay.target && (
-          <div className="coloring-task-context" aria-live="polite">
+          <div className="coloring-task-context">
             <b>Цвет {routeDisplay.target.color + 1} · Осталось {routeDisplay.targetRemaining} клеток</b>
             <span>{
               routeDisplay.reason?.includes(':color_complete:')
@@ -883,8 +1279,20 @@ export default function ColoringSession({
             activeWorkCells={routeDisplay.target?.workCells || []}
             activeTargetColor={routeDisplay.target?.color ?? null}
             onManualExplore={enterFreeExploration}
-            interactionDisabled={routeDisplay.status === 'focusingTarget'}
+            interactionDisabled={routeDisplay.status === 'focusingTarget' || coreFeelBeat?.status === 'revealed'}
             peekColor={peekColor}
+            onResetView={handleCanvasResetView}
+            specialCells={specialTreatment
+              ? specialCells.filter((special) => isSessionGameSpecialAllowed(sessionGameExperiment, special.kind))
+              : []}
+            onVisibleSpecialKinds={onVisibleSpecialKinds}
+            coreFeelVariant={enhancedCoreFeel ? coreFeelExperiment.variant : null}
+            revealBeat={coreFeelBeat?.status === 'revealed' ? {
+              id: coreFeelBeat.fragment.id,
+              token: coreFeelBeat.id,
+              bounds: candidateForCells(coreFeelBeat.fragment.cells, template.width).bounds,
+              color: template.palette[coreFeelBeat.fragment.color],
+            } : null}
           />
         )}
         {!showCanvas && (
@@ -904,8 +1312,17 @@ export default function ColoringSession({
           camera={camera}
           containerSize={containerSize}
           onTrack={onTrack}
+          specialCohort={specialCohort}
+          specialProgress={progress}
+          specialCells={specialCells}
+          specialOffer={specialOffer}
+          specialDiscovered={specialDiscovered}
+          specialTarget={routeDisplay.target}
+          specialPlan={routeDisplay}
+          specialRecentTargets={[...visitedTargetsRef.current]}
+          specialTargetActive={routeDisplay.status !== 'freeExploration'}
         />
-        <ColoringHud
+        {!enhancedCoreFeel && <ColoringHud
           routeState={routeDisplay}
           onReturnToTarget={returnToTarget}
           onNextCluster={handleNextCluster}
@@ -913,17 +1330,194 @@ export default function ColoringSession({
           combo={combo}
           isPainting={false}
           onResize={handleHudResize}
-        />
+        />}
+        {enhancedCoreFeel && coreFeelHintVisible && routeDisplay.status === 'ready' && !coreFeelBeat && (
+          <div className="core-feel-context-hint" role="status" data-core-feel-hint>
+            {getCoreFeelFragmentForColor(template, localFilled, routeDisplay.target?.color)?.prompt || 'Проведи по подсвеченному фрагменту'}
+          </div>
+        )}
+        {enhancedCoreFeel && coreFeelBeat?.status === 'revealed' && (
+          <div className="core-feel-ownership-pause" data-core-feel-ownership-pause data-reveal-variant={coreFeelExperiment.variant.revealStyle}>
+            <span className="core-feel-beat-kicker">Ты раскрыл</span>
+            <b>{coreFeelBeat.fragment.label}</b>
+            {coreFeelBeat.nextFragment ? (
+              <>
+                <button type="button" onClick={handleNextCluster} data-core-feel-next>
+                  <span>Следующий фрагмент</span>
+                  <small>{coreFeelBeat.nextFragment.label}</small>
+                </button>
+                <button type="button" className="core-feel-stop-button" onClick={onCoreFeelStop} data-core-feel-stop>
+                  Остановиться здесь
+                </button>
+              </>
+            ) : (
+              <button type="button" className="core-feel-stop-button" onClick={onCoreFeelStop} data-core-feel-stop>
+                Остановиться здесь
+              </button>
+            )}
+          </div>
+        )}
+        {specialTreatment && specialOffer?.kind === 'bomb' && (
+          <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" data-special-kind="bomb">
+            <span className="progressive-grid-special-title">Бомба: применить вокруг клетки</span>
+            <button
+              type="button"
+              data-special-action="use"
+              onClick={() => onSpecialAction?.({
+                type: 'use_bomb',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                center_x: activeSpecial ? Number(activeSpecial.cell_index) % template.width : 0,
+                center_y: activeSpecial ? Math.floor(Number(activeSpecial.cell_index) / template.width) : 0,
+                experiment_group: 'treatment',
+              })}
+            >Использовать</button>
+          </div>
+        )}
+        {specialTreatment && specialOffer?.kind === 'fuse' && (
+          <div
+            className="progressive-grid-special-offer legacy-grid-special-offer"
+            role="group"
+            data-special-kind="fuse"
+            data-fuse-steps-remaining={Array.isArray(specialOffer.steps) ? specialOffer.steps.length : 0}
+          >
+            <button
+              type="button"
+              className="progressive-grid-special-skip"
+              data-special-action="skip"
+              onClick={() => onSpecialAction?.({
+                type: 'skip_fuse',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                experiment_group: 'treatment',
+              })}
+            >Leave it and continue</button>
+            <span className="progressive-grid-special-title">Фитиль: обезвредить цепочку</span>
+            <button
+              type="button"
+              data-special-action="disarm"
+              data-fuse-step-distance={Array.isArray(specialOffer.steps) ? specialOffer.steps[0]?.distance : undefined}
+              data-fuse-steps-remaining={Array.isArray(specialOffer.steps) ? specialOffer.steps.length : 0}
+              onClick={() => onSpecialAction?.({
+                type: 'disarm_fuse',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                experiment_group: 'treatment',
+              })}
+            >
+              {Array.isArray(specialOffer.steps) && specialOffer.steps.length > 1
+                ? `Обезвредить звено ${specialOffer.steps[0]?.distance}`
+                : 'Обезвредить и продолжить'}
+            </button>
+          </div>
+        )}
+        {specialTreatment && specialOffer?.kind === 'hazard' && (
+          <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" data-special-kind="hazard">
+            <button
+              type="button"
+              className="progressive-grid-special-skip"
+              data-special-action="skip"
+              onClick={() => onSpecialAction?.({
+                type: 'skip_hazard',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                experiment_group: 'treatment',
+              })}
+            >Пропустить (маленькая пауза)</button>
+            <span className="progressive-grid-special-title">Опасность: обезвредьте маркер</span>
+            <button
+              type="button"
+              data-special-action="disarm"
+              data-hazard-disarm
+              onClick={() => onSpecialAction?.({
+                type: 'disarm_hazard',
+                special_id: specialOffer.special_id,
+                offer_token: specialOffer.offer_token,
+                experiment_group: 'treatment',
+              })}
+            >Обезвредить и продолжить</button>
+          </div>
+        )}
+        {specialTreatment && specialOffer?.kind === 'choice' && Array.isArray(specialOffer.choice_options) && (
+          <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" data-special-kind="choice">
+            <span className="progressive-grid-special-title">Выберите способ продолжить</span>
+            {specialOffer.choice_options.slice(0, 2).map((option) => (
+              <button
+                key={option.option_id}
+                type="button"
+                data-special-option={option.option_id}
+                onClick={() => onSpecialAction?.({
+                  type: 'use_choice',
+                  special_id: specialOffer.special_id,
+                  offer_token: specialOffer.offer_token,
+                  option_id: option.option_id,
+                  experiment_group: 'treatment',
+                })}
+              >{option.label}</button>
+            ))}
+          </div>
+        )}
+        {specialTreatment && autoSparkActionForOffer(specialOffer) && (
+          <div
+            className="progressive-grid-special-offer legacy-grid-special-offer"
+            role="status"
+            aria-live="polite"
+            aria-label="Искра применяется автоматически"
+            data-special-kind="spark"
+            data-special-auto-apply="true"
+            data-special-interaction-cost="0"
+          >
+            <span className="progressive-grid-special-title">Искра заряжается…</span>
+            <span className="progressive-grid-special-detail">
+              Сервер выбрал трудоёмкий участок · {specialOffer.target_options?.[0]?.estimated_cells || 0} клеток
+            </span>
+            {autoSparkRetryKey && (
+              <button type="button" data-special-action="retry" onClick={retryAutoSpark}>
+                Повторить Spark
+              </button>
+            )}
+          </div>
+        )}
+        {specialTreatment && specialDiscovered && !specialOffer && (
+          <div className="progressive-grid-special-offer legacy-grid-special-offer" role="status" data-special-discovered>
+            <span className="progressive-grid-special-title">
+              {specialDiscovered.kind === 'artifact'
+                ? `Артефакт: фрагмент ${specialDiscovered.artifact_fragments || 1}/${artifactTotal}`
+                : specialDiscovered.kind === 'hazard' && specialDiscovered.missed
+                  ? 'Опасность пропущена: небольшая локальная пауза'
+                  : `${specialDiscovered.kind || 'Spark'} найден`}
+            </span>
+          </div>
+        )}
+        {specialTreatment && artifactProgress && artifactProgress.fragments > 0
+          && !specialOffer && !specialDiscovered && (
+          <div
+            className="progressive-grid-special-offer legacy-grid-special-offer"
+            role="status"
+            data-artifact-progress
+            data-artifact-fragments={String(artifactProgress.fragments)}
+            data-artifact-total={String(artifactTotal)}
+          >
+            <span className="progressive-grid-special-title">
+              {`Артефакт: ${artifactProgress.complete ? 'собран' : `фрагмент ${artifactProgress.fragments}/${artifactTotal}`}`}
+            </span>
+          </div>
+        )}
       </div>
-      <div className={`coloring-task-summary${showTaskSummary ? '' : ' coloring-task-summary--empty'}`} aria-live="polite">
+      <div className={`coloring-task-summary${showTaskSummary ? '' : ' coloring-task-summary--empty'}${enhancedCoreFeel ? ' coloring-task-summary--core-feel' : ''}`}>
         {showTaskSummary && (
           <>
           <span className="task-color-dot" style={{ background: template.palette[routeDisplay.target.color] }} aria-hidden="true" />
-          {`Цвет ${routeDisplay.target.color + 1} · Осталось ${routeDisplay.targetRemaining} клеток`}
+          {enhancedCoreFeel
+            ? routeDisplay.targetRemaining > 0
+              ? `${getCoreFeelFragmentForColor(template, localFilled, routeDisplay.target.color)?.label || 'Фрагмент'} · Осталось ${routeDisplay.targetRemaining}`
+              : 'Фрагмент раскрыт'
+            : `Цвет ${routeDisplay.target.color + 1} · Осталось ${routeDisplay.targetRemaining} клеток`}
           </>
         )}
       </div>
-      {interactionMode !== 'reveal' && (
+      <span id={liveStatusId} role="status" aria-live="polite" className="sr-only">{liveStatus}</span>
+      {interactionMode !== 'reveal' && !enhancedCoreFeel && (
         <div className="coloring-dock">
           <ColoringPalette
             template={template}

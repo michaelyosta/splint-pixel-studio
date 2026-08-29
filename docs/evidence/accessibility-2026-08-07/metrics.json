@@ -1,0 +1,219 @@
+{
+  "capturedAt": "2026-08-06T22:05:06.651Z",
+  "screens": [
+    {
+      "name": "classic-360",
+      "viewport": {
+        "width": 360,
+        "height": 800
+      },
+      "metrics": {
+        "viewportWidth": 360,
+        "viewportHeight": 800,
+        "documentWidth": 360,
+        "noHorizontalOverflow": true,
+        "domNodes": 134,
+        "canvasCount": 1,
+        "canvasPixels": 162000,
+        "perCellDom": 0,
+        "liveRegions": 4,
+        "swatches": 10,
+        "selectedSwatchLabel": "Цвет 8, выбран, осталось 1",
+        "overflowText": 0,
+        "bounds": {
+          "dockInViewport": true,
+          "actionsInViewport": true,
+          "summaryInViewport": true,
+          "hudInViewport": true
+        },
+        "overlaps": {
+          "summaryDock": false,
+          "hudCanvas": true
+        },
+        "contrast": {
+          "textOnDock": 16.73,
+          "selectedRingOnDock": 10.89,
+          "summaryTextOnCard": 16.73,
+          "wrongSignalOnCanvas": 6.06
+        }
+      }
+    },
+    {
+      "name": "classic-390",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "metrics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentWidth": 390,
+        "noHorizontalOverflow": true,
+        "domNodes": 134,
+        "canvasCount": 1,
+        "canvasPixels": 192660,
+        "perCellDom": 0,
+        "liveRegions": 4,
+        "swatches": 10,
+        "selectedSwatchLabel": "Цвет 8, выбран, осталось 1",
+        "overflowText": 0,
+        "bounds": {
+          "dockInViewport": true,
+          "actionsInViewport": true,
+          "summaryInViewport": true,
+          "hudInViewport": true
+        },
+        "overlaps": {
+          "summaryDock": false,
+          "hudCanvas": true
+        },
+        "contrast": {
+          "textOnDock": 16.73,
+          "selectedRingOnDock": 10.89,
+          "summaryTextOnCard": 16.73,
+          "wrongSignalOnCanvas": 6.06
+        }
+      }
+    },
+    {
+      "name": "classic-430",
+      "viewport": {
+        "width": 430,
+        "height": 932
+      },
+      "metrics": {
+        "viewportWidth": 430,
+        "viewportHeight": 932,
+        "documentWidth": 430,
+        "noHorizontalOverflow": true,
+        "domNodes": 134,
+        "canvasCount": 1,
+        "canvasPixels": 250260,
+        "perCellDom": 0,
+        "liveRegions": 4,
+        "swatches": 10,
+        "selectedSwatchLabel": "Цвет 8, выбран, осталось 1",
+        "overflowText": 0,
+        "bounds": {
+          "dockInViewport": true,
+          "actionsInViewport": true,
+          "summaryInViewport": true,
+          "hudInViewport": true
+        },
+        "overlaps": {
+          "summaryDock": false,
+          "hudCanvas": true
+        },
+        "contrast": {
+          "textOnDock": 16.73,
+          "selectedRingOnDock": 10.89,
+          "summaryTextOnCard": 16.73,
+          "wrongSignalOnCanvas": 6.06
+        }
+      }
+    },
+    {
+      "name": "reduced-motion-390",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "motion": {
+        "reduced": true,
+        "transitionDuration": "1e-05s",
+        "animationDuration": "1e-05s"
+      },
+      "metrics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentWidth": 390,
+        "noHorizontalOverflow": true,
+        "domNodes": 134,
+        "canvasCount": 1,
+        "canvasPixels": 192660,
+        "perCellDom": 0,
+        "liveRegions": 4,
+        "swatches": 10,
+        "selectedSwatchLabel": "Цвет 8, выбран, осталось 1",
+        "overflowText": 0,
+        "bounds": {
+          "dockInViewport": true,
+          "actionsInViewport": true,
+          "summaryInViewport": true,
+          "hudInViewport": true
+        },
+        "overlaps": {
+          "summaryDock": false,
+          "hudCanvas": true
+        },
+        "contrast": {
+          "textOnDock": 16.73,
+          "selectedRingOnDock": 10.89,
+          "summaryTextOnCard": 16.73,
+          "wrongSignalOnCanvas": 6.06
+        }
+      }
+    },
+    {
+      "name": "forced-colors-390",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "forced": {
+        "active": true,
+        "selectedOutline": "solid"
+      },
+      "metrics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentWidth": 390,
+        "noHorizontalOverflow": true,
+        "domNodes": 134,
+        "canvasCount": 1,
+        "canvasPixels": 192660,
+        "perCellDom": 0,
+        "liveRegions": 4,
+        "swatches": 10,
+        "selectedSwatchLabel": "Цвет 8, выбран, осталось 1",
+        "overflowText": 0,
+        "bounds": {
+          "dockInViewport": true,
+          "actionsInViewport": true,
+          "summaryInViewport": true,
+          "hudInViewport": true
+        },
+        "overlaps": {
+          "summaryDock": false,
+          "hudCanvas": true
+        },
+        "contrast": {
+          "textOnDock": 16.73,
+          "selectedRingOnDock": 10.89,
+          "summaryTextOnCard": 16.73,
+          "wrongSignalOnCanvas": 6.06
+        }
+      }
+    },
+    {
+      "name": "tiled-1200-390",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "metrics": {
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentWidth": 390,
+        "noHorizontalOverflow": true,
+        "domNodes": 132,
+        "canvasCount": 1,
+        "canvasPixels": 216116,
+        "perCellDom": 0,
+        "liveRegions": 3,
+        "heapBytes": 26000000
+      },
+      "tileResponses": 56
+    }
+  ]
+}

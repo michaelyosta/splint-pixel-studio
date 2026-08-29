@@ -1,5 +1,29 @@
 import { isIP } from 'node:net';
 
+export const PAYMENT_MODES = Object.freeze(['disabled', 'internal_credits', 'telegram_stars']);
+
+// An omitted NODE_ENV is kept compatible with the existing local test
+// harnesses. Explicitly named staging/preview environments must never inherit
+// the local X-User-Id/debug surface just because a deployment accidentally
+// carried ALLOW_DEV_AUTH=true.
+export function isLocalDevelopmentEnvironment(env = process.env) {
+  const nodeEnv = String(env.NODE_ENV || '').trim().toLowerCase();
+  return !nodeEnv || nodeEnv === 'development' || nodeEnv === 'test';
+}
+
+export function isDevelopmentAuthEnabled(env = process.env) {
+  return env.ALLOW_DEV_AUTH === 'true' && isLocalDevelopmentEnvironment(env);
+}
+
+export function getPaymentsMode(env = process.env) {
+  const defaultMode = isLocalDevelopmentEnvironment(env) ? 'internal_credits' : 'disabled';
+  const mode = String(env.PAYMENTS_MODE || defaultMode).trim().toLowerCase();
+  if (!PAYMENT_MODES.includes(mode)) {
+    throw new Error(`PAYMENTS_MODE must be one of: ${PAYMENT_MODES.join('|')}`);
+  }
+  return mode;
+}
+
 function parseOrigins(raw) {
   const origins = String(raw || '').split(',').map((value) => value.trim()).filter(Boolean);
   if (!origins.length) throw new Error('CORS_ORIGINS is required in production');
@@ -31,19 +55,51 @@ function parseProxyAddress(value) {
   return value;
 }
 
+function validateProductionS3Endpoint(value) {
+  let url;
+  try {
+    url = new URL(String(value || ''));
+  } catch {
+    throw new Error('S3_ENDPOINT must be a valid HTTPS URL in production');
+  }
+  if (url.protocol !== 'https:' || url.username || url.password) {
+    throw new Error('S3_ENDPOINT must be an HTTPS URL without embedded credentials in production');
+  }
+  return url.href;
+}
+
 export function validateProductionConfiguration(env = process.env) {
-  if (env.NODE_ENV !== 'production') {
+  const nodeEnv = String(env.NODE_ENV || '').trim().toLowerCase();
+  if (nodeEnv !== 'production') {
     return { isProduction: false, allowedOrigins: [], trustProxy: false };
   }
 
+  const paymentsMode = getPaymentsMode(env);
+
   if (env.ALLOW_DEV_AUTH === 'true') throw new Error('ALLOW_DEV_AUTH cannot be enabled in production');
+  if (env.SPECIAL_CELLS_QA_OVERRIDE === 'true') throw new Error('SPECIAL_CELLS_QA_OVERRIDE cannot be enabled in production');
+  if (env.SPECIAL_CELLS_DIAGNOSTICS === 'true') throw new Error('SPECIAL_CELLS_DIAGNOSTICS cannot be enabled in production');
+  if (env.SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE === 'true') throw new Error('SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE cannot be enabled in production');
+  if (env.E2E_SEED_HOOKS === 'true') throw new Error('E2E_SEED_HOOKS cannot be enabled in production');
   if (!env.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required in production');
   if (env.SEED_DEMO_DATA === 'true') throw new Error('SEED_DEMO_DATA cannot be enabled in production');
+
+  if (paymentsMode === 'internal_credits') {
+    throw new Error('PAYMENTS_MODE=internal_credits cannot be enabled in production; keep production payments disabled');
+  }
+
+  if (paymentsMode === 'telegram_stars') {
+    // The provider adapter/webhook is intentionally not mounted in this
+    // bounded slice. Refuse a production boot that could advertise an active
+    // Stars mode until a separate release wires the real Bot API path.
+    throw new Error('PAYMENTS_MODE=telegram_stars is not available in this release; keep production payments disabled');
+  }
 
   const required = ['DATABASE_URL', 'S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];
   const missing = required.filter((name) => !String(env[name] || '').trim());
   if (env.STORAGE_DRIVER !== 's3') missing.push('STORAGE_DRIVER=s3');
   if (missing.length) throw new Error(`Missing required production configuration: ${missing.join(', ')}`);
+  validateProductionS3Endpoint(env.S3_ENDPOINT);
 
   const allowedOrigins = parseOrigins(env.CORS_ORIGINS);
   const trustProxyValues = String(env.TRUST_PROXY || '').split(',').map((value) => value.trim()).filter(Boolean);
@@ -56,5 +112,6 @@ export function validateProductionConfiguration(env = process.env) {
     isProduction: true,
     allowedOrigins,
     trustProxy: trustProxyValues.map(parseProxyAddress),
+    paymentsMode,
   };
 }

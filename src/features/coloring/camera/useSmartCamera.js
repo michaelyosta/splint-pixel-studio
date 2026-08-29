@@ -5,7 +5,7 @@ import { createCameraAnimation } from './cameraAnimation.js';
 
 export { AUTO_STATE };
 
-export function useSmartCamera(template, viewWidth, viewHeight) {
+export function useSmartCamera(template, viewWidth, viewHeight, initialCamera = null, onCameraChange = null) {
   const [camera, setCameraRaw] = useState({ x: 0, y: 0, zoom: 1 });
   const [cameraReady, setCameraReady] = useState(false);
   const [autoState, setAutoState] = useState(AUTO_STATE.ACTIVE);
@@ -19,6 +19,9 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
   const isInteractingRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const safeAreaRef = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
+  const onCameraChangeRef = useRef(onCameraChange);
+  onCameraChangeRef.current = onCameraChange;
+  const restoredCameraRef = useRef(false);
 
   const isAutoActive = autoState === AUTO_STATE.ACTIVE && !isInteractingRef.current;
 
@@ -29,6 +32,10 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, []);
+
+  useEffect(() => {
+    restoredCameraRef.current = false;
+  }, [template?.id]);
 
   useEffect(() => {
     return () => {
@@ -66,13 +73,25 @@ export function useSmartCamera(template, viewWidth, viewHeight) {
     const clamped = clampCamera(c, viewWidth, viewHeight, template.width, template.height);
     cameraRawRef.current = clamped;
     setCameraRaw(clamped);
+    onCameraChangeRef.current?.(clamped);
   }, [template, viewWidth, viewHeight, cancelAnimation]);
 
   const setCameraInstant = useCallback((c) => {
     cancelAnimation();
     cameraRawRef.current = c;
     setCameraRaw(c);
+    onCameraChangeRef.current?.(c);
   }, [cancelAnimation]);
+
+  useEffect(() => {
+    if (restoredCameraRef.current || !template || !initialCamera || !viewWidth || !viewHeight) return;
+    const x = Number(initialCamera.x);
+    const y = Number(initialCamera.y);
+    const zoom = Number(initialCamera.zoom);
+    if (![x, y, zoom].every(Number.isFinite) || zoom <= 0) return;
+    restoredCameraRef.current = true;
+    setCamera({ x, y, zoom });
+  }, [initialCamera, setCamera, template, viewHeight, viewWidth]);
 
   const beginInteraction = useCallback(() => {
     isInteractingRef.current = true;

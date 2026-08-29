@@ -1,0 +1,117 @@
+{
+  "bounds": [
+    "843",
+    "0",
+    "854",
+    "11"
+  ],
+  "camera": [
+    "-21301.339999999997",
+    "58",
+    "0.7912499999999999"
+  ],
+  "hudOverlap": [
+    {
+      "c": "",
+      "rect": {
+        "bottom": 748,
+        "height": 551,
+        "left": 1,
+        "right": 389,
+        "top": 197,
+        "width": 388,
+        "x": 1,
+        "y": 197
+      }
+    },
+    {
+      "c": "sr-only",
+      "rect": {
+        "bottom": 197,
+        "height": 1,
+        "left": 0,
+        "right": 1,
+        "top": 196,
+        "width": 1,
+        "x": 0,
+        "y": 196
+      }
+    },
+    {
+      "c": "sr-only",
+      "rect": {
+        "bottom": 197,
+        "height": 1,
+        "left": 0,
+        "right": 1,
+        "top": 196,
+        "width": 1,
+        "x": 0,
+        "y": 196
+      }
+    },
+    {
+      "c": "special-cells-dev-hud",
+      "rect": {
+        "bottom": 224,
+        "height": 27,
+        "left": 109.09375,
+        "right": 389,
+        "top": 197,
+        "width": 279.90625,
+        "x": 109.09375,
+        "y": 197
+      }
+    },
+    {
+      "c": "progressive-grid-guide",
+      "rect": {
+        "bottom": 241,
+        "height": 34,
+        "left": 11,
+        "right": 287.25,
+        "top": 207,
+        "width": 276.25,
+        "x": 11,
+        "y": 207
+      }
+    },
+    {
+      "c": "progressive-grid-controls",
+      "rect": {
+        "bottom": 738,
+        "height": 44,
+        "left": 235,
+        "right": 379,
+        "top": 694,
+        "width": 144,
+        "x": 235,
+        "y": 694
+      }
+    },
+    {
+      "c": "progressive-grid-minimap",
+      "rect": {
+        "bottom": 321,
+        "height": 114,
+        "left": 283,
+        "right": 379,
+        "top": 207,
+        "width": 96,
+        "x": 283,
+        "y": 207
+      }
+    }
+  ],
+  "mode": "work",
+  "smart": "ready",
+  "target": [
+    "849",
+    "0"
+  ],
+  "treatment": "treatment",
+  "viewport": {
+    "h": 844,
+    "w": 390
+  }
+}

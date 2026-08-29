@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
 import { requireRole } from '../middleware/authorization.js';
 import { purchaseCollection, StarsTransactionError } from '../services/stars-transactions.js';
+import { getPaymentsMode, isDevelopmentAuthEnabled } from '../config.js';
 
 const router = Router();
 
@@ -16,8 +17,8 @@ async function buildProfile(user, viewerId) {
   return { ...user, followers_count: followersCount, following_count: followingCount, posts_count: postsCount, is_following: isFollowing };
 }
 
-const PUBLIC_USER_FIELDS = 'id,nickname,avatar_url,status,karma';
-const OWN_USER_FIELDS = `${PUBLIC_USER_FIELDS},stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,created_at,updated_at`;
+const PUBLIC_USER_FIELDS = 'id,nickname,avatar_url,status,karma,level';
+const OWN_USER_FIELDS = `${PUBLIC_USER_FIELDS},xp_total,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,created_at,updated_at`;
 
 // GET /users/me
 router.get('/me', authMiddleware, asyncRoute(async (req, res) => {
@@ -94,7 +95,7 @@ router.patch('/:id/settings', authMiddleware, asyncRoute(async (req, res) => {
 }));
 
 // POST /users/:id/add-stars (dev-only debug endpoint)
-if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_AUTH === 'true') {
+if (isDevelopmentAuthEnabled()) {
   router.post('/:id/add-stars', authMiddleware, asyncRoute(async (req, res) => {
     if (req.params.id !== req.userId) return res.status(403).json({ error: 'Запрещено' });
     await run('UPDATE users SET stars_balance=stars_balance+100 WHERE id=?', [req.userId]);
@@ -105,7 +106,10 @@ if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_AUTH === 'tru
 
 // GET /collections  — catalog data
 router.get('/collections/all', authMiddleware, asyncRoute(async (req, res) => {
-  const cols = await all('SELECT * FROM collections');
+  const cols = await all(`SELECT * FROM collections
+    WHERE owner_id IS NULL
+      OR owner_id=?
+      OR (status='published' AND visibility='public')`, [req.userId]);
   res.json(cols);
 }));
 
@@ -117,6 +121,21 @@ router.post('/collections/:id/add', authMiddleware, asyncRoute(async (req, res) 
 
   if (!colId || typeof colId !== 'string') {
     return res.status(400).json({ error: 'collection id обязателен' });
+  }
+
+  const collection = await get('SELECT owner_id,status,visibility FROM collections WHERE id=?', [colId]);
+  if (!collection || collection.owner_id !== null || collection.status !== 'published' || collection.visibility !== 'public') {
+    return res.status(404).json({ error: 'Набор недоступен', code: 'COLLECTION_UNAVAILABLE' });
+  }
+
+  const paymentsMode = getPaymentsMode();
+  if (paymentsMode !== 'internal_credits') {
+    return res.status(503).json({
+      error: paymentsMode === 'telegram_stars'
+        ? 'Покупки Stars проходят только через подтверждённый Telegram-поток'
+        : 'Платежи отключены до отдельного product-owner решения',
+      code: paymentsMode === 'telegram_stars' ? 'PAYMENTS_PROVIDER_MISMATCH' : 'PAYMENTS_DISABLED',
+    });
   }
 
   try {
@@ -137,15 +156,6 @@ router.post('/collections/:id/add', authMiddleware, asyncRoute(async (req, res) 
     }
     throw error;
   }
-}));
-
-// POST /artworks/:id/complete — simulate finishing drawing
-router.post('/artworks/:id/complete', authMiddleware, asyncRoute(async (req, res) => {
-  const art = await get('SELECT * FROM artworks WHERE id=?', [req.params.id]);
-  if (!art) return res.status(404).json({ error: 'Работа не найдена' });
-  if (art.owner_id !== req.userId) return res.status(403).json({ error: 'Чужая работа' });
-  await run('UPDATE artworks SET is_completed=1, updated_at=? WHERE id=?', [new Date().toISOString(), art.id]);
-  res.json({ success: true });
 }));
 
 export default router;

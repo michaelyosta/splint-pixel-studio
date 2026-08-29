@@ -53,7 +53,7 @@ test('Dev-auth requires explicit ALLOW_DEV_AUTH=true', async (t) => {
 
   t.after(async () => {
     server.kill();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
 
   await new Promise((resolve, reject) => {
@@ -91,7 +91,7 @@ test('Dev-auth works with ALLOW_DEV_AUTH=true', async (t) => {
 
   t.after(async () => {
     server.kill();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
 
   const base = `http://127.0.0.1:${port + 1}`;
@@ -137,7 +137,7 @@ test('Production with ALLOW_DEV_AUTH=true fails to start', async (t) => {
     assert.ok(errorOutput.includes('ALLOW_DEV_AUTH') || code !== 0, 'Should fail due to ALLOW_DEV_AUTH in production');
 
     server.kill();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
 
   await t.test('Production without TELEGRAM_BOT_TOKEN fails to start', async () => {
@@ -159,7 +159,7 @@ test('Production with ALLOW_DEV_AUTH=true fails to start', async (t) => {
     assert.ok(errorOutput.includes('TELEGRAM_BOT_TOKEN') || code !== 0, 'Should fail due to missing TELEGRAM_BOT_TOKEN');
 
     server.kill();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
 
   await t.test('Production without durable infrastructure fails to start', async () => {
@@ -183,7 +183,7 @@ test('Production with ALLOW_DEV_AUTH=true fails to start', async (t) => {
     assert.match(errorOutput, /STORAGE_DRIVER=s3/);
 
     server.kill();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
 });
 
@@ -197,7 +197,7 @@ test('Telegram initData authentication', async (t) => {
 
   t.after(async () => {
     server.kill();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
 
   const base = `http://127.0.0.1:${port + 4}`;
@@ -283,7 +283,7 @@ test('Role-based authorization', async (t) => {
 
   t.after(async () => {
     server.kill();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
 
   const base = `http://127.0.0.1:${port + 5}`;
@@ -353,7 +353,7 @@ test('Debug stars endpoint is dev-only', async (t) => {
 
   t.after(async () => {
     server.kill();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
 
   const base = `http://127.0.0.1:${port + 6}`;
@@ -396,7 +396,7 @@ test('Debug stars endpoint is absent without ALLOW_DEV_AUTH', async (t) => {
 
   t.after(async () => {
     server.kill();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
 
   const base = `http://127.0.0.1:${port + 7}`;

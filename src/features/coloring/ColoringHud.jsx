@@ -37,11 +37,12 @@ export default function ColoringHud({
         <button
           className="hud-btn hud-btn--expand"
           onClick={(e) => { e.stopPropagation(); setCollapsed(false); }}
+          aria-label="Показать управление"
           title="Показать управление"
         >
-          <span className="hud-icon-dot" />
-          <span className="hud-icon-dot" />
-          <span className="hud-icon-dot" />
+          <span className="hud-icon-dot" aria-hidden="true" />
+          <span className="hud-icon-dot" aria-hidden="true" />
+          <span className="hud-icon-dot" aria-hidden="true" />
         </button>
         {combo > 1 && <div className="combo-badge">×{combo}</div>}
       </div>
@@ -50,21 +51,22 @@ export default function ColoringHud({
 
   return (
     <div className="coloring-hud" ref={hudRef}>
-      {isFree && <button className="hud-btn active" onClick={onReturnToTarget} title="Вернуться к текущему участку"><CameraIcon /><span>Вернуться к участку</span></button>}
-      <button className="hud-btn" onClick={onNextCluster} title="Следующий участок">
-        <span>→</span>
+      {isFree && <button className="hud-btn active" onClick={onReturnToTarget} aria-label="Вернуться к текущему участку" title="Вернуться к текущему участку"><CameraIcon /><span>Вернуться к участку</span></button>}
+      <button className="hud-btn" onClick={onNextCluster} aria-label="Следующий участок" title="Следующий участок">
+        <span aria-hidden="true">→</span>
         <span>Следующий участок</span>
       </button>
-      <button className="hud-btn" onClick={onOverview} title="Показать всю картину">
-        <span>⊞</span>
+      <button className="hud-btn" onClick={onOverview} aria-label="Показать всю картину" title="Показать всю картину">
+        <span aria-hidden="true">⊞</span>
         <span>Обзор</span>
       </button>
       <button
         className="hud-btn hud-btn--collapse"
         onClick={() => setCollapsed(true)}
+        aria-label="Свернуть панель"
         title="Свернуть панель"
       >
-        <span>−</span>
+        <span aria-hidden="true">−</span>
       </button>
       {combo > 1 && <div className="combo-badge">×{combo}</div>}
     </div>

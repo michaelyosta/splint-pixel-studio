@@ -1,0 +1,93 @@
+{
+  "capturedAt": "2026-08-12T17:07:06.969Z",
+  "template": "color_c72b6a88-5e18-4804-bd7e-5d9980f9cc73",
+  "states": [
+    {
+      "size": {
+        "w": 360,
+        "h": 800
+      },
+      "path": "C:/Users/misa/Desktop/Splint-Gemini/docs/evidence/special-cells-visual-live-2026-08-12/live-1200-work-360.png",
+      "meta": {
+        "bounds": [
+          "843",
+          "0",
+          "854",
+          "11"
+        ],
+        "camera": [
+          "-25075.793333333335",
+          "58",
+          "0.9295833333333334"
+        ],
+        "mode": "work",
+        "offers": 0,
+        "smart": "ready",
+        "target": [
+          "849",
+          "0"
+        ],
+        "treatment": "treatment",
+        "wave": 0
+      }
+    },
+    {
+      "size": {
+        "w": 390,
+        "h": 844
+      },
+      "path": "C:/Users/misa/Desktop/Splint-Gemini/docs/evidence/special-cells-visual-live-2026-08-12/live-1200-work-390.png",
+      "meta": {
+        "bounds": [
+          "843",
+          "0",
+          "854",
+          "11"
+        ],
+        "camera": [
+          "-25075.793333333335",
+          "58",
+          "0.9295833333333334"
+        ],
+        "mode": "work",
+        "offers": 0,
+        "smart": "ready",
+        "target": [
+          "849",
+          "0"
+        ],
+        "treatment": "treatment",
+        "wave": 0
+      }
+    },
+    {
+      "size": {
+        "w": 430,
+        "h": 932
+      },
+      "path": "C:/Users/misa/Desktop/Splint-Gemini/docs/evidence/special-cells-visual-live-2026-08-12/live-1200-work-430.png",
+      "meta": {
+        "bounds": [
+          "843",
+          "0",
+          "854",
+          "11"
+        ],
+        "camera": [
+          "-25075.793333333335",
+          "58",
+          "0.9295833333333334"
+        ],
+        "mode": "work",
+        "offers": 0,
+        "smart": "ready",
+        "target": [
+          "849",
+          "0"
+        ],
+        "treatment": "treatment",
+        "wave": 0
+      }
+    }
+  ]
+}

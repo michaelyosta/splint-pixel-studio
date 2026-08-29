@@ -1,13 +1,41 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
+import { DEV_USER_ID } from '../../api/client';
+import {
+  buildSpecialCellsDiagnosticsSnapshot,
+  getSpecialCellsLastError,
+  isSpecialCellsDiagnosticsEnabled,
+} from '../../lib/specialCellsDiagnostics';
+import SpecialCellsDevHud from './SpecialCellsDevHud.jsx';
 
 export default memo(function DevDiagnostics({
   autoState, routeState, routingColor, template,
   windowsCount, workingWindows, filled, safeArea, camera,
-  containerSize, onTrack,
+  containerSize, onTrack, specialCohort = null,
+  specialProgress = null, specialCells = [], specialOffer = null,
+  specialDiscovered = null, specialTarget = null, specialPlan = null,
+  specialRecentTargets = [], specialUserId = DEV_USER_ID,
+  specialTargetActive = true,
 }) {
+  const specialCellsSnapshot = useMemo(() => buildSpecialCellsDiagnosticsSnapshot({
+    template,
+    progress: specialProgress,
+    visibleSpecials: specialCells,
+    offer: specialOffer,
+    discovered: specialDiscovered,
+    target: specialTarget,
+    plan: specialPlan,
+    recentTargets: specialRecentTargets,
+    targetActive: specialTargetActive,
+    userId: specialUserId,
+    lastError: getSpecialCellsLastError(),
+  }), [specialCells, specialDiscovered, specialOffer, specialPlan, specialProgress, specialRecentTargets, specialTarget, specialTargetActive, specialUserId, template]);
+
   // The preview canvas is user-facing even in development, so diagnostics are
   // opt-in instead of appearing in every local or tunneled session.
-  if (!import.meta.env.DEV || import.meta.env.VITE_SHOW_COLORING_DIAGNOSTICS !== 'true') return null;
+  const mainEnabled = import.meta.env.DEV && import.meta.env.VITE_SHOW_COLORING_DIAGNOSTICS === 'true';
+  const hudEnabled = isSpecialCellsDiagnosticsEnabled(import.meta.env);
+  if (!mainEnabled && !hudEnabled) return null;
+  if (!mainEnabled) return <SpecialCellsDevHud snapshot={specialCellsSnapshot} />;
 
   const remainingGlobal = filled ? filled.reduce((c, f) => c + (f === -1 ? 1 : 0), 0) : 0;
   const remainingColor = (routingColor != null && template)
@@ -33,6 +61,7 @@ export default memo(function DevDiagnostics({
       maxWidth: '280px', pointerEvents: 'none', userSelect: 'none',
     }}>
       <div><b style={{ color: '#fff' }}>AUTO:</b> {autoState}</div>
+      {specialCohort && <div data-diagnostic-special-cohort><b style={{ color: '#fff' }}>Spark:</b> {specialCohort}</div>}
       <div><b style={routeStatusStyle}>route:</b> {routeState.status}</div>
       <div><b style={{ color: '#aaa' }}>gen:</b> {routeState.generation} |
         <b style={{ color: '#aaa' }}> tgt:</b> {routeState.targetId?.slice(-8) || '-'}</div>
@@ -45,6 +74,7 @@ export default memo(function DevDiagnostics({
         <b style={{ color: '#aaa' }}> rem glob:</b> {remainingGlobal}</div>
       <div><b style={{ color: '#aaa' }}>cam:</b> x={camera.x.toFixed(0)} y={camera.y.toFixed(0)} z={camera.zoom.toFixed(3)}</div>
       <div><b style={{ color: '#aaa' }}>safe:</b> L{left} T{top} R{right} B{bottom}</div>
+      <SpecialCellsDevHud snapshot={specialCellsSnapshot} />
     </div>
   );
 });

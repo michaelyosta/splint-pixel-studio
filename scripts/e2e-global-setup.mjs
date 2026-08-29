@@ -62,6 +62,11 @@ export default async function globalSetup() {
     ...process.env,
     E2E_WEB_PORT: String(webPort),
     E2E_API_PORT: String(apiPort),
+    NODE_ENV: 'test',
+    // Keep the browser and the ephemeral API on the same explicit test-auth
+    // contract. Individual specs may still override X-User-Id per context.
+    VITE_ALLOW_DEV_AUTH: 'true',
+    SPECIAL_CELLS_DIAGNOSTICS: 'true',
   };
 
   try {
@@ -85,6 +90,8 @@ export default async function globalSetup() {
   }
 
   return async () => {
-    await Promise.allSettled(startedProcesses.reverse().map(stopServer));
+    // Stop Vite before the API so no in-flight browser requests are proxied
+    // into a server that has already been torn down during runner cleanup.
+    await Promise.allSettled(startedProcesses.map(stopServer));
   };
 }

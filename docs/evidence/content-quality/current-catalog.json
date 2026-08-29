@@ -1,0 +1,342 @@
+{
+  "schema_version": "content-quality-audit.v1",
+  "generated_at": "2026-08-21T01:06:48.517Z",
+  "source": {
+    "catalog": "server/catalog-templates.json",
+    "recommendations": "docs/evidence/pixelization/automatic-recommendation/current-recommendation.json"
+  },
+  "contract": {
+    "advisory": true,
+    "catalog_mutated": false,
+    "creator_preview_final_parity_changed": false,
+    "exact_resolution_pixelization_only": true,
+    "unknown_style_route": "classic"
+  },
+  "summary": {
+    "artwork_count": 6,
+    "duration_bands": {
+      "short": 4,
+      "medium": 2
+    },
+    "complexity_bands": {
+      "intricate": 5,
+      "focused": 1
+    },
+    "quality_gate_status": {
+      "review": 6
+    },
+    "style_status": {
+      "unassessed": 6
+    },
+    "attached_pixelization_rows": 0,
+    "pixelization_evidence": {
+      "source_commit": "091a9c683919a1a0808f1af6d58cb9d9b6272b28",
+      "policy_version": "pixelization-routing-v1",
+      "provisional_positive": 2,
+      "human_review": 12,
+      "unavailable": 0
+    }
+  },
+  "entries": [
+    {
+      "id": "color_neon-cat",
+      "title": "Неоновый кот",
+      "collection_id": "col_night-city",
+      "theme": "night-city",
+      "mood": "calm",
+      "width": 32,
+      "height": 32,
+      "storage_mode": "legacy",
+      "pixelization_source_id": null,
+      "pixelization_evidence": null,
+      "content_metadata": {
+        "schema_version": "content-metadata.v1",
+        "duration": {
+          "band": "short",
+          "label": "Короткая · около 3 мин",
+          "minutes": 3,
+          "total_cells": 1024,
+          "session_mode": "quick",
+          "confidence": "editorial",
+          "source": "est_minutes"
+        },
+        "complexity": {
+          "band": "intricate",
+          "label": "Детальная",
+          "score": 66,
+          "confidence": "measured",
+          "source": "bounded-raster-metrics",
+          "gate": "pass"
+        },
+        "style": {
+          "route": "classic",
+          "status": "unassessed",
+          "confidence": "none",
+          "label": "Стиль не проверен",
+          "reasons": [
+            "exact-pixelization-evidence-missing"
+          ],
+          "policy": "pixelization-routing-v1",
+          "source": "safe-classic-default"
+        },
+        "quality_gate": {
+          "status": "review",
+          "reasons": [
+            "pixelization-review"
+          ],
+          "blocking": false
+        }
+      }
+    },
+    {
+      "id": "color_astro-whale",
+      "title": "Космический кит",
+      "collection_id": "col_space",
+      "theme": "space",
+      "mood": "calm",
+      "width": 28,
+      "height": 28,
+      "storage_mode": "legacy",
+      "pixelization_source_id": null,
+      "pixelization_evidence": null,
+      "content_metadata": {
+        "schema_version": "content-metadata.v1",
+        "duration": {
+          "band": "short",
+          "label": "Короткая · около 3 мин",
+          "minutes": 3,
+          "total_cells": 784,
+          "session_mode": "quick",
+          "confidence": "editorial",
+          "source": "est_minutes"
+        },
+        "complexity": {
+          "band": "focused",
+          "label": "Сосредоточенная",
+          "score": 55,
+          "confidence": "measured",
+          "source": "bounded-raster-metrics",
+          "gate": "pass"
+        },
+        "style": {
+          "route": "classic",
+          "status": "unassessed",
+          "confidence": "none",
+          "label": "Стиль не проверен",
+          "reasons": [
+            "exact-pixelization-evidence-missing"
+          ],
+          "policy": "pixelization-routing-v1",
+          "source": "safe-classic-default"
+        },
+        "quality_gate": {
+          "status": "review",
+          "reasons": [
+            "pixelization-review"
+          ],
+          "blocking": false
+        }
+      }
+    },
+    {
+      "id": "color_tea-dragon",
+      "title": "Чайный дракон",
+      "collection_id": "col_cozy-forest",
+      "theme": "cozy",
+      "mood": "cozy",
+      "width": 32,
+      "height": 32,
+      "storage_mode": "legacy",
+      "pixelization_source_id": null,
+      "pixelization_evidence": null,
+      "content_metadata": {
+        "schema_version": "content-metadata.v1",
+        "duration": {
+          "band": "medium",
+          "label": "Средняя · около 4 мин",
+          "minutes": 4,
+          "total_cells": 1024,
+          "session_mode": "standard",
+          "confidence": "editorial",
+          "source": "est_minutes"
+        },
+        "complexity": {
+          "band": "intricate",
+          "label": "Детальная",
+          "score": 90,
+          "confidence": "measured",
+          "source": "bounded-raster-metrics",
+          "gate": "pass"
+        },
+        "style": {
+          "route": "classic",
+          "status": "unassessed",
+          "confidence": "none",
+          "label": "Стиль не проверен",
+          "reasons": [
+            "exact-pixelization-evidence-missing"
+          ],
+          "policy": "pixelization-routing-v1",
+          "source": "safe-classic-default"
+        },
+        "quality_gate": {
+          "status": "review",
+          "reasons": [
+            "pixelization-review"
+          ],
+          "blocking": false
+        }
+      }
+    },
+    {
+      "id": "color_alpine-train",
+      "title": "Альпийский экспресс",
+      "collection_id": "col_night-city",
+      "theme": "travel",
+      "mood": "focus",
+      "width": 32,
+      "height": 32,
+      "storage_mode": "legacy",
+      "pixelization_source_id": null,
+      "pixelization_evidence": null,
+      "content_metadata": {
+        "schema_version": "content-metadata.v1",
+        "duration": {
+          "band": "medium",
+          "label": "Средняя · около 4 мин",
+          "minutes": 4,
+          "total_cells": 1024,
+          "session_mode": "standard",
+          "confidence": "editorial",
+          "source": "est_minutes"
+        },
+        "complexity": {
+          "band": "intricate",
+          "label": "Детальная",
+          "score": 90,
+          "confidence": "measured",
+          "source": "bounded-raster-metrics",
+          "gate": "pass"
+        },
+        "style": {
+          "route": "classic",
+          "status": "unassessed",
+          "confidence": "none",
+          "label": "Стиль не проверен",
+          "reasons": [
+            "exact-pixelization-evidence-missing"
+          ],
+          "policy": "pixelization-routing-v1",
+          "source": "safe-classic-default"
+        },
+        "quality_gate": {
+          "status": "review",
+          "reasons": [
+            "pixelization-review"
+          ],
+          "blocking": false
+        }
+      }
+    },
+    {
+      "id": "color_lantern-fox",
+      "title": "Лис с фонарём",
+      "collection_id": "col_cozy-forest",
+      "theme": "forest",
+      "mood": "cozy",
+      "width": 32,
+      "height": 32,
+      "storage_mode": "legacy",
+      "pixelization_source_id": null,
+      "pixelization_evidence": null,
+      "content_metadata": {
+        "schema_version": "content-metadata.v1",
+        "duration": {
+          "band": "short",
+          "label": "Короткая · около 3 мин",
+          "minutes": 3,
+          "total_cells": 1024,
+          "session_mode": "quick",
+          "confidence": "editorial",
+          "source": "est_minutes"
+        },
+        "complexity": {
+          "band": "intricate",
+          "label": "Детальная",
+          "score": 88,
+          "confidence": "measured",
+          "source": "bounded-raster-metrics",
+          "gate": "pass"
+        },
+        "style": {
+          "route": "classic",
+          "status": "unassessed",
+          "confidence": "none",
+          "label": "Стиль не проверен",
+          "reasons": [
+            "exact-pixelization-evidence-missing"
+          ],
+          "policy": "pixelization-routing-v1",
+          "source": "safe-classic-default"
+        },
+        "quality_gate": {
+          "status": "review",
+          "reasons": [
+            "pixelization-review"
+          ],
+          "blocking": false
+        }
+      }
+    },
+    {
+      "id": "color_coral-jellyfish",
+      "title": "Коралловая медуза",
+      "collection_id": "col_space",
+      "theme": "sea",
+      "mood": "calm",
+      "width": 32,
+      "height": 32,
+      "storage_mode": "legacy",
+      "pixelization_source_id": null,
+      "pixelization_evidence": null,
+      "content_metadata": {
+        "schema_version": "content-metadata.v1",
+        "duration": {
+          "band": "short",
+          "label": "Короткая · около 3 мин",
+          "minutes": 3,
+          "total_cells": 1024,
+          "session_mode": "quick",
+          "confidence": "editorial",
+          "source": "est_minutes"
+        },
+        "complexity": {
+          "band": "intricate",
+          "label": "Детальная",
+          "score": 100,
+          "confidence": "measured",
+          "source": "bounded-raster-metrics",
+          "gate": "pass"
+        },
+        "style": {
+          "route": "classic",
+          "status": "unassessed",
+          "confidence": "none",
+          "label": "Стиль не проверен",
+          "reasons": [
+            "exact-pixelization-evidence-missing"
+          ],
+          "policy": "pixelization-routing-v1",
+          "source": "safe-classic-default"
+        },
+        "quality_gate": {
+          "status": "review",
+          "reasons": [
+            "pixelization-review"
+          ],
+          "blocking": false
+        }
+      }
+    }
+  ]
+}

@@ -1,11 +1,33 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Star, Target, X } from 'lucide-react';
+import { ArrowRight, ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Star, Target, X } from 'lucide-react';
 import ColoringSession from '../features/coloring/ColoringSession';
+import ProgressiveColoringSession from '../features/coloring/large-grid/ProgressiveColoringSession.jsx';
+import SpecialHelpSheet from '../features/coloring/SpecialHelpSheet';
 import LegacyPixelCanvas from '../components/LegacyPixelCanvas';
+import SessionGoalCard from '../features/goals/SessionGoalCard';
+import { useSessionGoals } from '../features/goals/useSessionGoals';
+import { useTelegramSwipeProtection } from '../hooks/useTelegramSwipeProtection';
 import { getContextGoal } from '../lib/playLoop';
 import { isProgressComplete } from '../lib/pixelColoring';
 import { renderNumberedPreview } from '../lib/imageCrop';
+import {
+  hasSpecialsInProgress,
+  markSpecialIntroSeen,
+  markSpecialHelpRead,
+  markSpecialKindSeen,
+  normalizeSpecialKind,
+  readSpecialHelpState,
+  shouldShowSpecialKindHint,
+  specialHelpItem,
+  writeSpecialHelpState,
+} from '../lib/specialHelp';
+import { isLargeGridTemplate } from '../lib/tileGrid';
 import { bindTelegramBackButton } from '../lib/telegram';
+import { formatContentMetadataDetail } from '../lib/contentMetadata.js';
+import {
+  resolveSessionGoalsExperiment,
+  shouldShowSessionGoals,
+} from '../features/goals/sessionGoalsExperiment';
 
 const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE !== 'false';
 
@@ -102,8 +124,19 @@ export default function PlayerView({
   template,
   progress,
   gameProgress,
+  progression,
+  streak,
+  isOnline = true,
+  saveState = 'saved',
+  latestReward,
+  nextRecommendation,
+  onContinue,
+  completionChoices = [],
+  onCompletionChoice,
   selectedColor,
   onSelectColor,
+  resumeSnapshot = null,
+  onResumeStateChange,
   zones,
   zoneReward,
   combo,
@@ -122,6 +155,7 @@ export default function PlayerView({
   setCompletionOpen,
   sharing,
   saving,
+  onRetrySave = () => {},
   publishing,
   setView,
   setPlayMode,
@@ -135,34 +169,166 @@ export default function PlayerView({
   onWrongCell,
   onFillAt,
   onStrokeCommitted,
+  onTiledStrokeCommitted,
+  onTiledSpecialAction,
+  tiledSpecialOffer,
+  tiledSpecialApplied,
+  tiledSpecialDiscovered,
+  tiledReconciledChanges = [],
   onResetProgress,
   onShareResult,
   onDownloadResult,
   onPublishCompleted,
   onDismissOnboarding,
   onTrack,
-  formatDifficulty,
   completedPreview,
   zoneIndices,
+  coreFeelExperiment,
+  sessionGameExperiment,
 }) {
+  const coreFeelActive = Boolean(coreFeelExperiment?.enabled && template?.id === coreFeelExperiment.referenceTemplateId);
+  const sessionGameActive = Boolean(
+    sessionGameExperiment?.enabled
+      && !coreFeelActive
+      && template?.storage_mode === 'tiled',
+  );
+  const sessionGoalsExperiment = useMemo(() => resolveSessionGoalsExperiment(), []);
+  const showSessionGoals = shouldShowSessionGoals(sessionGoalsExperiment, coreFeelActive || sessionGameActive);
+  const stopSessionGame = useCallback(() => {
+    if (!sessionGameActive) return;
+    onTrack?.('session_game_stop', {
+      template_id: template?.id || null,
+      reason: 'player_save_point',
+    });
+    setView('home');
+  }, [onTrack, sessionGameActive, setView, template?.id]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hudHidden, setHudHidden] = useState(false);
   const startPaintTimerRef = useRef(null);
   const completionDialogRef = useRef(null);
   const bottomSheetRef = useRef(null);
   const onboardingCardRef = useRef(null);
+  const [specialHelpOpen, setSpecialHelpOpen] = useState(false);
+  const [specialHintKind, setSpecialHintKind] = useState(null);
+  const specialHelpReturnFocusRef = useRef(null);
+  const specialHelpStorage = typeof window !== 'undefined' ? window.localStorage : null;
+  const [specialHelpState, setSpecialHelpState] = useState(() => readSpecialHelpState(
+    typeof window !== 'undefined' ? window.localStorage : null,
+  ));
+  const specialHelpStateRef = useRef(specialHelpState);
+  const visibleSpecialKindsRef = useRef([]);
+  const onboardingRef = useRef(onboarding);
+  const specialHelpOpenRef = useRef(specialHelpOpen);
+  useEffect(() => {
+    setSpecialHelpOpen(false);
+    setSpecialHintKind(null);
+    visibleSpecialKindsRef.current = [];
+  }, [template?.id]);
+  onboardingRef.current = onboarding;
+  specialHelpOpenRef.current = specialHelpOpen;
 
   // Нативная кнопка «назад» Telegram ведёт в каталог, пока открыт плеер.
   useEffect(() => bindTelegramBackButton(() => setView('catalog')), [setView]);
+  useTelegramSwipeProtection();
 
   useFocusTrap(bottomSheetRef, menuOpen);
   useFocusTrap(onboardingCardRef, onboarding !== null);
   useFocusTrap(completionDialogRef, completionOpen);
 
+  useEffect(() => {
+    if (menuOpen) bottomSheetRef.current?.focus();
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (onboarding !== null) onboardingCardRef.current?.focus();
+  }, [onboarding]);
+
+  const sessionGoals = useSessionGoals({
+    template,
+    progress,
+    zones,
+    zoneIndices,
+    isOnline,
+    storage: typeof window !== 'undefined' ? window.localStorage : null,
+    onTrack,
+    enabled: showSessionGoals,
+  });
+
+  useEffect(() => {
+    if (!completionOpen) return;
+    onTrack?.('choice_window_seen', {
+      screen: 'completion',
+      id: template?.id,
+      options: completionChoices.length,
+    });
+  }, [completionOpen, template?.id, completionChoices.length, onTrack]);
+
+  useEffect(() => {
+    if (sessionGoals.celebration?.type !== 'completed') return;
+    onTrack?.('goal_completed', { goal: sessionGoals.celebration.goalId, id: template?.id });
+    if (sessionGoals.celebration.goalId === 'first-progress') {
+      onTrack?.('first_success', { id: template?.id });
+    }
+  }, [sessionGoals.celebration, template?.id, onTrack]);
+
+  const handleFirstPaint = () => {
+    if (showSessionGoals) sessionGoals.markFirstPaint();
+    onFirstPaint?.();
+  };
+
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const closeCompletion = useCallback(() => setCompletionOpen(false), [setCompletionOpen]);
   const menuSwipe = useSwipeDown(closeMenu);
   const completionSwipe = useSwipeDown(closeCompletion);
+
+  const commitSpecialHelpState = useCallback((nextState) => {
+    specialHelpStateRef.current = nextState;
+    setSpecialHelpState(nextState);
+    writeSpecialHelpState(specialHelpStorage, nextState);
+  }, [specialHelpStorage]);
+
+  const showNextVisibleHint = useCallback(() => {
+    if (onboardingRef.current !== null || specialHelpOpenRef.current) return;
+    if (progress?.specials_experiment_group !== 'treatment' || sessionGameActive) return;
+    const current = specialHelpStateRef.current;
+    const kind = visibleSpecialKindsRef.current
+      .find((candidate) => shouldShowSpecialKindHint(current, candidate));
+    if (!kind) return;
+    setSpecialHintKind(kind);
+    commitSpecialHelpState(markSpecialKindSeen(current, kind));
+    onTrack?.('special_help_hint_shown', { kind, id: template?.id });
+  }, [commitSpecialHelpState, onTrack, progress?.specials_experiment_group, sessionGameActive, template?.id]);
+
+  const handleVisibleSpecialKinds = useCallback((kinds) => {
+    const normalized = [...new Set((kinds || [])
+      .map(normalizeSpecialKind)
+      .filter(Boolean))];
+    visibleSpecialKindsRef.current = normalized;
+    showNextVisibleHint();
+  }, [showNextVisibleHint]);
+
+  const openSpecialHelp = useCallback((source = 'menu') => {
+    const activeElement = typeof document !== 'undefined' ? document.activeElement : null;
+    specialHelpReturnFocusRef.current = source === 'menu'
+      ? document.querySelector('.player-menu-btn')
+      : activeElement && activeElement !== document.body
+        ? activeElement
+        : document.querySelector('.player-menu-btn');
+    setSpecialHintKind(null);
+    setSpecialHelpOpen(true);
+    commitSpecialHelpState(markSpecialHelpRead(specialHelpStateRef.current));
+    onTrack?.('special_help_opened', { source, id: template?.id });
+  }, [commitSpecialHelpState, onTrack, template?.id]);
+
+  const closeSpecialHelp = useCallback(() => {
+    setSpecialHelpOpen(false);
+    requestAnimationFrame(() => showNextVisibleHint());
+  }, [showNextVisibleHint]);
+
+  const dismissSpecialHint = useCallback(() => {
+    setSpecialHintKind(null);
+    showNextVisibleHint();
+  }, [showNextVisibleHint]);
 
   useEffect(() => {
     return () => {
@@ -184,25 +350,58 @@ export default function PlayerView({
   };
   const showHud = () => { setHudHidden(false); declutter(); };
 
+  const leaveCoreFeelSession = () => {
+    onTrack?.('core_feel_session_stop', {
+      id: template?.id,
+      variant: coreFeelExperiment?.variantId,
+      reason: 'player_exit',
+      percent: gameProgress?.percent ?? 0,
+    });
+    setView('home');
+  };
+
   // «До» для слайдера сравнения: пронумерованная сетка этой же раскраски.
-  const complete = gameProgress ? isProgressComplete(gameProgress) : false;
+  const isTiled = isLargeGridTemplate(template);
+  const complete = gameProgress ? (isTiled
+    ? gameProgress.completed === gameProgress.total
+    : isProgressComplete(gameProgress)) : false;
   const beforePreview = useMemo(() => {
-    if (!complete || !template) return null;
+    if (!complete || !template || isTiled) return null;
     try {
       return renderNumberedPreview(template.width, template.height, template.palette, template.cells);
     } catch {
       return null;
     }
-  }, [complete, template]);
+  }, [complete, isTiled, template]);
 
   if (!template || !progress || !gameProgress) {
     return <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div>;
   }
 
+  const contentMetadata = formatContentMetadataDetail(template);
   const isComplete = isProgressComplete(gameProgress);
-  const totalXp = gameProgress.completed * 10;
-  const level = Math.floor(totalXp / 1000) + 1;
-  const contextGoal = getContextGoal(zones, zoneIndices, template, progress.filled);
+  const totalXp = progression?.xp_total ?? 0;
+  const level = progression?.level ?? 1;
+  const hasSpecials = hasSpecialsInProgress(progress);
+  const specialTreatment = !coreFeelActive && progress?.specials_experiment_group === 'treatment';
+  const showSpecialOnboardingStep = specialTreatment && hasSpecials && !specialHelpState.introSeen;
+  const onboardingStepCount = showSpecialOnboardingStep ? 4 : 3;
+  const showSpecialHint = onboarding === null && specialHintKind !== null && !specialHelpOpen;
+  const onboardingCopy = [
+    'Начнём с этого участка. Закрась выделенные клетки.',
+    `Используй цвет №${selectedColor + 1}. Проведи по клеткам, чтобы закрасить сразу несколько.`,
+    'После завершения мы покажем следующий участок.',
+  ];
+  const saveLabel = !isOnline || saveState === 'offline'
+    ? 'Сохранено локально'
+    : saveState === 'pending'
+      ? 'Ожидает отправки'
+      : saving || saveState === 'syncing'
+        ? 'Синхронизация…'
+        : 'Сохранено';
+  const contextGoal = isTiled
+    ? `${gameProgress.percent}% карты раскрыто`
+    : getContextGoal(zones, zoneIndices, template, progress.filled);
 
   const publishLabel = saving || !progress?.artwork_id
     ? 'Сохраняем работу…'
@@ -211,43 +410,122 @@ export default function PlayerView({
     : 'Опубликовать в ленту';
   const publishDisabled = saving || !progress?.artwork_id || publishing;
 
+  const finishOnboarding = () => {
+    if (showSpecialOnboardingStep && onboarding === onboardingStepCount - 1) {
+      commitSpecialHelpState(markSpecialIntroSeen(specialHelpStateRef.current));
+    }
+    onDismissOnboarding();
+    requestAnimationFrame(() => showNextVisibleHint());
+  };
+
   return (
-    <section className="page player-page">
-      <div className="player-topbar">
-        <button className="back-button" onClick={() => setView('catalog')}><ChevronLeft size={18} /></button>
+    <section
+      className="page player-page"
+      data-session-goals-mode={sessionGoalsExperiment.mode}
+      data-session-goals-visible={showSessionGoals ? 'true' : 'false'}
+    >
+      <div className={`player-topbar${coreFeelActive ? ' player-topbar--core-feel' : ''}`}>
+        <button className="back-button" onClick={() => coreFeelActive ? leaveCoreFeelSession() : setView('catalog')} aria-label={coreFeelActive ? 'Завершить тест' : 'Назад'}><ChevronLeft size={18} /></button>
         <span className="player-topbar-title">{template.title}</span>
-        <span className={`save-status${saving ? ' saving' : ''}`} role="status" aria-live="polite">
-          <span className="save-dot" aria-hidden="true" />{saving ? 'Сохраняем…' : 'Сохранено'}
+        {sessionGameActive && <button type="button" className="session-game-stop-button" data-session-game-stop onClick={stopSessionGame}>Сохранить точку</button>}
+        <span className={`save-status${saving || saveState === 'syncing' ? ' saving' : ''}${!isOnline || saveState === 'offline' ? ' offline' : ''}`} role="status" aria-live="polite">
+          <span className="save-dot" aria-hidden="true" />{saveLabel}
         </span>
-        <span className="player-progress" title={`Прогресс: ${gameProgress.percent}%`} aria-hidden="true">
+        {(saveState === 'pending' || saveState === 'offline') && <button className="save-retry" type="button" onClick={onRetrySave} disabled={!isOnline}>Повторить</button>}
+        {!coreFeelActive && <span className="player-progress" title={`Прогресс: ${gameProgress.percent}%`} aria-hidden="true">
           <svg viewBox="0 0 38 38">
             <circle className="player-progress-track" cx="19" cy="19" r="15" />
             <circle className="player-progress-fill" cx="19" cy="19" r="15" style={{ strokeDasharray: `${(gameProgress.percent / 100) * 94.25} 94.25` }} />
           </svg>
           <b>{gameProgress.percent}</b>
-        </span>
-        <button className="player-menu-btn" onClick={() => setMenuOpen(true)} aria-label="Меню игры"><span>•••</span></button>
+        </span>}
+        {!coreFeelActive && <button className="player-menu-btn" onClick={() => setMenuOpen(true)} aria-label="Меню игры"><span>•••</span></button>}
       </div>
 
-      <div className={`player-hint ${hudHidden ? 'faded' : ''}`} onClick={showHud}>
+      {!coreFeelActive && <div className={`player-hint ${hudHidden ? 'faded' : ''}`} onClick={showHud}>
         <span className="player-hint-target"><Target size={14} /> {contextGoal}</span>
-      </div>
+      </div>}
+      {!coreFeelActive && <div className="player-content-metadata" data-content-metadata={contentMetadata.assessed ? 'authoritative' : 'unassessed'}>{contentMetadata.line}</div>}
 
-      {zoneReward && <div className="milestone zone"><Target size={17} /> {zoneReward}</div>}
+      {showSpecialHint && specialHintKind && (
+        <div className="special-help-hint" role="status" data-special-help-hint data-special-help-kind={specialHintKind}>
+          <i className="special-help-mark" data-special-help-kind={specialHintKind} aria-hidden="true" />
+          <span className="special-help-hint-copy">
+            <b>{specialHelpItem(specialHintKind)?.label}</b> — {specialHelpItem(specialHintKind)?.short}
+          </span>
+          <button type="button" onClick={() => openSpecialHelp('hint')}>Памятка</button>
+          <button
+            type="button"
+            className="special-help-hint-close"
+            onClick={dismissSpecialHint}
+            aria-label="Скрыть подсказку"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
-      {import.meta.env.DEV && <div className={`engine-badge ${USE_NEW_COLORING_ENGINE ? 'smart' : 'legacy'}`}>{USE_NEW_COLORING_ENGINE ? 'Engine: Smart' : 'Engine: Legacy'}</div>}
+      {showSessionGoals && <SessionGoalCard
+        goal={sessionGoals.view}
+        reward={latestReward?.amount ? { amount: latestReward.amount } : null}
+        streak={streak?.current_streak}
+        celebration={sessionGoals.celebration}
+        nextActionLabel={
+          sessionGoals.view?.id === 'picture' && complete
+            ? 'Показать результат'
+            : sessionGoals.celebration?.type === 'expired'
+              ? 'К следующей цели'
+              : 'Следующая цель'
+        }
+        onNextAction={() => {
+          if (sessionGoals.view?.id === 'picture' && complete) {
+            setCompletionOpen(true);
+          } else {
+            sessionGoals.dismissCelebration();
+          }
+        }}
+      />}
 
-      {USE_NEW_COLORING_ENGINE ? (
+      {!coreFeelActive && !sessionGameActive && zoneReward && <div className="milestone zone"><Target size={17} /> {zoneReward}</div>}
+
+      {import.meta.env.DEV && import.meta.env.VITE_SHOW_ENGINE_BADGE === 'true' && <div className={`engine-badge ${USE_NEW_COLORING_ENGINE ? 'smart' : 'legacy'}`}>{USE_NEW_COLORING_ENGINE ? 'Engine: Smart' : 'Engine: Legacy'}</div>}
+
+      {isTiled ? (
+          <ProgressiveColoringSession
+          template={template}
+          progress={progress}
+          selectedColor={selectedColor}
+          onSelectColor={onSelectColor}
+          resumeSnapshot={resumeSnapshot}
+          onResumeStateChange={onResumeStateChange}
+          onStrokeCommitted={onTiledStrokeCommitted}
+          onSpecialAction={onTiledSpecialAction}
+          specialOffer={tiledSpecialOffer}
+          specialApplied={tiledSpecialApplied}
+          specialDiscovered={tiledSpecialDiscovered}
+          reconciledChanges={tiledReconciledChanges}
+          onVisibleSpecialKinds={handleVisibleSpecialKinds}
+          onFirstPaint={handleFirstPaint}
+          onWrongCell={onWrongCell}
+          interactionMode={playMode}
+          hideNumbers={hideNumbers}
+          hintMode={playMode === 'classic' && hintMode}
+          onOpenMenu={() => setMenuOpen(true)}
+          sessionGameExperiment={sessionGameActive ? sessionGameExperiment : null}
+        />
+      ) : USE_NEW_COLORING_ENGINE ? (
         <ColoringSession
           template={template}
           progress={progress}
           selectedColor={selectedColor}
           onSelectColor={onSelectColor}
-          onSaveProgress={(nextFilled, operation) => {
+          resumeSnapshot={resumeSnapshot}
+          onResumeStateChange={onResumeStateChange}
+          onSaveProgress={(nextFilled, operation, specialAction) => {
             declutter();
-            onStrokeCommitted(nextFilled, operation);
+            onStrokeCommitted(nextFilled, operation, specialAction);
           }}
-          onFirstPaint={onFirstPaint}
+          onFirstPaint={handleFirstPaint}
           onWrongCell={onWrongCell}
           onUndo={onUndo}
           onRedo={onRedo}
@@ -262,6 +540,15 @@ export default function PlayerView({
           onFillAt={fillMode ? onFillAt : undefined}
           onOpenMenu={() => setMenuOpen(true)}
           onTrack={onTrack}
+          specialCells={progress.specials || []}
+          specialCohort={coreFeelActive ? 'control' : progress.specials_experiment_group || 'control'}
+          specialOffer={coreFeelActive ? null : tiledSpecialOffer}
+          specialDiscovered={coreFeelActive ? null : tiledSpecialDiscovered}
+          onVisibleSpecialKinds={coreFeelActive ? undefined : handleVisibleSpecialKinds}
+          onSpecialAction={coreFeelActive ? undefined : onTiledSpecialAction}
+          coreFeelExperiment={coreFeelActive ? coreFeelExperiment : null}
+          sessionGameExperiment={sessionGameActive ? sessionGameExperiment : null}
+          onCoreFeelStop={coreFeelActive ? leaveCoreFeelSession : undefined}
         />
       ) : (
         <>
@@ -281,7 +568,7 @@ export default function PlayerView({
                 });
               }}
               onWrong={(index) => { declutter(); onWrongCell(index); }}
-              onFirstPaint={(index) => { declutter(); onFirstPaint(index); }}
+              onFirstPaint={(index) => { declutter(); handleFirstPaint(index); }}
               calmMode={calmMode}
               hideFilledNumbers={playMode === 'reveal' || hideNumbers}
               hintMode={playMode === 'classic' && hintMode}
@@ -302,9 +589,10 @@ export default function PlayerView({
         </>
       )}
 
-      {menuOpen && <div className="bottom-sheet-overlay" role="presentation" onClick={() => setMenuOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
+      {!coreFeelActive && menuOpen && <div className="bottom-sheet-overlay" role="presentation" onClick={() => setMenuOpen(false)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
         <section
           className="bottom-sheet"
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-label="Меню игры"
@@ -334,27 +622,41 @@ export default function PlayerView({
             </>}
             <hr />
             <button onClick={() => { setOnboarding(0); setMenuOpen(false); }}>Показать обучение снова</button>
-            <button onClick={() => { onUndo(); setMenuOpen(false); }} disabled={!history.length}>Отмена</button>
-            <button onClick={() => { onRedo(); setMenuOpen(false); }} disabled={!future.length}>Повтор</button>
-            <button onClick={() => { if (window.confirm('Сбросить весь прогресс?')) { onResetProgress(); setMenuOpen(false); } }}>Сбросить</button>
+            {specialTreatment && (
+              <button onClick={() => { setMenuOpen(false); openSpecialHelp('menu'); }}>Особые клетки</button>
+            )}
+            <button onClick={() => { onUndo(); setMenuOpen(false); }} disabled={isTiled || !history.length}>Отмена</button>
+            <button onClick={() => { onRedo(); setMenuOpen(false); }} disabled={isTiled || !future.length}>Повтор</button>
+            <button disabled={isTiled} onClick={() => { if (window.confirm('Сбросить весь прогресс?')) { onResetProgress(); setMenuOpen(false); } }}>Сбросить</button>
           </div>
         </section>
       </div>}
 
-      {onboarding !== null && <div className="onboarding-overlay" role="dialog" aria-label="Обучение">
-        <div className="onboarding-card" ref={onboardingCardRef}>
-          <b>{[
-            'Начнём с этого участка. Закрась выделенные клетки.',
-            `Используй цвет №${selectedColor + 1}. Проведи по клеткам, чтобы закрасить сразу несколько.`,
-            'После завершения мы покажем следующий участок.',
-          ][onboarding]}</b>
-          <div className="onboarding-dots">{['', '', ''].map((_, i) => <span key={i} className={i === onboarding ? 'active' : ''} />)}</div>
+      {!coreFeelActive && onboarding !== null && <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-label="Обучение">
+        <div className="onboarding-card" ref={onboardingCardRef} tabIndex={-1}>
+          {onboarding === 3 && showSpecialOnboardingStep ? (
+            <div className="special-help-onboarding" data-special-help-intro>
+              <b>В этой картине есть особые клетки.</b>
+              <p>Встретив маркер, следуйте короткой подсказке над полем.</p>
+            </div>
+          ) : (
+            <b>{onboardingCopy[onboarding]}</b>
+          )}
+          <div className="onboarding-dots">{Array.from({ length: onboardingStepCount }, (_, i) => <span key={i} className={i === onboarding ? 'active' : ''} />)}</div>
           <div className="onboarding-actions">
-            {onboarding < 2 ? <button className="primary-button" onClick={() => setOnboarding(onboarding + 1)}>Далее</button> : <button className="primary-button" onClick={onDismissOnboarding}>Понятно</button>}
+            {onboarding < onboardingStepCount - 1
+              ? <button className="primary-button" onClick={() => setOnboarding(onboarding + 1)}>Далее</button>
+              : <button className="primary-button" onClick={finishOnboarding}>Понятно</button>}
             <button className="secondary-button" onClick={onDismissOnboarding}>Пропустить обучение</button>
           </div>
         </div>
       </div>}
+
+      {!coreFeelActive && <SpecialHelpSheet
+        open={specialHelpOpen}
+        onClose={closeSpecialHelp}
+        returnFocusRef={specialHelpReturnFocusRef}
+      />}
 
       {isComplete && completionOpen && <div className="completion-overlay" role="presentation">
         <section
@@ -371,19 +673,50 @@ export default function PlayerView({
           {beforePreview
             ? <CompareSlider before={beforePreview} after={completedPreview} title={template.title} />
             : <img src={completedPreview} alt={`Готовая работа ${template.title}`} />}
-          <p className="eyebrow">Картина раскрыта · {formatDifficulty(template.difficulty)}</p>
+          <p className="eyebrow" data-content-metadata={contentMetadata.assessed ? 'authoritative' : 'unassessed'}>Картина раскрыта · {contentMetadata.line}</p>
           <h2 id="completion-title">Картина раскрыта!</h2>
           <p className="completion-work-title">{template.title}</p>
-          <div className="completion-rewards"><span><Sparkles size={16} /> Новая работа в галерее</span><span><Star size={16} /> +500 XP</span></div>
+          <div className="completion-rewards">
+            <span><Sparkles size={16} /> Новая работа в галерее</span>
+            <span><Star size={16} /> {latestReward?.amount ? `+${latestReward.amount} XP` : 'Награда синхронизирована'}</span>
+          </div>
           <p className="completion-copy">Прекрасный финал. Сохраните результат или покажите его друзьям.</p>
           <div className="completion-actions">
             <button className="primary-button" onClick={onShareResult} disabled={sharing}>{sharing ? <><LoaderCircle className="spin" size={17} /> Открываем…</> : <><Share2 size={17} /> Поделиться</>}</button>
             <button className="secondary-button" onClick={onDownloadResult}><Download size={17} /> Сохранить результат</button>
           </div>
-          <div className="completion-links">
+          {completionChoices.length ? (
+            <div className="completion-choices" data-choice-window="completion">
+              {completionChoices.map((choice) => (
+                <button
+                  key={choice.id}
+                  className={`completion-choice${choice.recommended ? ' is-primary' : ''}`}
+                  type="button"
+                  data-completion-choice="true"
+                  data-choice-id={choice.id}
+                  onClick={() => onCompletionChoice?.(choice)}
+                >
+                  <span className="completion-choice-copy">
+                    <b>{choice.title}</b>
+                    <small>{choice.reward || choice.reason || 'Выбрать'}</small>
+                  </span>
+                  <span className="completion-choice-action">
+                    {choice.recommended ? <em>Рекомендуем</em> : <ArrowRight size={16} aria-hidden="true" />}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="completion-links">
+              <button onClick={onPublishCompleted} disabled={publishDisabled}>{publishLabel}</button>
+              <button onClick={onContinue}>{nextRecommendation ? `Следующая: ${nextRecommendation.title}` : 'К следующей работе'}</button>
+              <button onClick={() => { setCompletionOpen(false); setView('catalog'); }}>К каталогу</button>
+            </div>
+          )}
+          {completionChoices.length ? <div className="completion-links completion-links--quiet">
             <button onClick={onPublishCompleted} disabled={publishDisabled}>{publishLabel}</button>
             <button onClick={() => { setCompletionOpen(false); setView('catalog'); }}>К каталогу</button>
-          </div>
+          </div> : null}
         </section>
       </div>}
     </section>

@@ -95,3 +95,11 @@ VITE_DEV_USER_ID=user_pixelhunter
 When `TELEGRAM_BOT_TOKEN` is configured, the server validates `X-Telegram-Init-Data` from Telegram Web Apps and creates a local user profile on first sign-in. `X-User-Id` is accepted only outside production or when `ALLOW_DEV_AUTH=true` is explicitly set.
 
 В production-режиме авторизацию через заголовок `X-User-Id` нужно заменить проверкой Telegram Mini Apps `initData`.
+
+## Public-alpha release-candidate posture (2026-08-02, historical snapshot)
+
+> Snapshot from 2026-08-02; the current implementation state on `codex/tiled-player-1200` is recorded in [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md), [docs/AUDIT_FINDINGS.md](docs/AUDIT_FINDINGS.md), and [docs/SECURITY_FOLLOWUPS.md](docs/SECURITY_FOLLOWUPS.md).
+
+This repository is a local public-alpha release candidate without real payments. Production defaults to `PAYMENTS_MODE=disabled`; internal credits are not Telegram Stars. Completion is server-authoritative, canonical feed media is thumbnail-based, and new canonical artwork rows do not store base64 images.
+
+Local verification passed: root tests 201/201, server tests 223 total with 167 passed and 56 environment-conditional skips, E2E 110 passed with 4 expected skips, lint 89 warnings within the 100-warning budget, syntax/build checks passed, and dependency audits report 0 vulnerabilities. The disposable external pass also passed PostgreSQL 91/91, MinIO/S3 2/2, migrations, database backup/restore, object backup/restore, media sweep, `/live`, and POSIX graceful shutdown. Telegram WebView, real Telegram Stars, production credentials, production IAM/retention, and target-runtime behavior remain required gates. See [docs/remediation/FINAL_REPORT.md](docs/remediation/FINAL_REPORT.md), [docs/remediation/EXTERNAL_VALIDATION.md](docs/remediation/EXTERNAL_VALIDATION.md), and [docs/remediation/TELEGRAM_WEBVIEW_VALIDATION.md](docs/remediation/TELEGRAM_WEBVIEW_VALIDATION.md).

@@ -458,3 +458,7 @@ Production можно планировать только после успеш�
 Обнаружено ограничение staging: первый запуск API на PostgreSQL проходит, но повторный запуск с `SEED_DEMO_DATA=true` при уже существующих catalog rows падает до HTTP-startup из-за несогласованного статуса (`server/db.js:214` записывает `archived`, а `server/migrations/001_initial.sql:46` разрешает только `active/hidden/deleted`). Это зарегистрировано как `OPS-006` в [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md) и требует отдельного исправления идемпотентного seed. Не обходите проблему ручным изменением схемы или удалением `schema_migrations`.
 
 Это подтверждает локальную связность конфигурации и сервисов, но **не является staging sign-off**: не проверялись настоящий Telegram WebView/initData, DNS/TLS, внешний reverse proxy, cloud S3/IAM, production secrets и backup/restore drill.
+
+## Current RC evidence notice (2026-08-02)
+
+The historical local Docker/MinIO results in this document are not evidence for the current release-candidate handoff. The current local pass did not have a reachable Docker daemon or production credentials; use [remediation/FINAL_REPORT.md](remediation/FINAL_REPORT.md) for current counts and the external validation sequence.
