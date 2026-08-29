@@ -83,11 +83,12 @@ async function readStoredSession(page) {
   });
 }
 
-async function createSmallColoring(page) {
+async function createSmallColoring(page, { leaveWorkAfterFirstGoal = false } = {}) {
   const cells = Array.from({ length: 64 }, () => 0);
-  cells[27] = 1;
-  cells[28] = 1;
-  cells[29] = 1;
+  const workCells = leaveWorkAfterFirstGoal
+    ? [27, 28, 29, 35, 36, 37, 43, 44]
+    : [27, 28, 29];
+  workCells.forEach((index) => { cells[index] = 1; });
   const response = await page.request.post('/api/colorings/create', {
     data: {
       title: 'Цель-тест',
@@ -208,7 +209,7 @@ test.describe('Session goals', () => {
   });
 
   test('completing the first goal shows a server-backed celebration and the next goal without a completion modal', async ({ page }) => {
-    const coloringId = await createSmallColoring(page);
+    const coloringId = await createSmallColoring(page, { leaveWorkAfterFirstGoal: true });
     await openPlayer(page, coloringId, 'sessionGoals=control');
 
     let serverXp = null;
@@ -225,32 +226,38 @@ test.describe('Session goals', () => {
 
     await paintUntilFirstGoalDone(page, card, 3);
 
+    const celebrationLocator = card.locator('.session-goal-celebration');
     let celebration;
     await expect.poll(async () => {
-      celebration = await page.evaluate((expectedServerXp) => {
-        const element = document.querySelector('.session-goal-card');
-        if (!element?.isConnected) return { connected: false };
-        const celebrationElement = element.querySelector('.session-goal-celebration');
-        const celebrationText = celebrationElement?.textContent || '';
-        const cardText = element.textContent || '';
-        const parsedServerXp = Number(expectedServerXp);
-        const serverXpReady = Number.isFinite(parsedServerXp) && parsedServerXp > 0;
-        return {
-          goalId: element.getAttribute('data-goal-id'),
-          status: element.getAttribute('data-goal-status'),
-          painted: element.getAttribute('data-painted'),
-          celebration: element.getAttribute('data-celebration'),
-          celebrationPresent: Boolean(celebrationElement),
-          celebrationVisible: Boolean(celebrationElement?.getClientRects().length),
-          celebrationText,
-          celebrationTextReady: celebrationText.trim().length > 0,
-          text: cardText,
-          serverXp: expectedServerXp,
-          serverXpReady,
-          serverXpText: serverXpReady && cardText.includes(`+${parsedServerXp} XP`),
-          confirmedText: cardText.includes('подтверждено сервером'),
-        };
-      }, serverXp);
+      const [goalId, status, painted, celebrationType, celebrationCount, celebrationVisible, celebrationText, text] = await Promise.all([
+        card.getAttribute('data-goal-id'),
+        card.getAttribute('data-goal-status'),
+        card.getAttribute('data-painted'),
+        card.getAttribute('data-celebration'),
+        celebrationLocator.count(),
+        celebrationLocator.isVisible(),
+        celebrationLocator.textContent(),
+        card.textContent(),
+      ]);
+      const parsedServerXp = Number(serverXp);
+      const serverXpReady = Number.isFinite(parsedServerXp) && parsedServerXp > 0;
+      const celebrationCopy = celebrationText || '';
+      const cardText = text || '';
+      celebration = {
+        goalId,
+        status,
+        painted,
+        celebration: celebrationType,
+        celebrationPresent: celebrationCount > 0,
+        celebrationVisible,
+        celebrationText: celebrationCopy,
+        celebrationTextReady: celebrationCopy.trim().length > 0,
+        text: cardText,
+        serverXp,
+        serverXpReady,
+        serverXpText: serverXpReady && cardText.includes(`+${parsedServerXp} XP`),
+        confirmedText: cardText.includes('подтверждено сервером'),
+      };
       return celebration;
     }, {
       timeout: 30000,
@@ -278,8 +285,14 @@ test.describe('Session goals', () => {
     expect(celebration.text).toContain('подтверждено сервером');
     expect(celebration.text).toContain('Вся картина');
 
-    await page.locator('.session-goal-next').click({ force: true });
-    await expect(card).toHaveAttribute('data-celebration', '');
+    await card.locator('.session-goal-next').click({ force: true });
+    const nextCard = page.locator('.player-page .session-goal-card');
+    await expect(nextCard).toHaveAttribute('data-goal-id', 'picture');
+    await expect(nextCard).toHaveAttribute('data-goal-status', 'running');
+    await expect(nextCard).toHaveAttribute('data-painted', 'true');
+    await expect(nextCard).toHaveAttribute('data-celebration', '');
+    await expect(nextCard.locator('.session-goal-celebration')).toHaveCount(0);
+    await expect(page.locator('.completion-overlay')).toHaveCount(0);
   });
 
   test('default recovery treatment hides goals but preserves painting save and server revision', async ({ page }) => {
