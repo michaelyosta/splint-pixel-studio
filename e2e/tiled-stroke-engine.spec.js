@@ -344,12 +344,13 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
     const maxTx = Math.floor(line.lineEnd / 32);
     const ty = Math.floor(paintStart.y / 32);
     for (let tx = minTx; tx <= maxTx; tx += 1) {
-      await page.waitForResponse(
-        (r) => r.url().includes(`/tiles/${tx}/${ty}`) && r.ok(),
-        { timeout: 10000 },
-      ).catch(() => {});
+      await expect.poll(() => page.evaluate(({ x, y }) => (
+        window.__splintClient?.getCell(x, y)?.loaded === true
+      ), { x: tx * CELL, y: paintStart.y }), {
+        timeout: 10000,
+        message: `tile ${tx}:${ty} must be resident before the first stroke`,
+      }).toBe(true);
     }
-    await page.waitForTimeout(500);
 
     const progressPost = page.waitForResponse(
       (r) => r.url().includes('/progress/actions') && r.request().method() === 'POST',
@@ -390,16 +391,6 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
     expect(diagStroke.first).toBe(paintY * GRID + line.lineStart);
     expect(diagStroke.last).toBe(paintY * GRID + line.lineEnd);
 
-    // Server-side: every cell of the line is filled with the active color.
-    const savedRow = await readRow(page, id, paintY, line.lineStart, line.lineEnd);
-    expect(savedRow.length).toBe(30);
-    for (const cell of savedRow) {
-      expect(cell.color, `cell ${cell.x} target`).toBe(activeColor);
-      const tile = await fetchTile(page, id, Math.floor(cell.x / 32), Math.floor(paintY / 32));
-      const localIndex = (paintY % 32) * tile.tile.width + (cell.x % 32);
-      expect(Number(tile.filled[localIndex]), `server must have cell ${cell.x} filled`).toBe(activeColor);
-    }
-
     // A second stroke starts immediately after its target tile is resident —
     // no finalization hitch or timing wait is involved in the gesture.
     const secondY = paintY + 4;
@@ -431,6 +422,18 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
     await endTouchStroke(page, touchSession);
     const metricsAfter = await readStrokeMetrics(page);
     expect(metricsAfter.strokes.length).toBe(2);
+
+    // Server-side: every cell of the first line is filled with the active
+    // color. Keep this authoritative read after the second-stroke oracle so
+    // its serial tile requests cannot widen the immediate-gesture race window.
+    const savedRow = await readRow(page, id, paintY, line.lineStart, line.lineEnd);
+    expect(savedRow.length).toBe(30);
+    for (const cell of savedRow) {
+      expect(cell.color, `cell ${cell.x} target`).toBe(activeColor);
+      const tile = await fetchTile(page, id, Math.floor(cell.x / 32), Math.floor(paintY / 32));
+      const localIndex = (paintY % 32) * tile.tile.width + (cell.x % 32);
+      expect(Number(tile.filled[localIndex]), `server must have cell ${cell.x} filled`).toBe(activeColor);
+    }
     await page.screenshot({ path: resolve(evidenceDir, 'tiled-stroke-second-stroke.png') });
   });
 
