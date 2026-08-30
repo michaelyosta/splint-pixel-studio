@@ -125,6 +125,22 @@ async function readRow(page, id, y, xFrom, xTo) {
   return cells;
 }
 
+async function readSpecialCellsInRange(page, id, y, xFrom, xTo) {
+  const specials = [];
+  const minTx = Math.floor(xFrom / 32);
+  const maxTx = Math.floor(xTo / 32);
+  for (let tx = minTx; tx <= maxTx; tx += 1) {
+    const tile = await fetchTile(page, id, tx, Math.floor(y / 32));
+    for (const special of tile.specials || []) {
+      const cellIndex = Number(special.cell_index);
+      const x = cellIndex % GRID;
+      const specialY = Math.floor(cellIndex / GRID);
+      if (specialY === y && x >= xFrom && x <= xTo) specials.push(special);
+    }
+  }
+  return specials;
+}
+
 /** Longest same-color horizontal run in the row, length >= minLength. */
 function findLongestRun(row, minLength) {
   let best = null;
@@ -154,7 +170,7 @@ function findLongestRun(row, minLength) {
  * rows cy±6 for a run >= minRun in [cx-70, cx+70]. With crossBoundary,
  * returns a line across the tile boundary (k*32) nearest to cx instead.
  */
-async function findLineUnderCamera(page, id, cx, cy, color, { crossBoundary = false, minRun = 60 } = {}) {
+async function findLineUnderCamera(page, id, cx, cy, color, { crossBoundary = false, minRun = 60, avoidSpecials = false } = {}) {
   for (let yOff = 0; yOff <= 6; yOff += 1) {
     for (const y of [cy + yOff, cy - yOff]) {
       if (y < 8 || y > GRID - 8) continue;
@@ -165,6 +181,12 @@ async function findLineUnderCamera(page, id, cx, cy, color, { crossBoundary = fa
       if (!crossBoundary) {
         const lineStart = Math.min(Math.max(cx - 15, run.start), runEnd - 29);
         if (lineStart < run.start) continue;
+        if (avoidSpecials) {
+          const firstSpecials = await readSpecialCellsInRange(page, id, y, lineStart, lineStart + 29);
+          const secondXStart = Math.min(lineStart + 40, runEnd - 12);
+          const secondSpecials = await readSpecialCellsInRange(page, id, y + 4, secondXStart, secondXStart + 12);
+          if (firstSpecials.length || secondSpecials.length) continue;
+        }
         return { y, lineStart, lineEnd: lineStart + 29, runStart: run.start, runEnd };
       }
       const boundary = Math.max(run.start + 1, Math.min(runEnd - 1, Math.round(cx / 32) * 32));
@@ -255,8 +277,8 @@ async function canvasPixelAt(page, cellX, cellY) {
       zoom: Number(area.getAttribute('data-camera-zoom')),
     };
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const px = (gx * 32 * cam.zoom + cam.x) * dpr + 4;
-    const py = (gy * 32 * cam.zoom + cam.y) * dpr + 4;
+    const px = ((gx + 0.5) * 32 * cam.zoom + cam.x) * dpr;
+    const py = ((gy + 0.5) * 32 * cam.zoom + cam.y) * dpr;
     const data = canvas.getContext('2d').getImageData(px, py, 1, 1).data;
     return [data[0], data[1], data[2]];
   }, { gx: cellX, gy: cellY });
@@ -323,7 +345,7 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
     const activeColor = await selectedPaletteColor(page);
     const expectedRgb = await swatchRgb(page, activeColor);
     expect(expectedRgb).toBeTruthy();
-    const line = await findLineUnderCamera(page, id, center.x, center.y, activeColor);
+    const line = await findLineUnderCamera(page, id, center.x, center.y, activeColor, { avoidSpecials: true });
     expect(line, 'a 60+ cell run of the active color under the camera is required').toBeTruthy();
 
     const cam = await zoomOutTo(page, 0.25);
@@ -423,6 +445,10 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
       { x: secondEnd.x, y: secondEnd.y },
     ], { stepDelayMs: 30 });
     await endTouchStroke(page, touchSession);
+    await expect.poll(async () => (await readStrokeMetrics(page)).strokes.length, {
+      timeout: 10000,
+      message: 'the client stroke oracle must record the second completed touch stroke',
+    }).toBe(2);
     const metricsAfter = await readStrokeMetrics(page);
     expect(metricsAfter.strokes.length).toBe(2);
 
