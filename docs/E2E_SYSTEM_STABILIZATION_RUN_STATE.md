@@ -12,7 +12,7 @@ This file is the durable state for the single E2E stabilization pass. It is upda
 - Production relation verified: `6ce8f60` is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`
-- Current integration SHA: `pending initial audit-doc commit`
+- Current integration SHA: `3b432973c231c52c287cdf22216ccec25d3cd7f0`
 - Primary dirty checkout: preserved at `C:\Users\misa\Desktop\Splint-Gemini`; no files from it are in this worktree.
 - Production deployment: explicitly out of scope; no production configuration/data/webhook/payment changes authorized.
 - Stars: must remain `OFF / FAIL-CLOSED`.
@@ -52,7 +52,7 @@ No source or harness fixes have been made before the diagnostic run.
 
 ## Diagnostic run
 
-- Frozen SHA: pending audit-doc commit
+- Frozen SHA: `3b432973c231c52c287cdf22216ccec25d3cd7f0`
 - Runtime: Node 22 on Linux Playwright container, exact lockfiles
 - Command: pending
 - Fail-fast: disabled (`strategy.fail-fast: false` in CI; local run must collect all failures)
