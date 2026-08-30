@@ -125,31 +125,13 @@ async function openColoring(page, id, { width = 390, height = 844, splintMetrics
 async function waitTiledWork(page) {
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toBeVisible({ timeout: 30000 });
-  let lod = null;
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const state = await session.getAttribute('data-smart-state').catch(() => null);
-    lod = await session.getAttribute('data-lod-mode').catch(() => null);
-    if (state === 'ready' || state === 'freeExploration') break;
-    if (state === 'errorRetryable') {
-      const retry = page.locator('.progressive-grid-error button').first();
-      if (await retry.isVisible().catch(() => false)) await retry.click();
-    }
-    await page.waitForTimeout(1000);
-  }
   await expect(page.locator('.progressive-grid-area > canvas')).toBeVisible({ timeout: 30000 });
+  await expect(session).toHaveAttribute('data-smart-state', /^(ready|freeExploration)$/, { timeout: 30000 });
   await expect.poll(
     () => page.evaluate(() => Boolean(window.__splintClient?.getSnapshot?.()?.manifest)),
     { timeout: 30000 },
   ).toBe(true);
-  if (lod !== 'work') {
-    const canvas = page.locator('.progressive-grid-area > canvas');
-    await canvas.focus();
-    for (let step = 0; step < 20; step += 1) {
-      await canvas.press('+');
-      const current = await session.getAttribute('data-lod-mode');
-      if (current === 'work') break;
-    }
-  }
+  await expect(session).toHaveAttribute('data-lod-mode', 'work', { timeout: 30000 });
 }
 
 async function readCamera(page, surface) {
@@ -258,9 +240,11 @@ async function waitForTile(page, cellIndex, gridWidth, expectedKind = null) {
   const y = Math.floor(cellIndex / gridWidth);
   const key = `${Math.floor(x / TILE)}:${Math.floor(y / TILE)}`;
   await page.evaluate(async ({ tileX, tileY }) => {
-    await window.__splintClient?.loadManifest?.();
-    await window.__splintClient?.fetchTile?.(tileX, tileY, { force: true });
-  }, { tileX: Math.floor(x / TILE), tileY: Math.floor(y / TILE) }).catch(() => {});
+    const client = window.__splintClient;
+    if (!client) throw new Error('tiled client is required before waiting for a special tile');
+    await client.loadManifest();
+    await client.fetchTile(tileX, tileY, { force: true });
+  }, { tileX: Math.floor(x / TILE), tileY: Math.floor(y / TILE) });
   await page.waitForFunction(({ tileKey, targetIndex, kind }) => {
     const tile = window.__splintClient?.cache?.peek?.(tileKey);
     if (!tile) return false;

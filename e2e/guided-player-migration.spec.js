@@ -137,6 +137,23 @@ test('migrated pre-021 template: autopilot focuses a real target and the FIRST t
   test.skip(browserName === 'webkit', '1200x1200 tiled creation is not practical on WebKit emulation');
   await prepareApp(page);
 
+  // Capture tile responses before navigation. A waitForResponse registered
+  // after READY can only miss an already-completed response and hide the
+  // readiness failure behind its timeout.
+  const tileResponseEvidence = new Map();
+  page.on('response', (response) => {
+    const match = response.url().match(/\/tiles\/(\d+)\/(\d+)(?:[/?]|$)/);
+    if (!match) return;
+    const key = `${match[1]}:${match[2]}`;
+    const entries = tileResponseEvidence.get(key) ?? [];
+    entries.push({
+      status: response.status(),
+      url: response.url(),
+      response,
+    });
+    tileResponseEvidence.set(key, entries);
+  });
+
   // Simulate a template created BEFORE migration 021 with existing progress.
   const seeded = await seedPre021Template(page);
   expect(seeded.id).toBeTruthy();
@@ -174,11 +191,23 @@ test('migrated pre-021 template: autopilot focuses a real target and the FIRST t
   expect(camera.zoom).toBeGreaterThanOrEqual(0.4);
   const targetTile = await session.getAttribute('data-smart-target-tile');
   expect(targetTile).not.toBe('');
-  const [tileX, tileY] = targetTile.split(':').map(Number);
-  await page.waitForResponse(
-    (response) => response.url().includes(`/tiles/${tileX}/${tileY}`) && response.ok(),
-    { timeout: 15000 },
-  ).catch(() => {});
+  // The target response may have completed before READY was observable, so
+  // inspect the response evidence captured from navigation instead of
+  // waiting for a historical response event.
+  const targetTileResponses = await Promise.all(
+    (tileResponseEvidence.get(targetTile) ?? []).map(async ({ status, url, response }) => ({
+      status,
+      url,
+      body: await response.text().catch((error) => `[body unavailable: ${error.message}]`),
+    })),
+  );
+  expect(
+    targetTileResponses.some(({ status }) => status === 200),
+    `target tile ${targetTile} response evidence missing or not OK: ${JSON.stringify({
+      observedTileKeys: [...tileResponseEvidence.keys()],
+      responses: targetTileResponses,
+    })}`,
+  ).toBe(true);
 
   // FIRST USER ACTION = PAINT: tap the suggested anchor cell, nothing else.
   const targetX = Number(await session.getAttribute('data-smart-target-x'));

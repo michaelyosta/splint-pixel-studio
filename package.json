@@ -18,6 +18,7 @@
     "test:integration": "node --test server/test/api.integration.test.js",
     "test:server": "npm --prefix server test",
     "test:e2e": "playwright test",
+    "test:e2e:ci-local": "node scripts/run-e2e-node22.mjs",
     "qa:specials": "node --env-file=.env.local scripts/check-special-cells-qa.mjs",
     "preview": "vite preview"
   },

@@ -65,7 +65,20 @@ async function pressOverview(page) {
   await page.locator('.progressive-grid-area canvas').first().focus();
   await page.keyboard.press('0');
   await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-lod-mode', 'overview');
-  await page.waitForTimeout(250);
+}
+
+async function waitForTileNetworkIdle(page) {
+  await expect.poll(
+    () => page.evaluate(() => {
+      const stats = window.__splintClient?.getNetworkStats?.();
+      const snapshot = window.__splintClient?.getSnapshot?.();
+      return {
+        activeTileRequests: Number(stats?.activeTileRequests || 0),
+        pendingTiles: snapshot?.pendingTiles?.length || 0,
+      };
+    }),
+    { timeout: 60000, message: 'tiled viewport work must settle before measuring the next phase' },
+  ).toEqual({ activeTileRequests: 0, pendingTiles: 0 });
 }
 
 test.describe('tiled 1200 low zoom', () => {
@@ -91,19 +104,7 @@ test.describe('tiled 1200 low zoom', () => {
     // Do not count the tail of the initial WORK prefetch as an overview
     // request. This is especially important after the preceding 1200px
     // scenarios have saturated the serial E2E API worker.
-    await expect.poll(
-      () => page.evaluate(() => {
-        const stats = window.__splintClient?.getNetworkStats?.();
-        const snapshot = window.__splintClient?.getSnapshot?.();
-        return Number(stats?.activeTileRequests || 0) === 0
-          && (snapshot?.pendingTiles?.length || 0) === 0;
-      }),
-      { timeout: 60000 },
-    ).toBe(true);
-    // Let a completed work plan settle before measuring overview requests;
-    // under serial API load a plan can enqueue its last promise one tick
-    // after activeTileRequests reaches zero.
-    await page.waitForTimeout(500);
+    await waitForTileNetworkIdle(page);
     tileRequests.length = 0;
     const overviewStartedAt = Date.now();
     await pressOverview(page);
@@ -122,6 +123,7 @@ test.describe('tiled 1200 low zoom', () => {
     }
     await expect(session).toHaveAttribute('data-lod-mode', 'work', { timeout: 5000 });
     await expect.poll(() => tileRequests.length, { timeout: 10000 }).toBeGreaterThan(0);
+    await waitForTileNetworkIdle(page);
     const workTileRequestCount = tileRequests.length;
     await page.screenshot({ path: resolve(evidenceDir, `${testInfo.project.name}-work.png`), fullPage: false });
     const workStats = await clientStats();
@@ -130,7 +132,7 @@ test.describe('tiled 1200 low zoom', () => {
     for (let index = 0; index < 12; index += 1) {
       await (index % 2 ? zoomOut : zoomIn).click();
     }
-    await page.waitForTimeout(500);
+    await waitForTileNetworkIdle(page);
     const rapidStats = await clientStats();
     expect(rapidStats.cache.tiles).toBeLessThanOrEqual(48);
     expect(rapidStats.network.peakConcurrentTileRequests).toBeLessThanOrEqual(48);

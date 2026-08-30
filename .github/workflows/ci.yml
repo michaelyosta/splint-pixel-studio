@@ -70,4 +70,17 @@ jobs:
       - run: npm ci
       - run: npm --prefix server ci
       - run: npx playwright install --with-deps chromium webkit
-      - run: npm run test:e2e -- --shard=${{ matrix.shard }}/16
+      - name: Run E2E shard
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/16
+      - name: Upload E2E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-diagnostics-${{ matrix.shard }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
+          retention-days: 14

@@ -62,25 +62,28 @@ async function createAndOpenBarsColoring(page) {
 }
 
 async function waitForTiledReady(page) {
-  await page.waitForResponse(
-    (r) => r.url().includes('/api/colorings/') && r.url().includes('/tiles/') && r.ok(),
-    { timeout: 30000 },
-  ).catch(() => {});
-  await expect(page.locator('.progressive-grid-area canvas').first()).toBeVisible({ timeout: 15000 });
-  // On slow emulation the guidance target fetch can transiently fail
-  // (errorRetryable banner); retry like a user would, then require ready.
+  const canvas = page.locator('.progressive-grid-area canvas').first();
+  await expect(canvas).toBeVisible({ timeout: 15000 });
   const session = page.locator('.progressive-coloring-session');
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const state = await session.getAttribute('data-smart-state').catch(() => null);
-    if (state === 'ready') break;
-    if (state === 'errorRetryable') {
-      const retry = page.locator('.progressive-grid-error button:has-text("Повторить")');
-      if (await retry.isVisible().catch(() => false)) await retry.click();
-    }
-    await page.waitForTimeout(2000);
-  }
   await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 30000 });
-  await page.waitForTimeout(600);
+  await expect.poll(
+    () => page.evaluate(() => Boolean(window.__splintClient?.getSnapshot?.()?.manifest)),
+    { timeout: 30000, message: 'tiled client manifest must be loaded before the stroke setup' },
+  ).toBe(true);
+}
+
+async function waitForTileNetworkIdle(page) {
+  await expect.poll(
+    () => page.evaluate(() => {
+      const stats = window.__splintClient?.getNetworkStats?.();
+      const snapshot = window.__splintClient?.getSnapshot?.();
+      return {
+        activeTileRequests: Number(stats?.activeTileRequests || 0),
+        pendingTiles: snapshot?.pendingTiles?.length || 0,
+      };
+    }),
+    { timeout: 60000, message: 'tiled viewport work must settle before the stroke begins' },
+  ).toEqual({ activeTileRequests: 0, pendingTiles: 0 });
 }
 
 async function readCamera(page) {
@@ -324,7 +327,6 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
     expect(line, 'a 60+ cell run of the active color under the camera is required').toBeTruthy();
 
     const cam = await zoomOutTo(page, 0.25);
-    await page.waitForTimeout(600); // viewport tiles settle
 
     const start = cellToScreen(line.lineStart, line.y, cam, viewportBox);
     const end = cellToScreen(line.lineEnd, line.y, cam, viewportBox);
@@ -351,6 +353,7 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
         message: `tile ${tx}:${ty} must be resident before the first stroke`,
       }).toBe(true);
     }
+    await waitForTileNetworkIdle(page);
 
     const progressPost = page.waitForResponse(
       (r) => r.url().includes('/progress/actions') && r.request().method() === 'POST',
@@ -460,7 +463,6 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
     expect(line.boundary).toBeLessThan(line.lineEnd);
 
     const cam = await zoomOutTo(page, 0.2);
-    await page.waitForTimeout(600);
 
     const start = cellToScreen(line.lineStart, line.y, cam, viewportBox);
     const end = cellToScreen(line.lineEnd, line.y, cam, viewportBox);
@@ -473,12 +475,14 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
 
     const ty = Math.floor(paintStart.y / 32);
     for (let tx = Math.floor(line.lineStart / 32); tx <= Math.floor(line.lineEnd / 32); tx += 1) {
-      await page.waitForResponse(
-        (r) => r.url().includes(`/tiles/${tx}/${ty}`) && r.ok(),
-        { timeout: 10000 },
-      ).catch(() => {});
+      await expect.poll(() => page.evaluate(({ x, y }) => (
+        window.__splintClient?.getCell(x, y)?.loaded === true
+      ), { x: tx * CELL, y: paintStart.y }), {
+        timeout: 10000,
+        message: `tile ${tx}:${ty} must be resident before the boundary stroke`,
+      }).toBe(true);
     }
-    await page.waitForTimeout(500);
+    await waitForTileNetworkIdle(page);
 
     const progressPost = page.waitForResponse(
       (r) => r.url().includes('/progress/actions') && r.request().method() === 'POST',
