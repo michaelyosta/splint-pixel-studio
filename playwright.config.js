@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const webPort = Number(process.env.E2E_WEB_PORT || 5190);
+const outputDir = process.env.PLAYWRIGHT_OUTPUT_DIR || 'test-results';
 const reporter = process.env.CI
   ? [
       ['line'],
@@ -14,6 +15,7 @@ export default defineConfig({
   retries: 0,
   fullyParallel: false,
   workers: 1,
+  outputDir,
   reporter,
   preserveOutput: 'always',
   use: {

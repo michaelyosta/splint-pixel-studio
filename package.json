@@ -19,6 +19,8 @@
     "test:server": "npm --prefix server test",
     "test:e2e": "playwright test",
     "test:e2e:ci-local": "node scripts/run-e2e-node22.mjs",
+    "test:e2e:critical": "node scripts/run-e2e-suite-node22.mjs critical",
+    "test:e2e:extended": "node scripts/run-e2e-suite-node22.mjs extended",
     "qa:specials": "node --env-file=.env.local scripts/check-special-cells-qa.mjs",
     "preview": "vite preview"
   },

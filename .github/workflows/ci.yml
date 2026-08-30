@@ -53,6 +53,44 @@ jobs:
         env:
           DATABASE_URL: postgresql://splint:splint_test@localhost:5432/splint_test
 
+  e2e-critical:
+    name: e2e-critical (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - key: chromium
+            project: chromium
+          - key: iphone
+            project: Mobile iPhone
+          - key: pixel
+            project: Mobile Pixel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix server ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run release-critical E2E
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json
+        run: npm run test:e2e:critical -- --project="${{ matrix.project }}"
+      - name: Upload release-critical diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-critical-diagnostics-${{ matrix.key }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
+          retention-days: 14
+
   e2e:
     name: e2e (${{ matrix.shard }}/16)
     runs-on: ubuntu-latest
