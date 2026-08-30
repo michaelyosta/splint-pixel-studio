@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `INTEGRATION_WAVE_PENDING — bounded cluster fixes reviewed`
+Status: `POST_INTEGRATION_VALIDATION — integration wave complete`
 
 This is the durable state for the single E2E stabilization pass. It is updated
 at phase boundaries and after every bounded verification/integration wave.
@@ -12,7 +12,7 @@ at phase boundaries and after every bounded verification/integration wave.
 - Supplied release-candidate SHA: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current integration SHA: `ab1adc3daaec6a1b4305952ab342f34e70759673`
+- Current integration SHA: `70af41f94d094239a662fa5bc43b2cb75510a1b4`
 - Primary dirty checkout: `C:\Users\misa\Desktop\Splint-Gemini`; branch/HEAD
   remain unchanged. A special-contract agent briefly launched a focused run
   from this primary path; it was interrupted immediately after detection.
@@ -69,7 +69,7 @@ made before the complete frozen diagnostic.
 - Full matrix: [E2E_DIAGNOSTIC_MATRIX.md](E2E_DIAGNOSTIC_MATRIX.md).
 - Artifact root: `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean\test-results`.
 - All unexpected results have `error-context.md`; no failure trace or generic
-  screenshot attachment was produced under the current config.
+  screenshot attachment was produced under the frozen pre-wave config.
 
 ## Failure clusters
 
@@ -97,7 +97,8 @@ yet been declared or silently treated as a harness failure.
 
 - Commits awaiting integration: `7cc4704d7a21515d799b39d34c2cc547694b43ab`
   (C2 lifecycle), `3e9744657d4d705d48f7f30bd1cc33c8c39c0b9a` (C4 tiled).
-- Integrated commits: `3b43297` inventory/audit; `ab1adc3` frozen diagnostic state.
+- Integrated commits: `3b43297` inventory/audit; `ab1adc3` frozen diagnostic
+  state; `70af41f` bounded C2/C4 + lead harness/docs wave.
 - Additional correction waves: at most one bounded wave after post-fix full
   validation identifies a newly proven root cause.
 
@@ -109,8 +110,9 @@ yet been declared or silently treated as a harness failure.
   `16 passed`; C4 low-zoom `5/5` and clean stroke `2/2`, with one explicit
   load-sensitive residual. These are evidence against a simple product-wide
   failure, not final classifications for every matrix row.
-- Targeted verification: complete for the bounded owner checks; post-integration
-  verification pending.
+- Targeted verification: complete for owner checks and integrated SHA: Mobile
+  Pixel guided/migration/glyph/low-zoom/stroke `15/15 passed` in `9.9m` with
+  retries `0`.
 - Repeated previously flaky scenarios: partial evidence captured; final
   post-integration repeat remains pending.
 - Post-integration full CI-equivalent run: pending.

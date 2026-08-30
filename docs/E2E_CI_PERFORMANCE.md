@@ -1,6 +1,6 @@
 # E2E CI performance
 
-Status: `MEASURED BASELINE — post-fix comparison pending`
+Status: `MEASURED BASELINE — targeted post-fix PASS; full-suite comparison pending`
 
 This document records the performance evidence from the frozen diagnostic and
 the current CI shape. It does not treat low CPU utilization as a reason to
@@ -27,6 +27,11 @@ Focused clean runs on the same Node 22 procedure were:
 | Mobile iPhone accessibility | 8 | 7 passed, 1 intentional skip | 137.4 s |
 | Mobile Pixel 1200 representative | 2 | 2 passed | 119.0 s |
 | Mobile Pixel tiled stroke | 2 | 2 passed | 216.3 s |
+
+After integration SHA `70af41f05f65a3807c0d49747aeb4fa538e1ed31`, the modified
+C2/C4 Mobile Pixel set (15 cases: guided, migration, glyph, low-zoom, and
+stroke) passed `15/15` in `9.9 min`, with retries `0`. This is a targeted
+post-fix measurement, not the full-suite gate.
 
 These focused results are evidence that a clean process is materially faster
 and more reliable than the long mixed run for the selected scenarios. They are
