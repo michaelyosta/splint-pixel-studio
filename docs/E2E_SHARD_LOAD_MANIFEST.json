@@ -1,20 +1,23 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "manifest_type": "e2e-duration-load",
-  "source_sha": "3a993d14da514fa564909d4461f66a81bab42357",
-  "source_run_id": "33388276591",
-  "generated_at": "2026-08-31T12:48:39.588Z",
+  "source_sha": "17b63011f7770426cbdf00fd263eb90b61d5c243",
+  "source_run_id": "33394793091",
+  "duration_source_sha": "3a993d14da514fa564909d4461f66a81bab42357",
+  "duration_source_run_id": "33388276591",
+  "generated_at": "2026-08-31T13:21:23.508Z",
   "authoritative_runtime": {
     "node": "22.23.2",
     "npm": "10.9.8",
     "playwright": "1.61.1"
   },
   "selected_topology": {
-    "shards": 16,
-    "strategy": "weighted_16",
+    "shards": 24,
+    "strategy": "weighted_24_minimum_30000ms",
     "selector": "file arguments plus escaped test-title grep alternatives",
     "expected_logical_tests": 146,
-    "expected_project_cases": 438
+    "expected_project_cases": 438,
+    "minimum_group_weight_ms": 30000
   },
   "coverage": {
     "projects": [
@@ -25,7 +28,7 @@
     "expected_logical_tests": 146,
     "expected_project_cases": 438
   },
-  "measurement_note": "Historical Playwright JSON contains test durations but not per-test HTTP request counts. Final shards collect server /metrics into server-metrics.json; unavailable historical request fields remain null.",
+  "measurement_note": "Historical Playwright durations from 33388276591; current CI shards collect server /metrics before teardown. A 30000ms minimum logical-group load prevents zero-duration visual/evidence groups from collapsing into one long-lived runtime.",
   "topology_comparison": {
     "builtin_16": {
       "shards": 16,
@@ -53,23 +56,57 @@
     },
     "weighted_16": {
       "shards": 16,
-      "strategy": "deterministic greedy bin-pack of logical test groups using historical duration",
+      "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
       "total_project_cases": 438,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 590483,
-      "projected_slowest_duration_minutes": 9.84
+      "projected_slowest_duration_minutes": 9.84,
+      "maximum_logical_tests": 11,
+      "maximum_project_cases": 33
+    },
+    "weighted_24": {
+      "shards": 24,
+      "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
+      "total_project_cases": 438,
+      "empty_shards": 0,
+      "projected_slowest_duration_ms": 590483,
+      "projected_slowest_duration_minutes": 9.84,
+      "maximum_logical_tests": 8,
+      "maximum_project_cases": 24
+    },
+    "weighted_32": {
+      "shards": 32,
+      "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
+      "total_project_cases": 438,
+      "empty_shards": 0,
+      "projected_slowest_duration_ms": 590483,
+      "projected_slowest_duration_minutes": 9.84,
+      "maximum_logical_tests": 6,
+      "maximum_project_cases": 18
+    },
+    "selected": {
+      "shards": 24,
+      "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
+      "total_project_cases": 438,
+      "empty_shards": 0,
+      "projected_slowest_duration_ms": 590483,
+      "projected_slowest_duration_minutes": 9.84,
+      "maximum_logical_tests": 8,
+      "maximum_project_cases": 24
     }
   },
   "shards": [
     {
       "shard": 1,
       "historical_duration_ms": 590483,
+      "load_weight_ms": 590483,
       "logical_tests": 1,
       "project_cases": 3,
       "groups": [
         "special-glyph-parity.spec.js:617:tiled glyph masks are distinct, hidden in overview, and readable at low zoom for active Alpha kinds"
       ],
       "historical_duration_minutes": 9.84,
+      "load_weight_minutes": 9.84,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -78,12 +115,14 @@
     {
       "shard": 2,
       "historical_duration_ms": 357200,
+      "load_weight_ms": 357200,
       "logical_tests": 1,
       "project_cases": 3,
       "groups": [
         "special-cells-visual-audit.spec.js:259:fresh treatment visual audit covers responsive Spark flow and next-beat continuation"
       ],
       "historical_duration_minutes": 5.95,
+      "load_weight_minutes": 5.95,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -91,20 +130,17 @@
     },
     {
       "shard": 3,
-      "historical_duration_ms": 284822,
-      "logical_tests": 8,
-      "project_cases": 24,
+      "historical_duration_ms": 201370,
+      "load_weight_ms": 248460,
+      "logical_tests": 3,
+      "project_cases": 9,
       "groups": [
         "special-glyph-parity.spec.js:576:legacy glyph masks are distinct and readable for active Alpha kinds",
-        "special-help-onboarding-responsive-evidence.spec.js:225:control onboarding has no special-cell entry or help surface",
-        "accessibility.spec.js:218:forced-colors keeps selected state visible without color",
-        "unlocks-recommendations.spec.js:258:1200 in-progress history keeps recommendations and unlock state bounded",
-        "creator.spec.js:563:13. Stable shell width across views",
-        "creator.spec.js:197:4. Crop mode shows zoom and offset sliders",
-        "bfcache-lifecycle.spec.js:224:browser SDK stub without initData does not apply the global overscroll fallback",
-        "coloring-surface-gesture-guard.spec.js:232:camera zoom still works on the tiled surface"
+        "coloring-surface-gesture-guard.spec.js:194:tiled pointer capture is established on a loaded target and paint commits progress",
+        "stabilization.spec.js:266:9. Free exploration requires an explicit return to the same target"
       ],
-      "historical_duration_minutes": 4.75,
+      "historical_duration_minutes": 3.36,
+      "load_weight_minutes": 4.14,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -112,21 +148,18 @@
     },
     {
       "shard": 4,
-      "historical_duration_ms": 284889,
-      "logical_tests": 9,
-      "project_cases": 27,
+      "historical_duration_ms": 192392,
+      "load_weight_ms": 256691,
+      "logical_tests": 4,
+      "project_cases": 12,
       "groups": [
         "special-glyph-parity.spec.js:689:tiled reveal claims exactly once and survives reload without duplicate",
-        "special-help-onboarding.spec.js:116:special kind shows one pre-paint hint with inline action and survives reload",
-        "stabilization.spec.js:347:13. Manual palette selection atomically activates a target of that color",
-        "stabilization.spec.js:139:2. Single tap paints a cell with no errors",
-        "creator.spec.js:231:6a. Resolution race cannot replace the latest selected preview",
-        "coloring-surface-gesture-guard.spec.js:152:normal catalog scroll remains available outside the player",
-        "coloring-surface-gesture-guard.spec.js:105:tiled surface suppresses selection, keeps editable controls selectable; guards scoped",
-        "creator-preview-visual.spec.js:25:creator preview is readable without overflow at 390px",
+        "input-gesture-evidence.spec.js:57:classic keyboard paint commits server progress",
+        "core-feel-slice.spec.js:79:core feel c: manual reveal owns the first minute",
         "stabilization.spec.js:215:6. Wheel zoom preserves cursor world position"
       ],
-      "historical_duration_minutes": 4.75,
+      "historical_duration_minutes": 3.21,
+      "load_weight_minutes": 4.28,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -134,20 +167,18 @@
     },
     {
       "shard": 5,
-      "historical_duration_ms": 283575,
-      "logical_tests": 8,
-      "project_cases": 24,
+      "historical_duration_ms": 193305,
+      "load_weight_ms": 256391,
+      "logical_tests": 4,
+      "project_cases": 12,
       "groups": [
         "special-cells-gameplay-v1.spec.js:239:1200x1200 Alpha journey crosses active positive and rare events with reload/offline recovery",
-        "accessibility.spec.js:136:palette is keyboard-operable and selection is announced via state labels",
-        "stabilization.spec.js:439:16. Resize in free exploration preserves manual camera and target",
-        "stabilization.spec.js:309:11. Auto transition remains focusing until camera animation completes",
-        "tiled-completion.spec.js:3:tiled completion shows the completion overlay in the player",
-        "creator.spec.js:636:18. Reveal mode paints without selecting a palette color first",
-        "creator.spec.js:188:3a. Photo creator defaults to the detail-preserving 512×512/16-colour mode",
-        "creator.spec.js:170:2. Creator controls visible on page"
+        "special-cells-1200-delivery.spec.js:627:1200 control has no special markers, tutorial, help, or special HUD",
+        "coloring-surface-gesture-guard.spec.js:164:classic pointer capture stays on the canvas and paint commits progress",
+        "bfcache-lifecycle.spec.js:224:browser SDK stub without initData does not apply the global overscroll fallback"
       ],
-      "historical_duration_minutes": 4.73,
+      "historical_duration_minutes": 3.22,
+      "load_weight_minutes": 4.27,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -155,30 +186,19 @@
     },
     {
       "shard": 6,
-      "historical_duration_ms": 282175,
-      "logical_tests": 18,
-      "project_cases": 54,
+      "historical_duration_ms": 177008,
+      "load_weight_ms": 245490,
+      "logical_tests": 5,
+      "project_cases": 15,
       "groups": [
         "special-glyph-parity.spec.js:842:menu-open overlap QA screenshots stay separate from final evidence",
-        "special-cells.spec.js:235:legacy 28x28 control has no Spark marker, action, or HUD",
-        "accessibility.spec.js:70:player exposes one canvas, radio palette, and bounded live regions",
-        "input-gesture-evidence.spec.js:165:tiled surface fits the 360px viewport",
-        "stabilization.spec.js:121:1. Opening a coloring produces no page errors",
-        "special-help-onboarding.spec.js:47:legacy picture with specials shows compact special-cell onboarding once and opens the legend",
-        "creator.spec.js:221:6. Compute shows previews and quality indicator",
-        "core-feel-slice.spec.js:79:core feel b: manual reveal owns the first minute",
-        "stabilization.spec.js:266:9. Free exploration requires an explicit return to the same target",
-        "accessibility-evidence.spec.js:223:capture classic player at 360px",
-        "accessibility-evidence.spec.js:223:capture classic player at 390px",
-        "accessibility-evidence.spec.js:223:capture classic player at 430px",
-        "accessibility-evidence.spec.js:237:capture reduced-motion player at 390px",
-        "accessibility-evidence.spec.js:252:capture forced-colors player at 390px",
-        "accessibility-evidence.spec.js:266:capture tiled 1200 player at 390px",
-        "session-goals-evidence.spec.js:133:capture session-goal player at 360px",
-        "session-goals-evidence.spec.js:133:capture session-goal player at 390px",
-        "session-goals-evidence.spec.js:133:capture session-goal player at 430px"
+        "stabilization.spec.js:139:2. Single tap paints a cell with no errors",
+        "tiled-reload-journal.spec.js:65:offline journal replay reconciles an already resident tile after reload",
+        "core-feel-slice.spec.js:187:partial manual progress reloads into a meaningful resume action",
+        "core-feel-slice.spec.js:150:manual pinch/pan pauses direction without forfeiting the authored reveal"
       ],
-      "historical_duration_minutes": 4.7,
+      "historical_duration_minutes": 2.95,
+      "load_weight_minutes": 4.09,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -186,21 +206,19 @@
     },
     {
       "shard": 7,
-      "historical_duration_ms": 283381,
-      "logical_tests": 9,
-      "project_cases": 27,
+      "historical_duration_ms": 175348,
+      "load_weight_ms": 241174,
+      "logical_tests": 5,
+      "project_cases": 15,
       "groups": [
         "special-glyph-parity.spec.js:806:control reveal renders no markers and emits no special event",
-        "session-goals.spec.js:134:goal is visible before paint, timer starts on first paint, and progress updates",
-        "input-gesture-evidence.spec.js:69:tiled real touch paint commits server progress and captures the pointer",
-        "stabilization.spec.js:397:14. Guided target is revalidated across required viewport sizes",
-        "stabilization.spec.js:178:3b. Painting a cell produces no pageerror",
-        "creator.spec.js:399:9. Completion flow: 100% → overlay → Escape → buttons",
-        "unlocks-recommendations.spec.js:201:premium direct ID shows a neutral unavailable state without payment CTA",
-        "coloring-surface-gesture-guard.spec.js:164:classic pointer capture stays on the canvas and paint commits progress",
-        "creator.spec.js:147:Create hub keeps free creator paths without commercial promises"
+        "stabilization.spec.js:369:13b. Selecting a completed color keeps a truthful active target",
+        "unlocks-recommendations.spec.js:176:normal collection navigation hides premium entries from collection surfaces",
+        "coloring-surface-gesture-guard.spec.js:152:normal catalog scroll remains available outside the player",
+        "core-feel-slice.spec.js:138:control keeps the existing flat/automatic behavior for comparison"
       ],
-      "historical_duration_minutes": 4.72,
+      "historical_duration_minutes": 2.92,
+      "load_weight_minutes": 4.02,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -208,22 +226,21 @@
     },
     {
       "shard": 8,
-      "historical_duration_ms": 282670,
-      "logical_tests": 10,
-      "project_cases": 30,
+      "historical_duration_ms": 171610,
+      "load_weight_ms": 266570,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "special-cells-long-journey.spec.js:140:treatment long journey resolves active special kinds without leaving the Canvas",
-        "stabilization.spec.js:244:8. Onboarding completion persists and can be replayed",
-        "phase2-session-game.spec.js:5:Phase 2 treatment keeps Spark manual and pauses after the authored reveal beat",
-        "session-goals.spec.js:328:explicit hidden treatment is deterministic and keeps the Canvas target surface",
-        "input-gesture-evidence.spec.js:165:tiled surface fits the 390px viewport",
-        "stabilization.spec.js:231:7. Reveal mode remains actionable without palette controls",
-        "special-cells-1200-delivery.spec.js:627:1200 control has no special markers, tutorial, help, or special HUD",
-        "unlocks-recommendations.spec.js:119:cold-start recommendations render stable reason text in bounded cards",
-        "core-feel-slice.spec.js:79:core feel c: manual reveal owns the first minute",
-        "core-feel-slice.spec.js:150:manual pinch/pan pauses direction without forfeiting the authored reveal"
+        "accessibility.spec.js:136:palette is keyboard-operable and selection is announced via state labels",
+        "stabilization.spec.js:201:5. Camera auto does not move during painting",
+        "guided-player-migration.spec.js:136:migrated pre-021 template: autopilot focuses a real target and the FIRST tap paints",
+        "unlocks-recommendations.spec.js:201:premium direct ID shows a neutral unavailable state without payment CTA",
+        "guided-path.spec.js:55:guided home shows one primary action and a bounded choice window",
+        "session-goals-evidence.spec.js:133:capture session-goal player at 430px"
       ],
-      "historical_duration_minutes": 4.71,
+      "historical_duration_minutes": 2.86,
+      "load_weight_minutes": 4.44,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -231,22 +248,21 @@
     },
     {
       "shard": 9,
-      "historical_duration_ms": 283820,
-      "logical_tests": 10,
-      "project_cases": 30,
+      "historical_duration_ms": 171248,
+      "load_weight_ms": 265359,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "special-cells.spec.js:261:legacy 28x28 last-cell Spark suppresses the trivial event and preserves completion",
-        "phase2-positive-events.spec.js:28:Phase 2 automatic Spark resolves one bounded default target without a choice modal",
-        "tiled-low-zoom.spec.js:99:overview is preview-stable, work reloads tiles, 502 stays local and retry recovers",
-        "guided-player-migration.spec.js:281:slow target tile load: LOADING_TARGET is shown, then auto-focus to READY (no overview dead-end)",
-        "guided-player-migration.spec.js:233:cold target: the guidance target tile is explicitly requested before READY even when far from the overview",
-        "creator.spec.js:276:6c. 1200x1200 creator path uploads tiled storage and opens bounded player",
-        "core-feel-slice.spec.js:79:core feel a: manual reveal owns the first minute",
-        "unlocks-recommendations.spec.js:224:catalog showcase stays fail-closed without a mounted payment adapter",
-        "coloring-surface-gesture-guard.spec.js:79:classic surface suppresses selection, callout, image drag; guards stay scoped",
-        "creator.spec.js:163:1. App shell and navigation render"
+        "accessibility.spec.js:190:reduced motion does not disable painting or controls",
+        "stabilization.spec.js:347:13. Manual palette selection atomically activates a target of that color",
+        "creator.spec.js:399:9. Completion flow: 100% → overlay → Escape → buttons",
+        "special-bomb-artifact-reload.spec.js:42:Bomb offer reloads with the server-provided default center and applies without a resident tile",
+        "creator.spec.js:609:16. Catalog card actions stay aligned despite different copy lengths",
+        "session-goals-evidence.spec.js:133:capture session-goal player at 390px"
       ],
-      "historical_duration_minutes": 4.73,
+      "historical_duration_minutes": 2.85,
+      "load_weight_minutes": 4.42,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -254,22 +270,21 @@
     },
     {
       "shard": 10,
-      "historical_duration_ms": 283427,
-      "logical_tests": 10,
-      "project_cases": 30,
+      "historical_duration_ms": 174058,
+      "load_weight_ms": 265043,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "accessibility-1200.spec.js:70:tiled 1200 player keeps one canvas, bounded DOM, keyboard paint, and zone navigation",
-        "session-goals.spec.js:298:default recovery treatment hides goals but preserves painting save and server revision",
-        "input-gesture-evidence.spec.js:127:pointercancel does not leave a stuck stroke; next touch still commits",
-        "special-cells-responsive-evidence.spec.js:76:tiled special offer stays usable at mobile widths and honors reduced motion",
-        "input-gesture-evidence.spec.js:99:tiled two-pointer pinch changes zoom without page errors",
-        "stabilization.spec.js:192:4. Initial view exposes an actionable target",
-        "unlocks-recommendations.spec.js:176:normal collection navigation hides premium entries from collection surfaces",
+        "accessibility.spec.js:170:HUD controls are keyboard-operable",
+        "stabilization.spec.js:439:16. Resize in free exploration preserves manual camera and target",
+        "unlocks-recommendations.spec.js:258:1200 in-progress history keeps recommendations and unlock state bounded",
         "special-bomb-artifact-reload.spec.js:89:Artifact fragment progress renders persistently after /progress reload",
-        "session-goals.spec.js:338:core-feel suppresses an explicit goal-card control override but keeps painting guidance",
-        "core-feel-slice.spec.js:138:control keeps the existing flat/automatic behavior for comparison"
+        "creator.spec.js:163:1. App shell and navigation render",
+        "accessibility-evidence.spec.js:266:capture tiled 1200 player at 390px"
       ],
-      "historical_duration_minutes": 4.72,
+      "historical_duration_minutes": 2.9,
+      "load_weight_minutes": 4.42,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -277,22 +292,21 @@
     },
     {
       "shard": 11,
-      "historical_duration_ms": 283770,
-      "logical_tests": 10,
-      "project_cases": 30,
+      "historical_duration_ms": 177391,
+      "load_weight_ms": 264991,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "guided-player-migration.spec.js:347:transient 500 on the target tile shows the retryable error and recovers via Повторить",
-        "guided-player-migration.spec.js:317:persisted overview camera does not prevent smart guidance from becoming actionable",
-        "special-help-onboarding-responsive-evidence.spec.js:145:treatment onboarding and help stay visible, bounded, reduced-motion safe, and keyboard-trapped",
-        "accessibility.spec.js:170:HUD controls are keyboard-operable",
-        "creator.spec.js:246:6b. Selected 192×192 exact preview computes, saves, and opens",
-        "stabilization.spec.js:161:3. Undo/redo menu buttons present in reveal mode",
-        "tiled-reload-journal.spec.js:65:offline journal replay reconciles an already resident tile after reload",
-        "creator.spec.js:593:15. Player menu opens and shows secondary actions",
-        "creator.spec.js:177:3. File upload shows grid, crop, and color controls",
-        "bfcache-lifecycle.spec.js:113:legacy queue keeps painting after persisted pagehide/pageshow"
+        "accessibility.spec.js:100:keyboard-only can move cursor, zoom, and paint a guided cell",
+        "input-gesture-evidence.spec.js:165:tiled surface fits the 360px viewport",
+        "creator.spec.js:394:8. Save flow: saves, confirms, and opens play view",
+        "special-bomb-tiled.spec.js:45:tiled Bomb claim, compact center offer, and use flow on 390x844",
+        "creator.spec.js:170:2. Creator controls visible on page",
+        "accessibility-evidence.spec.js:252:capture forced-colors player at 390px"
       ],
-      "historical_duration_minutes": 4.73,
+      "historical_duration_minutes": 2.96,
+      "load_weight_minutes": 4.42,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -300,23 +314,21 @@
     },
     {
       "shard": 12,
-      "historical_duration_ms": 282721,
-      "logical_tests": 11,
-      "project_cases": 33,
+      "historical_duration_ms": 178532,
+      "load_weight_ms": 263887,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "tiled-stroke-engine.spec.js:469:drag across a tile boundary paints every valid cell with no stall",
-        "session-goals.spec.js:211:completing the first goal shows a server-backed celebration and the next goal without a completion modal",
-        "phase2-positive-events.spec.js:67:Phase 2 Bomb keeps one spatial action and produces a bounded area reveal",
-        "accessibility.spec.js:190:reduced motion does not disable painting or controls",
-        "special-cells.spec.js:88:Spark stays inside the tiled canvas flow and cannot be replayed",
-        "stabilization.spec.js:422:15. Expanding the HUD preserves and revalidates the same target",
-        "guided-player-migration.spec.js:136:migrated pre-021 template: autopilot focuses a real target and the FIRST tap paints",
-        "special-bomb-artifact-reload.spec.js:42:Bomb offer reloads with the server-provided default center and applies without a resident tile",
-        "coloring-surface-gesture-guard.spec.js:194:tiled pointer capture is established on a loaded target and paint commits progress",
-        "bfcache-lifecycle.spec.js:179:mock Telegram bridge disables on player enter, survives bfcache, and restores on leave",
-        "auth-contract.spec.js:35:missing or invalid Telegram initData is rejected"
+        "accessibility.spec.js:70:player exposes one canvas, radio palette, and bounded live regions",
+        "input-gesture-evidence.spec.js:165:tiled surface fits the 390px viewport",
+        "stabilization.spec.js:296:10. Overview explicitly enters free exploration",
+        "creator.spec.js:593:15. Player menu opens and shows secondary actions",
+        "creator.spec.js:188:3a. Photo creator defaults to the detail-preserving 512×512/16-colour mode",
+        "accessibility-evidence.spec.js:237:capture reduced-motion player at 390px"
       ],
-      "historical_duration_minutes": 4.71,
+      "historical_duration_minutes": 2.98,
+      "load_weight_minutes": 4.4,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -324,22 +336,21 @@
     },
     {
       "shard": 13,
-      "historical_duration_ms": 283538,
-      "logical_tests": 10,
-      "project_cases": 30,
+      "historical_duration_ms": 180026,
+      "load_weight_ms": 259257,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "special-cells-1200-delivery.spec.js:315:1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, uses bounded effect, continues",
-        "special-cells.spec.js:157:legacy 28x28 treatment discovers Spark in the real canvas and continues",
-        "accessibility.spec.js:239:mobile widths stay within viewport without text overflow",
-        "accessibility.spec.js:100:keyboard-only can move cursor, zoom, and paint a guided cell",
-        "input-gesture-evidence.spec.js:165:tiled surface fits the 430px viewport",
-        "creator.spec.js:474:11. Delete a user-created coloring from gallery",
-        "special-help-onboarding.spec.js:86:control picture never shows special intro, hint, or help overlay",
-        "creator.spec.js:521:12. Feed: like, comment, follow interactions",
-        "creator.spec.js:463:10. Catalog → open coloring → player renders guided canvas",
-        "guided-path.spec.js:55:guided home shows one primary action and a bounded choice window"
+        "phase2-manual-first-reveal.spec.js:3:Phase 2 keeps the first reveal player-authored before any special event",
+        "guided-player-migration.spec.js:233:cold target: the guidance target tile is explicitly requested before READY even when far from the overview",
+        "stabilization.spec.js:192:4. Initial view exposes an actionable target",
+        "creator.spec.js:636:18. Reveal mode paints without selecting a palette color first",
+        "creator.spec.js:177:3. File upload shows grid, crop, and color controls",
+        "auth-contract.spec.js:35:missing or invalid Telegram initData is rejected"
       ],
-      "historical_duration_minutes": 4.73,
+      "historical_duration_minutes": 3,
+      "load_weight_minutes": 4.32,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -347,22 +358,21 @@
     },
     {
       "shard": 14,
-      "historical_duration_ms": 282422,
-      "logical_tests": 10,
-      "project_cases": 30,
+      "historical_duration_ms": 179397,
+      "load_weight_ms": 257605,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "special-glyph-parity.spec.js:733:legacy reveal claims exactly once and survives reload without duplicate",
-        "p0-final-acceptance.spec.js:22:final acceptance: real 1200x1200 with existing progress, zero interactions, first action = PAINT",
-        "accessibility.spec.js:155:touch input paints on mobile profiles",
-        "guided-player.spec.js:15:1200x1200 guided player autofocuses, auto-advances, and supports free exploration + return",
-        "unlocks-recommendations.spec.js:236:eligible user gets an actionable direct-ID open and owned transition",
-        "guided-path.spec.js:65:completion hands off to a committed choice, including an honest stop",
-        "creator.spec.js:652:19. Completing a zone celebrates the revealed fragment without XP copy",
-        "special-bomb-tiled.spec.js:45:tiled Bomb claim, compact center offer, and use flow on 390x844",
-        "creator.spec.js:207:5. Grid and color controls update state",
-        "bfcache-lifecycle.spec.js:143:tiled queue keeps painting after persisted pagehide/pageshow"
+        "stabilization.spec.js:327:12. Ten Next actions always change target or finish",
+        "input-gesture-evidence.spec.js:165:tiled surface fits the 430px viewport",
+        "stabilization.spec.js:161:3. Undo/redo menu buttons present in reveal mode",
+        "creator.spec.js:563:13. Stable shell width across views",
+        "creator.spec.js:463:10. Catalog → open coloring → player renders guided canvas",
+        "auth-contract.spec.js:21:valid Telegram initData authenticates the Telegram identity and wins over a dev header"
       ],
-      "historical_duration_minutes": 4.71,
+      "historical_duration_minutes": 2.99,
+      "load_weight_minutes": 4.29,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -370,22 +380,21 @@
     },
     {
       "shard": 15,
-      "historical_duration_ms": 283572,
-      "logical_tests": 10,
-      "project_cases": 30,
+      "historical_duration_ms": 183580,
+      "load_weight_ms": 256347,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "special-cells-long-journey-evidence.spec.js:148:long journey evidence screenshots show active offers and Canvas return",
-        "tiled-stroke-engine.spec.js:331:30-cell touch drag paints progressively while the finger is down",
-        "stabilization.spec.js:327:12. Ten Next actions always change target or finish",
-        "special-cells.spec.js:299:legacy Artifact progress remains visible after a real /progress reload",
-        "stabilization.spec.js:201:5. Camera auto does not move during painting",
-        "stabilization.spec.js:296:10. Overview explicitly enters free exploration",
-        "creator.spec.js:621:17. Player dock switches between reveal and classic coloring",
-        "unlocks-recommendations.spec.js:159:progression-locked direct ID opens an actionable locked screen, not a generic error",
-        "creator.spec.js:577:14. Player guided mode keeps the canvas clear of persistent metrics",
-        "creator.spec.js:609:16. Catalog card actions stay aligned despite different copy lengths"
+        "accessibility.spec.js:155:touch input paints on mobile profiles",
+        "special-help-onboarding-responsive-evidence.spec.js:225:control onboarding has no special-cell entry or help surface",
+        "guided-path.spec.js:65:completion hands off to a committed choice, including an honest stop",
+        "special-help-onboarding.spec.js:86:control picture never shows special intro, hint, or help overlay",
+        "creator.spec.js:207:5. Grid and color controls update state",
+        "creator-preview-visual.spec.js:25:creator preview is readable without overflow at 390px"
       ],
-      "historical_duration_minutes": 4.73,
+      "historical_duration_minutes": 3.06,
+      "load_weight_minutes": 4.27,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -393,23 +402,201 @@
     },
     {
       "shard": 16,
-      "historical_duration_ms": 282660,
-      "logical_tests": 11,
-      "project_cases": 33,
+      "historical_duration_ms": 184656,
+      "load_weight_ms": 256179,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "session-goals.spec.js:153:offline pause freezes elapsed time and reload/reopen reconstructs the same goal without rewards",
-        "recovery-p0.spec.js:33:cold root reopen restores the last artwork and resumable state",
-        "phase2-manual-first-reveal.spec.js:3:Phase 2 keeps the first reveal player-authored before any special event",
+        "accessibility.spec.js:239:mobile widths stay within viewport without text overflow",
         "zone-visual.spec.js:8:capture 16-zone player at 390px",
-        "stabilization.spec.js:369:13b. Selecting a completed color keeps a truthful active target",
-        "creator.spec.js:394:8. Save flow: saves, confirms, and opens play view",
-        "input-gesture-evidence.spec.js:57:classic keyboard paint commits server progress",
-        "core-feel-slice.spec.js:187:partial manual progress reloads into a meaningful resume action",
-        "creator.spec.js:382:7. Reset crop restores defaults",
-        "creator-preview-visual.spec.js:25:creator preview is readable without overflow at 430px",
-        "auth-contract.spec.js:21:valid Telegram initData authenticates the Telegram identity and wins over a dev header"
+        "stabilization.spec.js:121:1. Opening a coloring produces no page errors",
+        "core-feel-slice.spec.js:79:core feel a: manual reveal owns the first minute",
+        "core-feel-slice.spec.js:79:core feel b: manual reveal owns the first minute",
+        "creator-preview-visual.spec.js:25:creator preview is readable without overflow at 430px"
       ],
-      "historical_duration_minutes": 4.71,
+      "historical_duration_minutes": 3.08,
+      "load_weight_minutes": 4.27,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 17,
+      "historical_duration_ms": 182697,
+      "load_weight_ms": 256457,
+      "logical_tests": 7,
+      "project_cases": 21,
+      "groups": [
+        "recovery-p0.spec.js:33:cold root reopen restores the last artwork and resumable state",
+        "phase2-positive-events.spec.js:67:Phase 2 Bomb keeps one spatial action and produces a bounded area reveal",
+        "stabilization.spec.js:397:14. Guided target is revalidated across required viewport sizes",
+        "stabilization.spec.js:309:11. Auto transition remains focusing until camera animation completes",
+        "creator.spec.js:621:17. Player dock switches between reveal and classic coloring",
+        "session-goals.spec.js:338:core-feel suppresses an explicit goal-card control override but keeps painting guidance",
+        "coloring-surface-gesture-guard.spec.js:232:camera zoom still works on the tiled surface"
+      ],
+      "historical_duration_minutes": 3.04,
+      "load_weight_minutes": 4.27,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 18,
+      "historical_duration_ms": 181695,
+      "load_weight_ms": 252421,
+      "logical_tests": 7,
+      "project_cases": 21,
+      "groups": [
+        "tiled-stroke-engine.spec.js:331:30-cell touch drag paints progressively while the finger is down",
+        "special-help-onboarding-responsive-evidence.spec.js:145:treatment onboarding and help stay visible, bounded, reduced-motion safe, and keyboard-trapped",
+        "special-cells.spec.js:299:legacy Artifact progress remains visible after a real /progress reload",
+        "stabilization.spec.js:231:7. Reveal mode remains actionable without palette controls",
+        "tiled-completion.spec.js:3:tiled completion shows the completion overlay in the player",
+        "coloring-surface-gesture-guard.spec.js:105:tiled surface suppresses selection, keeps editable controls selectable; guards scoped",
+        "bfcache-lifecycle.spec.js:179:mock Telegram bridge disables on player enter, survives bfcache, and restores on leave"
+      ],
+      "historical_duration_minutes": 3.03,
+      "load_weight_minutes": 4.21,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 19,
+      "historical_duration_ms": 176584,
+      "load_weight_ms": 245496,
+      "logical_tests": 7,
+      "project_cases": 21,
+      "groups": [
+        "p0-final-acceptance.spec.js:22:final acceptance: real 1200x1200 with existing progress, zero interactions, first action = PAINT",
+        "input-gesture-evidence.spec.js:127:pointercancel does not leave a stuck stroke; next touch still commits",
+        "guided-player.spec.js:15:1200x1200 guided player autofocuses, auto-advances, and supports free exploration + return",
+        "stabilization.spec.js:178:3b. Painting a cell produces no pageerror",
+        "creator.spec.js:652:19. Completing a zone celebrates the revealed fragment without XP copy",
+        "creator.spec.js:577:14. Player guided mode keeps the canvas clear of persistent metrics",
+        "bfcache-lifecycle.spec.js:143:tiled queue keeps painting after persisted pagehide/pageshow"
+      ],
+      "historical_duration_minutes": 2.94,
+      "load_weight_minutes": 4.09,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 20,
+      "historical_duration_ms": 174995,
+      "load_weight_ms": 241826,
+      "logical_tests": 7,
+      "project_cases": 21,
+      "groups": [
+        "special-cells.spec.js:157:legacy 28x28 treatment discovers Spark in the real canvas and continues",
+        "special-cells.spec.js:235:legacy 28x28 control has no Spark marker, action, or HUD",
+        "special-help-onboarding.spec.js:116:special kind shows one pre-paint hint with inline action and survives reload",
+        "accessibility.spec.js:218:forced-colors keeps selected state visible without color",
+        "special-help-onboarding.spec.js:47:legacy picture with specials shows compact special-cell onboarding once and opens the legend",
+        "unlocks-recommendations.spec.js:159:progression-locked direct ID opens an actionable locked screen, not a generic error",
+        "creator.spec.js:147:Create hub keeps free creator paths without commercial promises"
+      ],
+      "historical_duration_minutes": 2.92,
+      "load_weight_minutes": 4.03,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 21,
+      "historical_duration_ms": 173585,
+      "load_weight_ms": 265317,
+      "logical_tests": 8,
+      "project_cases": 24,
+      "groups": [
+        "session-goals.spec.js:211:completing the first goal shows a server-backed celebration and the next goal without a completion modal",
+        "phase2-session-game.spec.js:5:Phase 2 treatment keeps Spark manual and pauses after the authored reveal beat",
+        "session-goals.spec.js:328:explicit hidden treatment is deterministic and keeps the Canvas target surface",
+        "unlocks-recommendations.spec.js:236:eligible user gets an actionable direct-ID open and owned transition",
+        "creator.spec.js:231:6a. Resolution race cannot replace the latest selected preview",
+        "creator.spec.js:221:6. Compute shows previews and quality indicator",
+        "bfcache-lifecycle.spec.js:113:legacy queue keeps painting after persisted pagehide/pageshow",
+        "session-goals-evidence.spec.js:133:capture session-goal player at 360px"
+      ],
+      "historical_duration_minutes": 2.89,
+      "load_weight_minutes": 4.42,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 22,
+      "historical_duration_ms": 179553,
+      "load_weight_ms": 263767,
+      "logical_tests": 8,
+      "project_cases": 24,
+      "groups": [
+        "guided-player-migration.spec.js:317:persisted overview camera does not prevent smart guidance from becoming actionable",
+        "tiled-low-zoom.spec.js:99:overview is preview-stable, work reloads tiles, 502 stays local and retry recovers",
+        "special-cells-responsive-evidence.spec.js:76:tiled special offer stays usable at mobile widths and honors reduced motion",
+        "special-cells.spec.js:88:Spark stays inside the tiled canvas flow and cannot be replayed",
+        "creator.spec.js:474:11. Delete a user-created coloring from gallery",
+        "unlocks-recommendations.spec.js:119:cold-start recommendations render stable reason text in bounded cards",
+        "coloring-surface-gesture-guard.spec.js:79:classic surface suppresses selection, callout, image drag; guards stay scoped",
+        "accessibility-evidence.spec.js:223:capture classic player at 430px"
+      ],
+      "historical_duration_minutes": 2.99,
+      "load_weight_minutes": 4.4,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 23,
+      "historical_duration_ms": 179107,
+      "load_weight_ms": 262424,
+      "logical_tests": 8,
+      "project_cases": 24,
+      "groups": [
+        "session-goals.spec.js:298:default recovery treatment hides goals but preserves painting save and server revision",
+        "session-goals.spec.js:134:goal is visible before paint, timer starts on first paint, and progress updates",
+        "guided-player-migration.spec.js:281:slow target tile load: LOADING_TARGET is shown, then auto-focus to READY (no overview dead-end)",
+        "creator.spec.js:246:6b. Selected 192×192 exact preview computes, saves, and opens",
+        "creator.spec.js:276:6c. 1200x1200 creator path uploads tiled storage and opens bounded player",
+        "creator.spec.js:521:12. Feed: like, comment, follow interactions",
+        "creator.spec.js:382:7. Reset crop restores defaults",
+        "accessibility-evidence.spec.js:223:capture classic player at 390px"
+      ],
+      "historical_duration_minutes": 2.99,
+      "load_weight_minutes": 4.37,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 24,
+      "historical_duration_ms": 179305,
+      "load_weight_ms": 260813,
+      "logical_tests": 8,
+      "project_cases": 24,
+      "groups": [
+        "phase2-positive-events.spec.js:28:Phase 2 automatic Spark resolves one bounded default target without a choice modal",
+        "stabilization.spec.js:244:8. Onboarding completion persists and can be replayed",
+        "input-gesture-evidence.spec.js:69:tiled real touch paint commits server progress and captures the pointer",
+        "input-gesture-evidence.spec.js:99:tiled two-pointer pinch changes zoom without page errors",
+        "stabilization.spec.js:422:15. Expanding the HUD preserves and revalidates the same target",
+        "unlocks-recommendations.spec.js:224:catalog showcase stays fail-closed without a mounted payment adapter",
+        "creator.spec.js:197:4. Crop mode shows zoom and offset sliders",
+        "accessibility-evidence.spec.js:223:capture classic player at 360px"
+      ],
+      "historical_duration_minutes": 2.99,
+      "load_weight_minutes": 4.35,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -435,6 +622,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 590483,
       "shard": 1
     },
     {
@@ -455,6 +643,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 357200,
       "shard": 2
     },
     {
@@ -475,6 +664,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 188460,
       "shard": 3
     },
     {
@@ -495,6 +685,7 @@
         "creator": false,
         "lifecycle": true
       },
+      "load_weight_ms": 166691,
       "shard": 4
     },
     {
@@ -515,6 +706,7 @@
         "creator": false,
         "lifecycle": true
       },
+      "load_weight_ms": 166391,
       "shard": 5
     },
     {
@@ -535,6 +727,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 125490,
       "shard": 6
     },
     {
@@ -555,6 +748,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 121174,
       "shard": 7
     },
     {
@@ -575,6 +769,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 86062,
       "shard": 8
     },
     {
@@ -595,6 +790,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 84545,
       "shard": 9
     },
     {
@@ -615,6 +811,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 84210,
       "shard": 10
     },
     {
@@ -635,6 +832,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 84129,
       "shard": 11
     },
     {
@@ -655,6 +853,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 82152,
       "shard": 12
     },
     {
@@ -675,6 +874,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 76119,
       "shard": 13
     },
     {
@@ -695,6 +895,7 @@
         "creator": false,
         "lifecycle": true
       },
+      "load_weight_ms": 74361,
       "shard": 14
     },
     {
@@ -715,6 +916,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 72871,
       "shard": 15
     },
     {
@@ -735,6 +937,7 @@
         "creator": false,
         "lifecycle": true
       },
+      "load_weight_ms": 72644,
       "shard": 16
     },
     {
@@ -755,7 +958,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 16
+      "load_weight_ms": 70371,
+      "shard": 17
     },
     {
       "id": "tiled-stroke-engine.spec.js:331:30-cell touch drag paints progressively while the finger is down",
@@ -775,7 +979,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 15
+      "load_weight_ms": 66238,
+      "shard": 18
     },
     {
       "id": "p0-final-acceptance.spec.js:22:final acceptance: real 1200x1200 with existing progress, zero interactions, first action = PAINT",
@@ -795,7 +1000,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 14
+      "load_weight_ms": 59026,
+      "shard": 19
     },
     {
       "id": "special-cells.spec.js:157:legacy 28x28 treatment discovers Spark in the real canvas and continues",
@@ -815,7 +1021,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 13
+      "load_weight_ms": 53781,
+      "shard": 20
     },
     {
       "id": "session-goals.spec.js:211:completing the first goal shows a server-backed celebration and the next goal without a completion modal",
@@ -835,7 +1042,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 12
+      "load_weight_ms": 45662,
+      "shard": 21
     },
     {
       "id": "guided-player-migration.spec.js:317:persisted overview camera does not prevent smart guidance from becoming actionable",
@@ -855,7 +1063,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 11
+      "load_weight_ms": 43487,
+      "shard": 22
     },
     {
       "id": "session-goals.spec.js:298:default recovery treatment hides goals but preserves painting save and server revision",
@@ -875,7 +1084,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 10
+      "load_weight_ms": 42043,
+      "shard": 23
     },
     {
       "id": "phase2-positive-events.spec.js:28:Phase 2 automatic Spark resolves one bounded default target without a choice modal",
@@ -895,7 +1105,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 9
+      "load_weight_ms": 39499,
+      "shard": 24
     },
     {
       "id": "stabilization.spec.js:244:8. Onboarding completion persists and can be replayed",
@@ -915,7 +1126,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 8
+      "load_weight_ms": 39001,
+      "shard": 24
     },
     {
       "id": "session-goals.spec.js:134:goal is visible before paint, timer starts on first paint, and progress updates",
@@ -935,7 +1147,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 7
+      "load_weight_ms": 38446,
+      "shard": 23
     },
     {
       "id": "tiled-low-zoom.spec.js:99:overview is preview-stable, work reloads tiles, 502 stays local and retry recovers",
@@ -955,7 +1168,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 9
+      "load_weight_ms": 38367,
+      "shard": 22
     },
     {
       "id": "phase2-session-game.spec.js:5:Phase 2 treatment keeps Spark manual and pauses after the authored reveal beat",
@@ -975,7 +1189,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 8
+      "load_weight_ms": 38249,
+      "shard": 21
     },
     {
       "id": "special-cells.spec.js:235:legacy 28x28 control has no Spark marker, action, or HUD",
@@ -995,7 +1210,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 37643,
+      "shard": 20
     },
     {
       "id": "input-gesture-evidence.spec.js:127:pointercancel does not leave a stuck stroke; next touch still commits",
@@ -1015,7 +1231,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 10
+      "load_weight_ms": 36337,
+      "shard": 19
     },
     {
       "id": "special-help-onboarding-responsive-evidence.spec.js:145:treatment onboarding and help stay visible, bounded, reduced-motion safe, and keyboard-trapped",
@@ -1035,7 +1252,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 11
+      "load_weight_ms": 36183,
+      "shard": 18
     },
     {
       "id": "phase2-positive-events.spec.js:67:Phase 2 Bomb keeps one spatial action and produces a bounded area reveal",
@@ -1055,7 +1273,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 12
+      "load_weight_ms": 36086,
+      "shard": 17
     },
     {
       "id": "accessibility.spec.js:239:mobile widths stay within viewport without text overflow",
@@ -1075,7 +1294,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 13
+      "load_weight_ms": 33535,
+      "shard": 16
     },
     {
       "id": "accessibility.spec.js:155:touch input paints on mobile profiles",
@@ -1095,7 +1315,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 14
+      "load_weight_ms": 33476,
+      "shard": 15
     },
     {
       "id": "stabilization.spec.js:327:12. Ten Next actions always change target or finish",
@@ -1115,7 +1336,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 15
+      "load_weight_ms": 33244,
+      "shard": 14
     },
     {
       "id": "phase2-manual-first-reveal.spec.js:3:Phase 2 keeps the first reveal player-authored before any special event",
@@ -1135,7 +1357,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 16
+      "load_weight_ms": 33138,
+      "shard": 13
     },
     {
       "id": "input-gesture-evidence.spec.js:69:tiled real touch paint commits server progress and captures the pointer",
@@ -1155,7 +1378,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 7
+      "load_weight_ms": 32313,
+      "shard": 24
     },
     {
       "id": "guided-player-migration.spec.js:281:slow target tile load: LOADING_TARGET is shown, then auto-focus to READY (no overview dead-end)",
@@ -1175,7 +1399,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 9
+      "load_weight_ms": 31935,
+      "shard": 23
     },
     {
       "id": "special-cells-responsive-evidence.spec.js:76:tiled special offer stays usable at mobile widths and honors reduced motion",
@@ -1195,7 +1420,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 10
+      "load_weight_ms": 31913,
+      "shard": 22
     },
     {
       "id": "accessibility.spec.js:70:player exposes one canvas, radio palette, and bounded live regions",
@@ -1215,7 +1441,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 31735,
+      "shard": 12
     },
     {
       "id": "session-goals.spec.js:328:explicit hidden treatment is deterministic and keeps the Canvas target surface",
@@ -1235,7 +1462,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 8
+      "load_weight_ms": 31406,
+      "shard": 21
     },
     {
       "id": "accessibility.spec.js:100:keyboard-only can move cursor, zoom, and paint a guided cell",
@@ -1255,7 +1483,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 13
+      "load_weight_ms": 30862,
+      "shard": 11
     },
     {
       "id": "accessibility.spec.js:170:HUD controls are keyboard-operable",
@@ -1275,7 +1504,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 11
+      "load_weight_ms": 30833,
+      "shard": 10
     },
     {
       "id": "accessibility.spec.js:190:reduced motion does not disable painting or controls",
@@ -1295,7 +1525,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 12
+      "load_weight_ms": 30814,
+      "shard": 9
     },
     {
       "id": "accessibility.spec.js:136:palette is keyboard-operable and selection is announced via state labels",
@@ -1315,7 +1546,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 5
+      "load_weight_ms": 30508,
+      "shard": 8
     },
     {
       "id": "special-help-onboarding.spec.js:116:special kind shows one pre-paint hint with inline action and survives reload",
@@ -1335,7 +1567,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 4
+      "load_weight_ms": 30402,
+      "shard": 20
     },
     {
       "id": "guided-player.spec.js:15:1200x1200 guided player autofocuses, auto-advances, and supports free exploration + return",
@@ -1355,7 +1588,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 14
+      "load_weight_ms": 30133,
+      "shard": 19
     },
     {
       "id": "special-cells.spec.js:299:legacy Artifact progress remains visible after a real /progress reload",
@@ -1375,7 +1609,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 15
+      "load_weight_ms": 30000,
+      "shard": 18
     },
     {
       "id": "zone-visual.spec.js:8:capture 16-zone player at 390px",
@@ -1395,6 +1630,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 30000,
       "shard": 16
     },
     {
@@ -1415,7 +1651,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 3
+      "load_weight_ms": 30000,
+      "shard": 15
     },
     {
       "id": "stabilization.spec.js:397:14. Guided target is revalidated across required viewport sizes",
@@ -1435,7 +1672,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 7
+      "load_weight_ms": 30000,
+      "shard": 17
     },
     {
       "id": "input-gesture-evidence.spec.js:165:tiled surface fits the 430px viewport",
@@ -1455,7 +1693,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 13
+      "load_weight_ms": 30000,
+      "shard": 14
     },
     {
       "id": "guided-player-migration.spec.js:233:cold target: the guidance target tile is explicitly requested before READY even when far from the overview",
@@ -1475,7 +1714,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 9
+      "load_weight_ms": 30000,
+      "shard": 13
     },
     {
       "id": "input-gesture-evidence.spec.js:99:tiled two-pointer pinch changes zoom without page errors",
@@ -1495,7 +1735,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 10
+      "load_weight_ms": 30000,
+      "shard": 24
     },
     {
       "id": "creator.spec.js:246:6b. Selected 192×192 exact preview computes, saves, and opens",
@@ -1515,7 +1756,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 11
+      "load_weight_ms": 30000,
+      "shard": 23
     },
     {
       "id": "special-cells.spec.js:88:Spark stays inside the tiled canvas flow and cannot be replayed",
@@ -1535,7 +1777,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 12
+      "load_weight_ms": 30000,
+      "shard": 22
     },
     {
       "id": "input-gesture-evidence.spec.js:165:tiled surface fits the 390px viewport",
@@ -1555,7 +1798,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 8
+      "load_weight_ms": 30000,
+      "shard": 12
     },
     {
       "id": "input-gesture-evidence.spec.js:165:tiled surface fits the 360px viewport",
@@ -1575,7 +1819,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 11
     },
     {
       "id": "stabilization.spec.js:439:16. Resize in free exploration preserves manual camera and target",
@@ -1595,7 +1840,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 5
+      "load_weight_ms": 30000,
+      "shard": 10
     },
     {
       "id": "unlocks-recommendations.spec.js:236:eligible user gets an actionable direct-ID open and owned transition",
@@ -1615,7 +1861,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 14
+      "load_weight_ms": 30000,
+      "shard": 21
     },
     {
       "id": "stabilization.spec.js:347:13. Manual palette selection atomically activates a target of that color",
@@ -1635,7 +1882,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 4
+      "load_weight_ms": 30000,
+      "shard": 9
     },
     {
       "id": "stabilization.spec.js:201:5. Camera auto does not move during painting",
@@ -1655,7 +1903,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 15
+      "load_weight_ms": 30000,
+      "shard": 8
     },
     {
       "id": "stabilization.spec.js:369:13b. Selecting a completed color keeps a truthful active target",
@@ -1675,7 +1924,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 16
+      "load_weight_ms": 30000,
+      "shard": 7
     },
     {
       "id": "accessibility.spec.js:218:forced-colors keeps selected state visible without color",
@@ -1695,7 +1945,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 3
+      "load_weight_ms": 30000,
+      "shard": 20
     },
     {
       "id": "stabilization.spec.js:139:2. Single tap paints a cell with no errors",
@@ -1715,7 +1966,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 4
+      "load_weight_ms": 30000,
+      "shard": 6
     },
     {
       "id": "stabilization.spec.js:178:3b. Painting a cell produces no pageerror",
@@ -1735,7 +1987,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 7
+      "load_weight_ms": 30000,
+      "shard": 19
     },
     {
       "id": "stabilization.spec.js:231:7. Reveal mode remains actionable without palette controls",
@@ -1755,7 +2008,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 8
+      "load_weight_ms": 30000,
+      "shard": 18
     },
     {
       "id": "stabilization.spec.js:121:1. Opening a coloring produces no page errors",
@@ -1775,7 +2029,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 16
     },
     {
       "id": "guided-path.spec.js:65:completion hands off to a committed choice, including an honest stop",
@@ -1795,7 +2050,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 14
+      "load_weight_ms": 30000,
+      "shard": 15
     },
     {
       "id": "stabilization.spec.js:309:11. Auto transition remains focusing until camera animation completes",
@@ -1815,7 +2071,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 5
+      "load_weight_ms": 30000,
+      "shard": 17
     },
     {
       "id": "stabilization.spec.js:161:3. Undo/redo menu buttons present in reveal mode",
@@ -1835,7 +2092,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 11
+      "load_weight_ms": 30000,
+      "shard": 14
     },
     {
       "id": "stabilization.spec.js:192:4. Initial view exposes an actionable target",
@@ -1855,7 +2113,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 10
+      "load_weight_ms": 30000,
+      "shard": 13
     },
     {
       "id": "stabilization.spec.js:422:15. Expanding the HUD preserves and revalidates the same target",
@@ -1875,7 +2134,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 12
+      "load_weight_ms": 30000,
+      "shard": 24
     },
     {
       "id": "creator.spec.js:276:6c. 1200x1200 creator path uploads tiled storage and opens bounded player",
@@ -1895,7 +2155,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 9
+      "load_weight_ms": 30000,
+      "shard": 23
     },
     {
       "id": "creator.spec.js:474:11. Delete a user-created coloring from gallery",
@@ -1915,7 +2176,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 13
+      "load_weight_ms": 30000,
+      "shard": 22
     },
     {
       "id": "stabilization.spec.js:296:10. Overview explicitly enters free exploration",
@@ -1935,7 +2197,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 15
+      "load_weight_ms": 30000,
+      "shard": 12
     },
     {
       "id": "creator.spec.js:394:8. Save flow: saves, confirms, and opens play view",
@@ -1955,7 +2218,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 16
+      "load_weight_ms": 30000,
+      "shard": 11
     },
     {
       "id": "unlocks-recommendations.spec.js:258:1200 in-progress history keeps recommendations and unlock state bounded",
@@ -1975,7 +2239,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 3
+      "load_weight_ms": 30000,
+      "shard": 10
     },
     {
       "id": "creator.spec.js:231:6a. Resolution race cannot replace the latest selected preview",
@@ -1995,7 +2260,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 4
+      "load_weight_ms": 30000,
+      "shard": 21
     },
     {
       "id": "creator.spec.js:399:9. Completion flow: 100% → overlay → Escape → buttons",
@@ -2015,7 +2281,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 7
+      "load_weight_ms": 30000,
+      "shard": 9
     },
     {
       "id": "guided-player-migration.spec.js:136:migrated pre-021 template: autopilot focuses a real target and the FIRST tap paints",
@@ -2035,7 +2302,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 12
+      "load_weight_ms": 30000,
+      "shard": 8
     },
     {
       "id": "unlocks-recommendations.spec.js:176:normal collection navigation hides premium entries from collection surfaces",
@@ -2055,7 +2323,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 10
+      "load_weight_ms": 30000,
+      "shard": 7
     },
     {
       "id": "special-help-onboarding.spec.js:47:legacy picture with specials shows compact special-cell onboarding once and opens the legend",
@@ -2075,7 +2344,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 20
     },
     {
       "id": "tiled-reload-journal.spec.js:65:offline journal replay reconciles an already resident tile after reload",
@@ -2095,7 +2365,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 11
+      "load_weight_ms": 30000,
+      "shard": 6
     },
     {
       "id": "creator.spec.js:652:19. Completing a zone celebrates the revealed fragment without XP copy",
@@ -2115,7 +2386,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 14
+      "load_weight_ms": 30000,
+      "shard": 19
     },
     {
       "id": "tiled-completion.spec.js:3:tiled completion shows the completion overlay in the player",
@@ -2135,7 +2407,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 5
+      "load_weight_ms": 30000,
+      "shard": 18
     },
     {
       "id": "core-feel-slice.spec.js:79:core feel a: manual reveal owns the first minute",
@@ -2155,7 +2428,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 9
+      "load_weight_ms": 30000,
+      "shard": 16
     },
     {
       "id": "special-help-onboarding.spec.js:86:control picture never shows special intro, hint, or help overlay",
@@ -2175,7 +2449,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 13
+      "load_weight_ms": 30000,
+      "shard": 15
     },
     {
       "id": "special-cells-1200-delivery.spec.js:627:1200 control has no special markers, tutorial, help, or special HUD",
@@ -2195,7 +2470,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 8
+      "load_weight_ms": 30000,
+      "shard": 5
     },
     {
       "id": "creator.spec.js:621:17. Player dock switches between reveal and classic coloring",
@@ -2215,7 +2491,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 15
+      "load_weight_ms": 30000,
+      "shard": 17
     },
     {
       "id": "input-gesture-evidence.spec.js:57:classic keyboard paint commits server progress",
@@ -2235,7 +2512,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 16
+      "load_weight_ms": 30000,
+      "shard": 4
     },
     {
       "id": "creator.spec.js:563:13. Stable shell width across views",
@@ -2255,7 +2533,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 3
+      "load_weight_ms": 30000,
+      "shard": 14
     },
     {
       "id": "creator.spec.js:636:18. Reveal mode paints without selecting a palette color first",
@@ -2275,7 +2554,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 5
+      "load_weight_ms": 30000,
+      "shard": 13
     },
     {
       "id": "unlocks-recommendations.spec.js:224:catalog showcase stays fail-closed without a mounted payment adapter",
@@ -2295,7 +2575,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 9
+      "load_weight_ms": 30000,
+      "shard": 24
     },
     {
       "id": "creator.spec.js:521:12. Feed: like, comment, follow interactions",
@@ -2315,7 +2596,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 13
+      "load_weight_ms": 30000,
+      "shard": 23
     },
     {
       "id": "unlocks-recommendations.spec.js:119:cold-start recommendations render stable reason text in bounded cards",
@@ -2335,7 +2617,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 8
+      "load_weight_ms": 30000,
+      "shard": 22
     },
     {
       "id": "creator.spec.js:593:15. Player menu opens and shows secondary actions",
@@ -2355,7 +2638,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 11
+      "load_weight_ms": 30000,
+      "shard": 12
     },
     {
       "id": "special-bomb-tiled.spec.js:45:tiled Bomb claim, compact center offer, and use flow on 390x844",
@@ -2375,7 +2659,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 14
+      "load_weight_ms": 30000,
+      "shard": 11
     },
     {
       "id": "special-bomb-artifact-reload.spec.js:89:Artifact fragment progress renders persistently after /progress reload",
@@ -2395,6 +2680,7 @@
         "creator": false,
         "lifecycle": true
       },
+      "load_weight_ms": 30000,
       "shard": 10
     },
     {
@@ -2415,7 +2701,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 21
     },
     {
       "id": "special-bomb-artifact-reload.spec.js:42:Bomb offer reloads with the server-provided default center and applies without a resident tile",
@@ -2435,7 +2722,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 12
+      "load_weight_ms": 30000,
+      "shard": 9
     },
     {
       "id": "unlocks-recommendations.spec.js:201:premium direct ID shows a neutral unavailable state without payment CTA",
@@ -2455,7 +2743,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 7
+      "load_weight_ms": 30000,
+      "shard": 8
     },
     {
       "id": "coloring-surface-gesture-guard.spec.js:152:normal catalog scroll remains available outside the player",
@@ -2475,7 +2764,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 4
+      "load_weight_ms": 30000,
+      "shard": 7
     },
     {
       "id": "unlocks-recommendations.spec.js:159:progression-locked direct ID opens an actionable locked screen, not a generic error",
@@ -2495,7 +2785,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 15
+      "load_weight_ms": 30000,
+      "shard": 20
     },
     {
       "id": "core-feel-slice.spec.js:187:partial manual progress reloads into a meaningful resume action",
@@ -2515,7 +2806,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 16
+      "load_weight_ms": 30000,
+      "shard": 6
     },
     {
       "id": "creator.spec.js:577:14. Player guided mode keeps the canvas clear of persistent metrics",
@@ -2535,7 +2827,8 @@
         "creator": true,
         "lifecycle": true
       },
-      "shard": 15
+      "load_weight_ms": 30000,
+      "shard": 19
     },
     {
       "id": "coloring-surface-gesture-guard.spec.js:194:tiled pointer capture is established on a loaded target and paint commits progress",
@@ -2555,7 +2848,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 12
+      "load_weight_ms": 30000,
+      "shard": 3
     },
     {
       "id": "coloring-surface-gesture-guard.spec.js:105:tiled surface suppresses selection, keeps editable controls selectable; guards scoped",
@@ -2575,7 +2869,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 4
+      "load_weight_ms": 30000,
+      "shard": 18
     },
     {
       "id": "core-feel-slice.spec.js:79:core feel b: manual reveal owns the first minute",
@@ -2595,7 +2890,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 16
     },
     {
       "id": "creator.spec.js:207:5. Grid and color controls update state",
@@ -2615,7 +2911,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 14
+      "load_weight_ms": 30000,
+      "shard": 15
     },
     {
       "id": "coloring-surface-gesture-guard.spec.js:164:classic pointer capture stays on the canvas and paint commits progress",
@@ -2635,7 +2932,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 7
+      "load_weight_ms": 30000,
+      "shard": 5
     },
     {
       "id": "session-goals.spec.js:338:core-feel suppresses an explicit goal-card control override but keeps painting guidance",
@@ -2655,7 +2953,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 10
+      "load_weight_ms": 30000,
+      "shard": 17
     },
     {
       "id": "core-feel-slice.spec.js:79:core feel c: manual reveal owns the first minute",
@@ -2675,7 +2974,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 8
+      "load_weight_ms": 30000,
+      "shard": 4
     },
     {
       "id": "creator.spec.js:463:10. Catalog → open coloring → player renders guided canvas",
@@ -2695,7 +2995,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 13
+      "load_weight_ms": 30000,
+      "shard": 14
     },
     {
       "id": "creator.spec.js:177:3. File upload shows grid, crop, and color controls",
@@ -2715,7 +3016,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 11
+      "load_weight_ms": 30000,
+      "shard": 13
     },
     {
       "id": "creator.spec.js:197:4. Crop mode shows zoom and offset sliders",
@@ -2735,7 +3037,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 3
+      "load_weight_ms": 30000,
+      "shard": 24
     },
     {
       "id": "creator.spec.js:382:7. Reset crop restores defaults",
@@ -2755,7 +3058,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 16
+      "load_weight_ms": 30000,
+      "shard": 23
     },
     {
       "id": "coloring-surface-gesture-guard.spec.js:79:classic surface suppresses selection, callout, image drag; guards stay scoped",
@@ -2775,7 +3079,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 9
+      "load_weight_ms": 30000,
+      "shard": 22
     },
     {
       "id": "creator.spec.js:188:3a. Photo creator defaults to the detail-preserving 512×512/16-colour mode",
@@ -2795,7 +3100,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 5
+      "load_weight_ms": 30000,
+      "shard": 12
     },
     {
       "id": "creator.spec.js:170:2. Creator controls visible on page",
@@ -2815,7 +3121,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 5
+      "load_weight_ms": 30000,
+      "shard": 11
     },
     {
       "id": "creator.spec.js:163:1. App shell and navigation render",
@@ -2835,7 +3142,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 9
+      "load_weight_ms": 30000,
+      "shard": 10
     },
     {
       "id": "bfcache-lifecycle.spec.js:113:legacy queue keeps painting after persisted pagehide/pageshow",
@@ -2855,7 +3163,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 11
+      "load_weight_ms": 30000,
+      "shard": 21
     },
     {
       "id": "creator.spec.js:609:16. Catalog card actions stay aligned despite different copy lengths",
@@ -2875,7 +3184,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 15
+      "load_weight_ms": 30000,
+      "shard": 9
     },
     {
       "id": "guided-path.spec.js:55:guided home shows one primary action and a bounded choice window",
@@ -2895,7 +3205,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 13
+      "load_weight_ms": 30000,
+      "shard": 8
     },
     {
       "id": "core-feel-slice.spec.js:138:control keeps the existing flat/automatic behavior for comparison",
@@ -2915,7 +3226,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 10
+      "load_weight_ms": 30000,
+      "shard": 7
     },
     {
       "id": "creator.spec.js:147:Create hub keeps free creator paths without commercial promises",
@@ -2935,7 +3247,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 7
+      "load_weight_ms": 30000,
+      "shard": 20
     },
     {
       "id": "core-feel-slice.spec.js:150:manual pinch/pan pauses direction without forfeiting the authored reveal",
@@ -2955,7 +3268,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 8
+      "load_weight_ms": 30000,
+      "shard": 6
     },
     {
       "id": "bfcache-lifecycle.spec.js:143:tiled queue keeps painting after persisted pagehide/pageshow",
@@ -2975,7 +3289,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 14
+      "load_weight_ms": 30000,
+      "shard": 19
     },
     {
       "id": "stabilization.spec.js:266:9. Free exploration requires an explicit return to the same target",
@@ -2995,7 +3310,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 3
     },
     {
       "id": "bfcache-lifecycle.spec.js:179:mock Telegram bridge disables on player enter, survives bfcache, and restores on leave",
@@ -3015,7 +3331,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 12
+      "load_weight_ms": 30000,
+      "shard": 18
     },
     {
       "id": "creator-preview-visual.spec.js:25:creator preview is readable without overflow at 430px",
@@ -3035,6 +3352,7 @@
         "creator": true,
         "lifecycle": false
       },
+      "load_weight_ms": 30000,
       "shard": 16
     },
     {
@@ -3055,7 +3373,8 @@
         "creator": true,
         "lifecycle": false
       },
-      "shard": 4
+      "load_weight_ms": 30000,
+      "shard": 15
     },
     {
       "id": "bfcache-lifecycle.spec.js:224:browser SDK stub without initData does not apply the global overscroll fallback",
@@ -3075,7 +3394,8 @@
         "creator": false,
         "lifecycle": true
       },
-      "shard": 3
+      "load_weight_ms": 30000,
+      "shard": 5
     },
     {
       "id": "coloring-surface-gesture-guard.spec.js:232:camera zoom still works on the tiled surface",
@@ -3095,7 +3415,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 3
+      "load_weight_ms": 30000,
+      "shard": 17
     },
     {
       "id": "stabilization.spec.js:215:6. Wheel zoom preserves cursor world position",
@@ -3115,6 +3436,7 @@
         "creator": false,
         "lifecycle": false
       },
+      "load_weight_ms": 30000,
       "shard": 4
     },
     {
@@ -3135,7 +3457,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 16
+      "load_weight_ms": 30000,
+      "shard": 14
     },
     {
       "id": "auth-contract.spec.js:35:missing or invalid Telegram initData is rejected",
@@ -3155,7 +3478,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 12
+      "load_weight_ms": 30000,
+      "shard": 13
     },
     {
       "id": "accessibility-evidence.spec.js:223:capture classic player at 360px",
@@ -3175,7 +3499,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 24
     },
     {
       "id": "accessibility-evidence.spec.js:223:capture classic player at 390px",
@@ -3195,7 +3520,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 23
     },
     {
       "id": "accessibility-evidence.spec.js:223:capture classic player at 430px",
@@ -3215,7 +3541,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 22
     },
     {
       "id": "accessibility-evidence.spec.js:237:capture reduced-motion player at 390px",
@@ -3235,7 +3562,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 12
     },
     {
       "id": "accessibility-evidence.spec.js:252:capture forced-colors player at 390px",
@@ -3255,7 +3583,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 11
     },
     {
       "id": "accessibility-evidence.spec.js:266:capture tiled 1200 player at 390px",
@@ -3275,7 +3604,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 10
     },
     {
       "id": "session-goals-evidence.spec.js:133:capture session-goal player at 360px",
@@ -3295,7 +3625,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 21
     },
     {
       "id": "session-goals-evidence.spec.js:133:capture session-goal player at 390px",
@@ -3315,7 +3646,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 9
     },
     {
       "id": "session-goals-evidence.spec.js:133:capture session-goal player at 430px",
@@ -3335,7 +3667,8 @@
         "creator": false,
         "lifecycle": false
       },
-      "shard": 6
+      "load_weight_ms": 30000,
+      "shard": 8
     }
   ]
 }
