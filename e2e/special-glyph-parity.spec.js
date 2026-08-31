@@ -709,14 +709,39 @@ test('tiled reveal claims exactly once and survives reload without duplicate', a
   const canvas = page.locator('.progressive-grid-area > canvas');
   await canvas.press('Enter');
   await expect.poll(() => capture.requests.length, { timeout: 15000 }).toBe(1);
-  await expect.poll(
-    () => useCapture.requests.length || page.locator('.progressive-grid-special-offer').count(),
-    { timeout: 15000 },
-  ).toBeGreaterThan(0);
-  if (useCapture.requests.length) {
-    expect(useCapture.requests.at(-1).status()).toBe(200);
+  expect(capture.requests).toHaveLength(1);
+  const claimResponse = capture.requests[0];
+  expect(claimResponse.status()).toBe(200);
+  const claimed = await claimResponse.json();
+  expect(claimed.special_offer).toMatchObject({
+    kind: 'spark',
+    special_id: String(spark.id),
+    offer_token: expect.any(String),
+  });
+  expect(claimed.special_offer.auto_apply).toEqual(expect.any(Boolean));
+
+  if (claimed.special_offer.auto_apply === true) {
+    await expect.poll(() => useCapture.requests.length, { timeout: 15000 }).toBe(1);
+    expect(useCapture.requests).toHaveLength(1);
+    const useResponse = useCapture.requests[0];
+    expect(useResponse.status()).toBe(200);
+    const used = await useResponse.json();
+    expect(used.special_applied_changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ index: expect.any(Number), color: expect.any(Number) }),
+    ]));
+
+    const persistedAfterUse = await readProgress(page, created.id);
+    expect(persistedAfterUse.special_offer).toBeNull();
+    expect(persistedAfterUse.revision).toBe(used.revision);
+    expect(persistedAfterUse.completed_cells).toBe(used.completed_cells);
+    expect(persistedAfterUse.special_diagnostics.counts_by_status.consumed).toBe(1);
     await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
   } else {
+    await expect.poll(async () => {
+      const persisted = await readProgress(page, created.id);
+      return persisted.special_offer?.offer_token === claimed.special_offer.offer_token;
+    }, { timeout: 15000 }).toBe(true);
+    expect(useCapture.requests).toHaveLength(0);
     await expect(page.locator('.progressive-grid-special-offer')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(1);
   }

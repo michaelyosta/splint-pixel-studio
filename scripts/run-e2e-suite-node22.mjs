@@ -34,6 +34,32 @@ const critical = [
   { file: 'e2e/unlocks-recommendations.spec.js', title: 'catalog showcase stays fail-closed without a mounted payment adapter' },
 ];
 
+// The Pixel critical lane contains the heaviest 1200/tiled journeys. Keep
+// two explicit, duration-balanced partitions so each partition gets a fresh
+// API/SQLite runtime. The union is asserted below and preflighted by the
+// wrapper; a future critical-title edit must update both partitions.
+const criticalPixelPartitionA = new Set([
+  '30-cell touch drag paints progressively while the finger is down',
+  'offline journal replay reconciles an already resident tile after reload',
+  'tiled 1200 player keeps one canvas, bounded DOM, keyboard paint, and zone navigation',
+  'final acceptance: real 1200x1200 with existing progress, zero interactions, first action = PAINT',
+  '1200x1200 guided player autofocuses, auto-advances, and supports free exploration + return',
+  'tiled real touch paint commits server progress and captures the pointer',
+  '11. Delete a user-created coloring from gallery',
+  'completion hands off to a committed choice, including an honest stop',
+  'progression-locked direct ID opens an actionable locked screen, not a generic error',
+  'classic keyboard paint commits server progress',
+  'classic pointer capture stays on the canvas and paint commits progress',
+  'guided home shows one primary action and a bounded choice window',
+  'missing or invalid Telegram initData is rejected',
+]);
+const criticalPixelA = critical.filter(({ title }) => criticalPixelPartitionA.has(title));
+const criticalPixelB = critical.filter(({ title }) => !criticalPixelPartitionA.has(title));
+if (criticalPixelA.length !== 13 || criticalPixelB.length !== 13
+  || new Set([...criticalPixelA, ...criticalPixelB].map(({ file, title }) => `${file}:${title}`)).size !== critical.length) {
+  throw new Error('Critical Pixel partitions must cover each critical title exactly once (13 + 13).');
+}
+
 // WebKit emulation cannot execute the 1200x1200 creator/touch scenarios in
 // this local/CI harness. Its creator worker also has a known provider-bound
 // failure mode (worker module requests can fail before the test oracle runs),
@@ -61,6 +87,8 @@ const criticalWebkit = critical.filter(({ title }) => new Set([
 const suites = {
   critical,
   'critical-webkit': criticalWebkit,
+  'critical-pixel-a': criticalPixelA,
+  'critical-pixel-b': criticalPixelB,
   extended: { files: ['e2e'] },
 };
 

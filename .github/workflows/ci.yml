@@ -57,7 +57,7 @@ jobs:
           DATABASE_URL: postgresql://splint:splint_test@localhost:5432/splint_test
 
   e2e-critical:
-    name: e2e-critical (${{ matrix.project }})
+    name: e2e-critical (${{ matrix.key }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -70,9 +70,12 @@ jobs:
           - key: iphone
             project: Mobile iPhone
             suite: critical-webkit
-          - key: pixel
+          - key: pixel-a
             project: Mobile Pixel
-            suite: critical
+            suite: critical-pixel-a
+          - key: pixel-b
+            project: Mobile Pixel
+            suite: critical-pixel-b
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -107,7 +110,7 @@ jobs:
             --sha "$GITHUB_SHA" \
             --run-id "$GITHUB_RUN_ID" \
             --shard "critical-${{ matrix.key }}" \
-            --shard-count "3" \
+            --shard-count "4" \
             --metrics "$E2E_SERVER_METRICS_FILE" \
             --server-log "$E2E_OUTPUT_ROOT/run.log"
       - name: Upload release-critical diagnostics
