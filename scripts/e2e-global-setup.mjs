@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const webPort = Number(process.env.E2E_WEB_PORT || 5190);
+const webHost = process.env.E2E_WEB_HOST || '127.0.0.1';
 const apiPort = Number(process.env.E2E_API_PORT || 3012);
 const reuseExistingServer = process.env.E2E_REUSE_EXISTING === 'true';
 const startedProcesses = [];
@@ -61,6 +62,7 @@ export default async function globalSetup() {
   const sharedEnv = {
     ...process.env,
     E2E_WEB_PORT: String(webPort),
+    E2E_WEB_HOST: webHost,
     E2E_API_PORT: String(apiPort),
     NODE_ENV: 'test',
     // Keep the browser and the ephemeral API on the same explicit test-auth
@@ -73,8 +75,8 @@ export default async function globalSetup() {
     await startServer({
       name: 'Vite E2E server',
       command: process.execPath,
-      args: ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', String(webPort), '--strictPort'],
-      url: `http://127.0.0.1:${webPort}/`,
+      args: ['node_modules/vite/bin/vite.js', '--host', webHost, '--port', String(webPort), '--strictPort'],
+      url: `http://${webHost}:${webPort}/`,
       env: sharedEnv,
     });
     await startServer({

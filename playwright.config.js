@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const webPort = Number(process.env.E2E_WEB_PORT || 5190);
+const webHost = process.env.E2E_WEB_HOST || '127.0.0.1';
 const outputDir = process.env.PLAYWRIGHT_OUTPUT_DIR || 'test-results';
 const reporter = process.env.CI
   ? [
@@ -21,7 +22,9 @@ export default defineConfig({
   reporter,
   preserveOutput: 'always',
   use: {
-    baseURL: `http://localhost:${webPort}`,
+    // Match the explicit Vite bind address. Keeping browser navigation on
+    // the same loopback family avoids Windows localhost resolution races.
+    baseURL: `http://${webHost}:${webPort}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
