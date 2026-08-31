@@ -81,7 +81,10 @@ export default async function globalSetup() {
       name: 'E2E API server',
       command: process.execPath,
       args: ['scripts/run-e2e-api.mjs'],
-      url: `http://127.0.0.1:${apiPort}/health`,
+      // Node's default listener resolves to the IPv6 localhost interface on
+      // Windows. Probe the same localhost name used by the Vite proxy so a
+      // healthy API is not misclassified as unavailable via 127.0.0.1.
+      url: `http://localhost:${apiPort}/health`,
       env: sharedEnv,
     });
   } catch (error) {

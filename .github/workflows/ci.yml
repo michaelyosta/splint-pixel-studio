@@ -75,7 +75,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm --prefix server ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - name: Run release-critical E2E
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json

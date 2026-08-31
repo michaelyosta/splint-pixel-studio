@@ -60,6 +60,21 @@ The harness boots from a fresh per-invocation SQLite/media runtime and uses lock
 3. Evidence-only suites are source-gated by environment variables (`ACCESSIBILITY_EVIDENCE`, `SESSION_GOALS_EVIDENCE`) and appear in normal enumeration as expected skips. They need explicit extended/nightly ownership.
 4. No quarantine manifest/policy exists in the current harness. No test is quarantined by this audit.
 
+## Post-wave disposition
+
+The frozen audit findings were used as investigation priorities rather than as
+a reason for a mechanical rewrite. The proven false-green/diagnostic gaps in
+the release paths were addressed: Node 22 is now explicit, retries remain `0`,
+failure traces and screenshots are retained, JSON results and per-run output
+directories are supported, and CI uploads diagnostics on every outcome. The
+C2 late-response race and C4 tiled fixture/oracle races were fixed causally.
+
+The remaining 49-sleep/37-catch counts are legacy debt outside the proven
+failure mechanisms; they remain visible in the audit and are not hidden by a
+green run. The final exact-SHA critical and 16-shard extended matrices both
+passed with `0` retries and `0` unexpected results. PostgreSQL service proof is
+still CI-gated because local Docker/PostgreSQL was unavailable.
+
 ## Root-cause investigation priorities
 
 1. Capture all failures from one frozen Node 22/Linux run before touching the listed smells.

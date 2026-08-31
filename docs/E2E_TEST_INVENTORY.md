@@ -2,7 +2,15 @@
 
 Inventory source: Playwright `--list --reporter=json` on the integration worktree at base `dc01c103544ac953e97cb77fc501842f9dab5f1b`.
 
-The current suite contains 38 spec files, 144 logical tests and 432 project cases. Every logical test is enumerated for the three configured projects; source-level project skips account for 27 expected skipped cases. Timings below are deliberately left as `pending` until the same frozen SHA is run on the authoritative Node 22/Linux environment. A timing from Node 24 on Windows would not be CI evidence.
+The current suite contains 39 spec files, 146 logical tests and 438 nominal
+project cases. Every logical test is enumerated for the three configured
+projects; source-level project skips account for 27 expected skipped cases in
+the inventory baseline. The final shard run reports 71 total skips because it
+also includes conditional browser/project skips (the additional 44 are not
+quarantines). Final measurements were collected with Node 22.23.2 on Windows
+in isolated fresh shard contexts. Linux-specific wall-clock/setup timing
+remains unmeasured because no GitHub run was created for this unpushed branch;
+the Windows results are valid harness evidence but not a billing estimate.
 
 Legend: `C` = Chromium desktop, `iP` = Mobile iPhone/WebKit, `Px` = Mobile Pixel/Chromium. The criticality column is a release-gate proposal, not a claim that every test in a mixed file belongs in the fast gate.
 

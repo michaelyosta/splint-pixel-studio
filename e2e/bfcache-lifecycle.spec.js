@@ -182,7 +182,10 @@ test('mock Telegram bridge disables on player enter, survives bfcache, and resto
     await route.fulfill({
       contentType: 'application/javascript',
       body: `window.Telegram = window.Telegram || { WebApp: {
-        initData: 'test-init-data',
+        // This test exercises Telegram bridge lifecycle, not Telegram auth.
+        // Keep initData empty so the signed-initData path cannot reject the
+        // deliberate X-User-Id fixture used by createForCohort.
+        initData: '',
         version: '8.0',
         isVerticalSwipesEnabled: true,
         isVersionAtLeast: () => true,

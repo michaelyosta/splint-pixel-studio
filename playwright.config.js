@@ -6,6 +6,7 @@ const reporter = process.env.CI
   ? [
       ['line'],
       ['json', { outputFile: process.env.PLAYWRIGHT_JSON_OUTPUT_FILE || 'test-results/results.json' }],
+      ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR || 'playwright-report', open: 'never' }],
     ]
   : undefined;
 export default defineConfig({
@@ -13,6 +14,7 @@ export default defineConfig({
   globalSetup: './scripts/e2e-global-setup.mjs',
   timeout: 60000,
   retries: 0,
+  forbidOnly: Boolean(process.env.CI),
   fullyParallel: false,
   workers: 1,
   outputDir,

@@ -1,6 +1,6 @@
 # E2E failure clusters
 
-Status: `CLUSTERED — bounded focused verification complete; integration wave pending`
+Status: `CLUSTERED — causal wave integrated; final 16-shard matrix green`
 
 The 59 unexpected results from the frozen run are grouped by causal mechanism,
 not by test count. Row numbers refer to
@@ -24,10 +24,21 @@ not by test count. Row numbers refer to
 - A stroke timeout had already emitted `painted=30`, `wrong=false`, and
   `unloaded=0`, indicating that at least part of the user path completed before
   the post-action/oracle wait stalled.
+- The post-integration mixed full run reduced the frozen `59` unexpected rows
+  to `44`, but retained the same run-level pressure pattern. A fresh Chromium
+  full run had `4` unexpected rows; each of those exact tests passed in its own
+  fresh invocation. This is evidence for shared invocation pressure and
+  lifecycle/oracle sensitivity, not a product regression.
+- The exact-SHA release-critical matrix is green: Chromium `23/23`, Mobile
+  iPhone `12/12` executable with `11` conditional skips, and Mobile Pixel
+  `23/23`, all with retries `0` and unexpected `0`.
+- The exact-SHA extended matrix on `b9a82d8` is green across all 16 isolated
+  shard contexts: `361` executed, `71` expected skips, `0` unexpected, `0`
+  flaky. No new failure cluster appeared after integration.
 
-These facts prove a run-level pressure/isolation problem is involved. They do
-not, by themselves, prove that every individual assertion is a harness defect;
-the owner must reproduce the assigned rows and classify the exact cause.
+These facts prove a run-level pressure/isolation problem is involved. The
+focused owner runs subsequently identified the concrete C2 late-response race
+and three C4 test-oracle/fixture issues; no product defect was proven.
 
 ## Cluster assignments
 
@@ -88,8 +99,8 @@ related checks passed without retries: bfcache `2/2`, core-feel `1/1`, migration
 passed `5/5`. One separate post-action transition remains explicitly
 unproven; it is not hidden by this fix.
 
-**Commit awaiting lead integration:**
-`7cc4704d7a21515d799b39d34c2cc547694b43ab`.
+**Integrated in bounded wave:**
+`70af41f05f65a3807c0d49747aeb4fa538e1ed31`.
 
 **Owner:** `e2e-lifecycle-owner`.
 
@@ -122,9 +133,10 @@ control tests passed `2/2` with low tile latency. Static inventory identifies
 mutating seed endpoints, fixed cohort/user identifiers, and server-backed
 special fixtures shared within an invocation.
 
-**Provisional classification:** `HARNESS_FAILURE`/fixture contamination
-candidate; `LEGACY_CONTRACT_FAILURE` must be considered for any test whose
-contract is not current. No product defect declared.
+**Classification:** `HARNESS_FAILURE` caused by long mixed-run pressure and
+readiness/oracle sensitivity in the observed rows. The isolated C3 run passed
+all assigned contract tests; no `LEGACY_CONTRACT_FAILURE` or product defect
+was proven, and no test was removed.
 
 **Focused evidence:** The delegated worker launcher was stopped after it
 attempted to run from the primary dirty checkout. The lead then ran all C3
@@ -180,15 +192,17 @@ clean repeat.
 
 **Focused outcome:** State-driven readiness removed arbitrary sleeps and
 swallowed required tile waits in the owned tiled specs. Mobile Pixel low-zoom
-passed `5/5`; clean stroke verification passed `2/2` after the idle gate. A
-later pressure repeat still produced one `metricsAfter.strokes.length` failure
-(`1` instead of `2`) while the UI showed `Синхронизация…`; the clean strict
-path passed and server evidence showed 30 painted cells, `wrong=false`,
-`unloaded=0`, and POST `200`. This residual remains load-sensitive debt, not a
-product failure.
+passed `5/5`; the original residual was reproduced. Evidence then showed the
+test had selected a line containing a Bomb offer (which correctly blocks the
+next stroke), and its pixel helper sampled `+4` rather than the geometric cell
+center at low zoom. The bounded correction changed only the test: select spans
+without special cells, wait on the causal second-stroke metric, and sample the
+true cell center. The corrected scenario passed `5/5` on Pixel with strict
+`painted=30`, `wrong=false`, `unloaded=0`, and two recorded strokes.
 
-**Commit awaiting lead integration:**
-`3e9744657d4d705d48f7f30bd1cc33c8c39c0b9a`.
+**Integrated in bounded wave:**
+`70af41f05f65a3807c0d49747aeb4fa538e1ed31`; later C4 fixture/oracle
+correction: `e74c7feb2b39996a3c8d6aab30d32251bf5ecc5b`.
 
 **Owner:** `e2e-tiled-owner`.
 
@@ -213,13 +227,24 @@ stroke/zoom mechanisms and related browser variants at reasonable cost.
 
 | Classification | Current count | Meaning at this phase |
 |---|---:|---|
-| `PRODUCT_FAILURE` | 0 proven | No product change authorized from frozen evidence yet |
-| `TEST_FAILURE` | 0 proven | Contract review is still pending for ambiguous assertions |
-| `HARNESS_FAILURE` | 59 candidate rows; 46 with a confirmed common mechanism | C1/C2/C4 have focused evidence; C3 still needs contract/fixture adjudication |
+| `PRODUCT_FAILURE` | 0 proven | No product change was authorized from the diagnostic evidence |
+| `TEST_FAILURE` | 0 proven | No assertion was weakened or removed |
+| `HARNESS_FAILURE` | 59 initial rows; common pressure/readiness mechanism confirmed across all four clusters | C2/C4 received causal fixes; C1/C3 were proven by isolated fresh runs without a source fix |
 | `ENVIRONMENT_FAILURE` | 1 separate Docker attempt | EROFS container run excluded from the 432-case matrix |
 | `PROVIDER_FAILURE` | 0 | No GitHub/provider failure observed in this local run |
-| `LEGACY_CONTRACT_FAILURE` | 0 final | Review under C3; no test removed |
-| `UNKNOWN` | 0 unreproduced owner rows; one explicit load-sensitive post-action debt remains | No failure is silently ignored or quarantined |
+| `LEGACY_CONTRACT_FAILURE` | 0 | C3 contract review did not identify an obsolete release-critical contract |
+| `UNKNOWN` | 0 owner rows | One load-sensitive pressure symptom remains tracked as debt, not hidden or quarantined |
+
+## Final disposition
+
+All four initial clusters were investigated. C1 and C3 passed their clean
+owned suites without a source change; the common run-level pressure mechanism
+is supported, but their exact per-row trigger is not claimed as independently
+proven. C2 received a causal response-registration fix. C4 received a causal
+state wait plus test-only fixture selection and geometric pixel sampling
+corrections. The final pre-coverage-expansion critical and extended matrices
+were green with retries disabled. There are no quarantined tests, no removed
+tests, and no proven product defects from this pass.
 
 ## Delegation rules
 
