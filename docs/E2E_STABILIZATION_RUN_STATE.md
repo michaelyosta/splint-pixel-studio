@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `TOPOLOGY_CORRECTION_READY — exact-SHA run 33388276591 classified; weighted manifest preflight PASS; topology wave pending commit`
+Status: `BOUNDED_C20_CORRECTION_PROVEN — run 33409940186 complete; preparing one new frozen SHA`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -15,10 +15,18 @@ to the local integration worktree.
 - Supplied release candidate: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current code/harness SHA: `508d917f7780d52495281b5bc62f81604ecaccf0`
-  (bounded wave6 correction: initial tiled WORK-plan state, per-repeat user
-  isolation, and explicit WebKit visual capability boundary).
-- Current integration HEAD: `3a993d14da514fa564909d4461f66a81bab42357` before the current topology wave commit; exact-SHA run `33388276591` classified the five extended REDs as shard lifetime/resource pressure.
+- Current code/harness SHA and integration HEAD:
+  `04b12083035b27bce1707f6dade278b96510fdda`.
+- Latest authoritative GitHub run: `33409940186` (PR event; all jobs complete;
+  22/24 extended shards green, all four critical lanes, PostgreSQL, S3 and
+  verify green; only C20 Creator navigation oracle failed in shards 9 and 22).
+- Preflight before freeze: `146` logical tests / `438` project cases across
+  `24` shards, `0` duplicates, `0` unmatched; Pixel critical partitions
+  `13 + 13` with exact title coverage.
+- Latest targeted proof: C20 representatives Mobile iPhone `10/10` after the
+  correction, plus Chromium/Mobile Pixel variants `4/4`; retries `0`, fresh
+  Node 22 runtime. C19 responsive Spark remains Chromium `5/5` and Mobile
+  Pixel `5/5`.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -359,11 +367,9 @@ not final acceptance evidence.
 
 ## Next action
 
-The GitHub failure map is complete: C16 is the shared runtime wrapper defect,
-C17 is the diagnostics lint regression, and C18 is the extended shard-lifetime
-pressure cluster. The current bounded wave adds the duration/load manifest,
-coverage preflight, weighted selection and server metrics retention. Commit
-and push this wave, freeze the resulting exact SHA, dispatch one authoritative
-GitHub critical plus weighted 16-shard extended matrix with fail-fast disabled
-and retries `0`, then aggregate all summaries. If it is green, stop after
-independent review and handoff.
+Run `33409940186` is fully mapped. Its two unexpected rows are one C20
+test-oracle cluster, not new product defects or C18 pressure. Review and commit
+the minimal `creator.spec.js` correction with this durable evidence, run the
+coverage/lint/diff preflight, push and freeze the resulting exact SHA, then
+allow one authoritative GitHub matrix to finish in full. If it is green, stop
+testing and proceed directly to the two independent reviews and final handoff.

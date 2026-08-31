@@ -15,8 +15,17 @@ async function openImageCreator(page) {
 
 async function gotoCatalog(page) {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Каталог' }).first().click();
+  const primaryNavigation = page.getByRole('navigation', { name: 'Основная навигация' });
+  await primaryNavigation.getByRole('button', { name: 'Каталог', exact: true }).click();
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
+}
+
+async function openFirstCatalogColoring(page) {
+  await gotoCatalog(page);
+  const firstCard = page.locator('.catalog-art-card').first();
+  await expect(firstCard).toBeVisible({ timeout: 15000 });
+  await firstCard.locator('.catalog-art-open').click();
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
 }
 
 async function gotoFeed(page) {
@@ -591,10 +600,7 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('15. Player menu opens and shows secondary actions', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('.home-featured-card, .home-continue-card, .home-art-card').first()).toBeVisible({ timeout: 15000 });
-    await page.locator('.home-featured-card, .home-continue-card, .home-art-card').first().click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await openFirstCatalogColoring(page);
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await page.locator('.player-menu-btn').click();
     await expect(page.locator('.bottom-sheet')).toBeVisible({ timeout: 5000 });

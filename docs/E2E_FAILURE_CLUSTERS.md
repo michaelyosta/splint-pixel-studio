@@ -250,6 +250,36 @@ and product source are prohibited. Success requires full manifest preflight,
 shorter balanced shard workload and one authoritative exact-SHA GitHub matrix
 with zero unexpected results.
 
+## C19 — responsive Spark stale session contract
+
+The responsive Spark evidence scenario still assumed the earlier automatic
+special-cell contract. Under the current session-game treatment, specials arm
+only after the first guided target is fully revealed, and the generated field
+is `special_id`. The scenario now completes the guided target through the
+canonical serpentine gesture, selects a Spark outside that target, and checks
+the current response field. Chromium passed `5/5` and Mobile Pixel passed
+`5/5`, retries `0`. This was a stale test oracle; product source and assertions
+outside that contract were not changed.
+
+## C20 — Creator ambiguous Home navigation oracle
+
+Exact-SHA GitHub run `33409940186` completed all jobs with only two unexpected
+Mobile iPhone/WebKit rows, both in `creator.spec.js` (extended shards 9 and
+22). Trace evidence showed successful clicks followed by an unchanged Home
+snapshot. In shard 22, `getByRole('button', { name: 'Каталог' }).first()`
+resolved to the Home choice card instead of the named bottom navigation. In
+shard 9, the menu test used an unstable union of three different Home card
+contracts even though its subject was the player menu. Both shards were short
+and healthy (about 1m56s and 4m00s, zero HTTP errors, low average API latency),
+so this is not C18 resource pressure and no product defect is established.
+
+On a fresh Node22 API/SQLite runtime both representatives passed `3/3` before
+the change. The minimal test-only correction scopes Catalog navigation to
+`Основная навигация` and opens a deterministic first catalog card for the menu
+test. Post-change Mobile iPhone stress passed `5/5` per representative
+(`10/10` total); Chromium and Mobile Pixel variants passed `4/4`, retries `0`.
+No timeout, retry, quarantine, assertion weakening or product change was used.
+
 ## Machine-readable failure map
 
 The lead harness now provides `scripts/summarize-e2e-results.mjs`. It consumes
