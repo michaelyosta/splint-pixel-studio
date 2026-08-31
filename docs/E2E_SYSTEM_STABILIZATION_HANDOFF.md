@@ -1,6 +1,6 @@
 # Splint E2E system stabilization handoff
 
-Status: `E2E_MATRIX_GREEN — terminal E2E_SYSTEM_STABLE pending PostgreSQL service proof and independent review records`
+Status: `BOUNDED_CORRECTION_WAVE — review findings addressed; final frozen full run pending`
 
 ## Release and Git boundary
 
@@ -8,11 +8,9 @@ Status: `E2E_MATRIX_GREEN — terminal E2E_SYSTEM_STABLE pending PostgreSQL serv
 - Supplied RC: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`, confirmed ancestor of
   `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`.
-- Final code-and-harness evidence SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
-  Any later commit in this branch is documentation finalization only unless
-  explicitly stated otherwise.
-- Current integration HEAD: `852677f0b1dfe8ebaa6bb933229c5b8f34373d5b`
-  (`docs: finalize e2e stabilization evidence`).
+- Last pre-correction code-and-harness SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
+- Current integration HEAD: `8ec77499bf414ebeb5134cb4c849236ae6a02299` plus
+  the uncommitted bounded correction wave.
 - Primary checkout remained user-owned and dirty; no reset, force push,
   deployment, or production mutation was performed.
 - Production remains `showalove.ru` / Closed Alpha LIVE. Stars remain
@@ -64,20 +62,28 @@ The full cluster ledger is [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C5 generic guided fixture / Fuse offer | 1 recurring full-shard row | Harness fixture fix: deterministic control cohort |
 | C6 Creator WebKit worker/module sensitivity | 1 first-pass row | Environment/provider sensitivity; bounded rerun green |
 | C7 long mobile glyph/guidance sensitivity | 2 first-pass rows | Environment/provider sensitivity; focused and selected rerun green |
+| C8 false-green release oracles | review findings | Gallery identity/status/404 and low-zoom request+response bounds fixed |
+| C9 hidden retry and fixture reuse | review findings | UI retries removed; cohort reset and unique glyph fixture owners fixed |
+| C10 missing R2 contract coverage | review finding | disposable S3-compatible contract job added; production R2 untouched |
+| C11 iPhone scope/provider boundary | review finding | explicit 14-test WebKit smoke; physical iOS remains separate |
 
 The initial 59 failures were therefore not treated as 59 independent agents or
 as product defects. Proven harness/test defects were corrected in C2, C4 and
 C5; C1, C3, C6 and C7 were retained as isolated environment/contract evidence
 with bounded green verification. No product defect was proven, no product
 source was changed, no assertion was weakened, no obsolete test was removed,
-and no test was quarantined.
+and no test was quarantined. The prior stitched matrix is historical and is
+not final full-run evidence for the current correction SHA.
 
 ## Harness changes
 
-- Node 22 is authoritative for E2E through the explicit local wrapper and
-  `test:e2e:ci-local`.
-- `test:e2e:critical` defines the release-critical subset; it enumerates 26
-  cases from the selected critical files and accepts a project selector.
+- Node `22.23.2` and npm `10.9.8` are authoritative for E2E through the
+  explicit local wrapper and `test:e2e:ci-local`.
+- `test:e2e:critical` defines the 26-test Chromium/Pixel release-critical
+  subset; `test:e2e:critical-webkit` defines the explicit 14-test supported
+  iPhone/WebKit smoke subset and accepts a project selector.
+- `storage-s3-contract` exercises the S3-compatible object path against a
+  disposable in-process endpoint; it does not contact production R2.
 - `test:e2e:extended` names the complete suite; CI continues to run it in 16
   fail-fast-disabled shards.
 - Trace is `retain-on-failure`, screenshot is `only-on-failure`, retries stay
@@ -93,11 +99,12 @@ and no test was quarantined.
 Release-critical covers boot, signed Telegram auth, artwork/player entry, painting/input,
 stroke persistence, reload/resume, Creator, upload, tiled painting/completion,
 premium locked state, and Stars fail-closed. The exact list is maintained in
-`scripts/run-e2e-suite-node22.mjs` and runs across Chromium, Mobile iPhone and
-Mobile Pixel. The emulated iPhone lane intentionally reports conditional
-skips for Chromium/CDP-only and 1200×1200 software-rendering scenarios; those
-are not evidence for physical iOS. A separate physical Telegram WebView/iOS
-gate is required before claiming full iPhone release coverage.
+`scripts/run-e2e-suite-node22.mjs` and runs as 26 tests on Chromium and Mobile
+Pixel, plus an explicit 14-test supported Mobile iPhone/WebKit smoke subset.
+The omitted iPhone cases are conditional WebKit/1200/touch or known worker
+provider-bound scenarios; they are not evidence for physical iOS. A separate
+physical Telegram WebView/iOS gate is required before claiming full iPhone
+release coverage.
 
 Extended regression is the complete 39-spec suite, including accessibility
 breadth, rare mobile combinations, long journeys, visual evidence and legacy
@@ -109,15 +116,16 @@ Current quarantine count is zero.
 
 ## Final E2E evidence
 
-Release-critical on final code/harness SHA `7d16ed3`:
+Release-critical on the last pre-correction code/harness SHA `7d16ed3`:
 
 - Chromium: `26 pass`, `0 unexpected`, `0 flaky`, `6 m 48.958 s`.
 - Mobile iPhone: `15 executable pass`, `11 conditional skips`, `0 unexpected`,
-  `2 m 38.644 s`.
+  `2 m 38.644 s`; a new explicit 14-test WebKit smoke run is the current
+  supported emulation target.
 - Mobile Pixel: `26 pass`, `0 unexpected`, `0 flaky`, `6 m 53.653 s`.
 
-Selected final extended evidence on the same final code/harness SHA uses one
-evidence run per shard after bounded corrections:
+Historical selected extended evidence on the same pre-correction code/harness
+SHA uses one evidence run per shard after bounded corrections:
 
 - `367` executed, `71` expected skips, `0` unexpected, `0` flaky.
 - All 16 shards exited `0`.
@@ -125,7 +133,8 @@ evidence run per shard after bounded corrections:
 - Slowest selected shard: `11 m 56.614 s`.
 - Evidence roots: `test-results/full-seq3-final-shard-*/`, with bounded rerun
   replacements for shards 7, 10 and 14; the aggregate selected ledger is
-  `test-results/full-seq3-shards-summary.log`.
+  `test-results/full-seq3-shards-summary.log`. This is historical and does not
+  satisfy the required one-complete-run proof after the correction wave.
 
 Previously sensitive scenarios also have repeated PASS evidence: lifecycle
 guided flow `5/5`, corrected tiled stroke `5/5`, and low-zoom `5/5`, with
@@ -140,10 +149,13 @@ Playwright retries disabled.
   configured budget was not exceeded, but the budget has no remaining margin.
 - Build: Vite production build passed.
 - `git diff --check`: passed.
-- PostgreSQL-specific suite: command exits `0` but `65` tests self-skip because
-  no `DATABASE_URL` is available. This is not counted as PostgreSQL PASS.
-  Docker/PostgreSQL was unavailable on the host; the CI postgres service job
-  remains the authoritative proof and was not run on this unpushed branch.
+- PostgreSQL service suite: `100 pass / 0 fail / 0 skipped`, exit `0`, duration
+  `87.537 s`, on a fresh disposable Docker `postgres:16`; `28` migrations
+  applied under Node `22.23.2` and npm `10.9.8`. The container was removed
+  after the run; evidence is in `docs/evidence/postgres-final.md`.
+- S3-compatible storage contract: `2 pass / 0 fail / 0 skipped` under Node
+  `22.23.2`, using a disposable in-process object-store endpoint. No
+  production R2 credentials or objects were used.
 
 ## CI cost and policy
 
@@ -151,14 +163,21 @@ The performance record is [E2E_CI_PERFORMANCE.md](E2E_CI_PERFORMANCE.md).
 Historical GitHub references were `101.77` runner minutes / `33.98` wall-clock
 for a RED main run and `86.03` / `19.75` for the supplied GREEN RC run; these
 are not controlled before/after values. The final local extended result is a
-`73 m 56.861 s` sequential runner-time proxy, with an `11 m 56.614 s` slowest
+  `73 m 56.861 s` sequential runner-time proxy, with an `11 m 56.614 s` slowest
 shard; it is not a GitHub billing estimate. The three-project release-critical
 matrix fits the intended approximately 5–10 minute PR gate when jobs run in
 parallel.
 
+PostgreSQL service evidence was subsequently completed on a fresh disposable
+Docker `postgres:16` container using Node `22.23.2` and npm `10.9.8`: `28`
+migrations applied, then `100 pass / 0 fail / 0 skipped` in `87.537 s`. The
+container was removed after the run. This closes the local authoritative
+database gate; live GitHub provider timing remains unmeasured.
+
 Recommended policy:
 
-1. Require `e2e-critical` plus unit, lint, build and server checks for merge.
+1. Require `e2e-critical`, the S3 storage contract, unit, lint, build and
+   server checks for merge.
 2. Keep full 16-shard E2E as extended regression, with artifacts retained and
    owners for every source-gated or legacy skip.
 3. Run the full suite on PR when budget permits and on a scheduled/nightly
@@ -170,27 +189,29 @@ Recommended policy:
 
 ## Independent final review status
 
-Two requested Sol Max read-only reviews were dispatched against final SHA
-`7d16ed3`: Test Reliability and Product Integrity. Both reviewer launches
-terminated before producing a verdict because the model provider returned an
-external usage-limit error. This handoff therefore records no independent
-review PASS/FAIL; the lead's local inspection is not substituted for that
-required gate.
+Two independent Sol Max read-only reviews were completed against the
+pre-correction evidence and both returned `FAIL` with actionable findings:
+the final full run was stitched rather than single-SHA, hidden UI retries and
+mutable fixture reuse existed, Gallery/low-zoom oracles were too weak, the
+critical manifest lacked an explicit project preflight, R2 coverage was
+missing, and the Node/npm contract was incomplete. The bounded correction wave
+addresses those findings; both reviews must be rerun against the post-wave SHA
+after the complete final matrix.
 
 ## Remaining debt and release decision
 
-The E2E harness has a reproducible green final critical matrix and a selected
-green extended matrix, with three first-pass rows requiring bounded rerun or
-fixture correction. The goal cannot yet be declared terminal under the strict
-exit criteria until:
+The E2E harness has a green historical critical matrix and a selected green
+extended matrix, but neither is final proof for the current correction wave.
+The goal cannot yet be declared terminal under the strict exit criteria until:
 
-- PostgreSQL tests run against a real disposable PostgreSQL 16 service on the
-  final candidate SHA and pass without environment skips; and
-- the 26-test critical manifest and the explicit physical-iOS gate are either
-  proven or their scope is formally accepted by the release owner; and
+- one complete 16-shard Node22 matrix is green on one frozen post-wave SHA;
+- the 26-test Chromium/Pixel critical manifest plus the explicit 14-test
+  WebKit smoke and physical-iOS scope are documented and accepted; and
 - the independent Test Reliability and Product Integrity reviews are recorded
   as PASS.
 
 No production deployment is part of this handoff. The next safe actions are to
-run the two final reviews and obtain authoritative PostgreSQL plus live branch
-CI evidence in a future PR/runner context, then update the run-state status.
+commit the bounded wave, run one complete final matrix without changing its
+SHA, rerun both independent reviews, then update the run-state and handoff
+with the final evidence. Live GitHub branch timing remains a separate CI
+measurement debt.

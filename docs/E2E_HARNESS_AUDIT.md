@@ -42,14 +42,14 @@ their impact; the bounded fixes and remaining debt are recorded below.
 4. Several response waits are registered and then caught without a failure artifact. A request that is optional must be asserted as optional with observable state; a required request must fail with status/body evidence.
 5. `scripts/e2e-global-setup.mjs` polls health with a causal HTTP endpoint, but server child processes inherit stdio and do not write structured per-run logs. On Windows its stop path uses `taskkill`; on POSIX it waits up to 5 seconds after group termination but does not force-close after the race.
 6. At the frozen audit SHA no deterministic Node 22 local command existed.
-   The final harness now provides the explicit Node 22 procedure and
-   `npm run test:e2e:ci-local`; ordinary `npm run test:e2e` remains PATH-driven
-   and is not the authoritative parity command.
+   The final harness now provides the explicit Node `22.23.2` / npm `10.9.8`
+   procedure and `npm run test:e2e:ci-local`; ordinary `npm run test:e2e`
+   remains PATH-driven and is not the authoritative parity command.
 
 ## State and isolation findings
 
 1. `scripts/run-e2e-api.mjs` creates a fresh temporary SQLite DB/media root per Playwright invocation, which is a good run-level boundary. It does not provide per-test transaction/cleanup isolation.
-2. Browser projects share the same invocation-level API/database. Most users use `testInfo.testId`, but fixed IDs such as `e2e_guided_1200` and `user_bomb_e2e`, project-derived IDs, and seeded catalog data require cluster-level collision checks.
+2. Browser projects share the same invocation-level API/database. Most users use `testInfo.testId`, but fixed IDs such as `e2e_guided_1200` and `user_bomb_e2e`, project-derived IDs, and seeded catalog data require cluster-level collision checks. Deterministic cohort fixture reuse now resets all user-scoped progress rows transactionally; special-glyph owners are unique within each test.
 3. Seed endpoints under `/api/__e2e/*` are mutating fixtures. Tests that seed, then read through `page.request`, can affect subsequent tests in the same project/run if IDs or catalog rows overlap.
 4. Local storage is deliberately used by reload/onboarding tests, but no global convention proves that state is cleared before every test. The current config has no `storageState` fixture and no explicit per-test context policy beyond Playwright's normal new context.
 5. Two specs import production special-cell services directly. This can be valid for deterministic fixture construction, but it couples E2E outcomes to server implementation rather than only the public contract and should be documented per test.
@@ -80,9 +80,12 @@ their impact; the bounded fixes and remaining debt are recorded below.
    final config now guarantees a generic failure screenshot with
    `screenshot: 'only-on-failure'` (video remains disabled).
 2. At the frozen audit SHA the workflow had no fast/extended distinction. The
-   final workflow defines `e2e-critical` for the 26-case PR gate and keeps the
+   final workflow defines `e2e-critical` for the 26-case Chromium/Pixel gate,
+   an explicit 14-case supported iPhone/WebKit smoke gate, and keeps the
    complete suite as the 16-shard extended job; branch-protection enforcement
-   still requires repository settings/provider confirmation.
+   still requires repository settings/provider confirmation. A separate
+   `storage-s3-contract` job covers the S3-compatible object path without
+   touching production R2.
 3. Evidence-only suites are source-gated by environment variables (`ACCESSIBILITY_EVIDENCE`, `SESSION_GOALS_EVIDENCE`) and appear in normal enumeration as expected skips. They need explicit extended/nightly ownership.
 4. The frozen audit found no quarantine manifest/policy. The stabilization pass
    added `E2E_QUARANTINE_POLICY.md`; current quarantine count remains zero.
@@ -101,16 +104,15 @@ cohort; special-cell treatment remains covered by dedicated specs.
 
 The remaining 49-sleep/37-catch counts are legacy debt outside the proven
 failure mechanisms; they remain visible in the audit and are not hidden by a
-green run. The final exact-SHA critical and selected 16-shard extended
-matrices passed with `0` retries and `0` unexpected results. The first
-post-fix extended wave had three bounded first-pass rows; those were not hidden
-by retries. PostgreSQL service proof is still CI-gated because local
-Docker/PostgreSQL was unavailable.
+green run. The prior stitched 16-shard matrix is historical; a new complete
+matrix is required after the current correction wave. PostgreSQL service proof
+is saved from a fresh disposable Docker service, and the S3-compatible
+contract is covered by a dedicated CI job.
 
 ## Root-cause investigation priorities
 
-1. Obtain authoritative Node 22/Linux CI and PostgreSQL service evidence for
-   the final candidate branch.
+1. Obtain the final complete Node 22/Linux CI matrix and provider timing for
+   the post-correction candidate branch.
 2. Add structured server-log collation and a machine-generated cross-shard
    failure matrix when CI implementation cost is justified.
 3. Reduce the remaining waits/catches only with a concrete causal oracle and

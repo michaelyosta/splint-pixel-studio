@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { test, expect } from '@playwright/test';
 
@@ -26,7 +26,7 @@ function legacyFixtureOwnerId(testInfo) {
 async function createLegacy(page, {
   cohort = 'treatment',
   allKinds = true,
-  ownerId = 'user_special_glyph_legacy',
+  ownerId = `g${randomUUID().replaceAll('-', '').slice(0, 20)}`,
 } = {}) {
   await page.context().setExtraHTTPHeaders({ 'X-User-Id': ownerId });
   const fixtureResponse = await page.request.post('/api/__e2e/seed-cohort-template', {
@@ -50,11 +50,15 @@ async function createLegacy(page, {
     expect(KINDS.filter((kind) => progress.specials.some((special) => special.kind === kind)))
       .toHaveLength(KINDS.length);
   }
-  return { created: { id: fixture.id }, progress };
+  return { created: { id: fixture.id }, progress, ownerId };
 }
 
-async function createTiled(page, { cohort = 'treatment', allKinds = true } = {}) {
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_tiled' });
+async function createTiled(page, {
+  cohort = 'treatment',
+  allKinds = true,
+  ownerId = `g${randomUUID().replaceAll('-', '').slice(0, 20)}`,
+} = {}) {
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': ownerId });
   const fixtureResponse = await page.request.post('/api/__e2e/seed-cohort-template', {
     data: {
       cohort,
@@ -76,7 +80,7 @@ async function createTiled(page, { cohort = 'treatment', allKinds = true } = {})
     expect(KINDS.filter((kind) => specials.some((special) => special.kind === kind)))
       .toHaveLength(KINDS.length);
   }
-  return { created: { id: fixture.id }, progress, specials };
+  return { created: { id: fixture.id }, progress, specials, ownerId };
 }
 
 async function findTiledSpecials(page, id) {
@@ -800,11 +804,9 @@ test('legacy reveal claims exactly once and survives reload without duplicate', 
 test('control reveal renders no markers and emits no special event', async ({ page }) => {
   test.setTimeout(120000);
   const legacy = await createLegacy(page, { cohort: 'control', allKinds: false });
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_legacy' });
   const tiled = await createTiled(page, { cohort: 'control', allKinds: false });
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_tiled' });
   const legacyCapture = await claimRequests(page, legacy.created.id, 'claim_spark');
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_legacy' });
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': legacy.ownerId });
   await openColoring(page, legacy.created.id, { width: 390 });
   await expect(page.locator('.coloring-session')).toHaveAttribute('data-special-cohort', 'control', { timeout: 30000 });
   await openRevealMode(page);
@@ -820,7 +822,7 @@ test('control reveal renders no markers and emits no special event', async ({ pa
   page.off('response', legacyCapture.handler);
 
   const tiledCapture = await claimRequests(page, tiled.created.id, 'claim_spark');
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_tiled' });
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': tiled.ownerId });
   await openColoring(page, tiled.created.id, { width: 390 });
   await waitTiledWork(page);
   await openRevealMode(page);
@@ -847,7 +849,7 @@ test('menu-open overlap QA screenshots stay separate from final evidence', async
   await page.locator('.bottom-sheet-close').click();
 
   const tiled = await createTiled(page, { allKinds: false });
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_tiled' });
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': tiled.ownerId });
   await openColoring(page, tiled.created.id, { width: 390 });
   await waitTiledWork(page);
   await page.locator('.player-menu-btn').click();

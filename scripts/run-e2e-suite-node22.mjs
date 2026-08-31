@@ -1,8 +1,18 @@
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
-if (!process.versions.node.startsWith('22.')) {
-  console.error(`E2E requires Node 22; detected ${process.versions.node}. Invoke this script with the Node 22 executable.`);
+const expectedNodeVersion = process.env.E2E_NODE_VERSION || '22.23.2';
+const expectedNpmVersion = process.env.E2E_NPM_VERSION || '10.9.8';
+
+if (process.versions.node !== expectedNodeVersion) {
+  console.error(`E2E requires Node ${expectedNodeVersion}; detected ${process.versions.node}. Invoke this script with the authoritative Node executable.`);
+  process.exit(2);
+}
+
+const npmCli = resolve(process.execPath, '..', 'node_modules', 'npm', 'bin', 'npm-cli.js');
+const npmVersion = spawnSync(process.execPath, [npmCli, '--version'], { encoding: 'utf8' });
+if (npmVersion.status !== 0 || npmVersion.stdout.trim() !== expectedNpmVersion) {
+  console.error(`E2E requires npm ${expectedNpmVersion}; detected ${(npmVersion.stdout || npmVersion.stderr || '').trim() || 'unknown'}.`);
   process.exit(2);
 }
 
@@ -38,8 +48,33 @@ const critical = [
   { file: 'e2e/unlocks-recommendations.spec.js', title: 'catalog showcase stays fail-closed without a mounted payment adapter' },
 ];
 
+// WebKit emulation cannot execute the 1200x1200 creator/touch scenarios in
+// this local/CI harness. Its creator worker also has a known provider-bound
+// failure mode (worker module requests can fail before the test oracle runs),
+// so keep the supported smoke subset explicit instead of reporting a 26-test
+// gate with conditional skips as if it were full iOS parity. Save/1200/touch
+// journeys remain required on Chromium/Pixel and on the separate physical
+// iOS gate.
+const criticalWebkit = critical.filter(({ title }) => new Set([
+  'valid Telegram initData authenticates the Telegram identity and wins over a dev header',
+  'missing or invalid Telegram initData is rejected',
+  'classic pointer capture stays on the canvas and paint commits progress',
+  '3. File upload shows grid, crop, and color controls',
+  '6. Compute shows previews and quality indicator',
+  '11. Delete a user-created coloring from gallery',
+  'guided home shows one primary action and a bounded choice window',
+  'completion hands off to a committed choice, including an honest stop',
+  'classic keyboard paint commits server progress',
+  'tiled completion shows the completion overlay in the player',
+  'overview is preview-stable, work reloads tiles, 502 stays local and retry recovers',
+  'progression-locked direct ID opens an actionable locked screen, not a generic error',
+  'premium direct ID shows a neutral unavailable state without payment CTA',
+  'catalog showcase stays fail-closed without a mounted payment adapter',
+]).has(title));
+
 const suites = {
   critical,
+  'critical-webkit': criticalWebkit,
   extended: { files: ['e2e'] },
 };
 
@@ -72,8 +107,21 @@ function runPlaywright(args, options = {}) {
   });
 }
 
+function selectedProjectCount(args) {
+  let count = 0;
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === '--project' && args[index + 1]) {
+      count += 1;
+      index += 1;
+    } else if (args[index].startsWith('--project=')) {
+      count += 1;
+    }
+  }
+  return count || 3;
+}
+
 let args;
-if (suiteName === 'critical') {
+if (Array.isArray(suite)) {
   const files = [...new Set(suite.map(({ file }) => file))];
   const grep = suite.map(({ title }) => escapedRegExp(title)).join('|');
   const list = runPlaywright(['--list', ...files, '--grep', grep, ...forwardedArgs], {
@@ -82,15 +130,19 @@ if (suiteName === 'critical') {
     env: { CI: '', PLAYWRIGHT_JSON_OUTPUT_FILE: '', PLAYWRIGHT_HTML_OUTPUT_DIR: '' },
   });
   const listing = `${list.stdout || ''}\n${list.stderr || ''}`;
-  const missing = suite.filter(({ title }) => !listing.includes(title)).map(({ title }) => title);
+  const listedLines = listing.split(/\r?\n/).map((line) => line.trimEnd());
+  const missing = suite
+    .filter(({ title }) => !listedLines.some((line) => line.endsWith(`› ${title}`) || line.endsWith(`> ${title}`)))
+    .map(({ title }) => title);
   const countMatch = listing.match(/Total:\s+(\d+)\s+tests?\s+in/);
   const listedCount = countMatch ? Number(countMatch[1]) : null;
-  if (list.status !== 0 || missing.length || listedCount !== suite.length) {
+  const expectedCount = suite.length * selectedProjectCount(forwardedArgs);
+  if (list.status !== 0 || missing.length || listedCount !== expectedCount) {
     console.error('Critical E2E manifest preflight failed.');
     if (list.stdout) process.stderr.write(list.stdout);
     if (list.stderr) process.stderr.write(list.stderr);
     if (missing.length) console.error(`Missing critical titles: ${missing.join(' | ')}`);
-    console.error(`Expected ${suite.length} critical tests; listed ${listedCount ?? 'unknown'}.`);
+    console.error(`Expected ${expectedCount} tests for ${suite.length} manifest entries; listed ${listedCount ?? 'unknown'}.`);
     process.exit(2);
   }
   args = [...files, '--grep', grep, ...forwardedArgs];

@@ -476,7 +476,16 @@ test.describe('Creator 2.0 — full E2E', () => {
     await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles(['e2e/fixtures/test-image.png']);
     await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 15000 });
+    const createResponsePromise = page.waitForResponse((response) => (
+      response.url().includes('/api/colorings/create')
+      && response.request().method() === 'POST'
+    ));
     await page.locator('button:has-text("Сохранить и начать")').click();
+    const createResponse = await createResponsePromise;
+    expect(createResponse.status()).toBe(201);
+    const created = await createResponse.json();
+    expect(created.id).toMatch(/^color_/);
+    expect(created.title).toBeTruthy();
     await expect(page.locator('.creator-success-page')).toBeVisible({ timeout: 15000 });
     await page.locator('.creator-success-page button:has-text("Начать раскрашивать")').click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
@@ -486,10 +495,27 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.getByRole('button', { name: 'Профиль' }).first().click();
     await page.getByRole('button', { name: 'Смотреть все' }).click();
     await expect(page.locator('.gallery-list')).toBeVisible({ timeout: 10000 });
-    const deleteBtn = page.locator('.delete-button').first();
+    const createdRow = page.locator('.gallery-row').filter({ hasText: created.title });
+    await expect(createdRow).toHaveCount(1);
+    const deleteBtn = createdRow.locator('.delete-button');
     await expect(deleteBtn).toBeVisible();
     page.once('dialog', (dialog) => dialog.accept());
+    const deleteResponsePromise = page.waitForResponse((response) => (
+      response.url().includes(`/api/colorings/${created.id}`)
+      && response.request().method() === 'DELETE'
+    ));
     await deleteBtn.click();
+    const deleteResponse = await deleteResponsePromise;
+    expect(deleteResponse.status()).toBe(200);
+    await expect(deleteResponse.json()).resolves.toEqual({ success: true });
+    await expect(createdRow).toHaveCount(0);
+
+    const mineResponse = await page.request.get('/api/colorings/mine');
+    expect(mineResponse.ok()).toBe(true);
+    const mine = await mineResponse.json();
+    expect(mine.some((item) => item.id === created.id)).toBe(false);
+    const deletedResponse = await page.request.get(`/api/colorings/${created.id}`);
+    expect(deletedResponse.status()).toBe(404);
   });
 
   test('12. Feed: like, comment, follow interactions', async ({ page }) => {

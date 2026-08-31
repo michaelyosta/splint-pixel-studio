@@ -1,8 +1,18 @@
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
-if (!process.versions.node.startsWith('22.')) {
-  console.error(`E2E requires Node 22; detected ${process.versions.node}. Invoke this script with the Node 22 executable.`);
+const expectedNodeVersion = process.env.E2E_NODE_VERSION || '22.23.2';
+const expectedNpmVersion = process.env.E2E_NPM_VERSION || '10.9.8';
+
+if (process.versions.node !== expectedNodeVersion) {
+  console.error(`E2E requires Node ${expectedNodeVersion}; detected ${process.versions.node}. Invoke this script with the authoritative Node executable.`);
+  process.exit(2);
+}
+
+const npmCli = resolve(process.execPath, '..', 'node_modules', 'npm', 'bin', 'npm-cli.js');
+const npmVersion = spawnSync(process.execPath, [npmCli, '--version'], { encoding: 'utf8' });
+if (npmVersion.status !== 0 || npmVersion.stdout.trim() !== expectedNpmVersion) {
+  console.error(`E2E requires npm ${expectedNpmVersion}; detected ${(npmVersion.stdout || npmVersion.stderr || '').trim() || 'unknown'}.`);
   process.exit(2);
 }
 

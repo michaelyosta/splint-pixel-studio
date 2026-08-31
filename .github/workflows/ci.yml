@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: npm
       - run: npm ci
       - run: npm test
@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: npm
       - run: npm --prefix server ci
       - run: npm --prefix server run migrate:postgres
@@ -63,15 +63,18 @@ jobs:
         include:
           - key: chromium
             project: chromium
+            suite: critical
           - key: iphone
             project: Mobile iPhone
+            suite: critical-webkit
           - key: pixel
             project: Mobile Pixel
+            suite: critical
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: npm
       - run: npm ci
       - run: npm --prefix server ci
@@ -79,7 +82,7 @@ jobs:
       - name: Run release-critical E2E
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json
-        run: npm run test:e2e:critical -- --project="${{ matrix.project }}"
+        run: npm run test:e2e:${{ matrix.suite }} -- --project="${{ matrix.project }}"
       - name: Upload release-critical diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -103,7 +106,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: npm
       - run: npm ci
       - run: npm --prefix server ci
@@ -111,7 +114,7 @@ jobs:
       - name: Run E2E shard
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json
-        run: npm run test:e2e -- --shard=${{ matrix.shard }}/16
+        run: npm run test:e2e:ci-local -- --shard=${{ matrix.shard }}/16
       - name: Upload E2E diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -122,3 +125,17 @@ jobs:
             playwright-report/
           if-no-files-found: warn
           retention-days: 14
+
+  storage-s3-contract:
+    name: storage-s3-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.2
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm --prefix server ci
+      - run: npm run test:storage:s3

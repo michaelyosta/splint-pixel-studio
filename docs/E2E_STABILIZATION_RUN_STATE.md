@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `BLOCKED — authoritative PostgreSQL/CI evidence and independent final reviews unavailable`
+Status: `BOUNDED_CORRECTION_WAVE — review findings addressed; final frozen full run pending`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -15,9 +15,10 @@ to the local integration worktree.
 - Supplied release candidate: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current code/harness SHA: `7d16ed3` (`test: isolate guided player from special-cell offers`).
-- Current integration HEAD: `852677f` (`docs: finalize e2e stabilization evidence`;
-  documentation-only finalization on top of the code/harness SHA).
+- Current code/harness SHA: working-tree correction wave pending commit on top of
+  `7d16ed3` (Gallery/low-zoom oracles, retry removal, fixture reset, exact
+  runtime, explicit WebKit subset and S3 contract gate).
+- Current integration HEAD: `8ec7749` plus the uncommitted correction wave.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -42,11 +43,12 @@ primary checkout or production state.
 
 ## Independent final review status
 
-Two requested Sol Max read-only reviews were dispatched against the final
-code/harness SHA, one for Test Reliability and one for Product Integrity. Both
-terminated before producing a review because the model provider returned the
-same external usage-limit error. No reviewer PASS/FAIL is inferred from that
-error, and the lead's local inspection is not counted as independent review.
+Two independent Sol Max read-only reviews completed against the pre-correction
+final evidence and both returned `FAIL` with actionable findings. The bounded
+correction wave addresses hidden UI retries, Gallery and low-zoom false-green
+oracles, deterministic fixture reset, exact critical manifest preflight, exact
+Node/npm runtime, and an isolated S3 contract gate. The reviews must be rerun
+against the post-correction SHA after the final full matrix.
 
 ## E2E inventory and classification
 
@@ -56,8 +58,10 @@ error, and the lead's local inspection is not counted as independent review.
   367 executed passes and 71 explicit/conditional skips (the additional skips
   are capability or environment gates, not quarantine).
 - Release-critical proposal is maintained in
-  `scripts/run-e2e-suite-node22.mjs`: 26 title-selected tests across the three
-  projects.
+  `scripts/run-e2e-suite-node22.mjs`: 26 title-selected tests on Chromium and
+  Mobile Pixel, plus an explicit 14-test supported Mobile iPhone/WebKit smoke
+  subset. Omitted iPhone cases are conditional WebKit/1200/touch or known
+  worker/provider-bound scenarios; physical iOS/Telegram remains separate.
 - Extended regression is the complete `e2e/` suite in 16 fail-fast-disabled
   shards.
 - Legacy/debt cases remain visible and are not deleted merely because they are
@@ -116,9 +120,15 @@ Full ledger: [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C5 generic guided fixture hit treatment Fuse | 2 full-shard failures before fix | HARNESS fixture isolation | switched generic guided test to deterministic control fixture; 5/5 + full shard pass |
 | C6 mobile worker/cold module event | 1 first-pass creator crop failure | ENVIRONMENT/provider | focused 3/3 and shard rerun pass; no quarantine |
 | C7 long mobile visual/guidance journeys | 2 first-pass failures (glyph/guided) | ENVIRONMENT/HARNESS sensitivity | exact focused checks pass; guided root cause separated into C5 |
+| C8 false-green release oracles | Gallery delete and low-zoom request-start review findings | HARNESS_FAILURE | strict identity/status/404 assertions and both request/response bounds added; focused checks pass |
+| C9 hidden retry and fixture reuse | P0/special-delivery hidden retry and special-glyph deterministic user findings | HARNESS_FAILURE | UI retries removed; cohort reset and unique glyph owners added; targeted checks pass |
+| C10 missing R2 contract coverage | critical harness forced local storage | HARNESS_FAILURE / coverage gap | disposable S3-compatible contract job added; no production R2 touched |
+| C11 critical browser scope ambiguity | iPhone lane had 11 expected skips and one worker-sensitive case | ENVIRONMENT/coverage boundary | explicit 14-test WebKit smoke subset; physical iOS gate remains required |
 
 No product defect was proven. No assertion was weakened. No test was
-quarantined and no obsolete test was removed.
+quarantined and no obsolete test was removed. The old stitched matrix is now
+historical evidence only; it is not final full-run proof for the current
+correction SHA.
 
 ## Integrated commit ledger
 
@@ -131,6 +141,9 @@ quarantined and no obsolete test was removed.
 - `b9a82d8` critical title-selector correction.
 - `16852a7` runtime/mobile oracle stabilization.
 - `7d16ed3` deterministic control fixture for generic guided player.
+- pending bounded correction wave: strict Gallery/low-zoom oracles, no hidden
+  UI retries, cohort progress reset, unique special-glyph owners, exact
+  Node/npm preflight, explicit WebKit subset and disposable S3 contract.
 
 ## Verification ledger
 
@@ -145,12 +158,12 @@ quarantined and no obsolete test was removed.
   control fixture: `5/5`.
 - Final control-fixture shard 14: `23 pass / 3 skip / 0 unexpected / 0 flaky`.
 
-### Final selected extended matrix
+### Historical selected extended matrix
 
-The selected final evidence is one result for every shard, all on the same
-code/harness SHA `7d16ed3`: shards 1–6, 8–9, 11–13 and 15–16 from the final
-wave; shard 7 and shard 10 from their bounded green reruns; shard 14 from the
-control-fixture rerun.
+The prior selected evidence used one result for every shard at code/harness
+SHA `7d16ed3`, but the reviewers correctly identified that its timestamps did
+not prove one complete run after the last correction. It remains historical,
+not final acceptance evidence.
 
 - 16 shards; `367 pass`, `71 expected skip`, `0 unexpected`, `0 flaky`.
 - Retries remained `0`; every shard exited `0`.
@@ -168,8 +181,10 @@ control-fixture rerun.
   0 flaky`, `2 m 38.644 s`.
 - Mobile Pixel: `26 pass / 0 skip / 0 unexpected / 0 flaky`, `6 m 53.653 s`.
 - Retries `0`; release-critical wall-clock target is achievable when the
-  three project jobs run in CI parallelism. Physical Telegram/iOS remains a
-  separate human/device gate.
+  three project jobs run in CI parallelism. The post-correction WebKit smoke
+  check is `14/14` locally; the earlier 15-test attempt exposed a WebKit worker
+  module/provider failure on creator save and is recorded as C6/C11 evidence.
+  Physical Telegram/iOS remains a separate human/device gate.
 
 ### Non-E2E gates
 
@@ -179,9 +194,15 @@ control-fixture rerun.
   budget is exactly saturated, so this is a pass with a maintenance warning.
 - Vite build: pass, `7.44 s`.
 - `git diff --check`: pass (only line-ending warnings from generated evidence).
-- PostgreSQL suite: `42 pass / 0 fail / 65 skipped`, exit `0`, but no
-  `DATABASE_URL` and no local PostgreSQL service were available. This is not
-  authoritative PostgreSQL PASS and remains a strict blocker.
+- PostgreSQL service suite: `100 pass / 0 fail / 0 skipped`, exit `0`, duration
+  `87.537 s`, on fresh disposable Docker `postgres:16`; migrations were
+  `28 applied / 0 skipped` under Node `22.23.2` and npm `10.9.8`. The container
+  was removed after the run. Evidence is saved in
+  `docs/evidence/postgres-final.md`; the no-`DATABASE_URL` result (`42/0/65`)
+  remains historical pre-service evidence, not the final result.
+- S3-compatible storage contract: `2 pass / 0 fail / 0 skipped`, Node
+  `22.23.2`, disposable in-process object-store endpoint; no production R2
+  credentials or objects were used.
 
 ## CI cost and remaining debt
 
@@ -194,13 +215,13 @@ control-fixture rerun.
 - The earlier 16-way concurrent local attempt produced 79 unexpected results
   from resource pressure. This is why local evidence is sequential; CI shard
   concurrency still needs an external controlled measurement.
-- Remaining debt: real PostgreSQL service proof, independent Sol Max reviews,
-  physical Telegram/iOS proof, residual legacy timing/catch cleanup and a
-  controlled GitHub CI cost measurement.
+- Remaining debt: post-correction independent Sol Max reviews, one complete
+  final 16-shard run, physical Telegram/iOS proof, residual legacy timing/catch
+  cleanup and a controlled GitHub CI cost measurement.
 
 ## Next action
 
-Re-run the two independent final reviews when the Sol Max provider is
-available, obtain authoritative PostgreSQL plus live branch CI evidence, and
-recheck primary Git/production safety. Until then, hand off with these exact
-blockers; do not close as stable.
+Commit the bounded correction wave, run focused checks, then execute one
+complete 16-shard Node22 matrix without changing SHA. Aggregate that run,
+rerun the two independent reviews against its SHA, execute the remaining gates,
+and only then decide whether the terminal state is justified.

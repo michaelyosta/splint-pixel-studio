@@ -1,6 +1,6 @@
 # E2E CI performance
 
-Status: `MEASURED — selected final critical/extended matrices green; PostgreSQL and live branch CI proof pending`
+Status: `MEASURED — correction-wave focused checks green; complete final matrix and live CI proof pending`
 
 This document records the performance evidence from the frozen diagnostic and
 the current CI shape. It does not treat low CPU utilization as a reason to
@@ -46,14 +46,20 @@ classified in bounded follow-ups: creator WebKit worker/module sensitivity,
 special-glyph mobile sensitivity, and the guided-player fixture selecting a
 valid Fuse offer. The final code/harness SHA is `7d16ed3`.
 
-The selected final extended matrix uses one evidence run per shard after those
+The prior selected extended matrix used one evidence run per shard after those
 bounded corrections: `367` passes, `71` expected skips, `0` unexpected and
-`0` flaky. All 16 selected shard invocations exited `0`. The sum of test
-durations is `4,436.860 s` (`73 m 56.861 s`), and the slowest shard is
-`716.614 s` (`11 m 56.614 s`). Because this Windows matrix was run
-sequentially, the sum is a runner-time proxy, not a GitHub billing estimate.
-Expected CI wall-clock remains bounded by the slowest parallel shard plus
-setup and artifact upload.
+`0` flaky. Review correctly identified that its timestamps did not prove one
+complete post-correction run, so it is historical evidence only. A new
+complete 16-shard matrix is required before final acceptance. Because the
+Windows matrix is sequential, its sum is a runner-time proxy, not a GitHub
+billing estimate.
+
+The PostgreSQL service gate was subsequently executed locally against a fresh
+Docker `postgres:16` container using the same credentials and migration shape
+as CI. Node `22.23.2` with npm `10.9.8` applied `28` migrations and the suite
+completed with `100` passed, `0` failed and `0` skipped in `87.537 s`. The
+container was removed after the run. This is authoritative disposable-service
+evidence for the database suite; a live GitHub provider run is still absent.
 
 ## CPU and the apparent unused capacity
 
@@ -119,10 +125,11 @@ Not yet justified:
 
 Those choices require post-fix timings and failure-isolation evidence. The
 release-critical gate target remains approximately 5–10 minutes wall-clock
-when the three project jobs run in parallel. The measured final critical
-projects are all below seven minutes locally; the workflow defines this as the
-`e2e-critical` PR gate, while the existing 16-shard `e2e` job remains the
-extended suite.
+when the three project jobs run in parallel. The Chromium/Pixel lanes were
+below seven minutes locally; the workflow defines this as the `e2e-critical`
+PR gate, with an explicit supported 14-test iPhone/WebKit smoke subset. The
+separate `storage-s3-contract` job covers the object-storage path, while the
+existing 16-shard `e2e` job remains the extended suite.
 
 ## Required next measurements
 
@@ -131,7 +138,8 @@ extended suite.
 - repeated focused durations for the previously flaky input, lifecycle, and
   tiled clusters;
 - release-critical gate wall-clock and full extended-suite wall-clock;
-- before/after comparison without using retries to hide failures.
+- one complete post-correction 16-shard run and before/after comparison
+  without using retries to hide failures.
 
 ## Interpretation of low CPU utilization
 
@@ -147,9 +155,9 @@ optimization until the extended sharded result proves isolation.
 | Gate | Cases | Result | Duration |
 |---|---:|---|---:|
 | Release-critical, Chromium | 26 | 26 pass | 6 m 48.958 s |
-| Release-critical, Mobile iPhone | 15 executable + 11 conditional skips | 15 pass | 2 m 38.644 s |
+| Release-critical, Mobile iPhone/WebKit smoke | 14 executable | 14 pass | 84.113 s |
 | Release-critical, Mobile Pixel | 26 | 26 pass | 6 m 53.653 s |
-| Extended, selected 16 shards | 367 executed + 71 expected skips | 0 unexpected, 0 flaky | slowest 11 m 56.614 s; sum 73 m 56.861 s |
+| Extended, prior selected 16 shards | 367 executed + 71 expected skips | 0 unexpected, 0 flaky; historical only | slowest 11 m 56.614 s; sum 73 m 56.861 s |
 
 The final critical matrix is compatible with the intended approximately 5–10
 minute PR gate when the three project jobs run in parallel. The local

@@ -117,11 +117,11 @@ test.describe('tiled 1200 low zoom', () => {
     await pressOverview(page);
     await waitForTileNetworkIdle(page);
     await expect(session).toHaveAttribute('data-tile-error-count', '0');
-    // A work-plan cancellation can emit several request events on mobile
-    // while the browser aborts fetches that never reach a response. Measure
-    // completed tile responses instead of cancelled request starts; the
-    // product contract is bounded network work, not an implementation detail
-    // of the browser's abort event ordering.
+    // Bound both request starts and completed responses. Request starts catch
+    // cancelled-request storms; responses catch a server/client plan that
+    // actually completes too much work. Neither oracle is sufficient alone.
+    const overviewTileRequestCount = tileRequests.length;
+    expect(overviewTileRequestCount).toBeLessThanOrEqual(1);
     const overviewTileResponseCount = tileResponses.length;
     expect(overviewTileResponseCount).toBeLessThanOrEqual(1);
     await page.screenshot({ path: resolve(evidenceDir, `${testInfo.project.name}-overview.png`), fullPage: false });
@@ -150,10 +150,9 @@ test.describe('tiled 1200 low zoom', () => {
     const rapidStats = await clientStats();
     expect(rapidStats.cache.tiles).toBeLessThanOrEqual(48);
     expect(rapidStats.network.peakConcurrentTileRequests).toBeLessThanOrEqual(48);
+    const rapidTileRequestCount = tileRequests.length - beforeRapid;
+    expect(rapidTileRequestCount).toBeLessThan(80);
     const rapidTileResponseCount = tileResponses.length - beforeRapidResponses;
-    // Rapid camera changes intentionally abort superseded work plans. Count
-    // responses that actually completed, not request-start events for fetches
-    // cancelled by the browser before reaching the server.
     expect(rapidTileResponseCount).toBeLessThan(80);
 
     let failNextTile = true;

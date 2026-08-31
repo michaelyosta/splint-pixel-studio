@@ -112,6 +112,21 @@ function findSize(size, allowed) {
   )) || allowed[0];
 }
 
+async function resetCohortProgress(tx, userId, templateId) {
+  // Cohort fixture ids are deterministic by design, so a repeated test run
+  // can legitimately find the template already present. Reset every
+  // user-scoped mutable row before returning it; otherwise a retry, browser
+  // project, or same-worker ordering can inherit progress from an earlier
+  // test while the fixture still looks "ready".
+  await tx.run('DELETE FROM coloring_progress_batches WHERE user_id=? AND template_id=?', [userId, templateId]);
+  await tx.run('DELETE FROM coloring_special_progress WHERE user_id=? AND template_id=?', [userId, templateId]);
+  await tx.run('DELETE FROM coloring_progress WHERE user_id=? AND template_id=?', [userId, templateId]);
+  await tx.run('DELETE FROM coloring_tiled_progress_tile_colors WHERE user_id=? AND template_id=?', [userId, templateId]);
+  await tx.run('DELETE FROM coloring_tiled_progress_colors WHERE user_id=? AND template_id=?', [userId, templateId]);
+  await tx.run('DELETE FROM coloring_tiled_progress_tiles WHERE user_id=? AND template_id=?', [userId, templateId]);
+  await tx.run('DELETE FROM coloring_tiled_progress WHERE user_id=? AND template_id=?', [userId, templateId]);
+}
+
 async function insertLegacyCohortTemplate(tx, {
   id,
   ownerId,
@@ -278,6 +293,8 @@ router.post('/seed-cohort-template', authMiddleware, asyncRoute(async (req, res)
         });
       });
     }
+  } else {
+    await withDbTransaction((tx) => resetCohortProgress(tx, req.userId, id));
   }
 
   // The fixture contract is the deterministic production assignment. The
