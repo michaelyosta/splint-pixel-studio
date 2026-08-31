@@ -30,6 +30,8 @@ const router = Router();
 const DEFAULT_PALETTE = ['#101820', '#ffffff', '#ff6b6b', '#3ecf8e', '#f7c948', '#8ab4f8'];
 const COHORT_FIXTURE_MAX_ATTEMPTS = 64;
 const COHORT_FIXTURE_TEMPLATE_PREFIX = 'tpl_cohort_e2e_';
+const ALPHA_GLYPH_FIXTURE = 'alpha-glyph-kinds';
+const ALPHA_GLYPH_LEGACY_SEED = 'e2e-special-glyph-v2';
 const LEGACY_SIZES = Object.freeze([
   { width: 28, height: 28 },
   { width: 96, height: 96 },
@@ -61,8 +63,9 @@ function buildTiles(width, height, tileSize, paletteLength) {
   return { grid, tiles };
 }
 
-function deterministicCohortTemplateId(userId, cohort, attempt, size) {
-  return `${COHORT_FIXTURE_TEMPLATE_PREFIX}${String(userId).slice(0, 24)}_${cohort}_${attempt}_${size.width}x${size.height}`;
+function deterministicCohortTemplateId(userId, cohort, attempt, size, fixture = '') {
+  const fixtureSuffix = fixture ? `_${fixture}` : '';
+  return `${COHORT_FIXTURE_TEMPLATE_PREFIX}${String(userId).slice(0, 24)}_${cohort}_${attempt}_${size.width}x${size.height}${fixtureSuffix}`;
 }
 
 /**
@@ -70,10 +73,10 @@ function deterministicCohortTemplateId(userId, cohort, attempt, size) {
  * the requested cohort. Only `getSparkExperimentGroup`/`isSparkTreatmentUser`
  * are used; no override is persisted or consulted.
  */
-function findCohortTemplateId(userId, cohort, size) {
+function findCohortTemplateId(userId, cohort, size, fixture = '') {
   const requested = String(cohort).toLowerCase() === 'control' ? 'control' : 'treatment';
   for (let attempt = 0; attempt < COHORT_FIXTURE_MAX_ATTEMPTS; attempt += 1) {
-    const id = deterministicCohortTemplateId(userId, requested, attempt, size);
+    const id = deterministicCohortTemplateId(userId, requested, attempt, size, fixture);
     // The fixture must represent the real deterministic production
     // assignment. A QA override in the current process would otherwise make
     // the same id flip cohorts after insertion.
@@ -133,6 +136,7 @@ async function insertLegacyCohortTemplate(tx, {
   width,
   height,
   now,
+  specialSeed,
 }) {
   const cells = Array(width * height).fill(0);
   await tx.run(`INSERT INTO coloring_templates (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,created_at,updated_at)
@@ -140,6 +144,7 @@ async function insertLegacyCohortTemplate(tx, {
   [id, ownerId, `Cohort fixture ${id}`, 'e2e deterministic cohort fixture', 'custom', 'custom', width, height, JSON.stringify(DEFAULT_PALETTE), JSON.stringify(cells), null, null, 'user', 'private', 'active', now, now]);
   const generated = generateLegacySparkCells({
     templateId: id,
+    seed: specialSeed || id,
     width,
     height,
     cells,
@@ -256,13 +261,17 @@ router.post('/seed-pre021-template', authMiddleware, asyncRoute(async (req, res)
 router.post('/seed-cohort-template', authMiddleware, asyncRoute(async (req, res) => {
   const cohort = String(req.body?.cohort || '').toLowerCase();
   const storage = String(req.body?.storage || 'tiled').toLowerCase();
+  const fixture = String(req.body?.fixture || '').toLowerCase();
   if (!['treatment', 'control'].includes(cohort)) {
     return res.status(400).json({ error: 'cohort must be treatment or control' });
+  }
+  if (fixture && fixture !== ALPHA_GLYPH_FIXTURE) {
+    return res.status(400).json({ error: `Unsupported cohort fixture: ${fixture}` });
   }
   const allowedSizes = storage === 'legacy' ? LEGACY_SIZES : TILED_SIZES;
   const size = findSize(req.body?.size, allowedSizes);
   const tileSize = 32;
-  const id = findCohortTemplateId(req.userId, cohort, size);
+  const id = findCohortTemplateId(req.userId, cohort, size, fixture);
   const now = new Date().toISOString();
 
   const existing = await get('SELECT id, owner_id, storage_mode FROM coloring_templates WHERE id=?', [id]);
@@ -274,6 +283,7 @@ router.post('/seed-cohort-template', authMiddleware, asyncRoute(async (req, res)
         width: size.width,
         height: size.height,
         now,
+        specialSeed: fixture === ALPHA_GLYPH_FIXTURE ? ALPHA_GLYPH_LEGACY_SEED : undefined,
       }));
     } else {
       const tiles = tiledPayload(size.width, size.height, tileSize);

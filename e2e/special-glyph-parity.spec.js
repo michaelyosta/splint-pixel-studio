@@ -11,6 +11,7 @@ const LEGACY_GRID = 96;
 const TILED_GRID = 160;
 const TILE = 32;
 const GLYPH_GRID_SIZE = 12;
+const ALPHA_GLYPH_FIXTURE = 'alpha-glyph-kinds';
 const evidenceDir = resolve('docs/evidence/special-glyph-parity');
 
 function legacyFixtureOwnerId(testInfo) {
@@ -33,6 +34,7 @@ async function createLegacy(page, {
     data: {
       cohort,
       storage: 'legacy',
+      fixture: allKinds ? ALPHA_GLYPH_FIXTURE : undefined,
       size: { width: LEGACY_GRID, height: LEGACY_GRID },
     },
   });
