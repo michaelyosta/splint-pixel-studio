@@ -1,19 +1,27 @@
 # E2E harness static audit
 
-Audit scope: read-only inspection of the 38 Playwright specs, shared setup, package scripts, and CI workflows at frozen base `dc01c103544ac953e97cb77fc501842f9dab5f1b`. No source or harness changes were made during this audit.
+Audit scope: read-only inspection of the 39 Playwright specs, shared setup,
+package scripts, and CI workflows at frozen base
+`dc01c103544ac953e97cb77fc501842f9dab5f1b`. No source or harness changes were
+made during this audit.
 
 ## Executive result
 
-The harness boots from a fresh per-invocation SQLite/media runtime and uses lockfile installs, but it is not yet a trustworthy release gate. The principal false-green/poor-diagnostics risks are the trace mismatch, absent CI artifact publication, swallowed readiness failures, 49 arbitrary sleeps, and mutable state shared by all tests in one Playwright invocation. These are audit findings only until the frozen diagnostic run proves their impact.
+The harness boots from a fresh per-invocation SQLite/media runtime and uses
+lockfile installs, but the frozen audit identified several release-gate risks:
+trace mismatch, absent CI artifact publication, swallowed readiness failures,
+49 arbitrary sleeps, and mutable state shared by all tests in one Playwright
+invocation. These were audit findings only until the frozen diagnostic proved
+their impact; the bounded fixes and remaining debt are recorded below.
 
 ## Static inventory metrics
 
 | Signal | Count / current setting | Risk |
 |---|---:|---|
-| Playwright specs | 38 | broad suite with large overlap |
-| Logical tests | 144 | test-level ownership needed |
+| Playwright specs | 39 | broad suite with large overlap |
+| Logical tests | 146 | test-level ownership needed |
 | Project cases | 432 | 3 projects × logical tests before skips |
-| Expected runnable project cases | 405 | 27 source-gated skips |
+| Expected runnable project cases | 411 | 27 source-gated skips |
 | `waitForTimeout` calls | 49 | causal state is not encoded at these sites |
 | broad empty catches matching audit rule | 37 | potential readiness and oracle loss |
 | `waitForResponse` followed by catch | 7 | request evidence may be discarded |
@@ -25,12 +33,18 @@ The harness boots from a fresh per-invocation SQLite/media runtime and uses lock
 
 ## Timing and readiness findings
 
-1. `playwright.config.js` has `retries: 0` and `trace: 'on-first-retry'`. With no retries, a failed test has no trace from this configuration. This is a direct diagnostics gap.
+1. At the frozen audit SHA, `playwright.config.js` had `retries: 0` and
+   `trace: 'on-first-retry'`. With no retries, a failed test had no trace from
+   this configuration. This direct diagnostics gap was confirmed by the
+   frozen run and corrected to `retain-on-failure`.
 2. 49 `page.waitForTimeout` calls remain. The largest concentrations are `stabilization.spec.js` (9), `special-cells-1200-delivery.spec.js` (8), `tiled-stroke-engine.spec.js` (7), and `special-glyph-parity.spec.js` (6). Some may model animation/input settling, but each needs a causal state oracle before release-gate use.
 3. 37 broad empty catches are used for onboarding, response readiness, optional UI and cleanup. A test can proceed after a failed readiness assertion or missing response without recording the cause.
 4. Several response waits are registered and then caught without a failure artifact. A request that is optional must be asserted as optional with observable state; a required request must fail with status/body evidence.
 5. `scripts/e2e-global-setup.mjs` polls health with a causal HTTP endpoint, but server child processes inherit stdio and do not write structured per-run logs. On Windows its stop path uses `taskkill`; on POSIX it waits up to 5 seconds after group termination but does not force-close after the race.
-6. No deterministic Node 22 local command exists. `npm run test:e2e` uses whichever `node` is first on PATH; the current Windows shell is Node 24.19.0, while CI uses Node 22.
+6. At the frozen audit SHA no deterministic Node 22 local command existed.
+   The final harness now provides the explicit Node 22 procedure and
+   `npm run test:e2e:ci-local`; ordinary `npm run test:e2e` remains PATH-driven
+   and is not the authoritative parity command.
 
 ## State and isolation findings
 
@@ -49,16 +63,29 @@ The harness boots from a fresh per-invocation SQLite/media runtime and uses lock
 ## Network/data findings
 
 1. CI E2E installs root dependencies, server dependencies and both Chromium/WebKit browsers independently in all 16 shards. This creates measurable duplicate setup cost; no optimization should be made until timings are recorded.
-2. CI uses `strategy.fail-fast: false`, which is appropriate for collecting all shard failures, but there is no explicit machine-readable result collation or failure matrix artifact.
-3. The E2E workflow does not upload `test-results`, `playwright-report`, traces, screenshots, server logs or a JSON summary. Logs are only whatever remains in the Actions console.
+2. CI uses `strategy.fail-fast: false`, which is appropriate for collecting all
+   shard failures. The final harness also emits a JSON result and keeps
+   per-shard output directories; a consolidated cross-shard failure matrix is
+   still a documentation/CI follow-up rather than a generated provider report.
+3. At the frozen audit SHA the E2E workflow did not upload
+   `test-results`, `playwright-report`, traces, screenshots, server logs or a
+   JSON summary. The final workflow uploads `test-results/` and
+   `playwright-report/` for every shard outcome and emits JSON; structured
+   server-log collation remains debt.
 4. Readiness is mixed between DOM assertions, response waits, polling and arbitrary delays. The final helper policy should prefer visible/attribute/API state that is causal to the next action.
 
 ## Diagnostic and release-gate findings
 
-1. Default Playwright screenshot/video settings are not enabled in `use`; selected specs capture screenshots but a generic failure screenshot is not guaranteed.
-2. The release-candidate workflow runs the entire suite without a fast/extended distinction. The PR CI workflow also runs all 16 shards, while branch protection requirements are not proven by repository files alone.
+1. Default Playwright screenshot/video settings were not enabled in `use`; the
+   final config now guarantees a generic failure screenshot with
+   `screenshot: 'only-on-failure'` (video remains disabled).
+2. At the frozen audit SHA the workflow had no fast/extended distinction. The
+   final workflow defines `e2e-critical` for the 26-case PR gate and keeps the
+   complete suite as the 16-shard extended job; branch-protection enforcement
+   still requires repository settings/provider confirmation.
 3. Evidence-only suites are source-gated by environment variables (`ACCESSIBILITY_EVIDENCE`, `SESSION_GOALS_EVIDENCE`) and appear in normal enumeration as expected skips. They need explicit extended/nightly ownership.
-4. No quarantine manifest/policy exists in the current harness. No test is quarantined by this audit.
+4. The frozen audit found no quarantine manifest/policy. The stabilization pass
+   added `E2E_QUARANTINE_POLICY.md`; current quarantine count remains zero.
 
 ## Post-wave disposition
 
@@ -67,17 +94,26 @@ a reason for a mechanical rewrite. The proven false-green/diagnostic gaps in
 the release paths were addressed: Node 22 is now explicit, retries remain `0`,
 failure traces and screenshots are retained, JSON results and per-run output
 directories are supported, and CI uploads diagnostics on every outcome. The
-C2 late-response race and C4 tiled fixture/oracle races were fixed causally.
+C2 late-response race, C4 tiled fixture/oracle races, and C5 generic
+guided-player fixture collision with a valid Fuse offer were fixed causally.
+The generic guided journey now seeds the existing deterministic `control`
+cohort; special-cell treatment remains covered by dedicated specs.
 
 The remaining 49-sleep/37-catch counts are legacy debt outside the proven
 failure mechanisms; they remain visible in the audit and are not hidden by a
-green run. The final exact-SHA critical and 16-shard extended matrices both
-passed with `0` retries and `0` unexpected results. PostgreSQL service proof is
-still CI-gated because local Docker/PostgreSQL was unavailable.
+green run. The final exact-SHA critical and selected 16-shard extended
+matrices passed with `0` retries and `0` unexpected results. The first
+post-fix extended wave had three bounded first-pass rows; those were not hidden
+by retries. PostgreSQL service proof is still CI-gated because local
+Docker/PostgreSQL was unavailable.
 
 ## Root-cause investigation priorities
 
-1. Capture all failures from one frozen Node 22/Linux run before touching the listed smells.
-2. Cluster pointer/touch, lifecycle/readiness, tiled loading/cache, fixture/database isolation, mobile project behavior, stale contracts and provider/environment failures.
-3. Use the failure evidence to decide which waits/catches are causal fixes versus harmless visual stabilization. Do not mechanically replace all waits or weaken assertions.
-4. Add failure artifacts and a Node 22 local procedure only after the diagnostic proves the exact requirements.
+1. Obtain authoritative Node 22/Linux CI and PostgreSQL service evidence for
+   the final candidate branch.
+2. Add structured server-log collation and a machine-generated cross-shard
+   failure matrix when CI implementation cost is justified.
+3. Reduce the remaining waits/catches only with a concrete causal oracle and
+   focused repeated evidence; do not mechanically rewrite or weaken assertions.
+4. Confirm branch-protection required checks and physical Telegram WebView/iOS
+   coverage before expanding the release claim beyond emulated projects.

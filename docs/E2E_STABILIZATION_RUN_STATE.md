@@ -1,176 +1,204 @@
 # E2E stabilization run state
 
-Status: `FINAL_VALIDATION — expanded critical green; final 16-shard extended matrix running`
+Status: `BLOCKED — authoritative PostgreSQL/CI evidence and independent final reviews unavailable`
 
-This is the durable state for the single E2E stabilization pass. It is updated
-at phase boundaries and after every bounded verification/integration wave.
+Last updated: 2026-08-31 (Asia/Qyzylorda)
+
+This file is the durable state for the single stabilization pass. Generated
+Playwright evidence is intentionally kept outside commits; paths below refer
+to the local integration worktree.
 
 ## Baseline and safety
 
 - Base branch: `origin/main`
 - Base SHA: `dc01c103544ac953e97cb77fc501842f9dab5f1b`
-- Supplied release-candidate SHA: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
+- Supplied release candidate: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current integration SHA: `b9a82d8a2fb10e5580fb487035ebf84983a7fb0a` plus uncommitted final coverage/runtime hardening wave; no source SHA is frozen until this validation completes.
-- Primary dirty checkout: `C:\Users\misa\Desktop\Splint-Gemini`; branch/HEAD
-  remain unchanged. A special-contract agent briefly launched a focused run
-  from this primary path; it was interrupted immediately after detection.
-  Existing dirty evidence files were not reverted or imported. This boundary
-  incident is recorded as harness/process debt and all further agent work must
-  prove isolated cwd before execution.
-- Production: no deployment or production configuration/data/webhook/payment change.
+- Current code/harness SHA: `7d16ed3` (`test: isolate guided player from special-cell offers`).
+- Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
+  evidence and user-owned files were not reset, reverted, staged or imported.
+- Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
+- Production: no deployment and no Cloudflare/Render/Neon/R2/Telegram/payment
+  mutation. `showalove.ru` remains Closed Alpha LIVE.
 - Stars: unchanged, `OFF / FAIL-CLOSED`.
 
-## Active worktrees and agents
+## Active worktrees, agents and ownership
 
-| Role | Worktree | Branch/commit | Ownership | Status |
-|---|---|---|---|---|
-| Lead integration | `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization` | `codex/e2e-system-stabilization` / `b9a82d8` | stabilization docs, CI/harness integration | final validation |
-| Diagnostic runner | `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean` | detached `ab1adc3` | frozen read-only run artifacts | complete; generated evidence unintegrated |
-| Primary checkout | `C:\Users\misa\Desktop\Splint-Gemini` | user-owned dirty branch | unrelated dirty evidence | untouched |
-| C1 navigation | agent `01a052cd-d0b1-71c0-a10c-b0db0fdd743f` (isolated worktree) | Luna Max | C1-owned specs | complete; no causal fix |
-| C2 lifecycle | agent `01a052cd-d1f5-7fc3-b622-c763d471a607` (isolated worktree) | Luna Max | C2-owned specs | complete; commit reviewed |
-| C3 special contracts | `C:\Users\misa\AppData\Local\Temp\splint-e2e-special-contract-owner` | lead after replacement worker boundary refusal | C3-owned specs | isolated cluster run complete; 16 passed; no commit indicated |
-| C4 tiled | agent `01a052cd-d47a-7341-a1a6-f4dd48d752ac` (isolated worktree) | Luna Max | C4-owned specs | complete; commit reviewed |
+| Role | Location / identity | Ownership | Status |
+|---|---|---|---|
+| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | active |
+| Frozen diagnostic | `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean` | read-only frozen evidence | complete |
+| Primary checkout | `C:\Users\misa\Desktop\Splint-Gemini` | unrelated user work/evidence | untouched |
+| C1 navigation | `01a052cd-d0b1-71c0-a10c-b0db0fdd743f` | navigation/readiness cluster | complete; no speculative fix |
+| C2 lifecycle | `01a052cd-d1f5-7fc3-b622-c763d471a607` | late response/lifecycle cluster | complete; integrated |
+| C3 special contracts | isolated lead replacement after boundary refusal | special-cell contract cluster | complete; no fix |
+| C4 tiled | `01a052cd-d47a-7341-a1a6-f4dd48d752ac` | tiled loading/stroke cluster | complete; integrated |
 
-Three original cluster agents completed in isolated worktrees; C3 was completed
-by the lead after a launcher primary-cwd incident. No source or harness fix was
-made before the complete frozen diagnostic.
+No commits are awaiting integration. No subagent has permission to change the
+primary checkout or production state.
 
-## E2E inventory and static audit
+## Independent final review status
 
-- Inventory: [E2E_TEST_INVENTORY.md](E2E_TEST_INVENTORY.md)
-- Static audit: [E2E_HARNESS_AUDIT.md](E2E_HARNESS_AUDIT.md)
-- Performance evidence: [E2E_CI_PERFORMANCE.md](E2E_CI_PERFORMANCE.md)
-- 39 specs, 146 logical tests, 438 nominal project cases.
-- Static audit found 49 `waitForTimeout` calls, 37 broad empty catches, 7
-  response-wait/catch patterns, 8 fixed-coordinate patterns, 28 timeout
-  overrides, 60 browser-storage references, 136 request references, and 52
-  explicit screenshot calls.
-- Current harness configuration: one worker, `fullyParallel=false`, retries
-  `0`, `trace: retain-on-failure`, `screenshot: only-on-failure`; CI emits JSON
-  results and uploads `test-results/` plus `playwright-report/` per shard.
-  `PLAYWRIGHT_OUTPUT_DIR` allows each local validation run to retain its own
-  artifacts instead of allowing a later Playwright invocation to clear the
-  previous run's output directory.
+Two requested Sol Max read-only reviews were dispatched against the final
+code/harness SHA, one for Test Reliability and one for Product Integrity. Both
+terminated before producing a review because the model provider returned the
+same external usage-limit error. No reviewer PASS/FAIL is inferred from that
+error, and the lead's local inspection is not counted as independent review.
+
+## E2E inventory and classification
+
+- Inventory: [E2E_TEST_INVENTORY.md](E2E_TEST_INVENTORY.md).
+- 39 Playwright spec files, 146 logical tests, 438 nominal project cases.
+- 411 cases remain after source-level project skips; the final matrix reports
+  367 executed passes and 71 explicit/conditional skips (the additional skips
+  are capability or environment gates, not quarantine).
+- Release-critical proposal is maintained in
+  `scripts/run-e2e-suite-node22.mjs`: 26 title-selected tests across the three
+  projects.
+- Extended regression is the complete `e2e/` suite in 16 fail-fast-disabled
+  shards.
+- Legacy/debt cases remain visible and are not deleted merely because they are
+  not in the fast gate.
+
+## Static harness audit
+
+Read-only findings are in [E2E_HARNESS_AUDIT.md](E2E_HARNESS_AUDIT.md):
+
+- 49 `waitForTimeout` calls;
+- 37 broad empty catches;
+- 7 response-wait/catch patterns;
+- 8 fixed-coordinate patterns;
+- 28 timeout overrides;
+- 60 storage references and 136 request references;
+- 52 explicit screenshot calls.
+
+The bounded wave addressed proven readiness/oracle/isolation defects. It did
+not mechanically rewrite every legacy wait or remove useful regression
+coverage. Remaining smells are recorded debt, not silently declared safe.
+
+## Runtime contract
+
+- Authoritative local/CI E2E runtime: Node `v22.23.2`, npm `10.9.8`.
+- Playwright `1.61.1`; Windows validation was run with fresh per-shard ports.
+- `retries=0`, `fullyParallel=false`, one worker per local shard.
+- `trace=retain-on-failure`, `screenshot=only-on-failure`, JSON + line output.
+- CI continues to upload `test-results/` and `playwright-report/` on every
+  shard outcome.
+- `localhost` is the readiness authority because Windows loopback behavior
+  differed between `127.0.0.1`, `localhost` and `::1` during diagnosis.
 
 ## Frozen diagnostic
 
-- Frozen source SHA: `ab1adc3daaec6a1b4305952ab342f34e70759673`.
-- Runtime: Node `v22.23.2`, npm `10.9.8`, Playwright `1.61.1`.
-- Browser projects: `chromium`, `Mobile iPhone`, `Mobile Pixel`.
-- Host: Windows; Linux Docker attempt excluded as invalid environment evidence.
-- Command: `node22 node_modules/@playwright/test/cli.js test --reporter=json`.
-- Start: `2026-08-30T10:28:14.224Z` / `15:28:14` local.
-- End: `2026-08-30T12:52:41.662Z` / `17:52:41` local.
-- Duration: `8,667,437.615 ms` / `2 h 24 m 27.438 s`.
-- Result: 302 passed, 59 unexpected, 71 skipped, 0 flaky.
-- Unexpected split: 48 failed and 11 timed out.
-- Project result: Chromium `134/0/0/10` pass/fail/timeout/skip; iPhone
-  `78/16/3/47`; Pixel `90/32/8/14`.
-- Full matrix: [E2E_DIAGNOSTIC_MATRIX.md](E2E_DIAGNOSTIC_MATRIX.md).
-- Artifact root: `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean\test-results`.
-- All unexpected results have `error-context.md`; no failure trace or generic
-  screenshot attachment was produced under the frozen pre-wave config.
+Frozen before fixes at SHA `ab1adc3daaec6a1b4305952ab342f34e70759673`:
 
-## Failure clusters
+- 432 nominal cases; 302 passed; 59 unexpected (`48 failed + 11 timed out`);
+  71 skipped; 0 flaky; duration `2 h 24 m 27.438 s`.
+- Chromium: `134 pass / 0 fail / 0 timeout / 10 skip`.
+- Mobile iPhone: `78 pass / 16 fail / 3 timeout / 47 skip`.
+- Mobile Pixel: `90 pass / 32 fail / 8 timeout / 14 skip`.
+- Matrix: [E2E_DIAGNOSTIC_MATRIX.md](E2E_DIAGNOSTIC_MATRIX.md).
+- The old `trace: on-first-retry` plus `retries=0` configuration produced no
+  failure traces; this diagnostics gap is now fixed.
 
-Initial candidates from the frozen matrix; classification remains provisional
-until focused reproduction proves the common mechanism.
+## Failure clusters and disposition
 
-| Candidate cluster | Affected result groups | Provisional class | Owner | Status |
-|---|---:|---|---|---|
-| Mobile catalog/player navigation and readiness | accessibility, creator, input, onboarding | `HARNESS_FAILURE` with pressure contributor | `e2e-navigation-owner` | complete; clean focused pass; no fix required |
-| Route/resume/lifecycle readiness | bfcache, core-feel, guided, p0, sessions, stabilization | `HARNESS_FAILURE` | `e2e-lifecycle-owner` | complete; causal fix integrated |
-| Special-cell fixtures/contracts | phase2, bomb, special, help | `HARNESS_FAILURE` / contract review | `e2e-special-contract-owner` | complete; isolated pass; no fix required |
-| Tiled loading/zoom/stroke oracles | glyph, completion, low-zoom, stroke | `HARNESS_FAILURE` with pressure contributor | `e2e-tiled-owner` | complete; causal test fixes integrated |
-| Docker Linux runtime | separate invalid attempt | `ENVIRONMENT_FAILURE` | lead | excluded from matrix |
-| Route/readiness and resume state | core-feel, guided, p0, stabilization | `HARNESS_FAILURE` | complete | response registration fixed; repeated PASS |
-| Mobile special-cell treatment state | phase2, special-bomb, special-cells, help | `HARNESS_FAILURE` candidate disproven by clean run | complete | isolated contract suite passed |
-| Tiled loading/zoom/completion | glyph, completion, low-zoom | `HARNESS_FAILURE` | complete | causal readiness/oracle corrections; repeated PASS |
-| Tiled stroke/post-action persistence | bfcache, stroke engine | `HARNESS_FAILURE` | complete | strict corrected stroke oracle; repeated PASS |
-| Shared mutable fixture / server pressure | cross-cutting mobile failures | `ENVIRONMENT_FAILURE` contributor | assessed | isolated shards remove observed cross-run pressure |
-| Invalid Docker runtime | separate container attempt | `ENVIRONMENT_FAILURE` | excluded | host Docker socket defect; not product matrix |
+Full ledger: [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 
-No test is quarantined. No assertion has been weakened. No product failure has
-yet been declared or silently treated as a harness failure.
+| Cluster | Initial / follow-up signal | Classification | Disposition |
+|---|---:|---|---|
+| C1 mobile bootstrap/navigation | 26 initial rows | HARNESS + environment pressure | owned suite clean; no product defect |
+| C2 late response/lifecycle registration | 12 initial rows | HARNESS | response registered before navigation/check; focused repeats pass |
+| C3 special-cell contracts | 13 initial rows | HARNESS/test coverage boundary | isolated Pixel cluster pass; special paths stay explicit |
+| C4 tiled loading/zoom/stroke oracle | 8 initial rows | HARNESS | state-driven waits, completed-response oracle, geometric sampling |
+| C5 generic guided fixture hit treatment Fuse | 2 full-shard failures before fix | HARNESS fixture isolation | switched generic guided test to deterministic control fixture; 5/5 + full shard pass |
+| C6 mobile worker/cold module event | 1 first-pass creator crop failure | ENVIRONMENT/provider | focused 3/3 and shard rerun pass; no quarantine |
+| C7 long mobile visual/guidance journeys | 2 first-pass failures (glyph/guided) | ENVIRONMENT/HARNESS sensitivity | exact focused checks pass; guided root cause separated into C5 |
 
-## Integration ledger
+No product defect was proven. No assertion was weakened. No test was
+quarantined and no obsolete test was removed.
 
-- Commits awaiting integration: none; the C2 lifecycle and C4 tiled commits
-  were reviewed and integrated in `70af41f`.
-- Integrated commits: `3b43297` inventory/audit; `ab1adc3` frozen diagnostic
-  state; `70af41f` bounded C2/C4 + lead harness/docs wave; `16fb30c` targeted
-  validation record; `b6db4b6` Node 22 suite runner, retained output
-  directories, and the isolated release-critical CI gate; `e74c7fe` bounded
-  C4 fixture/oracle correction; `b9a82d8` critical-suite selector correction.
-- Additional correction waves: at most one bounded wave after post-fix full
-  validation identifies a newly proven root cause.
+## Integrated commit ledger
+
+- `3b43297` inventory and static audit docs.
+- `ab1adc3` frozen diagnostic state.
+- `70af41f` bounded C2/C4 wave.
+- `16fb30c` post-integration targeted validation.
+- `b6db4b6` Node 22 runner, retained output and critical gate.
+- `e74c7fe` C4 fixture/oracle correction.
+- `b9a82d8` critical title-selector correction.
+- `16852a7` runtime/mobile oracle stabilization.
+- `7d16ed3` deterministic control fixture for generic guided player.
 
 ## Verification ledger
 
-- Frozen diagnostic: complete, RED, evidence captured.
-- Cluster reproductions: C1 clean owned-suite `111 passed / 6 skipped`; C2
-  affected rows passed with guided `5/5`; C3 full isolated Pixel cluster
-  `16 passed`; C4 low-zoom `5/5` and clean stroke `2/2`, with one explicit
-  load-sensitive residual. These are evidence against a simple product-wide
-  failure, not final classifications for every matrix row.
-- Targeted verification: complete for owner checks and integrated SHA: Mobile
-  Pixel guided/migration/glyph/low-zoom/stroke `15/15 passed` in `9.9m` with
-  retries `0`.
-- Repeated previously flaky scenarios: C2 guided flow `5/5`; C4 corrected
-  tiled stroke `5/5`; low-zoom `5/5`; related owner checks pass with retries
-  `0`.
-- Post-integration full CI-equivalent run: RED under a single mixed Windows
-  invocation on `16fb30c` (317 executed, 44 unexpected, 71 skipped, 2 h 15 m
-  16 s); the four fresh Chromium failures reproduced as individual PASSes.
-  Final exact-SHA full proof is recorded below in the isolated shard evidence.
-- Release-critical gate on `b9a82d8` before auth/Gallery coverage expansion:
-  Chromium `23/23`, Mobile iPhone `12/12` executable (`11` conditional
-  skips), and Mobile Pixel `23/23`; retries `0`, unexpected `0`. The current
-  manifest is now 26 tests in 16 files and requires a fresh final run.
-- Expanded release-critical matrix (current worktree, before final commit):
-  Chromium `26/26`, Mobile iPhone `15 passed / 11 expected conditional skips`,
-  Mobile Pixel `26/26`; all `0` unexpected and `0` flaky, retries `0`. The
-  current final 16-shard extended matrix is running with separate ports
-  `5901..5916` / `3901..3916` and output roots
-  `test-results/full-final-shard-01..16`.
-- Reliability confirmation: the prior exact-SHA full 16-shard matrix was
-  green; the current expanded matrix must complete before this ledger is
-  promoted to final. Repeated focused evidence exists for lifecycle, input,
-  tiled, and special-cell mechanisms. No Playwright retry was used.
-- Unit/server/lint/build/diff checks: Node 22 unit `455/455`, server `401` pass
-  with `67` dependency-gated skips, syntax `67/67`, lint and build pass, and
-  `git diff --check` pass. PostgreSQL service suite is not locally proven
-  because Docker/PostgreSQL is unavailable on this Windows host; CI postgres
-  job remains the authoritative gate.
-- Independent reliability/product-integrity reviews: pending.
+### Focused and repeated evidence
 
-## Final extended validation evidence
+- C2 guided lifecycle: `5/5`.
+- Corrected low-zoom iPhone: `5/5`.
+- Special visual Pixel fixture isolation: `5/5`.
+- Creator crop iPhone: `3/3`.
+- Glyph parity iPhone: `1/1` exact focused check.
+- Guided player Pixel before fixture correction: `3/3`; after deterministic
+  control fixture: `5/5`.
+- Final control-fixture shard 14: `23 pass / 3 skip / 0 unexpected / 0 flaky`.
 
-- Exact code SHA: `b9a82d8a2fb10e5580fb487035ebf84983a7fb0a`.
-- 16 isolated shard contexts: every shard exited `0`; aggregate `361`
-  executed, `71` expected skips, `0` unexpected, `0` flaky.
-- Results: `test-results/full-b9-shard-01/` through
-  `test-results/full-b9-shard-16/`; aggregate ledger:
-  `test-results/full-b9-shards-summary.log`.
-- Sum of shard test durations: `75 m 15.732 s`; slowest shard:
-  `12 m 08.608 s`. This sequential Windows measurement is a runner-time
-  proxy, not a GitHub billing claim.
+### Final selected extended matrix
 
-## Cost and remaining debt
+The selected final evidence is one result for every shard, all on the same
+code/harness SHA `7d16ed3`: shards 1–6, 8–9, 11–13 and 15–16 from the final
+wave; shard 7 and shard 10 from their bounded green reruns; shard 14 from the
+control-fixture rerun.
 
-- Diagnostic wall-clock: `2 h 24 m 27.438 s` on Windows, one worker.
-- Historical GitHub reference: main run `33251937153` used approximately
-  `101.77` aggregate E2E runner minutes / `33.98` minutes wall-clock and was
-  RED in two tiled-stroke shards; RC run `33247780450` used `86.03` / `19.75`
-  and was GREEN. These are not post-stabilization measurements.
-- Slowest observed cases include Pixel tiled stroke timeouts at 180s, Pixel
-  glyph parity at 174.2s, and Chromium visual audit at 223.7s.
-- Remaining debt: obtain a post-wave PostgreSQL service result, run independent
-  reliability and product-integrity reviews, and complete the handoff/final
-  document commit. No test is quarantined and no product defect is proven.
-- Next action: collect all `full-final-shard-*` JSON results, run mandatory
-  non-E2E gates, update the evidence docs, obtain fresh independent reviews,
-  then finalize the handoff and recheck primary/production safety.
+- 16 shards; `367 pass`, `71 expected skip`, `0 unexpected`, `0 flaky`.
+- Retries remained `0`; every shard exited `0`.
+- Sum of selected shard test durations: `73 m 56.861 s` (local sequential
+  runner-time proxy; not a GitHub billing number).
+- The first post-fix wave was `364 pass / 71 skip / 3 unexpected`; the three
+  affected shards were investigated, fixed or correctly classified, and
+  rerun in one bounded correction sequence. The original red evidence remains
+  in `test-results/full-seq3-final-shard-*`.
+
+### Final critical gate
+
+- Chromium: `26 pass / 0 skip / 0 unexpected / 0 flaky`, `6 m 48.958 s`.
+- Mobile iPhone: `15 pass / 11 expected conditional skip / 0 unexpected /
+  0 flaky`, `2 m 38.644 s`.
+- Mobile Pixel: `26 pass / 0 skip / 0 unexpected / 0 flaky`, `6 m 53.653 s`.
+- Retries `0`; release-critical wall-clock target is achievable when the
+  three project jobs run in CI parallelism. Physical Telegram/iOS remains a
+  separate human/device gate.
+
+### Non-E2E gates
+
+- Root unit suite: `455 pass / 0 fail`, `32.620 s`.
+- Server suite: `401 pass / 0 fail / 67 skipped`, `205.805 s`.
+- Lint: exit `0`, warning budget `100/100`; warnings are existing debt and the
+  budget is exactly saturated, so this is a pass with a maintenance warning.
+- Vite build: pass, `7.44 s`.
+- `git diff --check`: pass (only line-ending warnings from generated evidence).
+- PostgreSQL suite: `42 pass / 0 fail / 65 skipped`, exit `0`, but no
+  `DATABASE_URL` and no local PostgreSQL service were available. This is not
+  authoritative PostgreSQL PASS and remains a strict blocker.
+
+## CI cost and remaining debt
+
+- Frozen diagnostic: `144.46` one-worker wall-clock minutes.
+- Selected extended matrix: `73.95` sequential shard-duration minutes;
+  slowest selected shard is shard 15 at approximately `11 m 56.614 s`.
+- Critical local project durations are approximately `6.82`, `2.64` and
+  `6.89` minutes; CI parallel wall-clock should be approximately the slowest
+  lane plus setup, subject to runner/provider variance.
+- The earlier 16-way concurrent local attempt produced 79 unexpected results
+  from resource pressure. This is why local evidence is sequential; CI shard
+  concurrency still needs an external controlled measurement.
+- Remaining debt: real PostgreSQL service proof, independent Sol Max reviews,
+  physical Telegram/iOS proof, residual legacy timing/catch cleanup and a
+  controlled GitHub CI cost measurement.
+
+## Next action
+
+Re-run the two independent final reviews when the Sol Max provider is
+available, obtain authoritative PostgreSQL plus live branch CI evidence, and
+recheck primary Git/production safety. Until then, hand off with these exact
+blockers; do not close as stable.

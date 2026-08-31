@@ -8,7 +8,7 @@ Status: `E2E_MATRIX_GREEN — terminal E2E_SYSTEM_STABLE pending PostgreSQL serv
 - Supplied RC: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`, confirmed ancestor of
   `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`.
-- Final code-and-harness evidence SHA: `b9a82d8a2fb10e5580fb487035ebf84983a7fb0a`.
+- Final code-and-harness evidence SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
   Any later commit in this branch is documentation finalization only unless
   explicitly stated otherwise.
 - Primary checkout remained user-owned and dirty; no reset, force push,
@@ -55,23 +55,27 @@ The full cluster ledger is [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 
 | Cluster | Initial rows | Final disposition |
 |---|---:|---|
-| C1 mobile bootstrap/navigation/readiness | 26 | Clean owned-suite pass; no source fix required |
+| C1 mobile bootstrap/navigation/readiness | 26 | Clean owned-suite pass; no product fix required |
 | C2 lifecycle/late response registration | 12 | Harness/test fix: register required response before navigation and validate status/body |
-| C3 special-cell fixture/contracts | 13 | Clean isolated Pixel cluster pass; no source fix required |
+| C3 special-cell fixture/contracts | 13 | Clean isolated Pixel cluster pass; no product fix required |
 | C4 tiled loading/zoom/stroke oracle | 8 | Harness/test fixes: causal state wait, no-special fixture span, geometric cell-center sampling |
+| C5 generic guided fixture / Fuse offer | 1 recurring full-shard row | Harness fixture fix: deterministic control cohort |
+| C6 Creator WebKit worker/module sensitivity | 1 first-pass row | Environment/provider sensitivity; bounded rerun green |
+| C7 long mobile glyph/guidance sensitivity | 2 first-pass rows | Environment/provider sensitivity; focused and selected rerun green |
 
 The initial 59 failures were therefore not treated as 59 independent agents or
-as product defects. Four causal harness/test defects were corrected across C2
-and C4. No product defect was proven, no product source was changed, no
-assertion was weakened, no obsolete test was removed, and no test was
-quarantined.
+as product defects. Proven harness/test defects were corrected in C2, C4 and
+C5; C1, C3, C6 and C7 were retained as isolated environment/contract evidence
+with bounded green verification. No product defect was proven, no product
+source was changed, no assertion was weakened, no obsolete test was removed,
+and no test was quarantined.
 
 ## Harness changes
 
 - Node 22 is authoritative for E2E through the explicit local wrapper and
   `test:e2e:ci-local`.
-- `test:e2e:critical` defines the release-critical subset; it enumerates 23
-  cases from 15 files and accepts a project selector.
+- `test:e2e:critical` defines the release-critical subset; it enumerates 26
+  cases from the selected critical files and accepts a project selector.
 - `test:e2e:extended` names the complete suite; CI continues to run it in 16
   fail-fast-disabled shards.
 - Trace is `retain-on-failure`, screenshot is `only-on-failure`, retries stay
@@ -93,7 +97,7 @@ skips for Chromium/CDP-only and 1200×1200 software-rendering scenarios; those
 are not evidence for physical iOS. A separate physical Telegram WebView/iOS
 gate is required before claiming full iPhone release coverage.
 
-Extended regression is the complete 38-spec suite, including accessibility
+Extended regression is the complete 39-spec suite, including accessibility
 breadth, rare mobile combinations, long journeys, visual evidence and legacy
 compatibility paths. Source-gated skips remain explicit and are not silently
 converted into passes.
@@ -103,23 +107,23 @@ Current quarantine count is zero.
 
 ## Final E2E evidence
 
-Release-critical before the final auth/Gallery manifest expansion on SHA
-`b9a82d8`:
+Release-critical on final code/harness SHA `7d16ed3`:
 
-- Chromium: `23 pass`, `0 unexpected`, `0 flaky`, `6 m 11.139 s`.
-- Mobile iPhone: `12 executable pass`, `11 conditional skips`, `0 unexpected`,
-  `1 m 20.157 s`.
-- Mobile Pixel: `23 pass`, `0 unexpected`, `0 flaky`, `6 m 11.395 s`.
+- Chromium: `26 pass`, `0 unexpected`, `0 flaky`, `6 m 48.958 s`.
+- Mobile iPhone: `15 executable pass`, `11 conditional skips`, `0 unexpected`,
+  `2 m 38.644 s`.
+- Mobile Pixel: `26 pass`, `0 unexpected`, `0 flaky`, `6 m 53.653 s`.
 
-Extended on the same pre-expansion code SHA used 16 isolated shard contexts:
+Selected final extended evidence on the same final code/harness SHA uses one
+evidence run per shard after bounded corrections:
 
-- `361` executed, `71` expected skips, `0` unexpected, `0` flaky.
+- `367` executed, `71` expected skips, `0` unexpected, `0` flaky.
 - All 16 shards exited `0`.
-- Sum of shard test durations: `75 m 15.732 s`.
-- Slowest shard: `12 m 08.608 s`.
-- Evidence roots: `test-results/full-b9-shard-01/` through
-  `test-results/full-b9-shard-16/`; aggregate ledger:
-  `test-results/full-b9-shards-summary.log`.
+- Sum of selected shard test durations: `73 m 56.861 s`.
+- Slowest selected shard: `11 m 56.614 s`.
+- Evidence roots: `test-results/full-seq3-final-shard-*/`, with bounded rerun
+  replacements for shards 7, 10 and 14; the aggregate selected ledger is
+  `test-results/full-seq3-shards-summary.log`.
 
 Previously sensitive scenarios also have repeated PASS evidence: lifecycle
 guided flow `5/5`, corrected tiled stroke `5/5`, and low-zoom `5/5`, with
@@ -130,8 +134,8 @@ Playwright retries disabled.
 - Root unit suite: `455 pass / 0 fail`.
 - Server suite: `401 pass / 0 fail / 67 dependency-gated skips`.
 - Server syntax: `67/67` files.
-- Lint: `99/100` warning budget, exit `0`; warnings are pre-existing and the
-  configured budget was not exceeded.
+- Lint: `100/100` warning budget, exit `0`; warnings are pre-existing and the
+  configured budget was not exceeded, but the budget has no remaining margin.
 - Build: Vite production build passed.
 - `git diff --check`: passed.
 - PostgreSQL-specific suite: command exits `0` but `65` tests self-skip because
@@ -145,9 +149,10 @@ The performance record is [E2E_CI_PERFORMANCE.md](E2E_CI_PERFORMANCE.md).
 Historical GitHub references were `101.77` runner minutes / `33.98` wall-clock
 for a RED main run and `86.03` / `19.75` for the supplied GREEN RC run; these
 are not controlled before/after values. The final local extended result is a
-75-minute sequential runner-time proxy, with a 12-minute slowest shard; it is
-not a GitHub billing estimate. The three-project release-critical matrix fits
-the intended approximately 5–10 minute PR gate when jobs run in parallel.
+`73 m 56.861 s` sequential runner-time proxy, with an `11 m 56.614 s` slowest
+shard; it is not a GitHub billing estimate. The three-project release-critical
+matrix fits the intended approximately 5–10 minute PR gate when jobs run in
+parallel.
 
 Recommended policy:
 
@@ -161,19 +166,29 @@ Recommended policy:
 5. Quarantine only with a root-cause issue, owner, first-observed SHA,
    reproduction evidence and restore criteria. Current quarantine count is 0.
 
+## Independent final review status
+
+Two requested Sol Max read-only reviews were dispatched against final SHA
+`7d16ed3`: Test Reliability and Product Integrity. Both reviewer launches
+terminated before producing a verdict because the model provider returned an
+external usage-limit error. This handoff therefore records no independent
+review PASS/FAIL; the lead's local inspection is not substituted for that
+required gate.
+
 ## Remaining debt and release decision
 
-The E2E harness has a reproducible green pre-expansion critical and extended
-matrix. The goal cannot yet be declared terminal under the strict exit criteria
-until:
+The E2E harness has a reproducible green final critical matrix and a selected
+green extended matrix, with three first-pass rows requiring bounded rerun or
+fixture correction. The goal cannot yet be declared terminal under the strict
+exit criteria until:
 
 - PostgreSQL tests run against a real disposable PostgreSQL 16 service on the
   final candidate SHA and pass without environment skips; and
+- the 26-test critical manifest and the explicit physical-iOS gate are either
+  proven or their scope is formally accepted by the release owner; and
 - the independent Test Reliability and Product Integrity reviews are recorded
-  as PASS; and
-- the expanded 26-test critical manifest and the explicit physical-iOS gate
-  are either proven or their scope is formally accepted by the release owner.
+  as PASS.
 
-No production deployment is part of this handoff. The next safe action is to
-run those two final reviews and obtain the CI PostgreSQL service evidence in a
-future PR/runner context, then update the run-state status.
+No production deployment is part of this handoff. The next safe actions are to
+run the two final reviews and obtain authoritative PostgreSQL plus live branch
+CI evidence in a future PR/runner context, then update the run-state status.
