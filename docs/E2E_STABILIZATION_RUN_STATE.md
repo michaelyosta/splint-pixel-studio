@@ -18,7 +18,7 @@ to the local integration worktree.
 - Current code/harness SHA: `b4105a3b5983ce47e55a74f5d1328bea18fcf9ae`
   (bounded C13 correction: browser base URL and Vite bind use the same
   explicit loopback host).
-- Current integration HEAD: `b4105a3b5983ce47e55a74f5d1328bea18fcf9ae`.
+- Current integration HEAD: `5eda79654bc4420505fde247515450e151565915`.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.

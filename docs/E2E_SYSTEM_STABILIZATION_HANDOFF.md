@@ -9,7 +9,7 @@ Status: `FINAL_MATRIX_PENDING — C13 loopback correction committed; final full 
   `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`.
 - Last pre-correction code-and-harness SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
-- Current integration HEAD: `b4105a3b5983ce47e55a74f5d1328bea18fcf9ae`, the
+- Current integration HEAD: `5eda79654bc4420505fde247515450e151565915`, the
   committed bounded C13 loopback correction.
 - Primary checkout remained user-owned and dirty; no reset, force push,
   deployment, or production mutation was performed.
