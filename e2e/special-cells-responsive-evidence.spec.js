@@ -34,7 +34,7 @@ async function createTreatment(page, userId) {
   return { id: fixture.id };
 }
 
-function firstSpark(templateId) {
+function sparkCells(templateId) {
   const tiles = tiledPayload();
   const generated = generateSpecialCells({
     templateId,
@@ -51,7 +51,7 @@ function firstSpark(templateId) {
     tiles,
     occupiedIndices: generated.map((cell) => cell.cell_index),
   });
-  return [...generated, ...hazards].find((cell) => cell.kind === 'spark');
+  return [...generated, ...hazards].filter((cell) => cell.kind === 'spark');
 }
 
 async function moveToCell(page, canvas, cellIndex) {
@@ -98,17 +98,70 @@ test('tiled special offer stays usable at mobile widths and honors reduced motio
   // and run gets an independent template/progress namespace after truncation.
   const userId = `${randomUUID().replaceAll('-', '')}_special_responsive_${testInfo.project.name}`;
   const created = await createTreatment(page, userId);
-  const spark = firstSpark(created.id);
-  expect(spark).toBeTruthy();
-  await page.goto(`/?coloring=${created.id}&splintMetrics=1`);
+  const sparks = sparkCells(created.id);
+  expect(sparks.length).toBeGreaterThan(0);
+  const sessionSubject = `phase2_responsive_${testInfo.project.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+  await page.goto(`/?coloring=${created.id}&splintMetrics=1&phase2=session&phase2Variant=treatment&phase2Subject=${encodeURIComponent(sessionSubject)}`);
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
   const area = page.locator('.progressive-grid-area');
   const canvas = area.locator('canvas:not(.progressive-grid-minimap-canvas)');
   await expect(canvas).toBeVisible({ timeout: 30000 });
+  await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 30000 });
   if (reducedMotion) {
     await expect(area).toHaveAttribute('data-reduced-motion', 'true');
   }
+
+  // Session-game special markers are intentionally armed only after the
+  // first guided manual reveal. Paint the server-provided actionable target
+  // before navigating to the Spark cell; otherwise this Enter is a regular
+  // paint and no claim_spark action is part of the product contract.
+  const firstTarget = await session.evaluate((element) => ({
+    cameraX: Number(element.getAttribute('data-camera-x')),
+    cameraY: Number(element.getAttribute('data-camera-y')),
+    cameraZoom: Number(element.getAttribute('data-camera-zoom')),
+    minX: Number(element.getAttribute('data-smart-target-min-x')),
+    minY: Number(element.getAttribute('data-smart-target-min-y')),
+    maxX: Number(element.getAttribute('data-smart-target-max-x')),
+    maxY: Number(element.getAttribute('data-smart-target-max-y')),
+  }));
+  expect([
+    firstTarget.cameraX,
+    firstTarget.cameraY,
+    firstTarget.cameraZoom,
+    firstTarget.minX,
+    firstTarget.minY,
+    firstTarget.maxX,
+    firstTarget.maxY,
+  ].every(Number.isFinite)).toBe(true);
+  const spark = sparks.find((candidate) => {
+    const x = Number(candidate.cell_index) % GRID;
+    const y = Math.floor(Number(candidate.cell_index) / GRID);
+    return x < firstTarget.minX || x > firstTarget.maxX || y < firstTarget.minY || y > firstTarget.maxY;
+  });
+  expect(spark).toBeTruthy();
+  const canvasBox = await canvas.boundingBox();
+  expect(canvasBox).toBeTruthy();
+  const zoom = firstTarget.cameraZoom || 1;
+  const toScreen = (cellX, cellY) => ({
+    x: canvasBox.x + firstTarget.cameraX + (cellX + 0.5) * TILE * zoom,
+    y: canvasBox.y + firstTarget.cameraY + (cellY + 0.5) * TILE * zoom,
+  });
+  const firstStart = toScreen(firstTarget.minX, firstTarget.minY);
+  const firstPaint = page.waitForResponse((response) => response.url().includes(`/colorings/${created.id}/progress/actions`)
+    && response.request().method() === 'POST');
+  await page.mouse.move(firstStart.x, firstStart.y);
+  await page.mouse.down();
+  for (let row = firstTarget.minY; row <= firstTarget.maxY; row += 1) {
+    const fromX = row % 2 === 0 ? firstTarget.minX : firstTarget.maxX;
+    const toX = row % 2 === 0 ? firstTarget.maxX : firstTarget.minX;
+    await page.mouse.move(toScreen(fromX, row).x, toScreen(fromX, row).y);
+    await page.mouse.move(toScreen(toX, row).x, toScreen(toX, row).y);
+  }
+  await page.mouse.up();
+  expect((await firstPaint).status()).toBe(200);
+  await expect(session).toHaveAttribute('data-session-game-specials-armed', 'true', { timeout: 15000 });
+  await expect(page.locator('[data-guide-target-remaining="0"]')).toBeVisible({ timeout: 15000 });
 
   await moveToCell(page, canvas, spark.cell_index);
   const cellX = Number(spark.cell_index) % GRID;
@@ -139,7 +192,15 @@ test('tiled special offer stays usable at mobile widths and honors reduced motio
     try { return response.request().postDataJSON()?.special_action?.type === 'claim_spark'; } catch { return false; }
   }, { timeout: 120000 });
   await canvas.press('Enter');
-  expect((await claimPromise).status()).toBe(200);
+  const claimResponse = await claimPromise;
+  expect(claimResponse.status()).toBe(200);
+  const claimed = await claimResponse.json();
+  expect(claimed.special_offer).toMatchObject({
+    kind: 'spark',
+    special_id: String(spark.special_id),
+    offer_token: expect.any(String),
+    auto_apply: false,
+  });
   const offer = page.locator('.progressive-grid-special-offer[data-special-kind="spark"]');
   await expect(offer).toBeVisible({ timeout: 30000 });
 
