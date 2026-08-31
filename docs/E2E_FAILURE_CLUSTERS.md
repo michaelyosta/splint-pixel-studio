@@ -1,6 +1,6 @@
 # E2E failure clusters
 
-Status: `CLUSTERED — wave7 failure map complete; two local environment-pressure rows isolated; GitHub full matrix pending`
+Status: `CORRECTION_WAVE_PENDING — GitHub full matrix complete; C16/C17 classified and fixed in one bounded wave`
 
 This ledger groups failures by causal mechanism rather than assigning one
 agent to every red test. The frozen matrix is
@@ -38,6 +38,11 @@ agent to every red test. The frozen matrix is
 - Wave7 at `9cba274` completed all `16/16` shards with `364 pass / 72 skip /
   2 unexpected / 0 flaky`; the two rows fingerprinted to creator bootstrap
   resource exhaustion and one tiled direct-read loopback timeout.
+- GitHub PR run `33386651214` completed all jobs. All 16 extended shards and
+  all 3 critical lanes failed before Playwright started because the Node22
+  wrappers resolved npm from a Windows-only path on Ubuntu. The verify job
+  separately failed at the warning budget (`101/100`) because the new summary
+  script introduced one lint warning. PostgreSQL and S3 contract jobs passed.
 
 ## Cluster table
 
@@ -58,6 +63,8 @@ agent to every red test. The frozen matrix is
 | C13 | browser base URL used `localhost` while Vite bound to `127.0.0.1`; two full-matrix requests were refused | `HARNESS_FAILURE` / environment boundary | lead; `playwright.config.js`, `e2e-global-setup.mjs` | explicit `127.0.0.1` host parity; pointer `5/5`, Bomb `5/5`, CI-mode pair `2/2` |
 | C14 | one wave7 creator visual bootstrap timeout; `index.css` failed with `ERR_NO_BUFFER_SPACE` and DOM stayed on recovery shell | `ENVIRONMENT_PRESSURE` | lead; no product file change | isolated Chromium repeat `10/10`; no retry, timeout inflation or quarantine |
 | C15 | one wave7 Pixel direct tile read timed out while adjacent tile reads and the next stroke test passed | `ENVIRONMENT_PRESSURE` | lead; no product file change | isolated Mobile Pixel repeat `5/5`; `30/30` stroke cells and `200` tile responses |
+| C16 | GitHub PR run: all 16 extended shards and 3 critical lanes stopped before Playwright because npm was resolved from a Windows-only Node layout | `HARNESS_FAILURE` / runtime parity | lead; `scripts/assert-e2e-runtime.mjs`, E2E wrappers, CI dispatch | standard npm CLI resolution via `npm_execpath`/Unix layout; targeted Node22 wrapper case passed |
+| C17 | GitHub verify job exceeded the existing lint warning budget at `101/100`; one warning came from the new ANSI-strip regex in the summary script | `HARNESS_FAILURE` / diagnostic tooling | lead; `scripts/summarize-e2e-results.mjs` | ANSI regex no longer triggers lint; local Node22 lint returns to `100/100` |
 
 ## C1 — mobile bootstrap/navigation and invocation pressure
 
@@ -181,6 +188,34 @@ representative touch test passed `5/5`, with every stroke reporting `30/30`
 painted cells and no failed request. This is local environment pressure, not
 evidence to weaken the direct-read oracle or alter tiled product code.
 
+## C16 — CI Node/npm runtime path parity
+
+The first GitHub attempt on PR run `33386651214` checked out the PR merge ref
+`6c1f8e6` and correctly installed Node `22.23.2` with npm `10.9.8`. All 19
+E2E/critical jobs nevertheless stopped before launching Playwright: both
+wrappers constructed `<node-root>/bin/node_modules/npm/bin/npm-cli.js`, a
+Windows distribution path, while the Ubuntu runner stores npm under
+`lib/node_modules/npm`. The resulting `MODULE_NOT_FOUND` fingerprint was
+identical across the matrix. This is a harness runtime-parity defect, not a
+product or browser failure.
+
+The bounded correction centralizes runtime validation in
+`scripts/assert-e2e-runtime.mjs`, preferring npm's `npm_execpath`, then the
+Windows and Unix bundled layouts, with a PATH fallback. A targeted Node22
+Chromium case passed `1/1`; no E2E assertion, timeout, retry or product source
+was changed. The workflow also exposes `workflow_dispatch` so the final
+authoritative matrix can run against the exact integration branch SHA rather
+than only the pull-request merge ref.
+
+## C17 — diagnostics-script lint budget
+
+The same GitHub run's verify job passed all `455` unit tests but failed lint at
+`101/100` warnings. The additional warning was the ANSI escape regex in the
+new machine-summary script. It was not an existing product warning and was
+removed by constructing the escape expression without a literal control-regex
+pattern. The existing warning budget remains strict at `100/100`; it was not
+increased or bypassed.
+
 ## Machine-readable failure map
 
 The lead harness now provides `scripts/summarize-e2e-results.mjs`. It consumes
@@ -191,6 +226,10 @@ and extended shard and stores the summary beside that shard's unique
 `test-results/<sha>/<run-id>/` output. Wave7 local summaries are retained at
 `test-results/final-wave7-shard-02/summary.json` and
 `test-results/final-wave7-shard-16/summary.json`.
+If Playwright cannot produce `results.json`, the summary step writes an
+explicit `report_available: false` record and exits successfully so the
+primary runner failure remains visible and its diagnostic artifact is still
+uploaded; this does not turn the job green.
 
 ## Wave6 residuals and bounded correction
 

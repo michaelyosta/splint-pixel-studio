@@ -1,6 +1,6 @@
 # Splint E2E system stabilization handoff
 
-Status: `FINAL_GITHUB_PENDING — wave7 local failure map complete; two environment-pressure rows isolated; authoritative GitHub matrix pending`
+Status: `CORRECTION_WAVE_PENDING — GitHub run 33386651214 classified; exact-SHA rerun pending after C16/C17 correction`
 
 ## Release and Git boundary
 
@@ -9,7 +9,8 @@ Status: `FINAL_GITHUB_PENDING — wave7 local failure map complete; two environm
   `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`.
 - Last pre-correction code-and-harness SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
-- Current integration HEAD: `f1ba9919c7c364b67b82b8c9459b7bf4bb6a8949`, with
+- Current integration HEAD before the bounded C16/C17 correction:
+  `6a1148e543f4d98c1d62a0f53eb83859892ccc36`, with
   code/harness correction at `508d917f7780d52495281b5bc62f81604ecaccf0` and
   the bounded machine-summary/CI artifact correction committed.
 - Primary checkout remained user-owned and dirty; no reset, force push,
@@ -71,6 +72,8 @@ The full cluster ledger is [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C13 browser/Vite loopback host mismatch | second complete matrix had two browser-side `ERR_CONNECTION_REFUSED` failures | browser base URL and Vite bind aligned to `127.0.0.1`; pointer and Bomb focused scenarios 5/5 each, CI-mode pair 2/2 |
 | C14 creator visual bootstrap resource pressure | wave7 Chromium timeout with `index.css: ERR_NO_BUFFER_SPACE` | local fresh-runtime repeat 10/10; environment-only, no code fix or quarantine |
 | C15 tiled direct-read loopback timeout | wave7 Pixel `ETIMEDOUT` on one tile read | local fresh-runtime repeat 5/5 with `30/30` stroke evidence; environment-only, no code fix or quarantine |
+| C16 CI Node/npm runtime path parity | GitHub PR run stopped all 19 E2E/critical lanes before Playwright with the same Windows-only npm path error | centralized `npm_execpath`/Unix/Windows resolution; targeted Node22 wrapper case `1/1`; exact-SHA rerun pending |
+| C17 diagnostics-script lint budget | verify job hit `101/100` after the new ANSI regex warning | regex corrected; strict local Node22 lint returns `100/100` |
 
 The initial 59 failures were therefore not treated as 59 independent agents or
 as product defects. Proven harness/test defects were corrected in C2, C4 and
@@ -99,6 +102,12 @@ not final full-run evidence for the current correction SHA.
 - `scripts/summarize-e2e-results.mjs` creates machine-readable failure
   fingerprints with SHA/run/shard/test/runtime/error/attachment/log fields;
   CI stores one summary beside each unique shard output.
+- If the runner fails before Playwright writes JSON, the summary now emits an
+  explicit `report_available: false` artifact without masking the runner's
+  non-zero status.
+- CI exposes `workflow_dispatch` so the final authoritative matrix can run on
+  the exact integration branch SHA; the PR event's merge ref remains useful
+  diagnostic evidence but is not the final exact-SHA proof.
 - No generic retry, arbitrary sleep, hidden catch, or weakened numeric oracle
   was introduced as a stabilization mechanism.
 
@@ -184,6 +193,14 @@ Previously sensitive scenarios also have repeated PASS evidence: lifecycle
 guided flow `5/5`, corrected tiled stroke `5/5`, and low-zoom `5/5`, with
 Playwright retries disabled.
 
+The first GitHub PR run `33386651214` completed every job. All 16 extended
+shards and 3 critical lanes failed before Playwright due to C16; their summary
+steps failed secondarily because `results.json` did not exist. Verify passed
+`455/455` unit tests and failed only C17 lint at `101/100`. PostgreSQL passed
+`100/100` and S3 passed `2/2`. A bounded correction was made without product
+source changes; the next run must be manually dispatched against the exact
+integration SHA.
+
 ## Other verification
 
 - Root unit suite: `455 pass / 0 fail`.
@@ -216,7 +233,7 @@ PostgreSQL service evidence was subsequently completed on a fresh disposable
 Docker `postgres:16` container using Node `22.23.2` and npm `10.9.8`: `28`
 migrations applied, then `100 pass / 0 fail / 0 skipped` in `87.537 s`. The
 container was removed after the run. This closes the local authoritative
-database gate; live GitHub provider timing remains unmeasured.
+database gate; valid final GitHub timing remains unmeasured.
 
 Recommended policy:
 
@@ -247,8 +264,9 @@ after the complete final matrix.
 The E2E harness has a green historical critical matrix and a selected green
 extended matrix. Complete post-correction waves identified and isolated C12,
 C13, and the wave6 residuals. Wave7 added two local environment-pressure
-signals; both passed fresh focused repeats, but authoritative GitHub proof on
-the final pushed SHA is still pending.
+signals; both passed fresh focused repeats. The first GitHub run added C16/C17,
+which are corrected in one bounded wave; exact-SHA GitHub proof is still
+pending.
 The goal cannot yet be declared terminal under the strict exit criteria until:
 
 - one complete 16-shard Node22 matrix is green on one frozen corrected SHA;
@@ -258,7 +276,6 @@ The goal cannot yet be declared terminal under the strict exit criteria until:
   as PASS.
 
 No production deployment is part of this handoff. The next safe actions are to
-push the exact integration SHA `f1ba991`, run the authoritative GitHub critical
-and extended matrices,
-then rerun both independent reviews and update this handoff with provider
-timing/evidence.
+push the bounded correction, dispatch the authoritative GitHub critical and
+extended matrices on the exact integration SHA, then rerun both independent
+reviews and update this handoff with provider timing/evidence.

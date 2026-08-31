@@ -1,6 +1,6 @@
 # E2E CI performance
 
-Status: `MEASURED — wave7 local failure map complete; GitHub critical/extended timing and final proof pending`
+Status: `MEASURED — wave7 local map plus GitHub run 33386651214 failure map complete; exact-SHA timing pending`
 
 This document records the performance evidence from the frozen diagnostic and
 the current CI shape. It does not treat low CPU utilization as a reason to
@@ -97,6 +97,15 @@ as CI. Node `22.23.2` with npm `10.9.8` applied `28` migrations and the suite
 completed with `100` passed, `0` failed and `0` skipped in `87.537 s`. The
 container was removed after the run. This is authoritative disposable-service
 evidence for the database suite; a live GitHub provider run is still absent.
+
+The first GitHub PR validation run `33386651214` completed all jobs. Its 16
+extended shards and 3 critical lanes stopped during the runtime guard before
+Playwright, so it supplies setup/failure-map evidence but no test-duration
+measurement. All failures shared the C16 npm path fingerprint. The verify job
+passed the 455-test unit suite and failed only the strict lint budget at
+`101/100` (C17); PostgreSQL and S3 contract jobs passed. The bounded correction
+also adds manual workflow dispatch so final timing is measured against the
+exact integration SHA rather than a pull-request merge ref.
 
 ## CPU and the apparent unused capacity
 
@@ -199,6 +208,7 @@ optimization until the extended sharded result proves isolation.
 | Extended, second complete post-correction 16 shards | 365 pass + 71 expected skips | 2 C13 unexpected, 0 flaky; diagnostic only | 1 h 18 m 03.624 s wall-clock |
 | Extended, wave6 complete 16 shards | 365 pass + 71 expected skips | 2 harness unexpected, 0 flaky; diagnostic only | 63 m 41.141 s summed sequential wall proxy; slowest 10 m 20.586 s |
 | Extended, wave7 complete local 16 shards | 364 pass + 72 expected skips | 2 environment-pressure unexpected, 0 flaky; diagnostic only | 39 m 28.037 s summed test-duration proxy; slowest shard 7 m 45.766 s |
+| GitHub PR run 33386651214 | 16 extended + 3 critical jobs reached setup; 0 Playwright cases | C16 runtime guard failure across 19 lanes; C17 lint `101/100` | setup-only; no valid test timing |
 
 The final critical matrix is compatible with the intended approximately 5–10
 minute PR gate when the three project jobs run in parallel. The local

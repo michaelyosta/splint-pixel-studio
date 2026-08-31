@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 function argument(name, fallback = undefined) {
@@ -13,7 +13,8 @@ const runId = argument('--run-id', process.env.GITHUB_RUN_ID || process.env.E2E_
 const shard = argument('--shard', process.env.E2E_SHARD || 'unknown');
 const serverLog = argument('--server-log', process.env.E2E_SERVER_LOG || null);
 
-const stripAnsi = (value) => String(value || '').replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '');
+const ansiEscape = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, 'g');
+const stripAnsi = (value) => String(value || '').replace(ansiEscape, '');
 
 function normalizeMessage(value) {
   return stripAnsi(value)
@@ -44,7 +45,29 @@ function failureType(testResult) {
   return String(testResult.status || 'UNKNOWN').toUpperCase();
 }
 
-const data = JSON.parse(readFileSync(resolve(inputPath), 'utf8'));
+const resolvedInputPath = resolve(inputPath);
+if (!existsSync(resolvedInputPath)) {
+  const missingInputSummary = {
+    schema_version: 1,
+    sha,
+    run_id: runId,
+    shard,
+    generated_at: new Date().toISOString(),
+    runtime: { node: process.version, playwright: process.env.PLAYWRIGHT_VERSION || null },
+    report_available: false,
+    input_path: inputPath,
+    failure_count: null,
+    failures: [],
+    clusters: [],
+    diagnostic_note: 'Playwright JSON report was not produced; inspect the runner log for the primary failure.',
+  };
+  mkdirSync(dirname(resolve(outputPath)), { recursive: true });
+  writeFileSync(resolve(outputPath), `${JSON.stringify(missingInputSummary, null, 2)}\n`);
+  console.log(`E2E summary: input report missing; preserved diagnostic summary -> ${outputPath}`);
+  process.exit(0);
+}
+
+const data = JSON.parse(readFileSync(resolvedInputPath, 'utf8'));
 const failures = [];
 
 function visitSuite(suite) {
@@ -109,6 +132,7 @@ const summary = {
   shard,
   generated_at: new Date().toISOString(),
   runtime: { node: process.version, playwright: process.env.PLAYWRIGHT_VERSION || null },
+  report_available: true,
   stats: data.stats || null,
   failure_count: failures.length,
   failures,

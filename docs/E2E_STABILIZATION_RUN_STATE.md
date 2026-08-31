@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `FINAL_GITHUB_PENDING — wave7 local failure map complete; two environment-pressure signals did not reproduce in focused isolation; authoritative GitHub matrix pending`
+Status: `CORRECTION_WAVE_PENDING — GitHub run 33386651214 fully classified; runtime/lint tooling correction ready for exact-SHA dispatch`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -18,7 +18,7 @@ to the local integration worktree.
 - Current code/harness SHA: `508d917f7780d52495281b5bc62f81604ecaccf0`
   (bounded wave6 correction: initial tiled WORK-plan state, per-repeat user
   isolation, and explicit WebKit visual capability boundary).
-- Current integration HEAD: `f1ba9919c7c364b67b82b8c9459b7bf4bb6a8949` (bounded machine-summary/CI artifact correction atop code/harness SHA `508d917f7780d52495281b5bc62f81604ecaccf0`).
+- Current integration HEAD: `6a1148e543f4d98c1d62a0f53eb83859892ccc36` before the current bounded C16/C17 correction (bounded machine-summary/CI artifact correction atop code/harness SHA `508d917f7780d52495281b5bc62f81604ecaccf0`).
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -30,7 +30,7 @@ to the local integration worktree.
 
 | Role | Location / identity | Ownership | Status |
 |---|---|---|---|
-| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | local wave7 map complete; GitHub matrix pending on next pushed SHA |
+| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | C16/C17 correction in progress; exact-SHA GitHub dispatch follows |
 | Frozen diagnostic | `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean` | read-only frozen evidence | complete |
 | Primary checkout | `C:\Users\misa\Desktop\Splint-Gemini` | unrelated user work/evidence | untouched |
 | C1 navigation | `01a052cd-d0b1-71c0-a10c-b0db0fdd743f` | navigation/readiness cluster | complete; no speculative fix |
@@ -132,6 +132,8 @@ Full ledger: [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C13 browser/Vite loopback host mismatch | 2 failures in the second complete matrix; both browser-side `ERR_CONNECTION_REFUSED` | HARNESS_FAILURE / environment boundary | lead; `playwright.config.js`, `e2e-global-setup.mjs` | browser base URL and Vite bind are both explicit `127.0.0.1`; pointer and Bomb focused repeats pass |
 | C14 creator visual bootstrap resource exhaustion | 1 wave7 timeout; trace had `index.css: ERR_NO_BUFFER_SPACE` and DOM stuck on session recovery | ENVIRONMENT_PRESSURE | lead; no product file change | fresh Node22 Chromium repeat `10/10`; no retry, timeout inflation or quarantine |
 | C15 tiled direct-read loopback timeout | 1 wave7 `ETIMEDOUT` on one direct tile read; neighboring tile requests and next stroke passed | ENVIRONMENT_PRESSURE | lead; no product file change | fresh Node22 Mobile Pixel repeat `5/5`; stroke `30/30`, API responses `200`, no retry or oracle weakening |
+| C16 GitHub runtime path mismatch | 19 E2E/critical jobs stopped before Playwright with identical npm CLI `MODULE_NOT_FOUND` | HARNESS_FAILURE | lead; runtime wrappers and CI dispatch | centralized Node22/npm validation; targeted wrapper case `1/1`; exact-SHA dispatch pending |
+| C17 summary-script lint warning | verify job reached `101/100` warnings due one new ANSI regex warning | HARNESS_FAILURE | lead; `summarize-e2e-results.mjs` | regex corrected; local lint back to strict `100/100` |
 
 No product defect was proven. No assertion was weakened. No test was
 quarantined and no obsolete test was removed. The old stitched matrix is now
@@ -265,6 +267,20 @@ not final acceptance evidence.
   duration: `7 m 45.766 s`. This local sequential measurement is diagnostic,
   not authoritative GitHub billing or final acceptance.
 
+### GitHub PR failure map on merge ref `6c1f8e6`
+
+- Run `33386651214` completed all `16/16` extended shards, 3 critical lanes,
+  verify, PostgreSQL and S3 jobs; no job was cancelled.
+- All 16 extended and 3 critical jobs failed before Playwright because of the
+  same C16 npm CLI path mismatch. Their summary steps failed secondarily on
+  missing `results.json`; the correction now preserves an explicit
+  `report_available: false` summary artifact without changing job status.
+- Verify passed `455/455` unit tests but failed the strict lint budget at
+  `101/100`; this was C17 and is corrected without changing the budget.
+- PostgreSQL passed `100/100`; S3 contract passed `2/2`.
+- The PR event used merge ref `6c1f8e6`; the workflow now supports manual
+  dispatch so the next authoritative run will use the exact integration HEAD.
+
 ### Final critical gate
 
 - Chromium: `26 pass / 0 skip / 0 unexpected / 0 flaky`, `6 m 48.958 s`.
@@ -306,17 +322,18 @@ not final acceptance evidence.
 - The earlier 16-way concurrent local attempt produced 79 unexpected results
   from resource pressure. This is why local evidence is sequential; CI shard
   concurrency still needs an external controlled measurement.
-- Remaining debt: one authoritative 16-shard GitHub run on the pushed final
-  integration SHA, post-final independent Sol Max reviews, physical
+- Remaining debt: one authoritative exact-SHA 16-shard GitHub run after the
+  bounded C16/C17 correction, post-final independent Sol Max reviews, physical
   Telegram/iOS proof, residual legacy timing/catch cleanup and measured
   GitHub runner-minute cost.
 
 ## Next action
 
-The wave7 local failure map is complete and both representative environment
-signals passed isolated targeted repeats. The bounded diagnostics correction
-at `f1ba991` adds `scripts/summarize-e2e-results.mjs` and SHA/run/shard-scoped
-CI artifacts; it does not alter product behavior. Push the exact integration SHA,
-run the authoritative GitHub critical and
-16-shard extended matrix with fail-fast disabled and retries `0`, then aggregate
-all shard summaries before any further correction decision.
+The GitHub failure map is complete: C16 is the shared runtime wrapper defect
+and C17 is the one warning-budget regression in the new diagnostics script.
+The current bounded correction centralizes Node/npm resolution, preserves a
+summary artifact when the runner fails before producing JSON, removes the
+introduced lint warning, and adds exact-SHA manual dispatch. Commit and push
+this correction, dispatch one exact-SHA GitHub critical plus 16-shard
+extended matrix with fail-fast disabled and retries `0`, then aggregate all
+shard summaries before any further correction decision.
