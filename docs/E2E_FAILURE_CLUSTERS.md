@@ -29,6 +29,9 @@ agent to every red test. The frozen matrix is
   `16/16` shards with `366 pass / 71 skip / 1 unexpected / 0 flaky`. The
   single unexpected was C12; its focused reproduction was `4/5` before the
   fix and `5/5` after the fix.
+- The second complete matrix at `958ec96` completed all shards with
+  `365 pass / 71 skip / 2 unexpected / 0 flaky`. Both unexpected rows were
+  browser-side `ERR_CONNECTION_REFUSED` events on the Vite loopback host.
 
 ## Cluster table
 
@@ -46,6 +49,7 @@ agent to every red test. The frozen matrix is
 | C10 | release gate omitted object-storage contract | `HARNESS_FAILURE` / coverage gap | lead; workflow and S3 contract runner | disposable S3-compatible contract `2/2`; production R2 untouched |
 | C11 | iPhone emulation scope and WebKit worker/provider boundary | `ENVIRONMENT_FAILURE` / coverage boundary | lead; critical runner/workflow | explicit 14-test WebKit smoke; save/1200/touch remain Chromium/Pixel + physical iOS |
 | C12 | legacy 96x96 Alpha glyph fixture omitted `artifact` for some random owners | `HARNESS_FAILURE` | lead; `special-glyph-parity.spec.js`, `e2e-hooks.js` | explicit `alpha-glyph-kinds` fixture variant uses a stable generation seed; Pixel `5/5`, browser variants `2/2` |
+| C13 | browser base URL used `localhost` while Vite bound to `127.0.0.1`; two full-matrix requests were refused | `HARNESS_FAILURE` / environment boundary | lead; `playwright.config.js`, `e2e-global-setup.mjs` | explicit `127.0.0.1` host parity; pointer `5/5`, Bomb `5/5`, CI-mode pair `2/2` |
 
 ## C1 — mobile bootstrap/navigation and invocation pressure
 
@@ -133,3 +137,17 @@ Quarantine count is zero. Policy: [E2E_QUARANTINE_POLICY.md](E2E_QUARANTINE_POLI
 The 15-test WebKit attempt that exposed creator worker module failures is
 retained as provider evidence, not hidden by retry or quarantine; the required
 emulated subset is explicitly 14 tests.
+
+## C13 — browser/Vite loopback host parity
+
+The second complete matrix had two isolated Chromium failures where the
+browser's base URL was `localhost:<port>` while Vite was explicitly bound to
+`127.0.0.1:<port>`. Trace requests failed with
+`net::ERR_CONNECTION_REFUSED`; the DOM remained at `Загружаем…`, and the
+API fixture setup had already returned successfully. This is a harness
+environment-boundary failure, not a product Bomb or pointer-capture defect.
+
+The correction makes both the browser base URL and Vite startup host use the
+same explicit `E2E_WEB_HOST` default of `127.0.0.1`. The focused pointer and
+Bomb scenarios each passed `5/5`, and the CI-mode pair passed `2/2`, with
+retries disabled.

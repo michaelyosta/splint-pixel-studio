@@ -1,6 +1,6 @@
 # Splint E2E system stabilization handoff
 
-Status: `FINAL_MATRIX_PENDING — C12 fixture correction committed; final full run pending`
+Status: `FINAL_MATRIX_PENDING — C13 loopback correction committed; final full run pending`
 
 ## Release and Git boundary
 
@@ -9,8 +9,8 @@ Status: `FINAL_MATRIX_PENDING — C12 fixture correction committed; final full r
   `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`.
 - Last pre-correction code-and-harness SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
-- Current integration HEAD: `9eaedea9667f7b87ae3abf4f0d1a17b09bcd351c`, the
-  committed bounded C12 fixture correction.
+- Current integration HEAD: `b4105a3b5983ce47e55a74f5d1328bea18fcf9ae`, the
+  committed bounded C13 loopback correction.
 - Primary checkout remained user-owned and dirty; no reset, force push,
   deployment, or production mutation was performed.
 - Production remains `showalove.ru` / Closed Alpha LIVE. Stars remain
@@ -67,6 +67,7 @@ The full cluster ledger is [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C10 missing R2 contract coverage | review finding | disposable S3-compatible contract job added; production R2 untouched |
 | C11 iPhone scope/provider boundary | review finding | explicit 14-test WebKit smoke; physical iOS remains separate |
 | C12 legacy Alpha glyph fixture seed | first complete matrix failure; Pixel 4/5 focused reproduction before fix | explicit Alpha glyph fixture contract with stable seed and variant id; post-fix Pixel 5/5 and browser variants 2/2 |
+| C13 browser/Vite loopback host mismatch | second complete matrix had two browser-side `ERR_CONNECTION_REFUSED` failures | browser base URL and Vite bind aligned to `127.0.0.1`; pointer and Bomb focused scenarios 5/5 each, CI-mode pair 2/2 |
 
 The initial 59 failures were therefore not treated as 59 independent agents or
 as product defects. Proven harness/test defects were corrected in C2, C4 and
@@ -143,8 +144,17 @@ The first complete post-correction matrix at SHA `70a93a5` did complete all
 fixture could omit `artifact`. A five-repeat Pixel reproduction was `4/5`
 before the fix. After `9eaedea`, the focused C12 check is Pixel `5/5`,
 the Chromium+iPhone browser variant check is `2/2`, and related tiled
-Chromium+Pixel is `2/2`. This proves the cause and targeted correction, but
-the final full matrix on `9eaedea` is still pending.
+Chromium+Pixel is `2/2`. This proves the cause and targeted correction.
+
+The second complete matrix at SHA `958ec96` then completed all 16 shards with
+`365 pass / 71 skip / 2 unexpected / 0 flaky` in `1 h 18 m 03.624 s`.
+Both unexpected rows were the same C13 browser-side loopback failure: the
+page stayed on `Загружаем…` after the API fixture setup had succeeded. The
+failure traces and screenshots are retained under
+`test-results/final-wave5-shard-01/` and
+`test-results/final-wave5-shard-03/`. The C13 correction aligns browser and
+Vite loopback hosts without touching product source; the final full matrix on
+`b4105a3` is still pending.
 
 Previously sensitive scenarios also have repeated PASS evidence: lifecycle
 guided flow `5/5`, corrected tiled stroke `5/5`, and low-zoom `5/5`, with
@@ -211,9 +221,9 @@ after the complete final matrix.
 ## Remaining debt and release decision
 
 The E2E harness has a green historical critical matrix and a selected green
-extended matrix. The first complete post-correction matrix identified and
-isolated C12; the correction is now committed, but final proof on that SHA is
-still pending.
+extended matrix. The first two complete post-correction matrices identified
+and isolated C12 and C13; both corrections are now committed, but final proof
+on the corrected SHA is still pending.
 The goal cannot yet be declared terminal under the strict exit criteria until:
 
 - one complete 16-shard Node22 matrix is green on one frozen corrected SHA;
@@ -223,6 +233,6 @@ The goal cannot yet be declared terminal under the strict exit criteria until:
   as PASS.
 
 No production deployment is part of this handoff. The next safe actions are to
-run one complete final matrix on `9eaedea` without changing its SHA, rerun
+run one complete final matrix on `b4105a3` without changing its SHA, rerun
 both independent reviews, then update the run-state and handoff with the final
 evidence. Live GitHub branch timing remains a separate CI measurement debt.

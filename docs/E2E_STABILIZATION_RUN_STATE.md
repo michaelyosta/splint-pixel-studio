@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `FINAL_MATRIX_PENDING — C12 fixture correction committed; final full run pending`
+Status: `FINAL_MATRIX_PENDING — C13 loopback correction committed; final full run pending`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -15,10 +15,10 @@ to the local integration worktree.
 - Supplied release candidate: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current code/harness SHA: `9eaedea9667f7b87ae3abf4f0d1a17b09bcd351c`
-  (bounded C12 correction: explicit Alpha glyph fixture contract with a
-  stable legacy generation seed).
-- Current integration HEAD: `9eaedea9667f7b87ae3abf4f0d1a17b09bcd351c`.
+- Current code/harness SHA: `b4105a3b5983ce47e55a74f5d1328bea18fcf9ae`
+  (bounded C13 correction: browser base URL and Vite bind use the same
+  explicit loopback host).
+- Current integration HEAD: `b4105a3b5983ce47e55a74f5d1328bea18fcf9ae`.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -56,9 +56,10 @@ against the post-correction SHA after the final full matrix.
 - 39 Playwright spec files, 146 logical tests, 438 nominal project cases.
 - 411 cases remain after source-level project skips. The first complete
   post-correction candidate matrix at `70a93a5` reported 366 passes, 71
-  explicit/conditional skips and one proven C12 fixture failure; the new
-  final matrix on `9eaedea` is pending. Skips are capability or environment
-  gates, not quarantine.
+  explicit/conditional skips and one proven C12 fixture failure. The next
+  complete matrix at `958ec96` reported 365 passes, 71 skips and two C13
+  loopback failures; the final matrix on `b4105a3` is pending. Skips are
+  capability or environment gates, not quarantine.
 - Release-critical proposal is maintained in
   `scripts/run-e2e-suite-node22.mjs`: 26 title-selected tests on Chromium and
   Mobile Pixel, plus an explicit 14-test supported Mobile iPhone/WebKit smoke
@@ -127,6 +128,7 @@ Full ledger: [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C10 missing R2 contract coverage | critical harness forced local storage | HARNESS_FAILURE / coverage gap | disposable S3-compatible contract job added; no production R2 touched |
 | C11 critical browser scope ambiguity | iPhone lane had 11 expected skips and one worker-sensitive case | ENVIRONMENT/coverage boundary | explicit 14-test WebKit smoke subset; physical iOS gate remains required |
 | C12 legacy Alpha glyph fixture seed | 1 failure in the first complete post-correction matrix; 1/5 failure in focused reproduction | HARNESS_FAILURE | lead; `special-glyph-parity.spec.js`, `e2e-hooks.js` | explicit `alpha-glyph-kinds` fixture uses a stable seed and variant id; post-fix focused browser checks pass |
+| C13 browser/Vite loopback host mismatch | 2 failures in the second complete matrix; both browser-side `ERR_CONNECTION_REFUSED` | HARNESS_FAILURE / environment boundary | lead; `playwright.config.js`, `e2e-global-setup.mjs` | browser base URL and Vite bind are both explicit `127.0.0.1`; pointer and Bomb focused repeats pass |
 
 No product defect was proven. No assertion was weakened. No test was
 quarantined and no obsolete test was removed. The old stitched matrix is now
@@ -149,6 +151,8 @@ correction SHA.
   Node/npm preflight, explicit WebKit subset and disposable S3 contract.
 - `9eaedea` bounded C12 correction: explicit Alpha glyph fixture contract and
   stable legacy generation seed; no product source change.
+- `b4105a3` bounded C13 correction: align browser navigation with Vite's
+  explicit loopback bind; no product source change.
 
 ## Verification ledger
 
@@ -161,6 +165,8 @@ correction SHA.
 - Creator crop iPhone: `3/3`.
 - Legacy glyph parity: Pixel `5/5`; Chromium+iPhone `2/2`.
 - Related tiled glyph parity: Chromium+Pixel `2/2`.
+- C13 tiled pointer capture: `5/5`; Phase 2 Bomb: `5/5`.
+- CI-mode C13 pair with separate HTML output: `2/2`.
 - Guided player Pixel before fixture correction: `3/3`; after deterministic
   control fixture: `5/5`.
 - Final control-fixture shard 14: `23 pass / 3 skip / 0 unexpected / 0 flaky`.
@@ -193,6 +199,18 @@ not final acceptance evidence.
 - Focused C12 reproduction before correction: `4 pass / 1 fail` in five Pixel
   repeats. After correction: Pixel `5/5`, Chromium+iPhone `2/2`, and related
   tiled Chromium+Pixel `2/2`.
+
+### Second complete post-correction matrix
+
+- Frozen SHA: `958ec968b3390e6cfe8bd14669a02e20e015ebdb`.
+- All `16/16` sequential shards completed with fail-fast disabled.
+- Result: `365 pass / 71 skip / 2 unexpected / 0 flaky`.
+- Both unexpected rows were C13 browser-side `ERR_CONNECTION_REFUSED`
+  failures; traces and screenshots are retained under
+  `test-results/final-wave5-shard-01/` and
+  `test-results/final-wave5-shard-03/`.
+- Wall-clock: `1 h 18 m 03.624 s`.
+- The final matrix on `b4105a3` is required after the C13 correction.
 
 ### Final critical gate
 
@@ -235,7 +253,7 @@ not final acceptance evidence.
 - The earlier 16-way concurrent local attempt produced 79 unexpected results
   from resource pressure. This is why local evidence is sequential; CI shard
   concurrency still needs an external controlled measurement.
-- Remaining debt: one complete final 16-shard run on `9eaedea`, post-final
+- Remaining debt: one complete final 16-shard run on `b4105a3`, post-final
   independent Sol Max reviews, physical Telegram/iOS proof, residual legacy
   timing/catch cleanup and a controlled GitHub CI cost measurement.
 
