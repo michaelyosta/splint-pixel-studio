@@ -72,6 +72,7 @@ agent to every red test. The frozen matrix is
 | C16 | GitHub PR run: all 16 extended shards and 3 critical lanes stopped before Playwright because npm was resolved from a Windows-only Node layout | `HARNESS_FAILURE` / runtime parity | lead; `scripts/assert-e2e-runtime.mjs`, E2E wrappers, CI dispatch | standard npm CLI resolution via `npm_execpath`/Unix layout; targeted Node22 wrapper case passed |
 | C17 | GitHub verify job exceeded the existing lint warning budget at `101/100`; one warning came from the new ANSI-strip regex in the summary script | `HARNESS_FAILURE` / diagnostic tooling | lead; `scripts/summarize-e2e-results.mjs` | ANSI regex no longer triggers lint; local Node22 lint returns to `100/100` |
 | C18 | exact-SHA run 33388276591: guided, keyboard, Phase 2 Bomb, iPhone accessibility and tiled glyph rows failed only after long/heavy shard lifetime; fresh repeats pass | `HARNESS_RESOURCE_LIFETIME / SHARD_PRESSURE` | lead; CI topology, shard manifest, runtime metrics and summary only | individual specs unchanged; weighted manifest and coverage preflight in progress |
+| C22 | exact-SHA run 33414881259: Mobile iPhone keyboard helper queried `.coloring-canvas` before the legacy session reached `data-route-status=ready`; one extended row | `HARNESS_FAILURE` / readiness race | lead; `e2e/input-gesture-helpers.js` only | fresh Node22 representative `5/5`; post-fix representative `5/5`; related input spec all projects green; no product change |
 
 ## C1 — mobile bootstrap/navigation and invocation pressure
 
@@ -297,6 +298,27 @@ with retries `0`; the existing critical iPhone journey also passed in earlier
 clean evidence. No timeout, retry, quarantine, assertion weakening or product
 change is justified. The cancelled matrix is not final proof; the next action
 is one complete exact-SHA GitHub matrix with all jobs allowed to finish.
+
+## C22 — legacy keyboard readiness race
+
+Exact-SHA GitHub run `33414881259` on candidate `2fc52c9cd4bd4c07fbe4ae374e56e015678f96d7`
+completed all jobs with one unexpected Mobile iPhone row in
+`input-gesture-evidence.spec.js` (`classic keyboard paint commits server
+progress`). The trace showed `page.goto()` followed immediately by
+`focusLegacyCell()` at about 3.9 seconds while the DOM still contained only
+the loading shell (`Загружаем…`); `.coloring-canvas` had not been mounted.
+The shard had `639` requests, `0` HTTP errors and `67.6 ms` average API
+latency, so this does not support the prior shard-pressure hypothesis.
+
+The helper already had a causal readiness primitive,
+`waitForColoringSessionReady()`, but `focusLegacyCell()` did not use it. The
+minimal harness fix waits for `.coloring-session[data-route-status="ready"]`
+before querying the canvas. Fresh isolated Node22 Mobile iPhone repeats passed
+`5/5` before and `5/5` after the change, all with retries `0`; the complete
+`input-gesture-evidence.spec.js` related check passed across Chromium, Mobile
+iPhone and Mobile Pixel. This is a harness/test defect, not a product defect;
+no timeout inflation, retry, assertion weakening, quarantine or product
+source change was used.
 
 ## Machine-readable failure map
 

@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `C21_CLASSIFIED — cancelled run 33412246450 fully evidenced; preparing final exact-SHA matrix`
+Status: `C22_FIXED — run 33414881259 fully evidenced; preparing bounded exact-SHA correction matrix`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -16,9 +16,11 @@ to the local integration worktree.
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
 - Current code/harness SHA and integration HEAD:
-  `71b4dee29b7e5ce64ea1ca0d3f39217473163660`.
-- Integration SHA is frozen for the final matrix after C20; no product source
-  change is pending.
+  `fae35b598161b65b373ff7674a80ea2ae60b864f` (`test: wait for legacy
+  coloring readiness`).
+- The prior final candidate `2fc52c9cd4bd4c07fbe4ae374e56e015678f96d7`
+  remains immutable evidence; the bounded C22 helper correction is now the
+  next frozen candidate after targeted proof.
 - Latest authoritative GitHub run: `33409940186` (PR event; all jobs complete;
   22/24 extended shards green, all four critical lanes, PostgreSQL, S3 and
   verify green; only C20 Creator navigation oracle failed in shards 9 and 22).
@@ -31,6 +33,13 @@ to the local integration worktree.
   Pixel `5/5`.
 - C21 representative fresh Mobile iPhone guided-path repeat: `5/5`, retries
   `0`; GitHub run `33412246450` remains cancelled and is not acceptance proof.
+- C22 exact-SHA run `33414881259` had one Mobile iPhone keyboard readiness
+  failure in shard 17. Trace: loading shell at `focusLegacyCell`, `639` HTTP
+  requests, `0` HTTP errors, `67.6 ms` average API latency. Fresh isolated
+  pre-fix reproduction was `5/5`, showing a test-harness readiness race.
+- C22 correction `fae35b5` waits for causal legacy session readiness before
+  canvas focus. Post-fix representative was `5/5` and related input spec
+  across all browser projects passed, retries `0`.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -42,7 +51,7 @@ to the local integration worktree.
 
 | Role | Location / identity | Ownership | Status |
 |---|---|---|---|
-| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | C21 classified; final exact-SHA matrix pending |
+| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | C22 fixed; one bounded exact-SHA correction matrix pending |
 | Frozen diagnostic | `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean` | read-only frozen evidence | complete |
 | Primary checkout | `C:\Users\misa\Desktop\Splint-Gemini` | unrelated user work/evidence | untouched |
 | C1 navigation | `01a052cd-d0b1-71c0-a10c-b0db0fdd743f` | navigation/readiness cluster | complete; no speculative fix |
@@ -371,10 +380,11 @@ not final acceptance evidence.
 
 ## Next action
 
-Run `33412246450` is fully evidenced but was cancelled after one C21
-environment-bound critical iPhone failure. Fresh targeted reproduction is
-`5/5`, so no new code correction is warranted. Commit only this durable
-classification, run coverage/lint/diff preflight, push the resulting exact
-SHA, then allow one authoritative GitHub matrix to finish in full. If it is
+Run `33414881259` completed all jobs and had one C22 Mobile iPhone keyboard
+readiness race. Its fresh isolated representative passed `5/5`; the causal
+helper correction is committed as `fae35b598161b65b373ff7674a80ea2ae60b864f`,
+with related input coverage green across all browser projects. Run docs
+coverage/lint/diff preflight, push the durable state, then allow exactly one
+authoritative GitHub matrix on this correction SHA to finish in full. If it is
 green, stop testing and proceed directly to the two independent reviews and
-final handoff.
+final handoff; do not start another local full matrix.
