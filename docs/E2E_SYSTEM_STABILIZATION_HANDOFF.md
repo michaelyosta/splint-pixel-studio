@@ -11,6 +11,8 @@ Status: `E2E_MATRIX_GREEN — terminal E2E_SYSTEM_STABLE pending PostgreSQL serv
 - Final code-and-harness evidence SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
   Any later commit in this branch is documentation finalization only unless
   explicitly stated otherwise.
+- Current integration HEAD: `852677f0b1dfe8ebaa6bb933229c5b8f34373d5b`
+  (`docs: finalize e2e stabilization evidence`).
 - Primary checkout remained user-owned and dirty; no reset, force push,
   deployment, or production mutation was performed.
 - Production remains `showalove.ru` / Closed Alpha LIVE. Stars remain
