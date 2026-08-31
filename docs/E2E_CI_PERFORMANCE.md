@@ -1,6 +1,6 @@
 # E2E CI performance
 
-Status: `MEASURED — correction-wave focused checks green; complete final matrix and live CI proof pending`
+Status: `MEASURED — correction wave committed; complete final matrix and live CI proof pending`
 
 This document records the performance evidence from the frozen diagnostic and
 the current CI shape. It does not treat low CPU utilization as a reason to
@@ -44,7 +44,8 @@ contexts and produced `364` passes, `71` expected skips and `3` unexpected
 results. The three rows were independently reproduced and corrected or
 classified in bounded follow-ups: creator WebKit worker/module sensitivity,
 special-glyph mobile sensitivity, and the guided-player fixture selecting a
-valid Fuse offer. The final code/harness SHA is `7d16ed3`.
+valid Fuse offer. The last pre-correction code/harness SHA was `7d16ed3`; the
+bounded correction wave is committed at `e60e39c`.
 
 The prior selected extended matrix used one evidence run per shard after those
 bounded corrections: `367` passes, `71` expected skips, `0` unexpected and

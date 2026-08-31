@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `BOUNDED_CORRECTION_WAVE — review findings addressed; final frozen full run pending`
+Status: `FINAL_MATRIX_PENDING — bounded correction wave committed; frozen full run pending`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -15,10 +15,10 @@ to the local integration worktree.
 - Supplied release candidate: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current code/harness SHA: working-tree correction wave pending commit on top of
-  `7d16ed3` (Gallery/low-zoom oracles, retry removal, fixture reset, exact
-  runtime, explicit WebKit subset and S3 contract gate).
-- Current integration HEAD: `8ec7749` plus the uncommitted correction wave.
+- Current code/harness SHA: `e60e39cece645a4bd776e3a4c4e58a36697ee7b8`
+  (Gallery/low-zoom oracles, retry removal, fixture reset, exact runtime,
+  explicit WebKit subset and S3 contract gate).
+- Current integration HEAD: `e60e39cece645a4bd776e3a4c4e58a36697ee7b8`.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -141,7 +141,7 @@ correction SHA.
 - `b9a82d8` critical title-selector correction.
 - `16852a7` runtime/mobile oracle stabilization.
 - `7d16ed3` deterministic control fixture for generic guided player.
-- pending bounded correction wave: strict Gallery/low-zoom oracles, no hidden
+- `e60e39c` bounded correction wave: strict Gallery/low-zoom oracles, no hidden
   UI retries, cohort progress reset, unique special-glyph owners, exact
   Node/npm preflight, explicit WebKit subset and disposable S3 contract.
 
@@ -150,7 +150,8 @@ correction SHA.
 ### Focused and repeated evidence
 
 - C2 guided lifecycle: `5/5`.
-- Corrected low-zoom iPhone: `5/5`.
+- Corrected low-zoom iPhone: historical pre-wave `5/5`; current post-wave
+  oracle has one focused pass and is scheduled for a fresh repeated run.
 - Special visual Pixel fixture isolation: `5/5`.
 - Creator crop iPhone: `3/3`.
 - Glyph parity iPhone: `1/1` exact focused check.
@@ -221,7 +222,7 @@ not final acceptance evidence.
 
 ## Next action
 
-Commit the bounded correction wave, run focused checks, then execute one
-complete 16-shard Node22 matrix without changing SHA. Aggregate that run,
+The bounded correction wave is committed at `e60e39c`. Run focused checks, then
+execute one complete 16-shard Node22 matrix without changing SHA. Aggregate that run,
 rerun the two independent reviews against its SHA, execute the remaining gates,
 and only then decide whether the terminal state is justified.

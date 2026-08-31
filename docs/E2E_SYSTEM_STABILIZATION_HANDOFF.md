@@ -1,6 +1,6 @@
 # Splint E2E system stabilization handoff
 
-Status: `BOUNDED_CORRECTION_WAVE — review findings addressed; final frozen full run pending`
+Status: `FINAL_MATRIX_PENDING — bounded correction wave committed; frozen full run pending`
 
 ## Release and Git boundary
 
@@ -9,8 +9,8 @@ Status: `BOUNDED_CORRECTION_WAVE — review findings addressed; final frozen ful
   `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`.
 - Last pre-correction code-and-harness SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
-- Current integration HEAD: `8ec77499bf414ebeb5134cb4c849236ae6a02299` plus
-  the uncommitted bounded correction wave.
+- Current integration HEAD: `e60e39cece645a4bd776e3a4c4e58a36697ee7b8`, the
+  committed bounded correction wave.
 - Primary checkout remained user-owned and dirty; no reset, force push,
   deployment, or production mutation was performed.
 - Production remains `showalove.ru` / Closed Alpha LIVE. Stars remain

@@ -1,6 +1,6 @@
 # E2E failure clusters
 
-Status: `CLUSTERED — bounded fixes integrated; post-correction full matrix pending`
+Status: `CLUSTERED — bounded correction wave committed; post-correction full matrix pending`
 
 This ledger groups failures by causal mechanism rather than assigning one
 agent to every red test. The frozen matrix is
