@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `FINAL_MATRIX_PENDING — C13 loopback correction committed; final full run pending`
+Status: `FINAL_MATRIX_PENDING — wave6 exposed two residual harness failures; bounded correction committed; final full run pending`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -15,10 +15,10 @@ to the local integration worktree.
 - Supplied release candidate: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current code/harness SHA: `b4105a3b5983ce47e55a74f5d1328bea18fcf9ae`
-  (bounded C13 correction: browser base URL and Vite bind use the same
-  explicit loopback host).
-- Current integration HEAD: `5eda79654bc4420505fde247515450e151565915`.
+- Current code/harness SHA: `508d917f7780d52495281b5bc62f81604ecaccf0`
+  (bounded wave6 correction: initial tiled WORK-plan state, per-repeat user
+  isolation, and explicit WebKit visual capability boundary).
+- Current integration HEAD: `508d917f7780d52495281b5bc62f81604ecaccf0`.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -30,7 +30,7 @@ to the local integration worktree.
 
 | Role | Location / identity | Ownership | Status |
 |---|---|---|---|
-| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | handoff prepared; external gates blocked |
+| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | final matrix pending on `508d917` |
 | Frozen diagnostic | `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean` | read-only frozen evidence | complete |
 | Primary checkout | `C:\Users\misa\Desktop\Splint-Gemini` | unrelated user work/evidence | untouched |
 | C1 navigation | `01a052cd-d0b1-71c0-a10c-b0db0fdd743f` | navigation/readiness cluster | complete; no speculative fix |
@@ -58,7 +58,8 @@ against the post-correction SHA after the final full matrix.
   post-correction candidate matrix at `70a93a5` reported 366 passes, 71
   explicit/conditional skips and one proven C12 fixture failure. The next
   complete matrix at `958ec96` reported 365 passes, 71 skips and two C13
-  loopback failures; the final matrix on `b4105a3` is pending. Skips are
+  loopback failures. Wave6 at `f0c8d35` reported 365 passes, 71 skips and
+  two harness failures; the final matrix on `508d917` is pending. Skips are
   capability or environment gates, not quarantine.
 - Release-critical proposal is maintained in
   `scripts/run-e2e-suite-node22.mjs`: 26 title-selected tests on Chromium and
@@ -119,14 +120,14 @@ Full ledger: [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C1 mobile bootstrap/navigation | 26 initial rows | HARNESS + environment pressure | owned suite clean; no product defect |
 | C2 late response/lifecycle registration | 12 initial rows | HARNESS | response registered before navigation/check; focused repeats pass |
 | C3 special-cell contracts | 13 initial rows | HARNESS/test coverage boundary | isolated Pixel cluster pass; special paths stay explicit |
-| C4 tiled loading/zoom/stroke oracle | 8 initial rows | HARNESS | state-driven waits, completed-response oracle, geometric sampling |
+| C4 tiled loading/zoom/stroke oracle | 8 initial rows plus wave6 initial-plan race | HARNESS | state-driven waits, initial `workPlans` readiness, completed-response oracle, geometric sampling |
 | C5 generic guided fixture hit treatment Fuse | 2 full-shard failures before fix | HARNESS fixture isolation | switched generic guided test to deterministic control fixture; 5/5 + full shard pass |
 | C6 mobile worker/cold module event | 1 first-pass creator crop failure | ENVIRONMENT/provider | focused 3/3 and shard rerun pass; no quarantine |
 | C7 long mobile visual/guidance journeys | 2 first-pass failures (glyph/guided) | ENVIRONMENT/HARNESS sensitivity | exact focused checks pass; guided root cause separated into C5 |
 | C8 false-green release oracles | Gallery delete and low-zoom request-start review findings | HARNESS_FAILURE | strict identity/status/404 assertions and both request/response bounds added; focused checks pass |
-| C9 hidden retry and fixture reuse | P0/special-delivery hidden retry and special-glyph deterministic user findings | HARNESS_FAILURE | UI retries removed; cohort reset and unique glyph owners added; targeted checks pass |
+| C9 hidden retry and fixture reuse | P0/special-delivery hidden retry, special-glyph and wave6 low-zoom user findings | HARNESS_FAILURE | UI retries removed; cohort reset, unique glyph owners, and per-project/repeat low-zoom users added; targeted checks pass |
 | C10 missing R2 contract coverage | critical harness forced local storage | HARNESS_FAILURE / coverage gap | disposable S3-compatible contract job added; no production R2 touched |
-| C11 critical browser scope ambiguity | iPhone lane had 11 expected skips and one worker-sensitive case | ENVIRONMENT/coverage boundary | explicit 14-test WebKit smoke subset; physical iOS gate remains required |
+| C11 critical browser scope ambiguity | iPhone lane had 11 expected skips, one worker-sensitive case and wave6 visual timeout | ENVIRONMENT/coverage boundary | explicit 14-test WebKit smoke subset; zone visual has the same explicit skip; physical iOS gate remains required |
 | C12 legacy Alpha glyph fixture seed | 1 failure in the first complete post-correction matrix; 1/5 failure in focused reproduction | HARNESS_FAILURE | lead; `special-glyph-parity.spec.js`, `e2e-hooks.js` | explicit `alpha-glyph-kinds` fixture uses a stable seed and variant id; post-fix focused browser checks pass |
 | C13 browser/Vite loopback host mismatch | 2 failures in the second complete matrix; both browser-side `ERR_CONNECTION_REFUSED` | HARNESS_FAILURE / environment boundary | lead; `playwright.config.js`, `e2e-global-setup.mjs` | browser base URL and Vite bind are both explicit `127.0.0.1`; pointer and Bomb focused repeats pass |
 
@@ -153,20 +154,26 @@ correction SHA.
   stable legacy generation seed; no product source change.
 - `b4105a3` bounded C13 correction: align browser navigation with Vite's
   explicit loopback bind; no product source change.
+- `508d917` bounded wave6 correction: wait for initial tiled WORK plan,
+  isolate low-zoom users per project/repeat, skip unsupported WebKit creator
+  visual path explicitly, remove its shared screenshot path.
 
 ## Verification ledger
 
 ### Focused and repeated evidence
 
 - C2 guided lifecycle: `5/5`.
-- Corrected low-zoom iPhone: historical pre-wave `5/5`; current post-wave
-  oracle has one focused pass and is scheduled for a fresh repeated run.
+- Corrected low-zoom: historical iPhone `5/5`; current Pixel post-wave
+  correction `5/5` with retries `0`.
 - Special visual Pixel fixture isolation: `5/5`.
 - Creator crop iPhone: `3/3`.
 - Legacy glyph parity: Pixel `5/5`; Chromium+iPhone `2/2`.
 - Related tiled glyph parity: Chromium+Pixel `2/2`.
 - C13 tiled pointer capture: `5/5`; Phase 2 Bomb: `5/5`.
 - CI-mode C13 pair with separate HTML output: `2/2`.
+- Low-zoom Pixel after wave6 correction: `5/5`, retries `0`.
+- Zone visual matrix after wave6 correction: Chromium/Pixel `4/4`, WebKit
+  `2` expected capability skips, `0` unexpected.
 - Guided player Pixel before fixture correction: `3/3`; after deterministic
   control fixture: `5/5`.
 - Final control-fixture shard 14: `23 pass / 3 skip / 0 unexpected / 0 flaky`.
@@ -210,7 +217,23 @@ not final acceptance evidence.
   `test-results/final-wave5-shard-01/` and
   `test-results/final-wave5-shard-03/`.
 - Wall-clock: `1 h 18 m 03.624 s`.
-- The final matrix on `b4105a3` is required after the C13 correction.
+- The wave6 matrix below is required after the C13 correction.
+
+### Wave6 complete matrix before bounded correction
+
+- Frozen SHA: `f0c8d35cdbee1377b29623d7ad39629f99bf431a`.
+- All `16/16` sequential shards completed with fail-fast disabled.
+- Result: `365 pass / 71 skip / 2 unexpected / 0 flaky`; summed wall proxy
+  `63 m 41.141 s`, slowest shard `10 m 20.586 s`.
+- Shard 11: Mobile iPhone zone visual timed out on the 1200 creator preset;
+  trace retained WebKit creator worker-module errors.
+- Shard 16: Mobile Pixel low-zoom counted 11 cancelled (`net::ERR_ABORTED`)
+  tile starts as overview work.
+- Focused follow-up before correction: low-zoom Pixel `2/3` unexpected and
+  `1/3` pass. After correction: low-zoom Pixel `5/5`; zone Chromium/Pixel
+  `4/4`, WebKit `2` explicit skips, `0` unexpected.
+- This is diagnostic evidence for the bounded correction, not final
+  acceptance on the current SHA.
 
 ### Final critical gate
 
@@ -253,13 +276,13 @@ not final acceptance evidence.
 - The earlier 16-way concurrent local attempt produced 79 unexpected results
   from resource pressure. This is why local evidence is sequential; CI shard
   concurrency still needs an external controlled measurement.
-- Remaining debt: one complete final 16-shard run on `b4105a3`, post-final
+- Remaining debt: one complete final 16-shard run on `508d917`, post-final
   independent Sol Max reviews, physical Telegram/iOS proof, residual legacy
   timing/catch cleanup and a controlled GitHub CI cost measurement.
 
 ## Next action
 
-The bounded C12 correction is committed at `9eaedea`. Execute one complete
+The bounded wave6 correction is committed at `508d917`. Execute one complete
 16-shard Node22 matrix without changing SHA. Aggregate that run, rerun the two
 independent reviews against its SHA, execute the remaining gates, and only
 then decide whether the terminal state is justified.

@@ -1,6 +1,6 @@
 # E2E failure clusters
 
-Status: `CLUSTERED — C12 correction committed; final full matrix pending`
+Status: `CLUSTERED — wave6 residuals corrected at 508d917; final full matrix pending`
 
 This ledger groups failures by causal mechanism rather than assigning one
 agent to every red test. The frozen matrix is
@@ -32,6 +32,9 @@ agent to every red test. The frozen matrix is
 - The second complete matrix at `958ec96` completed all shards with
   `365 pass / 71 skip / 2 unexpected / 0 flaky`. Both unexpected rows were
   browser-side `ERR_CONNECTION_REFUSED` events on the Vite loopback host.
+- Wave6 at `f0c8d35` completed all `16/16` shards with `365 pass / 71 skip /
+  2 unexpected / 0 flaky`; the rows were a WebKit creator visual timeout and
+  a Pixel low-zoom request-count race.
 
 ## Cluster table
 
@@ -40,14 +43,14 @@ agent to every red test. The frozen matrix is
 | C1 | mobile bootstrap, navigation and shared invocation pressure; 26 frozen rows | `HARNESS_FAILURE` with `ENVIRONMENT_FAILURE` contribution | navigation owner; navigation/accessibility/creator/input specs | fresh owned suite `111 pass / 6 skip`; no causal source fix |
 | C2 | late response registration, lifecycle and resume; 12 frozen rows | `HARNESS_FAILURE` | lifecycle owner; guided-player/bfcache/migration paths | waits registered before navigation; status/body checked; guided repeats `5/5` |
 | C3 | special-cell contract and project-boundary cases; 13 frozen rows | `TEST_FAILURE` / coverage-boundary, not product failure | contract owner; special-cell specs | isolated Pixel cluster `16/16`; explicit treatment/control coverage retained |
-| C4 | tiled readiness, low-zoom response oracle and stroke geometry; 8 frozen rows | `HARNESS_FAILURE` | tiled owner; tiled low-zoom/stroke specs | causal state waits, completed-response counts, geometric center sampling; low-zoom `5/5` |
+| C4 | tiled readiness, low-zoom response oracle and stroke geometry; 8 frozen rows plus wave6 initial-plan race | `HARNESS_FAILURE` | tiled owner; tiled low-zoom/stroke specs | causal state waits, initial `workPlans` readiness, completed-response counts, geometric center sampling; Pixel low-zoom `5/5` |
 | C5 | generic guided player accidentally hit a generated Fuse offer in 2 full-shard runs | `HARNESS_FAILURE` | lead; `e2e/guided-player.spec.js` | switched generic journey to deterministic control cohort; focused `5/5`, shard 14 `23 pass / 3 skip` |
 | C6 | creator crop iPhone click timeout with failed WebKit worker module request; 1 first-pass occurrence | `ENVIRONMENT_FAILURE` / provider sensitivity | lead; no product file change | focused `3/3`, shard 7 rerun green; no quarantine |
 | C7 | long mobile glyph/guidance journeys; 2 first-pass timeouts | `ENVIRONMENT_FAILURE` / harness sensitivity pending external CI | lead; glyph and guided evidence | exact focused checks pass (`1/1` glyph, `5/5` guided control); full selected matrix green |
 | C8 | Gallery delete and low-zoom request-start false-green oracles | `HARNESS_FAILURE` | lead; `creator.spec.js`, `tiled-low-zoom.spec.js` | strict object identity/status/404 and request+response bounds; focused checks pass |
-| C9 | hidden UI retries and deterministic mutable fixture reuse | `HARNESS_FAILURE` | lead; P0/special delivery helpers, cohort hook, special glyph | retry clicks removed, cohort progress reset transactionally, glyph owners unique |
+| C9 | hidden UI retries and deterministic mutable fixture reuse | `HARNESS_FAILURE` | lead; P0/special delivery helpers, cohort hook, special glyph, low-zoom | retry clicks removed, cohort reset transactionally, glyph owners unique, low-zoom users unique per project/repeat |
 | C10 | release gate omitted object-storage contract | `HARNESS_FAILURE` / coverage gap | lead; workflow and S3 contract runner | disposable S3-compatible contract `2/2`; production R2 untouched |
-| C11 | iPhone emulation scope and WebKit worker/provider boundary | `ENVIRONMENT_FAILURE` / coverage boundary | lead; critical runner/workflow | explicit 14-test WebKit smoke; save/1200/touch remain Chromium/Pixel + physical iOS |
+| C11 | iPhone emulation scope and WebKit worker/provider boundary; wave6 zone visual timeout | `ENVIRONMENT_FAILURE` / coverage boundary | lead; critical runner/workflow, `e2e/zone-visual.spec.js` | explicit 14-test WebKit smoke; zone visual explicitly skips WebKit; save/1200/touch remain Chromium/Pixel + physical iOS |
 | C12 | legacy 96x96 Alpha glyph fixture omitted `artifact` for some random owners | `HARNESS_FAILURE` | lead; `special-glyph-parity.spec.js`, `e2e-hooks.js` | explicit `alpha-glyph-kinds` fixture variant uses a stable generation seed; Pixel `5/5`, browser variants `2/2` |
 | C13 | browser base URL used `localhost` while Vite bound to `127.0.0.1`; two full-matrix requests were refused | `HARNESS_FAILURE` / environment boundary | lead; `playwright.config.js`, `e2e-global-setup.mjs` | explicit `127.0.0.1` host parity; pointer `5/5`, Bomb `5/5`, CI-mode pair `2/2` |
 
@@ -151,3 +154,24 @@ The correction makes both the browser base URL and Vite startup host use the
 same explicit `E2E_WEB_HOST` default of `127.0.0.1`. The focused pointer and
 Bomb scenarios each passed `5/5`, and the CI-mode pair passed `2/2`, with
 retries disabled.
+
+## Wave6 residuals and bounded correction
+
+The complete wave6 run on `f0c8d35` exposed two residual harness issues after
+the C13 host correction. The low-zoom trace showed one successful tile plus
+cancelled (`net::ERR_ABORTED`) tile requests started by the still-scheduled
+initial WORK viewport effect. `data-lod-mode=work` was not sufficient causal
+state; the test now waits for `workPlans > 0` before clearing request
+observers and switching to OVERVIEW. The same test also reused one persisted
+user id across repeats and browser projects, so camera state could leak into
+the next repeat; the id now includes project and repeat identity. Pixel
+low-zoom passed `5/5` after these changes, retries disabled.
+
+The second row was the extended visual-only zone capture on local WebKit. Its
+trace retained failed WebKit creator worker-module requests and the 1200
+preset click never became actionable. Other 1200 creator WebKit tests already
+declare this local emulation capability boundary; the visual test now declares
+the same explicit skip while Chromium and Pixel remain covered. The post-change
+zone matrix passed Chromium/Pixel `4/4` and recorded two intentional WebKit
+skips, with no unexpected results. No product source was changed and no
+assertion was weakened.

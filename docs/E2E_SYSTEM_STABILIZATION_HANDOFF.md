@@ -1,6 +1,6 @@
 # Splint E2E system stabilization handoff
 
-Status: `FINAL_MATRIX_PENDING — C13 loopback correction committed; final full run pending`
+Status: `FINAL_MATRIX_PENDING — wave6 residuals corrected at 508d917; final full run pending`
 
 ## Release and Git boundary
 
@@ -9,8 +9,8 @@ Status: `FINAL_MATRIX_PENDING — C13 loopback correction committed; final full 
   `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`.
 - Last pre-correction code-and-harness SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
-- Current integration HEAD: `5eda79654bc4420505fde247515450e151565915`, the
-  committed bounded C13 loopback correction.
+- Current integration HEAD: `508d917f7780d52495281b5bc62f81604ecaccf0`, the
+  committed bounded wave6 correction.
 - Primary checkout remained user-owned and dirty; no reset, force push,
   deployment, or production mutation was performed.
 - Production remains `showalove.ru` / Closed Alpha LIVE. Stars remain
@@ -58,14 +58,14 @@ The full cluster ledger is [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C1 mobile bootstrap/navigation/readiness | 26 | Clean owned-suite pass; no product fix required |
 | C2 lifecycle/late response registration | 12 | Harness/test fix: register required response before navigation and validate status/body |
 | C3 special-cell fixture/contracts | 13 | Clean isolated Pixel cluster pass; no product fix required |
-| C4 tiled loading/zoom/stroke oracle | 8 | Harness/test fixes: causal state wait, no-special fixture span, geometric cell-center sampling |
+| C4 tiled loading/zoom/stroke oracle | 8 + wave6 residual | Harness/test fixes: causal state wait, initial WORK-plan state, no-special fixture span, geometric cell-center sampling |
 | C5 generic guided fixture / Fuse offer | 1 recurring full-shard row | Harness fixture fix: deterministic control cohort |
 | C6 Creator WebKit worker/module sensitivity | 1 first-pass row | Environment/provider sensitivity; bounded rerun green |
 | C7 long mobile glyph/guidance sensitivity | 2 first-pass rows | Environment/provider sensitivity; focused and selected rerun green |
 | C8 false-green release oracles | review findings | Gallery identity/status/404 and low-zoom request+response bounds fixed |
 | C9 hidden retry and fixture reuse | review findings | UI retries removed; cohort reset and unique glyph fixture owners fixed |
 | C10 missing R2 contract coverage | review finding | disposable S3-compatible contract job added; production R2 untouched |
-| C11 iPhone scope/provider boundary | review finding | explicit 14-test WebKit smoke; physical iOS remains separate |
+| C11 iPhone scope/provider boundary | review finding + wave6 zone timeout | explicit 14-test WebKit smoke; local WebKit zone visual skip is explicit; physical iOS remains separate |
 | C12 legacy Alpha glyph fixture seed | first complete matrix failure; Pixel 4/5 focused reproduction before fix | explicit Alpha glyph fixture contract with stable seed and variant id; post-fix Pixel 5/5 and browser variants 2/2 |
 | C13 browser/Vite loopback host mismatch | second complete matrix had two browser-side `ERR_CONNECTION_REFUSED` failures | browser base URL and Vite bind aligned to `127.0.0.1`; pointer and Bomb focused scenarios 5/5 each, CI-mode pair 2/2 |
 
@@ -153,8 +153,16 @@ page stayed on `Загружаем…` after the API fixture setup had succeeded
 failure traces and screenshots are retained under
 `test-results/final-wave5-shard-01/` and
 `test-results/final-wave5-shard-03/`. The C13 correction aligns browser and
-Vite loopback hosts without touching product source; the final full matrix on
-`b4105a3` is still pending.
+Vite loopback hosts without touching product source. The next wave on
+`f0c8d35` completed all 16 shards with `365 pass / 71 skip / 2 unexpected /
+0 flaky` in a summed sequential wall proxy of `63 m 41.141 s`: a WebKit zone
+visual timeout and a Pixel low-zoom request-count race. Their traces are under
+`test-results/final-wave6-shard-11/` and
+`test-results/final-wave6-shard-16/`. The bounded correction at `508d917`
+adds initial WORK-plan readiness, unique low-zoom user ids per project/repeat,
+and the explicit WebKit capability skip. Focused proof is low-zoom Pixel
+`5/5` and zone Chromium/Pixel `4/4`, WebKit `2` expected skips. The final
+full matrix on `508d917` is still pending.
 
 Previously sensitive scenarios also have repeated PASS evidence: lifecycle
 guided flow `5/5`, corrected tiled stroke `5/5`, and low-zoom `5/5`, with
@@ -221,9 +229,9 @@ after the complete final matrix.
 ## Remaining debt and release decision
 
 The E2E harness has a green historical critical matrix and a selected green
-extended matrix. The first two complete post-correction matrices identified
-and isolated C12 and C13; both corrections are now committed, but final proof
-on the corrected SHA is still pending.
+extended matrix. Complete post-correction waves identified and isolated C12,
+C13, and the wave6 residuals; all bounded corrections are committed, but
+final proof on `508d917` is still pending.
 The goal cannot yet be declared terminal under the strict exit criteria until:
 
 - one complete 16-shard Node22 matrix is green on one frozen corrected SHA;
@@ -233,6 +241,6 @@ The goal cannot yet be declared terminal under the strict exit criteria until:
   as PASS.
 
 No production deployment is part of this handoff. The next safe actions are to
-run one complete final matrix on `b4105a3` without changing its SHA, rerun
+run one complete final matrix on `508d917` without changing its SHA, rerun
 both independent reviews, then update the run-state and handoff with the final
 evidence. Live GitHub branch timing remains a separate CI measurement debt.

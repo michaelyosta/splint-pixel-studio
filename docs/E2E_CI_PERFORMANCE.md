@@ -1,6 +1,6 @@
 # E2E CI performance
 
-Status: `MEASURED — C13 loopback correction committed; final matrix and live CI proof pending`
+Status: `MEASURED — wave6 residuals corrected at 508d917; final matrix and live CI proof pending`
 
 This document records the performance evidence from the frozen diagnostic and
 the current CI shape. It does not treat low CPU utilization as a reason to
@@ -69,6 +69,16 @@ zero flaky results. Both unexpected rows were browser-side loopback
 `ERR_CONNECTION_REFUSED` events. After the C13 host-parity correction at
 `b4105a3`, the two affected scenarios passed `5/5` each and the CI-mode
 pair passed `2/2`. A new complete matrix is required on the corrected SHA.
+
+Wave6 on SHA `f0c8d35` completed all 16 sequential shards with `365` passes,
+`71` skips, `2` unexpected and `0` flaky results. Its summed wall proxy was
+`63 m 41.141 s`, with the slowest shard at `10 m 20.586 s`. The Mobile iPhone
+zone visual timeout retained WebKit creator worker-module errors. The Mobile
+Pixel low-zoom failure retained `net::ERR_ABORTED` tile requests and exposed
+a scheduled initial WORK-plan race. After the bounded correction at
+`508d917`, focused low-zoom passed `5/5`; the zone matrix passed Chromium and
+Pixel `4/4` and recorded two explicit WebKit capability skips. The final
+complete matrix must still run on `508d917`.
 
 The PostgreSQL service gate was subsequently executed locally against a fresh
 Docker `postgres:16` container using the same credentials and migration shape
@@ -176,6 +186,7 @@ optimization until the extended sharded result proves isolation.
 | Extended, prior selected 16 shards | 367 executed + 71 expected skips | 0 unexpected, 0 flaky; historical only | slowest 11 m 56.614 s; sum 73 m 56.861 s |
 | Extended, first complete post-correction 16 shards | 366 pass + 71 expected skips | 1 C12 unexpected, 0 flaky; diagnostic only | 1 h 14 m 24.606 s wall-clock |
 | Extended, second complete post-correction 16 shards | 365 pass + 71 expected skips | 2 C13 unexpected, 0 flaky; diagnostic only | 1 h 18 m 03.624 s wall-clock |
+| Extended, wave6 complete 16 shards | 365 pass + 71 expected skips | 2 harness unexpected, 0 flaky; diagnostic only | 63 m 41.141 s summed sequential wall proxy; slowest 10 m 20.586 s |
 
 The final critical matrix is compatible with the intended approximately 5–10
 minute PR gate when the three project jobs run in parallel. The local
