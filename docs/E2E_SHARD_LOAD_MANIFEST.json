@@ -26,7 +26,8 @@
       "Mobile Pixel"
     ],
     "expected_logical_tests": 146,
-    "expected_project_cases": 438
+    "expected_project_cases": 438,
+    "inventory_fingerprint": "e6e74ed9bb0a0b01d24d489430c32328c8bb3601d6b4cccf8666d9ad19038e28"
   },
   "measurement_note": "Historical Playwright durations from 33396678958; current CI shards collect server /metrics before teardown. A 30000ms minimum logical-group load prevents zero-duration visual/evidence groups from collapsing into one long-lived runtime.",
   "topology_comparison": {

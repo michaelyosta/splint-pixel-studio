@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { inventoryFingerprint } from './e2e-shard-plan.mjs';
 
 function argument(name, fallback = undefined) {
   const index = process.argv.indexOf(name);
@@ -148,6 +149,7 @@ const manifest = {
     projects: ['chromium', 'Mobile iPhone', 'Mobile Pixel'],
     expected_logical_tests: groups.length,
     expected_project_cases: rows.length,
+    inventory_fingerprint: inventoryFingerprint(rows),
   },
   measurement_note: `Historical Playwright durations from ${durationSourceRunId}; current CI shards collect server /metrics before teardown. A ${minimumGroupWeightMs}ms minimum logical-group load prevents zero-duration visual/evidence groups from collapsing into one long-lived runtime.`,
   topology_comparison: {
