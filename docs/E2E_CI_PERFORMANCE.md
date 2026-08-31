@@ -1,6 +1,6 @@
 # E2E CI performance
 
-Status: `MEASURED — correction wave committed; complete final matrix and live CI proof pending`
+Status: `MEASURED — C12 correction committed; final matrix and live CI proof pending`
 
 This document records the performance evidence from the frozen diagnostic and
 the current CI shape. It does not treat low CPU utilization as a reason to
@@ -54,6 +54,14 @@ complete post-correction run, so it is historical evidence only. A new
 complete 16-shard matrix is required before final acceptance. Because the
 Windows matrix is sequential, its sum is a runner-time proxy, not a GitHub
 billing estimate.
+
+The first complete post-correction matrix at SHA `70a93a5` completed all
+16 shards in `1 h 14 m 24.606 s` with `366` passes, `71` skips, one
+unexpected and zero flaky results. The single failure was the C12 legacy glyph
+fixture seed defect. After the bounded fix at `9eaedea`, focused legacy
+glyph checks passed Pixel `5/5` and Chromium+iPhone `2/2`; related tiled
+glyph checks passed Chromium+Pixel `2/2`. A new complete matrix is required
+on the corrected SHA.
 
 The PostgreSQL service gate was subsequently executed locally against a fresh
 Docker `postgres:16` container using the same credentials and migration shape
@@ -159,6 +167,7 @@ optimization until the extended sharded result proves isolation.
 | Release-critical, Mobile iPhone/WebKit smoke | 14 executable | 14 pass | 84.113 s |
 | Release-critical, Mobile Pixel | 26 | 26 pass | 6 m 53.653 s |
 | Extended, prior selected 16 shards | 367 executed + 71 expected skips | 0 unexpected, 0 flaky; historical only | slowest 11 m 56.614 s; sum 73 m 56.861 s |
+| Extended, first complete post-correction 16 shards | 366 pass + 71 expected skips | 1 C12 unexpected, 0 flaky; diagnostic only | 1 h 14 m 24.606 s wall-clock |
 
 The final critical matrix is compatible with the intended approximately 5–10
 minute PR gate when the three project jobs run in parallel. The local

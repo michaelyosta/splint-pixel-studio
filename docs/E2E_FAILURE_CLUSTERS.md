@@ -1,6 +1,6 @@
 # E2E failure clusters
 
-Status: `CLUSTERED — bounded correction wave committed; post-correction full matrix pending`
+Status: `CLUSTERED — C12 correction committed; final full matrix pending`
 
 This ledger groups failures by causal mechanism rather than assigning one
 agent to every red test. The frozen matrix is
@@ -25,6 +25,10 @@ agent to every red test. The frozen matrix is
   reruns rather than one complete post-correction run.
 - No product defect was proven. No assertion was weakened. No generic retry or
   quarantine was used to obtain green.
+- The first complete post-correction matrix at `70a93a5` completed all
+  `16/16` shards with `366 pass / 71 skip / 1 unexpected / 0 flaky`. The
+  single unexpected was C12; its focused reproduction was `4/5` before the
+  fix and `5/5` after the fix.
 
 ## Cluster table
 
@@ -41,6 +45,7 @@ agent to every red test. The frozen matrix is
 | C9 | hidden UI retries and deterministic mutable fixture reuse | `HARNESS_FAILURE` | lead; P0/special delivery helpers, cohort hook, special glyph | retry clicks removed, cohort progress reset transactionally, glyph owners unique |
 | C10 | release gate omitted object-storage contract | `HARNESS_FAILURE` / coverage gap | lead; workflow and S3 contract runner | disposable S3-compatible contract `2/2`; production R2 untouched |
 | C11 | iPhone emulation scope and WebKit worker/provider boundary | `ENVIRONMENT_FAILURE` / coverage boundary | lead; critical runner/workflow | explicit 14-test WebKit smoke; save/1200/touch remain Chromium/Pixel + physical iOS |
+| C12 | legacy 96x96 Alpha glyph fixture omitted `artifact` for some random owners | `HARNESS_FAILURE` | lead; `special-glyph-parity.spec.js`, `e2e-hooks.js` | explicit `alpha-glyph-kinds` fixture variant uses a stable generation seed; Pixel `5/5`, browser variants `2/2` |
 
 ## C1 — mobile bootstrap/navigation and invocation pressure
 
@@ -96,6 +101,21 @@ execution. Focused repetition did not reproduce a product failure. Because
 external GitHub runner evidence was not run on this unpushed branch, these are
 recorded as environment/provider debt rather than silently upgraded to
 `PRODUCT_FAILURE` or hidden with retries.
+
+## C12 — legacy Alpha glyph fixture seed
+
+The first complete post-correction matrix failed once in the Pixel project
+because a random owner changed the template id, and the 16-row 96x96 legacy
+fixture then selected only `spark` and `bomb`. A five-repeat Pixel reproduction
+confirmed the mechanism with `4 pass / 1 fail`; the failure occurred during
+fixture creation before any UI assertion.
+
+The correction adds an explicit `alpha-glyph-kinds` test-fixture contract,
+uses a separate deterministic legacy generation seed known to include all
+three active Alpha kinds, and includes the fixture variant in the id. It does
+not alter production generation. Post-fix evidence is Pixel `5/5`,
+Chromium+iPhone `2/2`, and related tiled Chromium+Pixel `2/2`, with retries
+disabled.
 
 ## Disposition rules
 

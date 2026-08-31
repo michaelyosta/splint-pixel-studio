@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `FINAL_MATRIX_PENDING — bounded correction wave committed; frozen full run pending`
+Status: `FINAL_MATRIX_PENDING — C12 fixture correction committed; final full run pending`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -15,10 +15,10 @@ to the local integration worktree.
 - Supplied release candidate: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current code/harness SHA: `e60e39cece645a4bd776e3a4c4e58a36697ee7b8`
-  (Gallery/low-zoom oracles, retry removal, fixture reset, exact runtime,
-  explicit WebKit subset and S3 contract gate).
-- Current integration HEAD: `e60e39cece645a4bd776e3a4c4e58a36697ee7b8`.
+- Current code/harness SHA: `9eaedea9667f7b87ae3abf4f0d1a17b09bcd351c`
+  (bounded C12 correction: explicit Alpha glyph fixture contract with a
+  stable legacy generation seed).
+- Current integration HEAD: `9eaedea9667f7b87ae3abf4f0d1a17b09bcd351c`.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -54,9 +54,11 @@ against the post-correction SHA after the final full matrix.
 
 - Inventory: [E2E_TEST_INVENTORY.md](E2E_TEST_INVENTORY.md).
 - 39 Playwright spec files, 146 logical tests, 438 nominal project cases.
-- 411 cases remain after source-level project skips; the final matrix reports
-  367 executed passes and 71 explicit/conditional skips (the additional skips
-  are capability or environment gates, not quarantine).
+- 411 cases remain after source-level project skips. The first complete
+  post-correction candidate matrix at `70a93a5` reported 366 passes, 71
+  explicit/conditional skips and one proven C12 fixture failure; the new
+  final matrix on `9eaedea` is pending. Skips are capability or environment
+  gates, not quarantine.
 - Release-critical proposal is maintained in
   `scripts/run-e2e-suite-node22.mjs`: 26 title-selected tests on Chromium and
   Mobile Pixel, plus an explicit 14-test supported Mobile iPhone/WebKit smoke
@@ -124,6 +126,7 @@ Full ledger: [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C9 hidden retry and fixture reuse | P0/special-delivery hidden retry and special-glyph deterministic user findings | HARNESS_FAILURE | UI retries removed; cohort reset and unique glyph owners added; targeted checks pass |
 | C10 missing R2 contract coverage | critical harness forced local storage | HARNESS_FAILURE / coverage gap | disposable S3-compatible contract job added; no production R2 touched |
 | C11 critical browser scope ambiguity | iPhone lane had 11 expected skips and one worker-sensitive case | ENVIRONMENT/coverage boundary | explicit 14-test WebKit smoke subset; physical iOS gate remains required |
+| C12 legacy Alpha glyph fixture seed | 1 failure in the first complete post-correction matrix; 1/5 failure in focused reproduction | HARNESS_FAILURE | lead; `special-glyph-parity.spec.js`, `e2e-hooks.js` | explicit `alpha-glyph-kinds` fixture uses a stable seed and variant id; post-fix focused browser checks pass |
 
 No product defect was proven. No assertion was weakened. No test was
 quarantined and no obsolete test was removed. The old stitched matrix is now
@@ -144,6 +147,8 @@ correction SHA.
 - `e60e39c` bounded correction wave: strict Gallery/low-zoom oracles, no hidden
   UI retries, cohort progress reset, unique special-glyph owners, exact
   Node/npm preflight, explicit WebKit subset and disposable S3 contract.
+- `9eaedea` bounded C12 correction: explicit Alpha glyph fixture contract and
+  stable legacy generation seed; no product source change.
 
 ## Verification ledger
 
@@ -154,7 +159,8 @@ correction SHA.
   oracle has one focused pass and is scheduled for a fresh repeated run.
 - Special visual Pixel fixture isolation: `5/5`.
 - Creator crop iPhone: `3/3`.
-- Glyph parity iPhone: `1/1` exact focused check.
+- Legacy glyph parity: Pixel `5/5`; Chromium+iPhone `2/2`.
+- Related tiled glyph parity: Chromium+Pixel `2/2`.
 - Guided player Pixel before fixture correction: `3/3`; after deterministic
   control fixture: `5/5`.
 - Final control-fixture shard 14: `23 pass / 3 skip / 0 unexpected / 0 flaky`.
@@ -174,6 +180,19 @@ not final acceptance evidence.
   affected shards were investigated, fixed or correctly classified, and
   rerun in one bounded correction sequence. The original red evidence remains
   in `test-results/full-seq3-final-shard-*`.
+
+### First complete post-correction matrix
+
+- Frozen SHA: `70a93a564ec353435550670fb618064a3f09578a`.
+- All `16/16` sequential shards completed with fail-fast disabled.
+- Result: `366 pass / 71 skip / 1 unexpected / 0 flaky`; the single failure
+  was C12, the random legacy 96x96 glyph fixture omitting `artifact`.
+- Wall-clock: `1 h 14 m 24.606 s`; the result is diagnostic evidence for the
+  proven C12 correction, not final acceptance for the new SHA.
+- Failure evidence: `test-results/final-wave4-shard-15/`.
+- Focused C12 reproduction before correction: `4 pass / 1 fail` in five Pixel
+  repeats. After correction: Pixel `5/5`, Chromium+iPhone `2/2`, and related
+  tiled Chromium+Pixel `2/2`.
 
 ### Final critical gate
 
@@ -216,13 +235,13 @@ not final acceptance evidence.
 - The earlier 16-way concurrent local attempt produced 79 unexpected results
   from resource pressure. This is why local evidence is sequential; CI shard
   concurrency still needs an external controlled measurement.
-- Remaining debt: post-correction independent Sol Max reviews, one complete
-  final 16-shard run, physical Telegram/iOS proof, residual legacy timing/catch
-  cleanup and a controlled GitHub CI cost measurement.
+- Remaining debt: one complete final 16-shard run on `9eaedea`, post-final
+  independent Sol Max reviews, physical Telegram/iOS proof, residual legacy
+  timing/catch cleanup and a controlled GitHub CI cost measurement.
 
 ## Next action
 
-The bounded correction wave is committed at `e60e39c`. Run focused checks, then
-execute one complete 16-shard Node22 matrix without changing SHA. Aggregate that run,
-rerun the two independent reviews against its SHA, execute the remaining gates,
-and only then decide whether the terminal state is justified.
+The bounded C12 correction is committed at `9eaedea`. Execute one complete
+16-shard Node22 matrix without changing SHA. Aggregate that run, rerun the two
+independent reviews against its SHA, execute the remaining gates, and only
+then decide whether the terminal state is justified.
