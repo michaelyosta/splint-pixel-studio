@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `BOUNDED_C20_CORRECTION_PROVEN — run 33409940186 complete; preparing one new frozen SHA`
+Status: `C21_CLASSIFIED — cancelled run 33412246450 fully evidenced; preparing final exact-SHA matrix`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -16,7 +16,9 @@ to the local integration worktree.
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
 - Current code/harness SHA and integration HEAD:
-  `04b12083035b27bce1707f6dade278b96510fdda`.
+  `71b4dee29b7e5ce64ea1ca0d3f39217473163660`.
+- Integration SHA is frozen for the final matrix after C20; no product source
+  change is pending.
 - Latest authoritative GitHub run: `33409940186` (PR event; all jobs complete;
   22/24 extended shards green, all four critical lanes, PostgreSQL, S3 and
   verify green; only C20 Creator navigation oracle failed in shards 9 and 22).
@@ -27,6 +29,8 @@ to the local integration worktree.
   correction, plus Chromium/Mobile Pixel variants `4/4`; retries `0`, fresh
   Node 22 runtime. C19 responsive Spark remains Chromium `5/5` and Mobile
   Pixel `5/5`.
+- C21 representative fresh Mobile iPhone guided-path repeat: `5/5`, retries
+  `0`; GitHub run `33412246450` remains cancelled and is not acceptance proof.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -38,7 +42,7 @@ to the local integration worktree.
 
 | Role | Location / identity | Ownership | Status |
 |---|---|---|---|
-| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | C18 topology wave in progress; manifest preflight PASS |
+| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | C21 classified; final exact-SHA matrix pending |
 | Frozen diagnostic | `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean` | read-only frozen evidence | complete |
 | Primary checkout | `C:\Users\misa\Desktop\Splint-Gemini` | unrelated user work/evidence | untouched |
 | C1 navigation | `01a052cd-d0b1-71c0-a10c-b0db0fdd743f` | navigation/readiness cluster | complete; no speculative fix |
@@ -75,7 +79,7 @@ against the post-correction SHA after the final full matrix.
   Mobile Pixel, plus an explicit 14-test supported Mobile iPhone/WebKit smoke
   subset. Omitted iPhone cases are conditional WebKit/1200/touch or known
   worker/provider-bound scenarios; physical iOS/Telegram remains separate.
-- Extended regression is the complete `e2e/` suite in 16 fail-fast-disabled
+- Extended regression is the complete `e2e/` suite in 24 fail-fast-disabled
   fresh-runtime shards, selected by the weighted logical-test manifest in
   `docs/E2E_SHARD_LOAD_MANIFEST.json`.
 - Legacy/debt cases remain visible and are not deleted merely because they are
@@ -367,9 +371,10 @@ not final acceptance evidence.
 
 ## Next action
 
-Run `33409940186` is fully mapped. Its two unexpected rows are one C20
-test-oracle cluster, not new product defects or C18 pressure. Review and commit
-the minimal `creator.spec.js` correction with this durable evidence, run the
-coverage/lint/diff preflight, push and freeze the resulting exact SHA, then
-allow one authoritative GitHub matrix to finish in full. If it is green, stop
-testing and proceed directly to the two independent reviews and final handoff.
+Run `33412246450` is fully evidenced but was cancelled after one C21
+environment-bound critical iPhone failure. Fresh targeted reproduction is
+`5/5`, so no new code correction is warranted. Commit only this durable
+classification, run coverage/lint/diff preflight, push the resulting exact
+SHA, then allow one authoritative GitHub matrix to finish in full. If it is
+green, stop testing and proceed directly to the two independent reviews and
+final handoff.

@@ -280,6 +280,24 @@ test. Post-change Mobile iPhone stress passed `5/5` per representative
 (`10/10` total); Chromium and Mobile Pixel variants passed `4/4`, retries `0`.
 No timeout, retry, quarantine, assertion weakening or product change was used.
 
+## C21 — transient critical iPhone runtime pressure
+
+Run `33412246450` on the integration commit `71b4dee29b7e5ce64ea1ca0d3f39217473163660`
+had one unexpected critical row on Mobile iPhone/WebKit in
+`guided-path.spec.js` (`completion hands off to a committed choice, including
+an honest stop`). The trace ended on the loading shell after a deep link. Its
+server evidence contained no HTTP errors, but several background requests had
+anomalous latency (`colorings` 1.9s, `today` 2.5s, `mine` 5.6s,
+`progression` 7.4s) during an 86.6s lane; the same requests were normal in
+fresh targeted runs. This is classified as `ENVIRONMENT_PRESSURE /
+PROVIDER_BOUND`, not `PRODUCT_FAILURE` or `TEST_ASSERTION_DEFECT`.
+
+The representative fresh Node22 API/SQLite run passed `5/5` on Mobile iPhone
+with retries `0`; the existing critical iPhone journey also passed in earlier
+clean evidence. No timeout, retry, quarantine, assertion weakening or product
+change is justified. The cancelled matrix is not final proof; the next action
+is one complete exact-SHA GitHub matrix with all jobs allowed to finish.
+
 ## Machine-readable failure map
 
 The lead harness now provides `scripts/summarize-e2e-results.mjs`. It consumes
