@@ -9,9 +9,9 @@ Status: `FINAL_GITHUB_PENDING — wave7 local failure map complete; two environm
   `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`.
 - Last pre-correction code-and-harness SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
-- Current integration HEAD: `9cba274953a362272183b666fc2aaded5b81f8fa`, with
+- Current integration HEAD: `f1ba9919c7c364b67b82b8c9459b7bf4bb6a8949`, with
   code/harness correction at `508d917f7780d52495281b5bc62f81604ecaccf0` and
-  the bounded machine-summary/CI artifact correction pending commit.
+  the bounded machine-summary/CI artifact correction committed.
 - Primary checkout remained user-owned and dirty; no reset, force push,
   deployment, or production mutation was performed.
 - Production remains `showalove.ru` / Closed Alpha LIVE. Stars remain
@@ -258,7 +258,7 @@ The goal cannot yet be declared terminal under the strict exit criteria until:
   as PASS.
 
 No production deployment is part of this handoff. The next safe actions are to
-commit the bounded diagnostics/CI artifact correction, push the exact
-integration SHA, run the authoritative GitHub critical and extended matrices,
+push the exact integration SHA `f1ba991`, run the authoritative GitHub critical
+and extended matrices,
 then rerun both independent reviews and update this handoff with provider
 timing/evidence.

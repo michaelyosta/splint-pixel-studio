@@ -18,7 +18,7 @@ to the local integration worktree.
 - Current code/harness SHA: `508d917f7780d52495281b5bc62f81604ecaccf0`
   (bounded wave6 correction: initial tiled WORK-plan state, per-repeat user
   isolation, and explicit WebKit visual capability boundary).
-- Current integration HEAD: `9cba274953a362272183b666fc2aaded5b81f8fa` (docs-only state update atop code/harness SHA `508d917f7780d52495281b5bc62f81604ecaccf0`).
+- Current integration HEAD: `f1ba9919c7c364b67b82b8c9459b7bf4bb6a8949` (bounded machine-summary/CI artifact correction atop code/harness SHA `508d917f7780d52495281b5bc62f81604ecaccf0`).
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -159,6 +159,8 @@ correction SHA.
 - `508d917` bounded wave6 correction: wait for initial tiled WORK plan,
   isolate low-zoom users per project/repeat, skip unsupported WebKit creator
   visual path explicitly, remove its shared screenshot path.
+- `f1ba991` bounded diagnostics correction: machine-readable failure
+  fingerprints, SHA/run/shard-scoped CI artifacts, and captured run logs.
 
 ## Verification ledger
 
@@ -313,8 +315,8 @@ not final acceptance evidence.
 
 The wave7 local failure map is complete and both representative environment
 signals passed isolated targeted repeats. The bounded diagnostics correction
-adds `scripts/summarize-e2e-results.mjs` and SHA/run/shard-scoped CI artifacts;
-it does not alter product behavior. Commit this bounded documentation/CI wave,
-push the exact integration SHA, run the authoritative GitHub critical and
+at `f1ba991` adds `scripts/summarize-e2e-results.mjs` and SHA/run/shard-scoped
+CI artifacts; it does not alter product behavior. Push the exact integration SHA,
+run the authoritative GitHub critical and
 16-shard extended matrix with fail-fast disabled and retries `0`, then aggregate
 all shard summaries before any further correction decision.
