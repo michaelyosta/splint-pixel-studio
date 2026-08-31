@@ -15,10 +15,11 @@ to the local integration worktree.
 - Supplied release candidate: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current integration HEAD before this bounded wave:
-  `c3c44e12e0edcadfc7c6454ff69be6f44667ef18` (`docs: record keyboard
-  readiness race`). The working tree contains one uncommitted, targeted
-  `e2e/creator.spec.js` correction for C24/C25; no product source change.
+- Current code/harness candidate SHA:
+  `8ef2e12` (`test: close creator readiness races`). It contains the targeted
+  C24/C25 `e2e/creator.spec.js` correction and the C23-C25 evidence update;
+  no product source change. The branch may receive a documentation-only
+  follow-up before the single push, without changing this code candidate.
 - The prior final candidate `2fc52c9cd4bd4c07fbe4ae374e56e015678f96d7`
   remains immutable evidence; the bounded C22 helper correction is now the
   next frozen candidate after targeted proof.
