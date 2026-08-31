@@ -213,6 +213,7 @@ export async function waitForProgressAction(page) {
 }
 
 export async function focusLegacyCell(page, index) {
+  await waitForColoringSessionReady(page, { 'data-route-status': 'ready' }, 'legacy keyboard input');
   const canvas = page.locator('.coloring-canvas');
   await expect(canvas).toBeVisible();
   await expect(page.locator('.coloring-canvas-viewport')).toHaveAttribute('data-interaction-disabled', 'false');
