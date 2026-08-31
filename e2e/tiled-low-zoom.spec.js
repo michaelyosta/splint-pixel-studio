@@ -35,8 +35,10 @@ async function dismissOnboarding(page) {
   if (await skip.isVisible().catch(() => false)) await skip.click({ force: true });
 }
 
-async function createAndOpen1200(page) {
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'e2e_low_zoom_1200' });
+async function createAndOpen1200(page, testInfo) {
+  const projectKey = testInfo.project.name.replace(/[^a-z0-9]+/gi, '_');
+  const userId = `e2e_low_zoom_1200_${projectKey}_${testInfo.repeatEachIndex}`;
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': userId });
   const previewDataUrl = `data:image/png;base64,${readFileSync(fixture).toString('base64')}`;
   const createResponse = await page.request.post('/api/colorings/create', {
     data: {
@@ -81,6 +83,18 @@ async function waitForTileNetworkIdle(page) {
   ).toEqual({ activeTileRequests: 0, pendingTiles: 0 });
 }
 
+async function waitForInitialWorkPlan(page) {
+  // data-lod-mode becomes WORK when the first Director target is accepted,
+  // while the viewport loader starts from its own scheduled effect.  Waiting
+  // for the observable plan keeps the test from switching to OVERVIEW while
+  // that real WORK request batch is still only scheduled.
+  await expect.poll(
+    () => page.evaluate(() => Number(window.__splintClient?.getNetworkStats?.().workPlans || 0)),
+    { timeout: 60000, message: 'initial WORK viewport plan must start before overview is measured' },
+  ).toBeGreaterThan(0);
+  await waitForTileNetworkIdle(page);
+}
+
 test.describe('tiled 1200 low zoom', () => {
   test('overview is preview-stable, work reloads tiles, 502 stays local and retry recovers', async ({ page }, testInfo) => {
     test.setTimeout(180000);
@@ -96,7 +110,7 @@ test.describe('tiled 1200 low zoom', () => {
       }
     });
 
-    const session = await createAndOpen1200(page);
+    const session = await createAndOpen1200(page, testInfo);
     // Overview inserts a "return to target" control before zoom buttons. Use
     // the semantic labels so this verifier keeps exercising zoom rather than
     // repeatedly clicking the optional return control.
@@ -108,9 +122,9 @@ test.describe('tiled 1200 low zoom', () => {
     }));
 
     // Do not count the tail of the initial WORK prefetch as an overview
-    // request. This is especially important after the preceding 1200px
-    // scenarios have saturated the serial E2E API worker.
-    await waitForTileNetworkIdle(page);
+    // request. The plan itself is causal state: lod-mode can become WORK
+    // before the separately scheduled viewport effect has started.
+    await waitForInitialWorkPlan(page);
     tileRequests.length = 0;
     tileResponses.length = 0;
     const overviewStartedAt = Date.now();
