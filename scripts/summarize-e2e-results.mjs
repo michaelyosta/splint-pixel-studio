@@ -11,7 +11,9 @@ const outputPath = argument('--output', 'test-results/e2e-summary.json');
 const sha = argument('--sha', process.env.GITHUB_SHA || 'unknown');
 const runId = argument('--run-id', process.env.GITHUB_RUN_ID || process.env.E2E_RUN_ID || 'local');
 const shard = argument('--shard', process.env.E2E_SHARD || 'unknown');
+const shardCount = argument('--shard-count', process.env.E2E_SHARD_COUNT || null);
 const serverLog = argument('--server-log', process.env.E2E_SERVER_LOG || null);
+const metricsPath = argument('--metrics', process.env.E2E_SERVER_METRICS_FILE || process.env.E2E_METRICS_FILE || null);
 
 const ansiEscape = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, 'g');
 const stripAnsi = (value) => String(value || '').replace(ansiEscape, '');
@@ -46,15 +48,36 @@ function failureType(testResult) {
 }
 
 const resolvedInputPath = resolve(inputPath);
+const resolvedMetricsPath = metricsPath ? resolve(metricsPath) : null;
+let serverMetrics = null;
+if (resolvedMetricsPath && existsSync(resolvedMetricsPath)) {
+  try {
+    serverMetrics = JSON.parse(readFileSync(resolvedMetricsPath, 'utf8'));
+  } catch (error) {
+    serverMetrics = { report_available: false, error: error.message };
+  }
+}
+const metrics = serverMetrics?.metrics || null;
+const load = {
+  shard_duration_ms: null,
+  api_request_count: metrics?.httpRequests ?? null,
+  api_error_count: metrics?.httpErrors ?? null,
+  api_avg_latency_ms: metrics?.http_avg_duration_ms ?? null,
+  api_p95_latency_ms: null,
+  api_max_latency_ms: null,
+};
 if (!existsSync(resolvedInputPath)) {
   const missingInputSummary = {
     schema_version: 1,
     sha,
     run_id: runId,
     shard,
+    shard_count: shardCount,
     generated_at: new Date().toISOString(),
     runtime: { node: process.version, playwright: process.env.PLAYWRIGHT_VERSION || null },
     report_available: false,
+    server_metrics: serverMetrics,
+    load,
     input_path: inputPath,
     failure_count: null,
     failures: [],
@@ -130,10 +153,13 @@ const summary = {
   sha,
   run_id: runId,
   shard,
+  shard_count: shardCount,
   generated_at: new Date().toISOString(),
   runtime: { node: process.version, playwright: process.env.PLAYWRIGHT_VERSION || null },
   report_available: true,
   stats: data.stats || null,
+  server_metrics: serverMetrics,
+  load: { ...load, shard_duration_ms: data.stats?.duration ?? null },
   failure_count: failures.length,
   failures,
   clusters,

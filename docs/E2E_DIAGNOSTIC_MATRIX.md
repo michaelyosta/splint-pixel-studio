@@ -128,3 +128,36 @@ server/Vite output is in `test-results/frozen-diagnostic.console.log`.
   investigation.
 - The matrix is a diagnostic baseline, not a release result. No failure has
   been quarantined and no assertion has been weakened.
+
+## Exact-SHA GitHub follow-up: run 33388276591
+
+This follow-up was run after the C16/C17 runtime and diagnostics correction at
+exact integration SHA `3a993d14da514fa564909d4461f66a81bab42357`. It is the
+authoritative evidence used for the shard-lifetime topology decision; no
+source changed while the run was executing.
+
+| Lane | Result | Completed jobs | Retries | Notes |
+|---|---:|---:|---:|---|
+| Critical | `66 pass / 0 unexpected` | `3/3` | `0` | Chromium, iPhone and Pixel green |
+| Extended | `356 pass / 72 expected skip / 5 unexpected` | `16/16` | `0` | RED only in shards 3, 4 and 6 |
+| Verify | PASS | `1/1` | n/a | unit, lint and build green |
+| PostgreSQL | PASS | `1/1` | n/a | service-backed validation green |
+| S3 contract | PASS | `1/1` | n/a | disposable contract green |
+
+The five failures were not investigated as five independent defects:
+
+| Shard | Project | Test mechanism | Failure | Fresh isolated repeat |
+|---:|---|---|---|---:|
+| 3 | Chromium | guided player | `/guidance` response wait timed out | `3/3` |
+| 3 | Chromium | keyboard input | `.coloring-canvas` was not visible | `3/3` |
+| 3 | Chromium | Phase 2 Bomb | Bomb control was not visible | `3/3` |
+| 4 | Chromium | tiled glyph parity | five-minute tile-read test timeout | `5/5` |
+| 6 | Mobile iPhone | accessibility width | `.player-page` was not visible | `5/5` |
+
+Trace and server-log evidence shows the common sequence `fresh shard → low
+latency → long/heavy workload → accumulated API/SQLite/tile latency → later
+readiness/oracle timeout`. The classification is
+`HARNESS_RESOURCE_LIFETIME / SHARD_PRESSURE`; no product defect was proven and
+no individual spec was changed for these rows. The first targeted guided
+invocation with an invalid PowerShell `--project` transfer was a
+`TOOLING_INVOCATION_ERROR`, not E2E evidence.

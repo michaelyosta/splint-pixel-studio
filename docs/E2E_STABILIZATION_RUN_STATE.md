@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `CORRECTION_WAVE_PENDING — GitHub run 33386651214 fully classified; runtime/lint tooling correction ready for exact-SHA dispatch`
+Status: `TOPOLOGY_CORRECTION_READY — exact-SHA run 33388276591 classified; weighted manifest preflight PASS; topology wave pending commit`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -18,7 +18,7 @@ to the local integration worktree.
 - Current code/harness SHA: `508d917f7780d52495281b5bc62f81604ecaccf0`
   (bounded wave6 correction: initial tiled WORK-plan state, per-repeat user
   isolation, and explicit WebKit visual capability boundary).
-- Current integration HEAD: `6a1148e543f4d98c1d62a0f53eb83859892ccc36` before the current bounded C16/C17 correction (bounded machine-summary/CI artifact correction atop code/harness SHA `508d917f7780d52495281b5bc62f81604ecaccf0`).
+- Current integration HEAD: `3a993d14da514fa564909d4461f66a81bab42357` before the current topology wave commit; exact-SHA run `33388276591` classified the five extended REDs as shard lifetime/resource pressure.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -30,7 +30,7 @@ to the local integration worktree.
 
 | Role | Location / identity | Ownership | Status |
 |---|---|---|---|
-| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | C16/C17 correction in progress; exact-SHA GitHub dispatch follows |
+| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | C18 topology wave in progress; manifest preflight PASS |
 | Frozen diagnostic | `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean` | read-only frozen evidence | complete |
 | Primary checkout | `C:\Users\misa\Desktop\Splint-Gemini` | unrelated user work/evidence | untouched |
 | C1 navigation | `01a052cd-d0b1-71c0-a10c-b0db0fdd743f` | navigation/readiness cluster | complete; no speculative fix |
@@ -59,7 +59,8 @@ against the post-correction SHA after the final full matrix.
   explicit/conditional skips and one proven C12 fixture failure. The next
   complete matrix at `958ec96` reported 365 passes, 71 skips and two C13
   loopback failures. Wave6 at `f0c8d35` reported 365 passes, 71 skips and
-  two harness failures; the final matrix on `508d917` is pending. Skips are
+  two harness failures; the final matrix on the current topology SHA is
+  pending. Skips are
   capability or environment gates, not quarantine.
 - Release-critical proposal is maintained in
   `scripts/run-e2e-suite-node22.mjs`: 26 title-selected tests on Chromium and
@@ -67,7 +68,8 @@ against the post-correction SHA after the final full matrix.
   subset. Omitted iPhone cases are conditional WebKit/1200/touch or known
   worker/provider-bound scenarios; physical iOS/Telegram remains separate.
 - Extended regression is the complete `e2e/` suite in 16 fail-fast-disabled
-  shards.
+  fresh-runtime shards, selected by the weighted logical-test manifest in
+  `docs/E2E_SHARD_LOAD_MANIFEST.json`.
 - Legacy/debt cases remain visible and are not deleted merely because they are
   not in the fast gate.
 
@@ -311,6 +313,35 @@ not final acceptance evidence.
   `22.23.2`, disposable in-process object-store endpoint; no production R2
   credentials or objects were used.
 
+### Exact-SHA GitHub run 33388276591
+
+- Frozen SHA: `3a993d14da514fa564909d4461f66a81bab42357`; all 16 extended and
+  all 3 critical jobs completed with fail-fast disabled and retries `0`.
+- Critical: `66 pass / 0 unexpected / 0 flaky`.
+- Extended: `356 pass / 72 expected skip / 5 unexpected / 0 flaky`; failures
+  were only in shards 3, 4 and 6.
+- Verify, PostgreSQL and S3 were green. The five representative failures pass
+  on fresh isolated Node22 repeats: guided `3/3`, keyboard `3/3`, Bomb `3/3`,
+  accessibility iPhone `5/5`, tiled glyph `5/5`.
+- The first two targeted PowerShell invocations with invalid `--project`
+  transfer/grep syntax are recorded as `TOOLING_INVOCATION_ERROR`, not test
+  evidence.
+- Failure evidence is retained under `test-results/github-33388276591` and
+  the GitHub run log; classification is C18 shard lifetime/resource pressure.
+
+### Topology correction wave
+
+- Static comparison was run on the 438 nominal project cases and 146 logical
+  groups. Built-in projected slowest workload: 16=`22.57 min`, 24=`19.83 min`
+  with 3 empty shards, 32=`17.54 min` with 4 empty shards.
+- Selected: deterministic weighted 16-shard manifest, projected slowest
+  workload `9.84 min`, zero empty shards.
+- Manifest: `docs/E2E_SHARD_LOAD_MANIFEST.json`.
+- Coverage preflight: `146/146` logical, `438/438` project cases, zero
+  duplicate and zero unmatched assignments.
+- The topology wave changes only CI selection, diagnostics and runtime
+  measurement. No product source or individual extended assertion changed.
+
 ## CI cost and remaining debt
 
 - Frozen diagnostic: `144.46` one-worker wall-clock minutes.
@@ -322,18 +353,17 @@ not final acceptance evidence.
 - The earlier 16-way concurrent local attempt produced 79 unexpected results
   from resource pressure. This is why local evidence is sequential; CI shard
   concurrency still needs an external controlled measurement.
-- Remaining debt: one authoritative exact-SHA 16-shard GitHub run after the
-  bounded C16/C17 correction, post-final independent Sol Max reviews, physical
-  Telegram/iOS proof, residual legacy timing/catch cleanup and measured
-  GitHub runner-minute cost.
+- Remaining debt: one authoritative exact-SHA GitHub run after the topology
+  wave, post-final independent Sol Max reviews, physical Telegram/iOS proof,
+  residual legacy timing/catch cleanup and final measured topology cost.
 
 ## Next action
 
-The GitHub failure map is complete: C16 is the shared runtime wrapper defect
-and C17 is the one warning-budget regression in the new diagnostics script.
-The current bounded correction centralizes Node/npm resolution, preserves a
-summary artifact when the runner fails before producing JSON, removes the
-introduced lint warning, and adds exact-SHA manual dispatch. Commit and push
-this correction, dispatch one exact-SHA GitHub critical plus 16-shard
-extended matrix with fail-fast disabled and retries `0`, then aggregate all
-shard summaries before any further correction decision.
+The GitHub failure map is complete: C16 is the shared runtime wrapper defect,
+C17 is the diagnostics lint regression, and C18 is the extended shard-lifetime
+pressure cluster. The current bounded wave adds the duration/load manifest,
+coverage preflight, weighted selection and server metrics retention. Commit
+and push this wave, freeze the resulting exact SHA, dispatch one authoritative
+GitHub critical plus weighted 16-shard extended matrix with fail-fast disabled
+and retries `0`, then aggregate all summaries. If it is green, stop after
+independent review and handoff.

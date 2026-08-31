@@ -1,6 +1,6 @@
 # E2E failure clusters
 
-Status: `CORRECTION_WAVE_PENDING — GitHub full matrix complete; C16/C17 classified and fixed in one bounded wave`
+Status: `TOPOLOGY_CORRECTION_IN_PROGRESS — exact-SHA run complete; five REDs clustered as shard lifetime pressure`
 
 This ledger groups failures by causal mechanism rather than assigning one
 agent to every red test. The frozen matrix is
@@ -43,6 +43,12 @@ agent to every red test. The frozen matrix is
   wrappers resolved npm from a Windows-only path on Ubuntu. The verify job
   separately failed at the warning budget (`101/100`) because the new summary
   script introduced one lint warning. PostgreSQL and S3 contract jobs passed.
+- Exact-SHA GitHub run `33388276591` on `3a993d1` completed every job: critical
+  `66/66` pass, extended `356 pass / 72 expected skip / 5 unexpected / 0 flaky`,
+  PostgreSQL, S3 and verify green. The five extended rows were confined to
+  shards 3, 4 and 6. Their traces and `gh` server logs show low initial API
+  latency followed by degradation after a long/heavy shard; all five
+  representative cases passed on fresh Node22 runtimes with retries `0`.
 
 ## Cluster table
 
@@ -65,6 +71,7 @@ agent to every red test. The frozen matrix is
 | C15 | one wave7 Pixel direct tile read timed out while adjacent tile reads and the next stroke test passed | `ENVIRONMENT_PRESSURE` | lead; no product file change | isolated Mobile Pixel repeat `5/5`; `30/30` stroke cells and `200` tile responses |
 | C16 | GitHub PR run: all 16 extended shards and 3 critical lanes stopped before Playwright because npm was resolved from a Windows-only Node layout | `HARNESS_FAILURE` / runtime parity | lead; `scripts/assert-e2e-runtime.mjs`, E2E wrappers, CI dispatch | standard npm CLI resolution via `npm_execpath`/Unix layout; targeted Node22 wrapper case passed |
 | C17 | GitHub verify job exceeded the existing lint warning budget at `101/100`; one warning came from the new ANSI-strip regex in the summary script | `HARNESS_FAILURE` / diagnostic tooling | lead; `scripts/summarize-e2e-results.mjs` | ANSI regex no longer triggers lint; local Node22 lint returns to `100/100` |
+| C18 | exact-SHA run 33388276591: guided, keyboard, Phase 2 Bomb, iPhone accessibility and tiled glyph rows failed only after long/heavy shard lifetime; fresh repeats pass | `HARNESS_RESOURCE_LIFETIME / SHARD_PRESSURE` | lead; CI topology, shard manifest, runtime metrics and summary only | individual specs unchanged; weighted manifest and coverage preflight in progress |
 
 ## C1 — mobile bootstrap/navigation and invocation pressure
 
@@ -216,6 +223,33 @@ removed by constructing the escape expression without a literal control-regex
 pattern. The existing warning budget remains strict at `100/100`; it was not
 increased or bypassed.
 
+## C18 — extended shard lifetime and resource pressure
+
+The exact-SHA run `33388276591` on `3a993d14da514fa564909d4461f66a81bab42357`
+had five unexpected rows: three Chromium failures in shard 3, one Chromium
+failure in shard 4, and one Mobile iPhone failure in shard 6. Their traces and
+the completed GitHub server logs share the same sequence: a fresh shard starts
+with low API latency, a heavy/long workload runs, SQLite/API/tile latency grows
+into seconds or tens of seconds, and a later readiness or response oracle
+times out. Shard 6 recovered for its remaining tests after the accessibility
+failure, which further separates the signal from a stable product defect.
+
+The representative isolated repeats passed without Playwright retries:
+
+- guided Chromium: `3/3`;
+- keyboard Chromium: `3/3`;
+- Phase 2 Bomb Chromium: `3/3`;
+- accessibility iPhone: `5/5`;
+- tiled glyph Chromium: `5/5`.
+
+Classification is `HARNESS_RESOURCE_LIFETIME / SHARD_PRESSURE`, not
+`PRODUCT_FAILURE` or `TEST_ASSERTION_DEFECT`. The bounded correction owns only
+`.github/workflows/ci.yml`, the deterministic shard planner/manifest, server
+metrics capture and machine summary. Individual specs, assertions, retries
+and product source are prohibited. Success requires full manifest preflight,
+shorter balanced shard workload and one authoritative exact-SHA GitHub matrix
+with zero unexpected results.
+
 ## Machine-readable failure map
 
 The lead harness now provides `scripts/summarize-e2e-results.mjs`. It consumes
@@ -223,7 +257,10 @@ each Playwright JSON result, records SHA/run/shard/project/test/worker/runtime,
 error signature, request/attachment references and server-log reference, then
 groups failures by normalized fingerprint. CI invokes it for every critical
 and extended shard and stores the summary beside that shard's unique
-`test-results/<sha>/<run-id>/` output. Wave7 local summaries are retained at
+`test-results/<sha>/<run-id>/` output. Each fresh E2E runtime also captures
+available server `/metrics` before teardown, including request count, error
+count and average latency; p95/max remain explicit `null` until an aggregate
+source provides them. Wave7 local summaries are retained at
 `test-results/final-wave7-shard-02/summary.json` and
 `test-results/final-wave7-shard-16/summary.json`.
 If Playwright cannot produce `results.json`, the summary step writes an

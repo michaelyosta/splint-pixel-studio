@@ -1,6 +1,6 @@
 # E2E CI performance
 
-Status: `MEASURED — wave7 local map plus GitHub run 33386651214 failure map complete; exact-SHA timing pending`
+Status: `TOPOLOGY MEASURED — exact-SHA run 33388276591 classified; weighted manifest selected, authoritative post-topology timing pending`
 
 This document records the performance evidence from the frozen diagnostic and
 the current CI shape. It does not treat low CPU utilization as a reason to
@@ -95,8 +95,8 @@ The PostgreSQL service gate was subsequently executed locally against a fresh
 Docker `postgres:16` container using the same credentials and migration shape
 as CI. Node `22.23.2` with npm `10.9.8` applied `28` migrations and the suite
 completed with `100` passed, `0` failed and `0` skipped in `87.537 s`. The
-container was removed after the run. This is authoritative disposable-service
-evidence for the database suite; a live GitHub provider run is still absent.
+container was removed after the run. The same PostgreSQL service gate also
+passed in exact-SHA GitHub run `33388276591`; no production database was used.
 
 The first GitHub PR validation run `33386651214` completed all jobs. Its 16
 extended shards and 3 critical lanes stopped during the runtime guard before
@@ -106,6 +106,55 @@ passed the 455-test unit suite and failed only the strict lint budget at
 `101/100` (C17); PostgreSQL and S3 contract jobs passed. The bounded correction
 also adds manual workflow dispatch so final timing is measured against the
 exact integration SHA rather than a pull-request merge ref.
+
+## Exact-SHA GitHub pressure measurement
+
+Run `33388276591` used exact SHA
+`3a993d14da514fa564909d4461f66a81bab42357`, retries `0`, fail-fast `false`,
+and independent fresh GitHub runner/runtime contexts. All jobs completed.
+
+| Measurement | Value |
+|---|---:|
+| Workflow wall-clock | `24.8 min` |
+| Extended runner-minutes | `103.667 min` across 16 jobs |
+| Slowest extended job | shard 4, `24.18 min` |
+| Critical runner-minutes | `18.633 min` across 3 jobs |
+| Critical slowest job | Pixel, `8.32 min` |
+| Extended result | `356 pass / 72 expected skip / 5 unexpected / 0 flaky` |
+| Critical result | `66 pass / 0 unexpected / 0 flaky` |
+
+The RED extended jobs were shard 3 (`12.57 min`, three failures), shard 4
+(`24.18 min`, one failure) and shard 6 (`2.98 min`, one failure). The latter
+still showed the same latency-growth signature in its server log and recovered
+for the remaining tests. Fresh isolated repeats of all five representatives
+passed: guided `3/3`, keyboard `3/3`, Bomb `3/3`, iPhone accessibility `5/5`,
+and tiled glyph `5/5`.
+
+## Static topology comparison and selected plan
+
+The exact run's 438 nominal project cases were mapped to 146 logical test
+groups. Playwright built-in sharding was then listed without running tests and
+weighted with the historical per-test durations:
+
+| Plan | Empty shards | Project cases | Projected slowest test workload |
+|---|---:|---:|---:|
+| Built-in 16 | 0 | 438 | `22.57 min` |
+| Built-in 24 | 3 | 438 | `19.83 min` |
+| Built-in 32 | 4 | 438 | `17.54 min` |
+| Weighted logical groups / 16 | 0 | 438 | `9.84 min` |
+
+The selected plan is deterministic weighted 16-shard allocation, not a higher
+shard count: 24/32 did not split the dominant logical heavy cases and added
+runner setup without improving the predicted lifetime enough. The complete
+machine-readable plan is
+`docs/E2E_SHARD_LOAD_MANIFEST.json`. Its preflight lists every generated shard
+and proves `146/146` logical tests, `438/438` project cases, zero duplicate and
+zero unmatched assignments before the matrix starts.
+
+Historical request counts were not present in the prior Playwright JSON. The
+new topology wave captures server `/metrics` before each fresh runtime is
+torn down; summaries report request count, errors and average API latency, with
+p95/max explicitly unavailable until a source supplies those aggregates.
 
 ## CPU and the apparent unused capacity
 

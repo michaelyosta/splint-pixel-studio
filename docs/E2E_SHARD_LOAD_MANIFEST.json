@@ -1,0 +1,3341 @@
+{
+  "schema_version": 1,
+  "manifest_type": "e2e-duration-load",
+  "source_sha": "3a993d14da514fa564909d4461f66a81bab42357",
+  "source_run_id": "33388276591",
+  "generated_at": "2026-08-31T12:48:39.588Z",
+  "authoritative_runtime": {
+    "node": "22.23.2",
+    "npm": "10.9.8",
+    "playwright": "1.61.1"
+  },
+  "selected_topology": {
+    "shards": 16,
+    "strategy": "weighted_16",
+    "selector": "file arguments plus escaped test-title grep alternatives",
+    "expected_logical_tests": 146,
+    "expected_project_cases": 438
+  },
+  "coverage": {
+    "projects": [
+      "chromium",
+      "Mobile iPhone",
+      "Mobile Pixel"
+    ],
+    "expected_logical_tests": 146,
+    "expected_project_cases": 438
+  },
+  "measurement_note": "Historical Playwright JSON contains test durations but not per-test HTTP request counts. Final shards collect server /metrics into server-metrics.json; unavailable historical request fields remain null.",
+  "topology_comparison": {
+    "builtin_16": {
+      "shards": 16,
+      "strategy": "playwright --shard=N/16",
+      "total_project_cases": 438,
+      "empty_shards": 0,
+      "projected_slowest_duration_ms": 1354083,
+      "projected_slowest_duration_minutes": 22.57
+    },
+    "builtin_24": {
+      "shards": 24,
+      "strategy": "playwright --shard=N/24",
+      "total_project_cases": 438,
+      "empty_shards": 3,
+      "projected_slowest_duration_ms": 1190064,
+      "projected_slowest_duration_minutes": 19.83
+    },
+    "builtin_32": {
+      "shards": 32,
+      "strategy": "playwright --shard=N/32",
+      "total_project_cases": 438,
+      "empty_shards": 4,
+      "projected_slowest_duration_ms": 1052217,
+      "projected_slowest_duration_minutes": 17.54
+    },
+    "weighted_16": {
+      "shards": 16,
+      "strategy": "deterministic greedy bin-pack of logical test groups using historical duration",
+      "total_project_cases": 438,
+      "empty_shards": 0,
+      "projected_slowest_duration_ms": 590483,
+      "projected_slowest_duration_minutes": 9.84
+    }
+  },
+  "shards": [
+    {
+      "shard": 1,
+      "historical_duration_ms": 590483,
+      "logical_tests": 1,
+      "project_cases": 3,
+      "groups": [
+        "special-glyph-parity.spec.js:617:tiled glyph masks are distinct, hidden in overview, and readable at low zoom for active Alpha kinds"
+      ],
+      "historical_duration_minutes": 9.84,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 2,
+      "historical_duration_ms": 357200,
+      "logical_tests": 1,
+      "project_cases": 3,
+      "groups": [
+        "special-cells-visual-audit.spec.js:259:fresh treatment visual audit covers responsive Spark flow and next-beat continuation"
+      ],
+      "historical_duration_minutes": 5.95,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 3,
+      "historical_duration_ms": 284822,
+      "logical_tests": 8,
+      "project_cases": 24,
+      "groups": [
+        "special-glyph-parity.spec.js:576:legacy glyph masks are distinct and readable for active Alpha kinds",
+        "special-help-onboarding-responsive-evidence.spec.js:225:control onboarding has no special-cell entry or help surface",
+        "accessibility.spec.js:218:forced-colors keeps selected state visible without color",
+        "unlocks-recommendations.spec.js:258:1200 in-progress history keeps recommendations and unlock state bounded",
+        "creator.spec.js:563:13. Stable shell width across views",
+        "creator.spec.js:197:4. Crop mode shows zoom and offset sliders",
+        "bfcache-lifecycle.spec.js:224:browser SDK stub without initData does not apply the global overscroll fallback",
+        "coloring-surface-gesture-guard.spec.js:232:camera zoom still works on the tiled surface"
+      ],
+      "historical_duration_minutes": 4.75,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 4,
+      "historical_duration_ms": 284889,
+      "logical_tests": 9,
+      "project_cases": 27,
+      "groups": [
+        "special-glyph-parity.spec.js:689:tiled reveal claims exactly once and survives reload without duplicate",
+        "special-help-onboarding.spec.js:116:special kind shows one pre-paint hint with inline action and survives reload",
+        "stabilization.spec.js:347:13. Manual palette selection atomically activates a target of that color",
+        "stabilization.spec.js:139:2. Single tap paints a cell with no errors",
+        "creator.spec.js:231:6a. Resolution race cannot replace the latest selected preview",
+        "coloring-surface-gesture-guard.spec.js:152:normal catalog scroll remains available outside the player",
+        "coloring-surface-gesture-guard.spec.js:105:tiled surface suppresses selection, keeps editable controls selectable; guards scoped",
+        "creator-preview-visual.spec.js:25:creator preview is readable without overflow at 390px",
+        "stabilization.spec.js:215:6. Wheel zoom preserves cursor world position"
+      ],
+      "historical_duration_minutes": 4.75,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 5,
+      "historical_duration_ms": 283575,
+      "logical_tests": 8,
+      "project_cases": 24,
+      "groups": [
+        "special-cells-gameplay-v1.spec.js:239:1200x1200 Alpha journey crosses active positive and rare events with reload/offline recovery",
+        "accessibility.spec.js:136:palette is keyboard-operable and selection is announced via state labels",
+        "stabilization.spec.js:439:16. Resize in free exploration preserves manual camera and target",
+        "stabilization.spec.js:309:11. Auto transition remains focusing until camera animation completes",
+        "tiled-completion.spec.js:3:tiled completion shows the completion overlay in the player",
+        "creator.spec.js:636:18. Reveal mode paints without selecting a palette color first",
+        "creator.spec.js:188:3a. Photo creator defaults to the detail-preserving 512×512/16-colour mode",
+        "creator.spec.js:170:2. Creator controls visible on page"
+      ],
+      "historical_duration_minutes": 4.73,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 6,
+      "historical_duration_ms": 282175,
+      "logical_tests": 18,
+      "project_cases": 54,
+      "groups": [
+        "special-glyph-parity.spec.js:842:menu-open overlap QA screenshots stay separate from final evidence",
+        "special-cells.spec.js:235:legacy 28x28 control has no Spark marker, action, or HUD",
+        "accessibility.spec.js:70:player exposes one canvas, radio palette, and bounded live regions",
+        "input-gesture-evidence.spec.js:165:tiled surface fits the 360px viewport",
+        "stabilization.spec.js:121:1. Opening a coloring produces no page errors",
+        "special-help-onboarding.spec.js:47:legacy picture with specials shows compact special-cell onboarding once and opens the legend",
+        "creator.spec.js:221:6. Compute shows previews and quality indicator",
+        "core-feel-slice.spec.js:79:core feel b: manual reveal owns the first minute",
+        "stabilization.spec.js:266:9. Free exploration requires an explicit return to the same target",
+        "accessibility-evidence.spec.js:223:capture classic player at 360px",
+        "accessibility-evidence.spec.js:223:capture classic player at 390px",
+        "accessibility-evidence.spec.js:223:capture classic player at 430px",
+        "accessibility-evidence.spec.js:237:capture reduced-motion player at 390px",
+        "accessibility-evidence.spec.js:252:capture forced-colors player at 390px",
+        "accessibility-evidence.spec.js:266:capture tiled 1200 player at 390px",
+        "session-goals-evidence.spec.js:133:capture session-goal player at 360px",
+        "session-goals-evidence.spec.js:133:capture session-goal player at 390px",
+        "session-goals-evidence.spec.js:133:capture session-goal player at 430px"
+      ],
+      "historical_duration_minutes": 4.7,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 7,
+      "historical_duration_ms": 283381,
+      "logical_tests": 9,
+      "project_cases": 27,
+      "groups": [
+        "special-glyph-parity.spec.js:806:control reveal renders no markers and emits no special event",
+        "session-goals.spec.js:134:goal is visible before paint, timer starts on first paint, and progress updates",
+        "input-gesture-evidence.spec.js:69:tiled real touch paint commits server progress and captures the pointer",
+        "stabilization.spec.js:397:14. Guided target is revalidated across required viewport sizes",
+        "stabilization.spec.js:178:3b. Painting a cell produces no pageerror",
+        "creator.spec.js:399:9. Completion flow: 100% → overlay → Escape → buttons",
+        "unlocks-recommendations.spec.js:201:premium direct ID shows a neutral unavailable state without payment CTA",
+        "coloring-surface-gesture-guard.spec.js:164:classic pointer capture stays on the canvas and paint commits progress",
+        "creator.spec.js:147:Create hub keeps free creator paths without commercial promises"
+      ],
+      "historical_duration_minutes": 4.72,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 8,
+      "historical_duration_ms": 282670,
+      "logical_tests": 10,
+      "project_cases": 30,
+      "groups": [
+        "special-cells-long-journey.spec.js:140:treatment long journey resolves active special kinds without leaving the Canvas",
+        "stabilization.spec.js:244:8. Onboarding completion persists and can be replayed",
+        "phase2-session-game.spec.js:5:Phase 2 treatment keeps Spark manual and pauses after the authored reveal beat",
+        "session-goals.spec.js:328:explicit hidden treatment is deterministic and keeps the Canvas target surface",
+        "input-gesture-evidence.spec.js:165:tiled surface fits the 390px viewport",
+        "stabilization.spec.js:231:7. Reveal mode remains actionable without palette controls",
+        "special-cells-1200-delivery.spec.js:627:1200 control has no special markers, tutorial, help, or special HUD",
+        "unlocks-recommendations.spec.js:119:cold-start recommendations render stable reason text in bounded cards",
+        "core-feel-slice.spec.js:79:core feel c: manual reveal owns the first minute",
+        "core-feel-slice.spec.js:150:manual pinch/pan pauses direction without forfeiting the authored reveal"
+      ],
+      "historical_duration_minutes": 4.71,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 9,
+      "historical_duration_ms": 283820,
+      "logical_tests": 10,
+      "project_cases": 30,
+      "groups": [
+        "special-cells.spec.js:261:legacy 28x28 last-cell Spark suppresses the trivial event and preserves completion",
+        "phase2-positive-events.spec.js:28:Phase 2 automatic Spark resolves one bounded default target without a choice modal",
+        "tiled-low-zoom.spec.js:99:overview is preview-stable, work reloads tiles, 502 stays local and retry recovers",
+        "guided-player-migration.spec.js:281:slow target tile load: LOADING_TARGET is shown, then auto-focus to READY (no overview dead-end)",
+        "guided-player-migration.spec.js:233:cold target: the guidance target tile is explicitly requested before READY even when far from the overview",
+        "creator.spec.js:276:6c. 1200x1200 creator path uploads tiled storage and opens bounded player",
+        "core-feel-slice.spec.js:79:core feel a: manual reveal owns the first minute",
+        "unlocks-recommendations.spec.js:224:catalog showcase stays fail-closed without a mounted payment adapter",
+        "coloring-surface-gesture-guard.spec.js:79:classic surface suppresses selection, callout, image drag; guards stay scoped",
+        "creator.spec.js:163:1. App shell and navigation render"
+      ],
+      "historical_duration_minutes": 4.73,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 10,
+      "historical_duration_ms": 283427,
+      "logical_tests": 10,
+      "project_cases": 30,
+      "groups": [
+        "accessibility-1200.spec.js:70:tiled 1200 player keeps one canvas, bounded DOM, keyboard paint, and zone navigation",
+        "session-goals.spec.js:298:default recovery treatment hides goals but preserves painting save and server revision",
+        "input-gesture-evidence.spec.js:127:pointercancel does not leave a stuck stroke; next touch still commits",
+        "special-cells-responsive-evidence.spec.js:76:tiled special offer stays usable at mobile widths and honors reduced motion",
+        "input-gesture-evidence.spec.js:99:tiled two-pointer pinch changes zoom without page errors",
+        "stabilization.spec.js:192:4. Initial view exposes an actionable target",
+        "unlocks-recommendations.spec.js:176:normal collection navigation hides premium entries from collection surfaces",
+        "special-bomb-artifact-reload.spec.js:89:Artifact fragment progress renders persistently after /progress reload",
+        "session-goals.spec.js:338:core-feel suppresses an explicit goal-card control override but keeps painting guidance",
+        "core-feel-slice.spec.js:138:control keeps the existing flat/automatic behavior for comparison"
+      ],
+      "historical_duration_minutes": 4.72,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 11,
+      "historical_duration_ms": 283770,
+      "logical_tests": 10,
+      "project_cases": 30,
+      "groups": [
+        "guided-player-migration.spec.js:347:transient 500 on the target tile shows the retryable error and recovers via Повторить",
+        "guided-player-migration.spec.js:317:persisted overview camera does not prevent smart guidance from becoming actionable",
+        "special-help-onboarding-responsive-evidence.spec.js:145:treatment onboarding and help stay visible, bounded, reduced-motion safe, and keyboard-trapped",
+        "accessibility.spec.js:170:HUD controls are keyboard-operable",
+        "creator.spec.js:246:6b. Selected 192×192 exact preview computes, saves, and opens",
+        "stabilization.spec.js:161:3. Undo/redo menu buttons present in reveal mode",
+        "tiled-reload-journal.spec.js:65:offline journal replay reconciles an already resident tile after reload",
+        "creator.spec.js:593:15. Player menu opens and shows secondary actions",
+        "creator.spec.js:177:3. File upload shows grid, crop, and color controls",
+        "bfcache-lifecycle.spec.js:113:legacy queue keeps painting after persisted pagehide/pageshow"
+      ],
+      "historical_duration_minutes": 4.73,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 12,
+      "historical_duration_ms": 282721,
+      "logical_tests": 11,
+      "project_cases": 33,
+      "groups": [
+        "tiled-stroke-engine.spec.js:469:drag across a tile boundary paints every valid cell with no stall",
+        "session-goals.spec.js:211:completing the first goal shows a server-backed celebration and the next goal without a completion modal",
+        "phase2-positive-events.spec.js:67:Phase 2 Bomb keeps one spatial action and produces a bounded area reveal",
+        "accessibility.spec.js:190:reduced motion does not disable painting or controls",
+        "special-cells.spec.js:88:Spark stays inside the tiled canvas flow and cannot be replayed",
+        "stabilization.spec.js:422:15. Expanding the HUD preserves and revalidates the same target",
+        "guided-player-migration.spec.js:136:migrated pre-021 template: autopilot focuses a real target and the FIRST tap paints",
+        "special-bomb-artifact-reload.spec.js:42:Bomb offer reloads with the server-provided default center and applies without a resident tile",
+        "coloring-surface-gesture-guard.spec.js:194:tiled pointer capture is established on a loaded target and paint commits progress",
+        "bfcache-lifecycle.spec.js:179:mock Telegram bridge disables on player enter, survives bfcache, and restores on leave",
+        "auth-contract.spec.js:35:missing or invalid Telegram initData is rejected"
+      ],
+      "historical_duration_minutes": 4.71,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 13,
+      "historical_duration_ms": 283538,
+      "logical_tests": 10,
+      "project_cases": 30,
+      "groups": [
+        "special-cells-1200-delivery.spec.js:315:1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, uses bounded effect, continues",
+        "special-cells.spec.js:157:legacy 28x28 treatment discovers Spark in the real canvas and continues",
+        "accessibility.spec.js:239:mobile widths stay within viewport without text overflow",
+        "accessibility.spec.js:100:keyboard-only can move cursor, zoom, and paint a guided cell",
+        "input-gesture-evidence.spec.js:165:tiled surface fits the 430px viewport",
+        "creator.spec.js:474:11. Delete a user-created coloring from gallery",
+        "special-help-onboarding.spec.js:86:control picture never shows special intro, hint, or help overlay",
+        "creator.spec.js:521:12. Feed: like, comment, follow interactions",
+        "creator.spec.js:463:10. Catalog → open coloring → player renders guided canvas",
+        "guided-path.spec.js:55:guided home shows one primary action and a bounded choice window"
+      ],
+      "historical_duration_minutes": 4.73,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 14,
+      "historical_duration_ms": 282422,
+      "logical_tests": 10,
+      "project_cases": 30,
+      "groups": [
+        "special-glyph-parity.spec.js:733:legacy reveal claims exactly once and survives reload without duplicate",
+        "p0-final-acceptance.spec.js:22:final acceptance: real 1200x1200 with existing progress, zero interactions, first action = PAINT",
+        "accessibility.spec.js:155:touch input paints on mobile profiles",
+        "guided-player.spec.js:15:1200x1200 guided player autofocuses, auto-advances, and supports free exploration + return",
+        "unlocks-recommendations.spec.js:236:eligible user gets an actionable direct-ID open and owned transition",
+        "guided-path.spec.js:65:completion hands off to a committed choice, including an honest stop",
+        "creator.spec.js:652:19. Completing a zone celebrates the revealed fragment without XP copy",
+        "special-bomb-tiled.spec.js:45:tiled Bomb claim, compact center offer, and use flow on 390x844",
+        "creator.spec.js:207:5. Grid and color controls update state",
+        "bfcache-lifecycle.spec.js:143:tiled queue keeps painting after persisted pagehide/pageshow"
+      ],
+      "historical_duration_minutes": 4.71,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 15,
+      "historical_duration_ms": 283572,
+      "logical_tests": 10,
+      "project_cases": 30,
+      "groups": [
+        "special-cells-long-journey-evidence.spec.js:148:long journey evidence screenshots show active offers and Canvas return",
+        "tiled-stroke-engine.spec.js:331:30-cell touch drag paints progressively while the finger is down",
+        "stabilization.spec.js:327:12. Ten Next actions always change target or finish",
+        "special-cells.spec.js:299:legacy Artifact progress remains visible after a real /progress reload",
+        "stabilization.spec.js:201:5. Camera auto does not move during painting",
+        "stabilization.spec.js:296:10. Overview explicitly enters free exploration",
+        "creator.spec.js:621:17. Player dock switches between reveal and classic coloring",
+        "unlocks-recommendations.spec.js:159:progression-locked direct ID opens an actionable locked screen, not a generic error",
+        "creator.spec.js:577:14. Player guided mode keeps the canvas clear of persistent metrics",
+        "creator.spec.js:609:16. Catalog card actions stay aligned despite different copy lengths"
+      ],
+      "historical_duration_minutes": 4.73,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    },
+    {
+      "shard": 16,
+      "historical_duration_ms": 282660,
+      "logical_tests": 11,
+      "project_cases": 33,
+      "groups": [
+        "session-goals.spec.js:153:offline pause freezes elapsed time and reload/reopen reconstructs the same goal without rewards",
+        "recovery-p0.spec.js:33:cold root reopen restores the last artwork and resumable state",
+        "phase2-manual-first-reveal.spec.js:3:Phase 2 keeps the first reveal player-authored before any special event",
+        "zone-visual.spec.js:8:capture 16-zone player at 390px",
+        "stabilization.spec.js:369:13b. Selecting a completed color keeps a truthful active target",
+        "creator.spec.js:394:8. Save flow: saves, confirms, and opens play view",
+        "input-gesture-evidence.spec.js:57:classic keyboard paint commits server progress",
+        "core-feel-slice.spec.js:187:partial manual progress reloads into a meaningful resume action",
+        "creator.spec.js:382:7. Reset crop restores defaults",
+        "creator-preview-visual.spec.js:25:creator preview is readable without overflow at 430px",
+        "auth-contract.spec.js:21:valid Telegram initData authenticates the Telegram identity and wins over a dev header"
+      ],
+      "historical_duration_minutes": 4.71,
+      "request_count": null,
+      "tile_request_count": null,
+      "p95_api_latency_ms": null,
+      "max_api_latency_ms": null
+    }
+  ],
+  "groups": [
+    {
+      "id": "special-glyph-parity.spec.js:617:tiled glyph masks are distinct, hidden in overview, and readable at low zoom for active Alpha kinds",
+      "file": "special-glyph-parity.spec.js",
+      "line": 617,
+      "title": "tiled glyph masks are distinct, hidden in overview, and readable at low zoom for active Alpha kinds",
+      "historical_duration_ms": 590483,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 1
+    },
+    {
+      "id": "special-cells-visual-audit.spec.js:259:fresh treatment visual audit covers responsive Spark flow and next-beat continuation",
+      "file": "special-cells-visual-audit.spec.js",
+      "line": 259,
+      "title": "fresh treatment visual audit covers responsive Spark flow and next-beat continuation",
+      "historical_duration_ms": 357200,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 2
+    },
+    {
+      "id": "special-glyph-parity.spec.js:576:legacy glyph masks are distinct and readable for active Alpha kinds",
+      "file": "special-glyph-parity.spec.js",
+      "line": 576,
+      "title": "legacy glyph masks are distinct and readable for active Alpha kinds",
+      "historical_duration_ms": 188460,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 3
+    },
+    {
+      "id": "special-glyph-parity.spec.js:689:tiled reveal claims exactly once and survives reload without duplicate",
+      "file": "special-glyph-parity.spec.js",
+      "line": 689,
+      "title": "tiled reveal claims exactly once and survives reload without duplicate",
+      "historical_duration_ms": 166691,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 4
+    },
+    {
+      "id": "special-cells-gameplay-v1.spec.js:239:1200x1200 Alpha journey crosses active positive and rare events with reload/offline recovery",
+      "file": "special-cells-gameplay-v1.spec.js",
+      "line": 239,
+      "title": "1200x1200 Alpha journey crosses active positive and rare events with reload/offline recovery",
+      "historical_duration_ms": 166391,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 5
+    },
+    {
+      "id": "special-glyph-parity.spec.js:842:menu-open overlap QA screenshots stay separate from final evidence",
+      "file": "special-glyph-parity.spec.js",
+      "line": 842,
+      "title": "menu-open overlap QA screenshots stay separate from final evidence",
+      "historical_duration_ms": 125490,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "special-glyph-parity.spec.js:806:control reveal renders no markers and emits no special event",
+      "file": "special-glyph-parity.spec.js",
+      "line": 806,
+      "title": "control reveal renders no markers and emits no special event",
+      "historical_duration_ms": 121174,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 7
+    },
+    {
+      "id": "special-cells-long-journey.spec.js:140:treatment long journey resolves active special kinds without leaving the Canvas",
+      "file": "special-cells-long-journey.spec.js",
+      "line": 140,
+      "title": "treatment long journey resolves active special kinds without leaving the Canvas",
+      "historical_duration_ms": 86062,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 8
+    },
+    {
+      "id": "special-cells.spec.js:261:legacy 28x28 last-cell Spark suppresses the trivial event and preserves completion",
+      "file": "special-cells.spec.js",
+      "line": 261,
+      "title": "legacy 28x28 last-cell Spark suppresses the trivial event and preserves completion",
+      "historical_duration_ms": 84545,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 9
+    },
+    {
+      "id": "accessibility-1200.spec.js:70:tiled 1200 player keeps one canvas, bounded DOM, keyboard paint, and zone navigation",
+      "file": "accessibility-1200.spec.js",
+      "line": 70,
+      "title": "tiled 1200 player keeps one canvas, bounded DOM, keyboard paint, and zone navigation",
+      "historical_duration_ms": 84210,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 10
+    },
+    {
+      "id": "guided-player-migration.spec.js:347:transient 500 on the target tile shows the retryable error and recovers via Повторить",
+      "file": "guided-player-migration.spec.js",
+      "line": 347,
+      "title": "transient 500 on the target tile shows the retryable error and recovers via Повторить",
+      "historical_duration_ms": 84129,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 11
+    },
+    {
+      "id": "tiled-stroke-engine.spec.js:469:drag across a tile boundary paints every valid cell with no stall",
+      "file": "tiled-stroke-engine.spec.js",
+      "line": 469,
+      "title": "drag across a tile boundary paints every valid cell with no stall",
+      "historical_duration_ms": 82152,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 12
+    },
+    {
+      "id": "special-cells-1200-delivery.spec.js:315:1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, uses bounded effect, continues",
+      "file": "special-cells-1200-delivery.spec.js",
+      "line": 315,
+      "title": "1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, uses bounded effect, continues",
+      "historical_duration_ms": 76119,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 13
+    },
+    {
+      "id": "special-glyph-parity.spec.js:733:legacy reveal claims exactly once and survives reload without duplicate",
+      "file": "special-glyph-parity.spec.js",
+      "line": 733,
+      "title": "legacy reveal claims exactly once and survives reload without duplicate",
+      "historical_duration_ms": 74361,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 14
+    },
+    {
+      "id": "special-cells-long-journey-evidence.spec.js:148:long journey evidence screenshots show active offers and Canvas return",
+      "file": "special-cells-long-journey-evidence.spec.js",
+      "line": 148,
+      "title": "long journey evidence screenshots show active offers and Canvas return",
+      "historical_duration_ms": 72871,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 15
+    },
+    {
+      "id": "session-goals.spec.js:153:offline pause freezes elapsed time and reload/reopen reconstructs the same goal without rewards",
+      "file": "session-goals.spec.js",
+      "line": 153,
+      "title": "offline pause freezes elapsed time and reload/reopen reconstructs the same goal without rewards",
+      "historical_duration_ms": 72644,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 16
+    },
+    {
+      "id": "recovery-p0.spec.js:33:cold root reopen restores the last artwork and resumable state",
+      "file": "recovery-p0.spec.js",
+      "line": 33,
+      "title": "cold root reopen restores the last artwork and resumable state",
+      "historical_duration_ms": 70371,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 16
+    },
+    {
+      "id": "tiled-stroke-engine.spec.js:331:30-cell touch drag paints progressively while the finger is down",
+      "file": "tiled-stroke-engine.spec.js",
+      "line": 331,
+      "title": "30-cell touch drag paints progressively while the finger is down",
+      "historical_duration_ms": 66238,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 15
+    },
+    {
+      "id": "p0-final-acceptance.spec.js:22:final acceptance: real 1200x1200 with existing progress, zero interactions, first action = PAINT",
+      "file": "p0-final-acceptance.spec.js",
+      "line": 22,
+      "title": "final acceptance: real 1200x1200 with existing progress, zero interactions, first action = PAINT",
+      "historical_duration_ms": 59026,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 14
+    },
+    {
+      "id": "special-cells.spec.js:157:legacy 28x28 treatment discovers Spark in the real canvas and continues",
+      "file": "special-cells.spec.js",
+      "line": 157,
+      "title": "legacy 28x28 treatment discovers Spark in the real canvas and continues",
+      "historical_duration_ms": 53781,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 13
+    },
+    {
+      "id": "session-goals.spec.js:211:completing the first goal shows a server-backed celebration and the next goal without a completion modal",
+      "file": "session-goals.spec.js",
+      "line": 211,
+      "title": "completing the first goal shows a server-backed celebration and the next goal without a completion modal",
+      "historical_duration_ms": 45662,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 12
+    },
+    {
+      "id": "guided-player-migration.spec.js:317:persisted overview camera does not prevent smart guidance from becoming actionable",
+      "file": "guided-player-migration.spec.js",
+      "line": 317,
+      "title": "persisted overview camera does not prevent smart guidance from becoming actionable",
+      "historical_duration_ms": 43487,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 11
+    },
+    {
+      "id": "session-goals.spec.js:298:default recovery treatment hides goals but preserves painting save and server revision",
+      "file": "session-goals.spec.js",
+      "line": 298,
+      "title": "default recovery treatment hides goals but preserves painting save and server revision",
+      "historical_duration_ms": 42043,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 10
+    },
+    {
+      "id": "phase2-positive-events.spec.js:28:Phase 2 automatic Spark resolves one bounded default target without a choice modal",
+      "file": "phase2-positive-events.spec.js",
+      "line": 28,
+      "title": "Phase 2 automatic Spark resolves one bounded default target without a choice modal",
+      "historical_duration_ms": 39499,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 9
+    },
+    {
+      "id": "stabilization.spec.js:244:8. Onboarding completion persists and can be replayed",
+      "file": "stabilization.spec.js",
+      "line": 244,
+      "title": "8. Onboarding completion persists and can be replayed",
+      "historical_duration_ms": 39001,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 8
+    },
+    {
+      "id": "session-goals.spec.js:134:goal is visible before paint, timer starts on first paint, and progress updates",
+      "file": "session-goals.spec.js",
+      "line": 134,
+      "title": "goal is visible before paint, timer starts on first paint, and progress updates",
+      "historical_duration_ms": 38446,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 7
+    },
+    {
+      "id": "tiled-low-zoom.spec.js:99:overview is preview-stable, work reloads tiles, 502 stays local and retry recovers",
+      "file": "tiled-low-zoom.spec.js",
+      "line": 99,
+      "title": "overview is preview-stable, work reloads tiles, 502 stays local and retry recovers",
+      "historical_duration_ms": 38367,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 9
+    },
+    {
+      "id": "phase2-session-game.spec.js:5:Phase 2 treatment keeps Spark manual and pauses after the authored reveal beat",
+      "file": "phase2-session-game.spec.js",
+      "line": 5,
+      "title": "Phase 2 treatment keeps Spark manual and pauses after the authored reveal beat",
+      "historical_duration_ms": 38249,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 8
+    },
+    {
+      "id": "special-cells.spec.js:235:legacy 28x28 control has no Spark marker, action, or HUD",
+      "file": "special-cells.spec.js",
+      "line": 235,
+      "title": "legacy 28x28 control has no Spark marker, action, or HUD",
+      "historical_duration_ms": 37643,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "input-gesture-evidence.spec.js:127:pointercancel does not leave a stuck stroke; next touch still commits",
+      "file": "input-gesture-evidence.spec.js",
+      "line": 127,
+      "title": "pointercancel does not leave a stuck stroke; next touch still commits",
+      "historical_duration_ms": 36337,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 10
+    },
+    {
+      "id": "special-help-onboarding-responsive-evidence.spec.js:145:treatment onboarding and help stay visible, bounded, reduced-motion safe, and keyboard-trapped",
+      "file": "special-help-onboarding-responsive-evidence.spec.js",
+      "line": 145,
+      "title": "treatment onboarding and help stay visible, bounded, reduced-motion safe, and keyboard-trapped",
+      "historical_duration_ms": 36183,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 11
+    },
+    {
+      "id": "phase2-positive-events.spec.js:67:Phase 2 Bomb keeps one spatial action and produces a bounded area reveal",
+      "file": "phase2-positive-events.spec.js",
+      "line": 67,
+      "title": "Phase 2 Bomb keeps one spatial action and produces a bounded area reveal",
+      "historical_duration_ms": 36086,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 12
+    },
+    {
+      "id": "accessibility.spec.js:239:mobile widths stay within viewport without text overflow",
+      "file": "accessibility.spec.js",
+      "line": 239,
+      "title": "mobile widths stay within viewport without text overflow",
+      "historical_duration_ms": 33535,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 13
+    },
+    {
+      "id": "accessibility.spec.js:155:touch input paints on mobile profiles",
+      "file": "accessibility.spec.js",
+      "line": 155,
+      "title": "touch input paints on mobile profiles",
+      "historical_duration_ms": 33476,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 14
+    },
+    {
+      "id": "stabilization.spec.js:327:12. Ten Next actions always change target or finish",
+      "file": "stabilization.spec.js",
+      "line": 327,
+      "title": "12. Ten Next actions always change target or finish",
+      "historical_duration_ms": 33244,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 15
+    },
+    {
+      "id": "phase2-manual-first-reveal.spec.js:3:Phase 2 keeps the first reveal player-authored before any special event",
+      "file": "phase2-manual-first-reveal.spec.js",
+      "line": 3,
+      "title": "Phase 2 keeps the first reveal player-authored before any special event",
+      "historical_duration_ms": 33138,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 16
+    },
+    {
+      "id": "input-gesture-evidence.spec.js:69:tiled real touch paint commits server progress and captures the pointer",
+      "file": "input-gesture-evidence.spec.js",
+      "line": 69,
+      "title": "tiled real touch paint commits server progress and captures the pointer",
+      "historical_duration_ms": 32313,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 7
+    },
+    {
+      "id": "guided-player-migration.spec.js:281:slow target tile load: LOADING_TARGET is shown, then auto-focus to READY (no overview dead-end)",
+      "file": "guided-player-migration.spec.js",
+      "line": 281,
+      "title": "slow target tile load: LOADING_TARGET is shown, then auto-focus to READY (no overview dead-end)",
+      "historical_duration_ms": 31935,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 9
+    },
+    {
+      "id": "special-cells-responsive-evidence.spec.js:76:tiled special offer stays usable at mobile widths and honors reduced motion",
+      "file": "special-cells-responsive-evidence.spec.js",
+      "line": 76,
+      "title": "tiled special offer stays usable at mobile widths and honors reduced motion",
+      "historical_duration_ms": 31913,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 10
+    },
+    {
+      "id": "accessibility.spec.js:70:player exposes one canvas, radio palette, and bounded live regions",
+      "file": "accessibility.spec.js",
+      "line": 70,
+      "title": "player exposes one canvas, radio palette, and bounded live regions",
+      "historical_duration_ms": 31735,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "session-goals.spec.js:328:explicit hidden treatment is deterministic and keeps the Canvas target surface",
+      "file": "session-goals.spec.js",
+      "line": 328,
+      "title": "explicit hidden treatment is deterministic and keeps the Canvas target surface",
+      "historical_duration_ms": 31406,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 8
+    },
+    {
+      "id": "accessibility.spec.js:100:keyboard-only can move cursor, zoom, and paint a guided cell",
+      "file": "accessibility.spec.js",
+      "line": 100,
+      "title": "keyboard-only can move cursor, zoom, and paint a guided cell",
+      "historical_duration_ms": 30862,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 13
+    },
+    {
+      "id": "accessibility.spec.js:170:HUD controls are keyboard-operable",
+      "file": "accessibility.spec.js",
+      "line": 170,
+      "title": "HUD controls are keyboard-operable",
+      "historical_duration_ms": 30833,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 11
+    },
+    {
+      "id": "accessibility.spec.js:190:reduced motion does not disable painting or controls",
+      "file": "accessibility.spec.js",
+      "line": 190,
+      "title": "reduced motion does not disable painting or controls",
+      "historical_duration_ms": 30814,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 12
+    },
+    {
+      "id": "accessibility.spec.js:136:palette is keyboard-operable and selection is announced via state labels",
+      "file": "accessibility.spec.js",
+      "line": 136,
+      "title": "palette is keyboard-operable and selection is announced via state labels",
+      "historical_duration_ms": 30508,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 5
+    },
+    {
+      "id": "special-help-onboarding.spec.js:116:special kind shows one pre-paint hint with inline action and survives reload",
+      "file": "special-help-onboarding.spec.js",
+      "line": 116,
+      "title": "special kind shows one pre-paint hint with inline action and survives reload",
+      "historical_duration_ms": 30402,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 4
+    },
+    {
+      "id": "guided-player.spec.js:15:1200x1200 guided player autofocuses, auto-advances, and supports free exploration + return",
+      "file": "guided-player.spec.js",
+      "line": 15,
+      "title": "1200x1200 guided player autofocuses, auto-advances, and supports free exploration + return",
+      "historical_duration_ms": 30133,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 14
+    },
+    {
+      "id": "special-cells.spec.js:299:legacy Artifact progress remains visible after a real /progress reload",
+      "file": "special-cells.spec.js",
+      "line": 299,
+      "title": "legacy Artifact progress remains visible after a real /progress reload",
+      "historical_duration_ms": 29542,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 15
+    },
+    {
+      "id": "zone-visual.spec.js:8:capture 16-zone player at 390px",
+      "file": "zone-visual.spec.js",
+      "line": 8,
+      "title": "capture 16-zone player at 390px",
+      "historical_duration_ms": 29500,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 16
+    },
+    {
+      "id": "special-help-onboarding-responsive-evidence.spec.js:225:control onboarding has no special-cell entry or help surface",
+      "file": "special-help-onboarding-responsive-evidence.spec.js",
+      "line": 225,
+      "title": "control onboarding has no special-cell entry or help surface",
+      "historical_duration_ms": 28620,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 3
+    },
+    {
+      "id": "stabilization.spec.js:397:14. Guided target is revalidated across required viewport sizes",
+      "file": "stabilization.spec.js",
+      "line": 397,
+      "title": "14. Guided target is revalidated across required viewport sizes",
+      "historical_duration_ms": 28497,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 7
+    },
+    {
+      "id": "input-gesture-evidence.spec.js:165:tiled surface fits the 430px viewport",
+      "file": "input-gesture-evidence.spec.js",
+      "line": 165,
+      "title": "tiled surface fits the 430px viewport",
+      "historical_duration_ms": 28391,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 13
+    },
+    {
+      "id": "guided-player-migration.spec.js:233:cold target: the guidance target tile is explicitly requested before READY even when far from the overview",
+      "file": "guided-player-migration.spec.js",
+      "line": 233,
+      "title": "cold target: the guidance target tile is explicitly requested before READY even when far from the overview",
+      "historical_duration_ms": 28200,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 9
+    },
+    {
+      "id": "input-gesture-evidence.spec.js:99:tiled two-pointer pinch changes zoom without page errors",
+      "file": "input-gesture-evidence.spec.js",
+      "line": 99,
+      "title": "tiled two-pointer pinch changes zoom without page errors",
+      "historical_duration_ms": 26853,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 10
+    },
+    {
+      "id": "creator.spec.js:246:6b. Selected 192×192 exact preview computes, saves, and opens",
+      "file": "creator.spec.js",
+      "line": 246,
+      "title": "6b. Selected 192×192 exact preview computes, saves, and opens",
+      "historical_duration_ms": 26714,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 11
+    },
+    {
+      "id": "special-cells.spec.js:88:Spark stays inside the tiled canvas flow and cannot be replayed",
+      "file": "special-cells.spec.js",
+      "line": 88,
+      "title": "Spark stays inside the tiled canvas flow and cannot be replayed",
+      "historical_duration_ms": 26680,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 12
+    },
+    {
+      "id": "input-gesture-evidence.spec.js:165:tiled surface fits the 390px viewport",
+      "file": "input-gesture-evidence.spec.js",
+      "line": 165,
+      "title": "tiled surface fits the 390px viewport",
+      "historical_duration_ms": 26294,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 8
+    },
+    {
+      "id": "input-gesture-evidence.spec.js:165:tiled surface fits the 360px viewport",
+      "file": "input-gesture-evidence.spec.js",
+      "line": 165,
+      "title": "tiled surface fits the 360px viewport",
+      "historical_duration_ms": 26202,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "stabilization.spec.js:439:16. Resize in free exploration preserves manual camera and target",
+      "file": "stabilization.spec.js",
+      "line": 439,
+      "title": "16. Resize in free exploration preserves manual camera and target",
+      "historical_duration_ms": 24446,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 5
+    },
+    {
+      "id": "unlocks-recommendations.spec.js:236:eligible user gets an actionable direct-ID open and owned transition",
+      "file": "unlocks-recommendations.spec.js",
+      "line": 236,
+      "title": "eligible user gets an actionable direct-ID open and owned transition",
+      "historical_duration_ms": 24247,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 14
+    },
+    {
+      "id": "stabilization.spec.js:347:13. Manual palette selection atomically activates a target of that color",
+      "file": "stabilization.spec.js",
+      "line": 347,
+      "title": "13. Manual palette selection atomically activates a target of that color",
+      "historical_duration_ms": 22964,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 4
+    },
+    {
+      "id": "stabilization.spec.js:201:5. Camera auto does not move during painting",
+      "file": "stabilization.spec.js",
+      "line": 201,
+      "title": "5. Camera auto does not move during painting",
+      "historical_duration_ms": 22648,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 15
+    },
+    {
+      "id": "stabilization.spec.js:369:13b. Selecting a completed color keeps a truthful active target",
+      "file": "stabilization.spec.js",
+      "line": 369,
+      "title": "13b. Selecting a completed color keeps a truthful active target",
+      "historical_duration_ms": 22532,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 16
+    },
+    {
+      "id": "accessibility.spec.js:218:forced-colors keeps selected state visible without color",
+      "file": "accessibility.spec.js",
+      "line": 218,
+      "title": "forced-colors keeps selected state visible without color",
+      "historical_duration_ms": 22507,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 3
+    },
+    {
+      "id": "stabilization.spec.js:139:2. Single tap paints a cell with no errors",
+      "file": "stabilization.spec.js",
+      "line": 139,
+      "title": "2. Single tap paints a cell with no errors",
+      "historical_duration_ms": 21966,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 4
+    },
+    {
+      "id": "stabilization.spec.js:178:3b. Painting a cell produces no pageerror",
+      "file": "stabilization.spec.js",
+      "line": 178,
+      "title": "3b. Painting a cell produces no pageerror",
+      "historical_duration_ms": 21956,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 7
+    },
+    {
+      "id": "stabilization.spec.js:231:7. Reveal mode remains actionable without palette controls",
+      "file": "stabilization.spec.js",
+      "line": 231,
+      "title": "7. Reveal mode remains actionable without palette controls",
+      "historical_duration_ms": 21936,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 8
+    },
+    {
+      "id": "stabilization.spec.js:121:1. Opening a coloring produces no page errors",
+      "file": "stabilization.spec.js",
+      "line": 121,
+      "title": "1. Opening a coloring produces no page errors",
+      "historical_duration_ms": 21522,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "guided-path.spec.js:65:completion hands off to a committed choice, including an honest stop",
+      "file": "guided-path.spec.js",
+      "line": 65,
+      "title": "completion hands off to a committed choice, including an honest stop",
+      "historical_duration_ms": 21394,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 14
+    },
+    {
+      "id": "stabilization.spec.js:309:11. Auto transition remains focusing until camera animation completes",
+      "file": "stabilization.spec.js",
+      "line": 309,
+      "title": "11. Auto transition remains focusing until camera animation completes",
+      "historical_duration_ms": 21319,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 5
+    },
+    {
+      "id": "stabilization.spec.js:161:3. Undo/redo menu buttons present in reveal mode",
+      "file": "stabilization.spec.js",
+      "line": 161,
+      "title": "3. Undo/redo menu buttons present in reveal mode",
+      "historical_duration_ms": 21249,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 11
+    },
+    {
+      "id": "stabilization.spec.js:192:4. Initial view exposes an actionable target",
+      "file": "stabilization.spec.js",
+      "line": 192,
+      "title": "4. Initial view exposes an actionable target",
+      "historical_duration_ms": 21113,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 10
+    },
+    {
+      "id": "stabilization.spec.js:422:15. Expanding the HUD preserves and revalidates the same target",
+      "file": "stabilization.spec.js",
+      "line": 422,
+      "title": "15. Expanding the HUD preserves and revalidates the same target",
+      "historical_duration_ms": 21068,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 12
+    },
+    {
+      "id": "creator.spec.js:276:6c. 1200x1200 creator path uploads tiled storage and opens bounded player",
+      "file": "creator.spec.js",
+      "line": 276,
+      "title": "6c. 1200x1200 creator path uploads tiled storage and opens bounded player",
+      "historical_duration_ms": 20269,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 9
+    },
+    {
+      "id": "creator.spec.js:474:11. Delete a user-created coloring from gallery",
+      "file": "creator.spec.js",
+      "line": 474,
+      "title": "11. Delete a user-created coloring from gallery",
+      "historical_duration_ms": 20168,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 13
+    },
+    {
+      "id": "stabilization.spec.js:296:10. Overview explicitly enters free exploration",
+      "file": "stabilization.spec.js",
+      "line": 296,
+      "title": "10. Overview explicitly enters free exploration",
+      "historical_duration_ms": 20057,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 15
+    },
+    {
+      "id": "creator.spec.js:394:8. Save flow: saves, confirms, and opens play view",
+      "file": "creator.spec.js",
+      "line": 394,
+      "title": "8. Save flow: saves, confirms, and opens play view",
+      "historical_duration_ms": 18909,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 16
+    },
+    {
+      "id": "unlocks-recommendations.spec.js:258:1200 in-progress history keeps recommendations and unlock state bounded",
+      "file": "unlocks-recommendations.spec.js",
+      "line": 258,
+      "title": "1200 in-progress history keeps recommendations and unlock state bounded",
+      "historical_duration_ms": 17423,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 3
+    },
+    {
+      "id": "creator.spec.js:231:6a. Resolution race cannot replace the latest selected preview",
+      "file": "creator.spec.js",
+      "line": 231,
+      "title": "6a. Resolution race cannot replace the latest selected preview",
+      "historical_duration_ms": 17154,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 4
+    },
+    {
+      "id": "creator.spec.js:399:9. Completion flow: 100% → overlay → Escape → buttons",
+      "file": "creator.spec.js",
+      "line": 399,
+      "title": "9. Completion flow: 100% → overlay → Escape → buttons",
+      "historical_duration_ms": 16631,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 7
+    },
+    {
+      "id": "guided-player-migration.spec.js:136:migrated pre-021 template: autopilot focuses a real target and the FIRST tap paints",
+      "file": "guided-player-migration.spec.js",
+      "line": 136,
+      "title": "migrated pre-021 template: autopilot focuses a real target and the FIRST tap paints",
+      "historical_duration_ms": 16291,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 12
+    },
+    {
+      "id": "unlocks-recommendations.spec.js:176:normal collection navigation hides premium entries from collection surfaces",
+      "file": "unlocks-recommendations.spec.js",
+      "line": 176,
+      "title": "normal collection navigation hides premium entries from collection surfaces",
+      "historical_duration_ms": 15940,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 10
+    },
+    {
+      "id": "special-help-onboarding.spec.js:47:legacy picture with specials shows compact special-cell onboarding once and opens the legend",
+      "file": "special-help-onboarding.spec.js",
+      "line": 47,
+      "title": "legacy picture with specials shows compact special-cell onboarding once and opens the legend",
+      "historical_duration_ms": 15915,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "tiled-reload-journal.spec.js:65:offline journal replay reconciles an already resident tile after reload",
+      "file": "tiled-reload-journal.spec.js",
+      "line": 65,
+      "title": "offline journal replay reconciles an already resident tile after reload",
+      "historical_duration_ms": 15732,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 11
+    },
+    {
+      "id": "creator.spec.js:652:19. Completing a zone celebrates the revealed fragment without XP copy",
+      "file": "creator.spec.js",
+      "line": 652,
+      "title": "19. Completing a zone celebrates the revealed fragment without XP copy",
+      "historical_duration_ms": 15707,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 14
+    },
+    {
+      "id": "tiled-completion.spec.js:3:tiled completion shows the completion overlay in the player",
+      "file": "tiled-completion.spec.js",
+      "line": 3,
+      "title": "tiled completion shows the completion overlay in the player",
+      "historical_duration_ms": 15044,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 5
+    },
+    {
+      "id": "core-feel-slice.spec.js:79:core feel a: manual reveal owns the first minute",
+      "file": "core-feel-slice.spec.js",
+      "line": 79,
+      "title": "core feel a: manual reveal owns the first minute",
+      "historical_duration_ms": 14967,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 9
+    },
+    {
+      "id": "special-help-onboarding.spec.js:86:control picture never shows special intro, hint, or help overlay",
+      "file": "special-help-onboarding.spec.js",
+      "line": 86,
+      "title": "control picture never shows special intro, hint, or help overlay",
+      "historical_duration_ms": 14944,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 13
+    },
+    {
+      "id": "special-cells-1200-delivery.spec.js:627:1200 control has no special markers, tutorial, help, or special HUD",
+      "file": "special-cells-1200-delivery.spec.js",
+      "line": 627,
+      "title": "1200 control has no special markers, tutorial, help, or special HUD",
+      "historical_duration_ms": 14943,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 8
+    },
+    {
+      "id": "creator.spec.js:621:17. Player dock switches between reveal and classic coloring",
+      "file": "creator.spec.js",
+      "line": 621,
+      "title": "17. Player dock switches between reveal and classic coloring",
+      "historical_duration_ms": 14852,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 15
+    },
+    {
+      "id": "input-gesture-evidence.spec.js:57:classic keyboard paint commits server progress",
+      "file": "input-gesture-evidence.spec.js",
+      "line": 57,
+      "title": "classic keyboard paint commits server progress",
+      "historical_duration_ms": 14506,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 16
+    },
+    {
+      "id": "creator.spec.js:563:13. Stable shell width across views",
+      "file": "creator.spec.js",
+      "line": 563,
+      "title": "13. Stable shell width across views",
+      "historical_duration_ms": 13647,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 3
+    },
+    {
+      "id": "creator.spec.js:636:18. Reveal mode paints without selecting a palette color first",
+      "file": "creator.spec.js",
+      "line": 636,
+      "title": "18. Reveal mode paints without selecting a palette color first",
+      "historical_duration_ms": 13247,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 5
+    },
+    {
+      "id": "unlocks-recommendations.spec.js:224:catalog showcase stays fail-closed without a mounted payment adapter",
+      "file": "unlocks-recommendations.spec.js",
+      "line": 224,
+      "title": "catalog showcase stays fail-closed without a mounted payment adapter",
+      "historical_duration_ms": 13042,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 9
+    },
+    {
+      "id": "creator.spec.js:521:12. Feed: like, comment, follow interactions",
+      "file": "creator.spec.js",
+      "line": 521,
+      "title": "12. Feed: like, comment, follow interactions",
+      "historical_duration_ms": 12360,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 13
+    },
+    {
+      "id": "unlocks-recommendations.spec.js:119:cold-start recommendations render stable reason text in bounded cards",
+      "file": "unlocks-recommendations.spec.js",
+      "line": 119,
+      "title": "cold-start recommendations render stable reason text in bounded cards",
+      "historical_duration_ms": 12036,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 8
+    },
+    {
+      "id": "creator.spec.js:593:15. Player menu opens and shows secondary actions",
+      "file": "creator.spec.js",
+      "line": 593,
+      "title": "15. Player menu opens and shows secondary actions",
+      "historical_duration_ms": 11875,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 11
+    },
+    {
+      "id": "special-bomb-tiled.spec.js:45:tiled Bomb claim, compact center offer, and use flow on 390x844",
+      "file": "special-bomb-tiled.spec.js",
+      "line": 45,
+      "title": "tiled Bomb claim, compact center offer, and use flow on 390x844",
+      "historical_duration_ms": 11088,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 14
+    },
+    {
+      "id": "special-bomb-artifact-reload.spec.js:89:Artifact fragment progress renders persistently after /progress reload",
+      "file": "special-bomb-artifact-reload.spec.js",
+      "line": 89,
+      "title": "Artifact fragment progress renders persistently after /progress reload",
+      "historical_duration_ms": 11052,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 10
+    },
+    {
+      "id": "creator.spec.js:221:6. Compute shows previews and quality indicator",
+      "file": "creator.spec.js",
+      "line": 221,
+      "title": "6. Compute shows previews and quality indicator",
+      "historical_duration_ms": 10851,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "special-bomb-artifact-reload.spec.js:42:Bomb offer reloads with the server-provided default center and applies without a resident tile",
+      "file": "special-bomb-artifact-reload.spec.js",
+      "line": 42,
+      "title": "Bomb offer reloads with the server-provided default center and applies without a resident tile",
+      "historical_duration_ms": 10513,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 12
+    },
+    {
+      "id": "unlocks-recommendations.spec.js:201:premium direct ID shows a neutral unavailable state without payment CTA",
+      "file": "unlocks-recommendations.spec.js",
+      "line": 201,
+      "title": "premium direct ID shows a neutral unavailable state without payment CTA",
+      "historical_duration_ms": 10430,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 7
+    },
+    {
+      "id": "coloring-surface-gesture-guard.spec.js:152:normal catalog scroll remains available outside the player",
+      "file": "coloring-surface-gesture-guard.spec.js",
+      "line": 152,
+      "title": "normal catalog scroll remains available outside the player",
+      "historical_duration_ms": 10154,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 4
+    },
+    {
+      "id": "unlocks-recommendations.spec.js:159:progression-locked direct ID opens an actionable locked screen, not a generic error",
+      "file": "unlocks-recommendations.spec.js",
+      "line": 159,
+      "title": "progression-locked direct ID opens an actionable locked screen, not a generic error",
+      "historical_duration_ms": 9302,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 15
+    },
+    {
+      "id": "core-feel-slice.spec.js:187:partial manual progress reloads into a meaningful resume action",
+      "file": "core-feel-slice.spec.js",
+      "line": 187,
+      "title": "partial manual progress reloads into a meaningful resume action",
+      "historical_duration_ms": 9171,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 16
+    },
+    {
+      "id": "creator.spec.js:577:14. Player guided mode keeps the canvas clear of persistent metrics",
+      "file": "creator.spec.js",
+      "line": 577,
+      "title": "14. Player guided mode keeps the canvas clear of persistent metrics",
+      "historical_duration_ms": 9037,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": true
+      },
+      "shard": 15
+    },
+    {
+      "id": "coloring-surface-gesture-guard.spec.js:194:tiled pointer capture is established on a loaded target and paint commits progress",
+      "file": "coloring-surface-gesture-guard.spec.js",
+      "line": 194,
+      "title": "tiled pointer capture is established on a loaded target and paint commits progress",
+      "historical_duration_ms": 8830,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 12
+    },
+    {
+      "id": "coloring-surface-gesture-guard.spec.js:105:tiled surface suppresses selection, keeps editable controls selectable; guards scoped",
+      "file": "coloring-surface-gesture-guard.spec.js",
+      "line": 105,
+      "title": "tiled surface suppresses selection, keeps editable controls selectable; guards scoped",
+      "historical_duration_ms": 8784,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 4
+    },
+    {
+      "id": "core-feel-slice.spec.js:79:core feel b: manual reveal owns the first minute",
+      "file": "core-feel-slice.spec.js",
+      "line": 79,
+      "title": "core feel b: manual reveal owns the first minute",
+      "historical_duration_ms": 8737,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "creator.spec.js:207:5. Grid and color controls update state",
+      "file": "creator.spec.js",
+      "line": 207,
+      "title": "5. Grid and color controls update state",
+      "historical_duration_ms": 8602,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 14
+    },
+    {
+      "id": "coloring-surface-gesture-guard.spec.js:164:classic pointer capture stays on the canvas and paint commits progress",
+      "file": "coloring-surface-gesture-guard.spec.js",
+      "line": 164,
+      "title": "classic pointer capture stays on the canvas and paint commits progress",
+      "historical_duration_ms": 8489,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 7
+    },
+    {
+      "id": "session-goals.spec.js:338:core-feel suppresses an explicit goal-card control override but keeps painting guidance",
+      "file": "session-goals.spec.js",
+      "line": 338,
+      "title": "core-feel suppresses an explicit goal-card control override but keeps painting guidance",
+      "historical_duration_ms": 8418,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 10
+    },
+    {
+      "id": "core-feel-slice.spec.js:79:core feel c: manual reveal owns the first minute",
+      "file": "core-feel-slice.spec.js",
+      "line": 79,
+      "title": "core feel c: manual reveal owns the first minute",
+      "historical_duration_ms": 8094,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 8
+    },
+    {
+      "id": "creator.spec.js:463:10. Catalog → open coloring → player renders guided canvas",
+      "file": "creator.spec.js",
+      "line": 463,
+      "title": "10. Catalog → open coloring → player renders guided canvas",
+      "historical_duration_ms": 7707,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 13
+    },
+    {
+      "id": "creator.spec.js:177:3. File upload shows grid, crop, and color controls",
+      "file": "creator.spec.js",
+      "line": 177,
+      "title": "3. File upload shows grid, crop, and color controls",
+      "historical_duration_ms": 7552,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 11
+    },
+    {
+      "id": "creator.spec.js:197:4. Crop mode shows zoom and offset sliders",
+      "file": "creator.spec.js",
+      "line": 197,
+      "title": "4. Crop mode shows zoom and offset sliders",
+      "historical_duration_ms": 7529,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 3
+    },
+    {
+      "id": "creator.spec.js:382:7. Reset crop restores defaults",
+      "file": "creator.spec.js",
+      "line": 382,
+      "title": "7. Reset crop restores defaults",
+      "historical_duration_ms": 7340,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 16
+    },
+    {
+      "id": "coloring-surface-gesture-guard.spec.js:79:classic surface suppresses selection, callout, image drag; guards stay scoped",
+      "file": "coloring-surface-gesture-guard.spec.js",
+      "line": 79,
+      "title": "classic surface suppresses selection, callout, image drag; guards stay scoped",
+      "historical_duration_ms": 6902,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 9
+    },
+    {
+      "id": "creator.spec.js:188:3a. Photo creator defaults to the detail-preserving 512×512/16-colour mode",
+      "file": "creator.spec.js",
+      "line": 188,
+      "title": "3a. Photo creator defaults to the detail-preserving 512×512/16-colour mode",
+      "historical_duration_ms": 6419,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 5
+    },
+    {
+      "id": "creator.spec.js:170:2. Creator controls visible on page",
+      "file": "creator.spec.js",
+      "line": 170,
+      "title": "2. Creator controls visible on page",
+      "historical_duration_ms": 6201,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 5
+    },
+    {
+      "id": "creator.spec.js:163:1. App shell and navigation render",
+      "file": "creator.spec.js",
+      "line": 163,
+      "title": "1. App shell and navigation render",
+      "historical_duration_ms": 6094,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 9
+    },
+    {
+      "id": "bfcache-lifecycle.spec.js:113:legacy queue keeps painting after persisted pagehide/pageshow",
+      "file": "bfcache-lifecycle.spec.js",
+      "line": 113,
+      "title": "legacy queue keeps painting after persisted pagehide/pageshow",
+      "historical_duration_ms": 6016,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 11
+    },
+    {
+      "id": "creator.spec.js:609:16. Catalog card actions stay aligned despite different copy lengths",
+      "file": "creator.spec.js",
+      "line": 609,
+      "title": "16. Catalog card actions stay aligned despite different copy lengths",
+      "historical_duration_ms": 5781,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 15
+    },
+    {
+      "id": "guided-path.spec.js:55:guided home shows one primary action and a bounded choice window",
+      "file": "guided-path.spec.js",
+      "line": 55,
+      "title": "guided home shows one primary action and a bounded choice window",
+      "historical_duration_ms": 5671,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 13
+    },
+    {
+      "id": "core-feel-slice.spec.js:138:control keeps the existing flat/automatic behavior for comparison",
+      "file": "core-feel-slice.spec.js",
+      "line": 138,
+      "title": "control keeps the existing flat/automatic behavior for comparison",
+      "historical_duration_ms": 5548,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 10
+    },
+    {
+      "id": "creator.spec.js:147:Create hub keeps free creator paths without commercial promises",
+      "file": "creator.spec.js",
+      "line": 147,
+      "title": "Create hub keeps free creator paths without commercial promises",
+      "historical_duration_ms": 5445,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 7
+    },
+    {
+      "id": "core-feel-slice.spec.js:150:manual pinch/pan pauses direction without forfeiting the authored reveal",
+      "file": "core-feel-slice.spec.js",
+      "line": 150,
+      "title": "manual pinch/pan pauses direction without forfeiting the authored reveal",
+      "historical_duration_ms": 4649,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 8
+    },
+    {
+      "id": "bfcache-lifecycle.spec.js:143:tiled queue keeps painting after persisted pagehide/pageshow",
+      "file": "bfcache-lifecycle.spec.js",
+      "line": 143,
+      "title": "tiled queue keeps painting after persisted pagehide/pageshow",
+      "historical_duration_ms": 4388,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 14
+    },
+    {
+      "id": "stabilization.spec.js:266:9. Free exploration requires an explicit return to the same target",
+      "file": "stabilization.spec.js",
+      "line": 266,
+      "title": "9. Free exploration requires an explicit return to the same target",
+      "historical_duration_ms": 4080,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "bfcache-lifecycle.spec.js:179:mock Telegram bridge disables on player enter, survives bfcache, and restores on leave",
+      "file": "bfcache-lifecycle.spec.js",
+      "line": 179,
+      "title": "mock Telegram bridge disables on player enter, survives bfcache, and restores on leave",
+      "historical_duration_ms": 3968,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 12
+    },
+    {
+      "id": "creator-preview-visual.spec.js:25:creator preview is readable without overflow at 430px",
+      "file": "creator-preview-visual.spec.js",
+      "line": 25,
+      "title": "creator preview is readable without overflow at 430px",
+      "historical_duration_ms": 3751,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 16
+    },
+    {
+      "id": "creator-preview-visual.spec.js:25:creator preview is readable without overflow at 390px",
+      "file": "creator-preview-visual.spec.js",
+      "line": 25,
+      "title": "creator preview is readable without overflow at 390px",
+      "historical_duration_ms": 3673,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": true,
+        "lifecycle": false
+      },
+      "shard": 4
+    },
+    {
+      "id": "bfcache-lifecycle.spec.js:224:browser SDK stub without initData does not apply the global overscroll fallback",
+      "file": "bfcache-lifecycle.spec.js",
+      "line": 224,
+      "title": "browser SDK stub without initData does not apply the global overscroll fallback",
+      "historical_duration_ms": 3482,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "shard": 3
+    },
+    {
+      "id": "coloring-surface-gesture-guard.spec.js:232:camera zoom still works on the tiled surface",
+      "file": "coloring-surface-gesture-guard.spec.js",
+      "line": 232,
+      "title": "camera zoom still works on the tiled surface",
+      "historical_duration_ms": 3154,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 3
+    },
+    {
+      "id": "stabilization.spec.js:215:6. Wheel zoom preserves cursor world position",
+      "file": "stabilization.spec.js",
+      "line": 215,
+      "title": "6. Wheel zoom preserves cursor world position",
+      "historical_duration_ms": 3101,
+      "project_cases": 3,
+      "projects": [
+        "Mobile iPhone",
+        "Mobile Pixel",
+        "chromium"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 4
+    },
+    {
+      "id": "auth-contract.spec.js:21:valid Telegram initData authenticates the Telegram identity and wins over a dev header",
+      "file": "auth-contract.spec.js",
+      "line": 21,
+      "title": "valid Telegram initData authenticates the Telegram identity and wins over a dev header",
+      "historical_duration_ms": 798,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 16
+    },
+    {
+      "id": "auth-contract.spec.js:35:missing or invalid Telegram initData is rejected",
+      "file": "auth-contract.spec.js",
+      "line": 35,
+      "title": "missing or invalid Telegram initData is rejected",
+      "historical_duration_ms": 657,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 12
+    },
+    {
+      "id": "accessibility-evidence.spec.js:223:capture classic player at 360px",
+      "file": "accessibility-evidence.spec.js",
+      "line": 223,
+      "title": "capture classic player at 360px",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "accessibility-evidence.spec.js:223:capture classic player at 390px",
+      "file": "accessibility-evidence.spec.js",
+      "line": 223,
+      "title": "capture classic player at 390px",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "accessibility-evidence.spec.js:223:capture classic player at 430px",
+      "file": "accessibility-evidence.spec.js",
+      "line": 223,
+      "title": "capture classic player at 430px",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "accessibility-evidence.spec.js:237:capture reduced-motion player at 390px",
+      "file": "accessibility-evidence.spec.js",
+      "line": 237,
+      "title": "capture reduced-motion player at 390px",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "accessibility-evidence.spec.js:252:capture forced-colors player at 390px",
+      "file": "accessibility-evidence.spec.js",
+      "line": 252,
+      "title": "capture forced-colors player at 390px",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "accessibility-evidence.spec.js:266:capture tiled 1200 player at 390px",
+      "file": "accessibility-evidence.spec.js",
+      "line": 266,
+      "title": "capture tiled 1200 player at 390px",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile Pixel",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": true,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "session-goals-evidence.spec.js:133:capture session-goal player at 360px",
+      "file": "session-goals-evidence.spec.js",
+      "line": 133,
+      "title": "capture session-goal player at 360px",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "session-goals-evidence.spec.js:133:capture session-goal player at 390px",
+      "file": "session-goals-evidence.spec.js",
+      "line": 133,
+      "title": "capture session-goal player at 390px",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    },
+    {
+      "id": "session-goals-evidence.spec.js:133:capture session-goal player at 430px",
+      "file": "session-goals-evidence.spec.js",
+      "line": 133,
+      "title": "capture session-goal player at 430px",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "Mobile Pixel",
+        "chromium",
+        "Mobile iPhone"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": true,
+        "creator": false,
+        "lifecycle": false
+      },
+      "shard": 6
+    }
+  ]
+}
