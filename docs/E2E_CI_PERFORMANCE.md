@@ -1,6 +1,6 @@
 # E2E CI performance
 
-Status: `MEASURED — wave6 residuals corrected at 508d917; final matrix and live CI proof pending`
+Status: `MEASURED — wave7 local failure map complete; GitHub critical/extended timing and final proof pending`
 
 This document records the performance evidence from the frozen diagnostic and
 the current CI shape. It does not treat low CPU utilization as a reason to
@@ -79,6 +79,17 @@ a scheduled initial WORK-plan race. After the bounded correction at
 `508d917`, focused low-zoom passed `5/5`; the zone matrix passed Chromium and
 Pixel `4/4` and recorded two explicit WebKit capability skips. The final
 complete matrix must still run on `508d917`.
+
+The complete wave7 local diagnostic matrix on integration HEAD `9cba274`
+completed all `16/16` sequential shards with `364` passes, `72` expected
+skips, `2` unexpected and `0` flaky results. Recorded shard test durations
+sum to `39 m 28.037 s`; the slowest shard test duration is `7 m 45.766 s`.
+The two rows were one Chromium creator bootstrap timeout accompanied by
+`index.css: net::ERR_NO_BUFFER_SPACE`, and one Pixel direct tile-read
+`ETIMEDOUT`. They passed isolated targeted repeats (`10/10` and `5/5`), so
+this run is environment-pressure evidence, not final acceptance. The CI
+workflow now writes SHA/run/shard-scoped output and a machine-readable
+fingerprint summary for every critical/full shard.
 
 The PostgreSQL service gate was subsequently executed locally against a fresh
 Docker `postgres:16` container using the same credentials and migration shape
@@ -164,8 +175,8 @@ existing 16-shard `e2e` job remains the extended suite.
 - repeated focused durations for the previously flaky input, lifecycle, and
   tiled clusters;
 - release-critical gate wall-clock and full extended-suite wall-clock;
-- one complete post-correction 16-shard run and before/after comparison
-  without using retries to hide failures.
+- one authoritative GitHub critical matrix and one complete post-correction
+  16-shard extended matrix, without using retries to hide failures.
 
 ## Interpretation of low CPU utilization
 
@@ -187,11 +198,11 @@ optimization until the extended sharded result proves isolation.
 | Extended, first complete post-correction 16 shards | 366 pass + 71 expected skips | 1 C12 unexpected, 0 flaky; diagnostic only | 1 h 14 m 24.606 s wall-clock |
 | Extended, second complete post-correction 16 shards | 365 pass + 71 expected skips | 2 C13 unexpected, 0 flaky; diagnostic only | 1 h 18 m 03.624 s wall-clock |
 | Extended, wave6 complete 16 shards | 365 pass + 71 expected skips | 2 harness unexpected, 0 flaky; diagnostic only | 63 m 41.141 s summed sequential wall proxy; slowest 10 m 20.586 s |
+| Extended, wave7 complete local 16 shards | 364 pass + 72 expected skips | 2 environment-pressure unexpected, 0 flaky; diagnostic only | 39 m 28.037 s summed test-duration proxy; slowest shard 7 m 45.766 s |
 
 The final critical matrix is compatible with the intended approximately 5–10
 minute PR gate when the three project jobs run in parallel. The local
 Chromium/Pixel lanes are about `6 m 49 s` and `6 m 54 s`; the iPhone emulation
 lane is `2 m 39 s`. A live GitHub Actions wall-clock and billed-minute
-measurement still requires a future push or PR, which this stabilization pass
-intentionally did not perform. The historical GitHub references above remain
-the only measured provider costs.
+measurement will be recorded from the exact pushed integration SHA; the
+historical GitHub references above remain non-controlled comparisons.

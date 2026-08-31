@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `FINAL_MATRIX_PENDING — wave6 exposed two residual harness failures; bounded correction committed; final full run pending`
+Status: `FINAL_GITHUB_PENDING — wave7 local failure map complete; two environment-pressure signals did not reproduce in focused isolation; authoritative GitHub matrix pending`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -18,7 +18,7 @@ to the local integration worktree.
 - Current code/harness SHA: `508d917f7780d52495281b5bc62f81604ecaccf0`
   (bounded wave6 correction: initial tiled WORK-plan state, per-repeat user
   isolation, and explicit WebKit visual capability boundary).
-- Current integration HEAD: `508d917f7780d52495281b5bc62f81604ecaccf0`.
+- Current integration HEAD: `9cba274953a362272183b666fc2aaded5b81f8fa` (docs-only state update atop code/harness SHA `508d917f7780d52495281b5bc62f81604ecaccf0`).
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -30,7 +30,7 @@ to the local integration worktree.
 
 | Role | Location / identity | Ownership | Status |
 |---|---|---|---|
-| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | final matrix pending on `508d917` |
+| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | local wave7 map complete; GitHub matrix pending on next pushed SHA |
 | Frozen diagnostic | `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean` | read-only frozen evidence | complete |
 | Primary checkout | `C:\Users\misa\Desktop\Splint-Gemini` | unrelated user work/evidence | untouched |
 | C1 navigation | `01a052cd-d0b1-71c0-a10c-b0db0fdd743f` | navigation/readiness cluster | complete; no speculative fix |
@@ -130,6 +130,8 @@ Full ledger: [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C11 critical browser scope ambiguity | iPhone lane had 11 expected skips, one worker-sensitive case and wave6 visual timeout | ENVIRONMENT/coverage boundary | explicit 14-test WebKit smoke subset; zone visual has the same explicit skip; physical iOS gate remains required |
 | C12 legacy Alpha glyph fixture seed | 1 failure in the first complete post-correction matrix; 1/5 failure in focused reproduction | HARNESS_FAILURE | lead; `special-glyph-parity.spec.js`, `e2e-hooks.js` | explicit `alpha-glyph-kinds` fixture uses a stable seed and variant id; post-fix focused browser checks pass |
 | C13 browser/Vite loopback host mismatch | 2 failures in the second complete matrix; both browser-side `ERR_CONNECTION_REFUSED` | HARNESS_FAILURE / environment boundary | lead; `playwright.config.js`, `e2e-global-setup.mjs` | browser base URL and Vite bind are both explicit `127.0.0.1`; pointer and Bomb focused repeats pass |
+| C14 creator visual bootstrap resource exhaustion | 1 wave7 timeout; trace had `index.css: ERR_NO_BUFFER_SPACE` and DOM stuck on session recovery | ENVIRONMENT_PRESSURE | lead; no product file change | fresh Node22 Chromium repeat `10/10`; no retry, timeout inflation or quarantine |
+| C15 tiled direct-read loopback timeout | 1 wave7 `ETIMEDOUT` on one direct tile read; neighboring tile requests and next stroke passed | ENVIRONMENT_PRESSURE | lead; no product file change | fresh Node22 Mobile Pixel repeat `5/5`; stroke `30/30`, API responses `200`, no retry or oracle weakening |
 
 No product defect was proven. No assertion was weakened. No test was
 quarantined and no obsolete test was removed. The old stitched matrix is now
@@ -174,6 +176,9 @@ correction SHA.
 - Low-zoom Pixel after wave6 correction: `5/5`, retries `0`.
 - Zone visual matrix after wave6 correction: Chromium/Pixel `4/4`, WebKit
   `2` expected capability skips, `0` unexpected.
+- Wave7 creator visual local targeted repeat: `10/10`, retries `0`.
+- Wave7 tiled touch local targeted repeat: `5/5`, retries `0`; stroke
+  diagnostics reported `30/30` painted cells on each pass.
 - Guided player Pixel before fixture correction: `3/3`; after deterministic
   control fixture: `5/5`.
 - Final control-fixture shard 14: `23 pass / 3 skip / 0 unexpected / 0 flaky`.
@@ -235,6 +240,29 @@ not final acceptance evidence.
 - This is diagnostic evidence for the bounded correction, not final
   acceptance on the current SHA.
 
+### Wave7 complete local diagnostic matrix on frozen `9cba274`
+
+- All `16/16` sequential Node22 shards completed with fail-fast disabled and
+  retries `0`.
+- Result: `364 pass / 72 expected skip / 2 unexpected / 0 flaky`.
+- Shard 2 Chromium: creator visual 430px timed out waiting for `Создать`;
+  trace and screenshot showed the recovery shell and `index.css:
+  net::ERR_NO_BUFFER_SPACE`.
+- Shard 16 Mobile Pixel: one direct `/tiles/7/18` read returned local
+  `connect ETIMEDOUT`; neighboring tile requests were successful and the
+  following stroke test passed.
+- Machine-readable per-shard summaries are retained under
+  `test-results/final-wave7-shard-02/summary.json` and
+  `test-results/final-wave7-shard-16/summary.json`; the CI workflow now emits
+  the same summary for every shard.
+- Classification: both rows are `ENVIRONMENT_PRESSURE` on the local Windows
+  long-run path, not proven product defects. Fresh isolated targeted evidence
+  is creator `10/10` and tiled touch `5/5`, retries `0`, with no code fix
+  justified.
+- Sum of recorded shard test durations: `39 m 28.037 s`; slowest shard test
+  duration: `7 m 45.766 s`. This local sequential measurement is diagnostic,
+  not authoritative GitHub billing or final acceptance.
+
 ### Final critical gate
 
 - Chromium: `26 pass / 0 skip / 0 unexpected / 0 flaky`, `6 m 48.958 s`.
@@ -276,13 +304,17 @@ not final acceptance evidence.
 - The earlier 16-way concurrent local attempt produced 79 unexpected results
   from resource pressure. This is why local evidence is sequential; CI shard
   concurrency still needs an external controlled measurement.
-- Remaining debt: one complete final 16-shard run on `508d917`, post-final
-  independent Sol Max reviews, physical Telegram/iOS proof, residual legacy
-  timing/catch cleanup and a controlled GitHub CI cost measurement.
+- Remaining debt: one authoritative 16-shard GitHub run on the pushed final
+  integration SHA, post-final independent Sol Max reviews, physical
+  Telegram/iOS proof, residual legacy timing/catch cleanup and measured
+  GitHub runner-minute cost.
 
 ## Next action
 
-The bounded wave6 correction is committed at `508d917`. Execute one complete
-16-shard Node22 matrix without changing SHA. Aggregate that run, rerun the two
-independent reviews against its SHA, execute the remaining gates, and only
-then decide whether the terminal state is justified.
+The wave7 local failure map is complete and both representative environment
+signals passed isolated targeted repeats. The bounded diagnostics correction
+adds `scripts/summarize-e2e-results.mjs` and SHA/run/shard-scoped CI artifacts;
+it does not alter product behavior. Commit this bounded documentation/CI wave,
+push the exact integration SHA, run the authoritative GitHub critical and
+16-shard extended matrix with fail-fast disabled and retries `0`, then aggregate
+all shard summaries before any further correction decision.

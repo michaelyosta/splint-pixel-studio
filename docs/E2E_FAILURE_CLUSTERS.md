@@ -1,6 +1,6 @@
 # E2E failure clusters
 
-Status: `CLUSTERED — wave6 residuals corrected at 508d917; final full matrix pending`
+Status: `CLUSTERED — wave7 failure map complete; two local environment-pressure rows isolated; GitHub full matrix pending`
 
 This ledger groups failures by causal mechanism rather than assigning one
 agent to every red test. The frozen matrix is
@@ -35,6 +35,9 @@ agent to every red test. The frozen matrix is
 - Wave6 at `f0c8d35` completed all `16/16` shards with `365 pass / 71 skip /
   2 unexpected / 0 flaky`; the rows were a WebKit creator visual timeout and
   a Pixel low-zoom request-count race.
+- Wave7 at `9cba274` completed all `16/16` shards with `364 pass / 72 skip /
+  2 unexpected / 0 flaky`; the two rows fingerprinted to creator bootstrap
+  resource exhaustion and one tiled direct-read loopback timeout.
 
 ## Cluster table
 
@@ -53,6 +56,8 @@ agent to every red test. The frozen matrix is
 | C11 | iPhone emulation scope and WebKit worker/provider boundary; wave6 zone visual timeout | `ENVIRONMENT_FAILURE` / coverage boundary | lead; critical runner/workflow, `e2e/zone-visual.spec.js` | explicit 14-test WebKit smoke; zone visual explicitly skips WebKit; save/1200/touch remain Chromium/Pixel + physical iOS |
 | C12 | legacy 96x96 Alpha glyph fixture omitted `artifact` for some random owners | `HARNESS_FAILURE` | lead; `special-glyph-parity.spec.js`, `e2e-hooks.js` | explicit `alpha-glyph-kinds` fixture variant uses a stable generation seed; Pixel `5/5`, browser variants `2/2` |
 | C13 | browser base URL used `localhost` while Vite bound to `127.0.0.1`; two full-matrix requests were refused | `HARNESS_FAILURE` / environment boundary | lead; `playwright.config.js`, `e2e-global-setup.mjs` | explicit `127.0.0.1` host parity; pointer `5/5`, Bomb `5/5`, CI-mode pair `2/2` |
+| C14 | one wave7 creator visual bootstrap timeout; `index.css` failed with `ERR_NO_BUFFER_SPACE` and DOM stayed on recovery shell | `ENVIRONMENT_PRESSURE` | lead; no product file change | isolated Chromium repeat `10/10`; no retry, timeout inflation or quarantine |
+| C15 | one wave7 Pixel direct tile read timed out while adjacent tile reads and the next stroke test passed | `ENVIRONMENT_PRESSURE` | lead; no product file change | isolated Mobile Pixel repeat `5/5`; `30/30` stroke cells and `200` tile responses |
 
 ## C1 — mobile bootstrap/navigation and invocation pressure
 
@@ -154,6 +159,38 @@ The correction makes both the browser base URL and Vite startup host use the
 same explicit `E2E_WEB_HOST` default of `127.0.0.1`. The focused pointer and
 Bomb scenarios each passed `5/5`, and the CI-mode pair passed `2/2`, with
 retries disabled.
+
+## C14 — creator visual bootstrap resource pressure
+
+Wave7 shard 2 timed out before the first creator navigation action. The trace
+captured the recovery shell (`Восстанавливаем последнюю сессию…`) and a
+browser `index.css: net::ERR_NO_BUFFER_SPACE` failure. The API health and
+application requests were otherwise normal. The same Chromium visual spec on
+a fresh Node22 server completed `10/10` with retries `0`, and produced no
+failure artifacts. This is local Windows resource pressure after the long
+matrix, not a proven product or selector defect; no timeout was increased and
+no retry/quarantine was added.
+
+## C15 — tiled direct-read loopback timeout
+
+Wave7 shard 16 had one `connect ETIMEDOUT 127.0.0.1:5716` while the test was
+reading tile `7/18` directly. Trace evidence showed the preceding tile reads
+and the following stroke test continuing normally; server request evidence
+contained successful tile responses. A fresh Node22 Mobile Pixel run of the
+representative touch test passed `5/5`, with every stroke reporting `30/30`
+painted cells and no failed request. This is local environment pressure, not
+evidence to weaken the direct-read oracle or alter tiled product code.
+
+## Machine-readable failure map
+
+The lead harness now provides `scripts/summarize-e2e-results.mjs`. It consumes
+each Playwright JSON result, records SHA/run/shard/project/test/worker/runtime,
+error signature, request/attachment references and server-log reference, then
+groups failures by normalized fingerprint. CI invokes it for every critical
+and extended shard and stores the summary beside that shard's unique
+`test-results/<sha>/<run-id>/` output. Wave7 local summaries are retained at
+`test-results/final-wave7-shard-02/summary.json` and
+`test-results/final-wave7-shard-16/summary.json`.
 
 ## Wave6 residuals and bounded correction
 

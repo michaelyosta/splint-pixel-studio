@@ -81,8 +81,28 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
       - name: Run release-critical E2E
         env:
-          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json
-        run: npm run test:e2e:${{ matrix.suite }} -- --project="${{ matrix.project }}"
+          E2E_RUN_ID: ${{ github.run_id }}
+          E2E_OUTPUT_ROOT: test-results/${{ github.sha }}/${{ github.run_id }}/critical-${{ matrix.key }}
+          PLAYWRIGHT_OUTPUT_DIR: test-results/${{ github.sha }}/${{ github.run_id }}/critical-${{ matrix.key }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/${{ github.sha }}/${{ github.run_id }}/critical-${{ matrix.key }}/results.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/${{ github.sha }}/${{ github.run_id }}/critical-${{ matrix.key }}
+        run: |
+          set -o pipefail
+          mkdir -p "$E2E_OUTPUT_ROOT"
+          npm run test:e2e:${{ matrix.suite }} -- --project="${{ matrix.project }}" 2>&1 | tee "$E2E_OUTPUT_ROOT/run.log"
+      - name: Build release-critical machine summary
+        if: always()
+        env:
+          E2E_OUTPUT_ROOT: test-results/${{ github.sha }}/${{ github.run_id }}/critical-${{ matrix.key }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/${{ github.sha }}/${{ github.run_id }}/critical-${{ matrix.key }}/results.json
+        run: |
+          node scripts/summarize-e2e-results.mjs \
+            --input "$PLAYWRIGHT_JSON_OUTPUT_FILE" \
+            --output "$E2E_OUTPUT_ROOT/summary.json" \
+            --sha "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --shard "critical-${{ matrix.key }}" \
+            --server-log "$E2E_OUTPUT_ROOT/run.log"
       - name: Upload release-critical diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -113,8 +133,29 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
       - name: Run E2E shard
         env:
-          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/results.json
-        run: npm run test:e2e:ci-local -- --shard=${{ matrix.shard }}/16
+          E2E_RUN_ID: ${{ github.run_id }}
+          E2E_OUTPUT_ROOT: test-results/${{ github.sha }}/${{ github.run_id }}/shard-${{ matrix.shard }}
+          E2E_SHARD: ${{ matrix.shard }}/16
+          PLAYWRIGHT_OUTPUT_DIR: test-results/${{ github.sha }}/${{ github.run_id }}/shard-${{ matrix.shard }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/${{ github.sha }}/${{ github.run_id }}/shard-${{ matrix.shard }}/results.json
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/${{ github.sha }}/${{ github.run_id }}/shard-${{ matrix.shard }}
+        run: |
+          set -o pipefail
+          mkdir -p "$E2E_OUTPUT_ROOT"
+          npm run test:e2e:ci-local -- --shard=${{ matrix.shard }}/16 2>&1 | tee "$E2E_OUTPUT_ROOT/run.log"
+      - name: Build E2E machine summary
+        if: always()
+        env:
+          E2E_OUTPUT_ROOT: test-results/${{ github.sha }}/${{ github.run_id }}/shard-${{ matrix.shard }}
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/${{ github.sha }}/${{ github.run_id }}/shard-${{ matrix.shard }}/results.json
+        run: |
+          node scripts/summarize-e2e-results.mjs \
+            --input "$PLAYWRIGHT_JSON_OUTPUT_FILE" \
+            --output "$E2E_OUTPUT_ROOT/summary.json" \
+            --sha "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --shard "${{ matrix.shard }}/16" \
+            --server-log "$E2E_OUTPUT_ROOT/run.log"
       - name: Upload E2E diagnostics
         if: always()
         uses: actions/upload-artifact@v4

@@ -1,6 +1,6 @@
 # Splint E2E system stabilization handoff
 
-Status: `FINAL_MATRIX_PENDING — wave6 residuals corrected at 508d917; final full run pending`
+Status: `FINAL_GITHUB_PENDING — wave7 local failure map complete; two environment-pressure rows isolated; authoritative GitHub matrix pending`
 
 ## Release and Git boundary
 
@@ -9,8 +9,9 @@ Status: `FINAL_MATRIX_PENDING — wave6 residuals corrected at 508d917; final fu
   `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`.
 - Last pre-correction code-and-harness SHA: `7d16ed3a575efd8c9bc71199e6ce18d55400e8ce`.
-- Current integration HEAD: `508d917f7780d52495281b5bc62f81604ecaccf0`, the
-  committed bounded wave6 correction.
+- Current integration HEAD: `9cba274953a362272183b666fc2aaded5b81f8fa`, with
+  code/harness correction at `508d917f7780d52495281b5bc62f81604ecaccf0` and
+  the bounded machine-summary/CI artifact correction pending commit.
 - Primary checkout remained user-owned and dirty; no reset, force push,
   deployment, or production mutation was performed.
 - Production remains `showalove.ru` / Closed Alpha LIVE. Stars remain
@@ -68,6 +69,8 @@ The full cluster ledger is [E2E_FAILURE_CLUSTERS.md](E2E_FAILURE_CLUSTERS.md).
 | C11 iPhone scope/provider boundary | review finding + wave6 zone timeout | explicit 14-test WebKit smoke; local WebKit zone visual skip is explicit; physical iOS remains separate |
 | C12 legacy Alpha glyph fixture seed | first complete matrix failure; Pixel 4/5 focused reproduction before fix | explicit Alpha glyph fixture contract with stable seed and variant id; post-fix Pixel 5/5 and browser variants 2/2 |
 | C13 browser/Vite loopback host mismatch | second complete matrix had two browser-side `ERR_CONNECTION_REFUSED` failures | browser base URL and Vite bind aligned to `127.0.0.1`; pointer and Bomb focused scenarios 5/5 each, CI-mode pair 2/2 |
+| C14 creator visual bootstrap resource pressure | wave7 Chromium timeout with `index.css: ERR_NO_BUFFER_SPACE` | local fresh-runtime repeat 10/10; environment-only, no code fix or quarantine |
+| C15 tiled direct-read loopback timeout | wave7 Pixel `ETIMEDOUT` on one tile read | local fresh-runtime repeat 5/5 with `30/30` stroke evidence; environment-only, no code fix or quarantine |
 
 The initial 59 failures were therefore not treated as 59 independent agents or
 as product defects. Proven harness/test defects were corrected in C2, C4 and
@@ -93,6 +96,9 @@ not final full-run evidence for the current correction SHA.
 - `PLAYWRIGHT_OUTPUT_DIR` and `PLAYWRIGHT_JSON_OUTPUT_FILE` isolate artifacts
   per run/shard; CI uploads `test-results/` and `playwright-report/` on every
   outcome.
+- `scripts/summarize-e2e-results.mjs` creates machine-readable failure
+  fingerprints with SHA/run/shard/test/runtime/error/attachment/log fields;
+  CI stores one summary beside each unique shard output.
 - No generic retry, arbitrary sleep, hidden catch, or weakened numeric oracle
   was introduced as a stabilization mechanism.
 
@@ -164,6 +170,16 @@ and the explicit WebKit capability skip. Focused proof is low-zoom Pixel
 `5/5` and zone Chromium/Pixel `4/4`, WebKit `2` expected skips. The final
 full matrix on `508d917` is still pending.
 
+The wave7 local diagnostic matrix on integration HEAD `9cba274` completed all
+`16/16` shards with `364 pass / 72 expected skip / 2 unexpected / 0 flaky`.
+Shard 2 had the creator bootstrap timeout with `index.css:
+net::ERR_NO_BUFFER_SPACE`; shard 16 had one direct tile-read
+`connect ETIMEDOUT`. Both were classified as local environment pressure after
+the long Windows matrix and passed fresh isolated repeats: creator `10/10`,
+tiled touch `5/5`, retries `0`. Their machine-readable summaries are under
+`test-results/final-wave7-shard-02/summary.json` and
+`test-results/final-wave7-shard-16/summary.json`.
+
 Previously sensitive scenarios also have repeated PASS evidence: lifecycle
 guided flow `5/5`, corrected tiled stroke `5/5`, and low-zoom `5/5`, with
 Playwright retries disabled.
@@ -230,8 +246,9 @@ after the complete final matrix.
 
 The E2E harness has a green historical critical matrix and a selected green
 extended matrix. Complete post-correction waves identified and isolated C12,
-C13, and the wave6 residuals; all bounded corrections are committed, but
-final proof on `508d917` is still pending.
+C13, and the wave6 residuals. Wave7 added two local environment-pressure
+signals; both passed fresh focused repeats, but authoritative GitHub proof on
+the final pushed SHA is still pending.
 The goal cannot yet be declared terminal under the strict exit criteria until:
 
 - one complete 16-shard Node22 matrix is green on one frozen corrected SHA;
@@ -241,6 +258,7 @@ The goal cannot yet be declared terminal under the strict exit criteria until:
   as PASS.
 
 No production deployment is part of this handoff. The next safe actions are to
-run one complete final matrix on `508d917` without changing its SHA, rerun
-both independent reviews, then update the run-state and handoff with the final
-evidence. Live GitHub branch timing remains a separate CI measurement debt.
+commit the bounded diagnostics/CI artifact correction, push the exact
+integration SHA, run the authoritative GitHub critical and extended matrices,
+then rerun both independent reviews and update this handoff with provider
+timing/evidence.
