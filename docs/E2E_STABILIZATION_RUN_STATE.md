@@ -1,6 +1,6 @@
 # E2E stabilization run state
 
-Status: `C22_FIXED — run 33414881259 fully evidenced; preparing bounded exact-SHA correction matrix`
+Status: `C23-C25_TARGETED_PROOF_GREEN — bounded Creator/oracle correction ready for integration`
 
 Last updated: 2026-08-31 (Asia/Qyzylorda)
 
@@ -15,15 +15,18 @@ to the local integration worktree.
 - Supplied release candidate: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current code/harness SHA and integration HEAD:
-  `fae35b598161b65b373ff7674a80ea2ae60b864f` (`test: wait for legacy
-  coloring readiness`).
+- Current integration HEAD before this bounded wave:
+  `c3c44e12e0edcadfc7c6454ff69be6f44667ef18` (`docs: record keyboard
+  readiness race`). The working tree contains one uncommitted, targeted
+  `e2e/creator.spec.js` correction for C24/C25; no product source change.
 - The prior final candidate `2fc52c9cd4bd4c07fbe4ae374e56e015678f96d7`
   remains immutable evidence; the bounded C22 helper correction is now the
   next frozen candidate after targeted proof.
-- Latest authoritative GitHub run: `33409940186` (PR event; all jobs complete;
-  22/24 extended shards green, all four critical lanes, PostgreSQL, S3 and
-  verify green; only C20 Creator navigation oracle failed in shards 9 and 22).
+- Latest authoritative GitHub run: `33416748101` (all 31 jobs complete;
+  three unexpected rows, zero flaky retries): critical Chromium tiled visual
+  probe, critical iPhone Creator readiness, and extended shard 19 Creator save
+  readiness. All failures were fingerprinted and targeted proof is complete;
+  this run is not acceptance proof.
 - Preflight before freeze: `146` logical tests / `438` project cases across
   `24` shards, `0` duplicates, `0` unmatched; Pixel critical partitions
   `13 + 13` with exact title coverage.
@@ -40,6 +43,15 @@ to the local integration worktree.
 - C22 correction `fae35b5` waits for causal legacy session readiness before
   canvas focus. Post-fix representative was `5/5` and related input spec
   across all browser projects passed, retries `0`.
+- C23 from run `33416748101` was one RGB off-by-one at a tiled mid-drag center
+  sample in a 417 s / 1,596-request critical Chromium shard. Fresh Node22
+  Chromium repeat passed `5/5`, with `30/30` painted cells and `wrong=false`;
+  no tiled assertion or product source was changed.
+- C24 fresh Node22 Mobile iPhone post-fix repeat passed `5/5` after waiting for
+  the selected Creator preview `data-status=ready` before the quality oracle.
+- C25 fresh Node22 Mobile Pixel post-fix repeat passed `5/5` after waiting for
+  the automatic 512 preview to settle before selecting 192 and waiting for
+  Save to be enabled. Retries were `0` in every focused run.
 - Primary checkout: `C:\Users\misa\Desktop\Splint-Gemini`; existing dirty
   evidence and user-owned files were not reset, reverted, staged or imported.
 - Integration worktree: `C:\Users\misa\AppData\Local\Temp\splint-e2e-system-stabilization`.
@@ -51,7 +63,7 @@ to the local integration worktree.
 
 | Role | Location / identity | Ownership | Status |
 |---|---|---|---|
-| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | C22 fixed; one bounded exact-SHA correction matrix pending |
+| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | C23-C25 targeted proof green; one bounded integration/push wave pending |
 | Frozen diagnostic | `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean` | read-only frozen evidence | complete |
 | Primary checkout | `C:\Users\misa\Desktop\Splint-Gemini` | unrelated user work/evidence | untouched |
 | C1 navigation | `01a052cd-d0b1-71c0-a10c-b0db0fdd743f` | navigation/readiness cluster | complete; no speculative fix |
@@ -355,8 +367,8 @@ not final acceptance evidence.
 - Static comparison was run on the 438 nominal project cases and 146 logical
   groups. Built-in projected slowest workload: 16=`22.57 min`, 24=`19.83 min`
   with 3 empty shards, 32=`17.54 min` with 4 empty shards.
-- Selected: deterministic weighted 16-shard manifest, projected slowest
-  workload `9.84 min`, zero empty shards.
+- Selected: deterministic weighted 24-shard manifest, projected slowest
+  workload `3.74 min`, zero empty shards.
 - Manifest: `docs/E2E_SHARD_LOAD_MANIFEST.json`.
 - Coverage preflight: `146/146` logical, `438/438` project cases, zero
   duplicate and zero unmatched assignments.
@@ -374,17 +386,18 @@ not final acceptance evidence.
 - The earlier 16-way concurrent local attempt produced 79 unexpected results
   from resource pressure. This is why local evidence is sequential; CI shard
   concurrency still needs an external controlled measurement.
-- Remaining debt: one authoritative exact-SHA GitHub run after the topology
-  wave, post-final independent Sol Max reviews, physical Telegram/iOS proof,
-  residual legacy timing/catch cleanup and final measured topology cost.
+- Remaining debt: one authoritative exact-SHA GitHub run after this bounded
+  correction wave, post-final independent Sol Max reviews, physical Telegram/
+  iOS proof, residual legacy timing/catch cleanup and final measured topology
+  cost.
 
 ## Next action
 
-Run `33414881259` completed all jobs and had one C22 Mobile iPhone keyboard
-readiness race. Its fresh isolated representative passed `5/5`; the causal
-helper correction is committed as `fae35b598161b65b373ff7674a80ea2ae60b864f`,
-with related input coverage green across all browser projects. Run docs
-coverage/lint/diff preflight, push the durable state, then allow exactly one
-authoritative GitHub matrix on this correction SHA to finish in full. If it is
-green, stop testing and proceed directly to the two independent reviews and
-final handoff; do not start another local full matrix.
+Run `33416748101` completed all jobs and produced three mapped failures. C23
+passed `5/5` fresh Node22 Chromium repeats; C24 passed `5/5` on iPhone after
+the selected-ready oracle; C25 passed `5/5` on Pixel after the 512-settled and
+Save-enabled oracles. Commit the targeted Creator correction together with
+the cluster/run-state documentation, push once, then allow exactly one
+authoritative GitHub matrix on the resulting frozen SHA to finish in full.
+If it is green, stop testing and proceed directly to the two independent
+reviews and final handoff; do not start another local full matrix.

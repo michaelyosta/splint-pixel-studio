@@ -133,6 +133,7 @@ async function uploadAndCompute(page) {
 async function saveColoring(page) {
   const saveBtn = page.locator('button', { hasText: 'Сохранить и начать' });
   await expect(saveBtn).toBeVisible({ timeout: 10000 });
+  await expect(saveBtn).toBeEnabled({ timeout: 60000 });
   const [resp] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/colorings/create')),
     saveBtn.click(),
@@ -234,6 +235,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.getByText('Пересчитать выбранный вариант').click();
     await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.creator-preview-item')).toHaveCount(3);
+    await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-status', 'ready', { timeout: 60000 });
     await expect(page.locator('.creator-quality')).toBeVisible({ timeout: 15000 });
   });
 
@@ -256,6 +258,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
+    await expect(page.locator('.creator-preview-option[data-resolution="512"]')).toHaveAttribute('data-status', 'ready', { timeout: 30000 });
     await page.getByRole('button', { name: 'Сетка 192 на 192' }).click();
     await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-resolution', '192');
     await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-status', 'ready', { timeout: 60000 });

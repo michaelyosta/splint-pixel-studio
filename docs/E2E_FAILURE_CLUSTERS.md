@@ -1,6 +1,6 @@
 # E2E failure clusters
 
-Status: `TOPOLOGY_CORRECTION_IN_PROGRESS — exact-SHA run complete; five REDs clustered as shard lifetime pressure`
+Status: `BOUNDED_CORRECTION_READY — exact-SHA run 33416748101 fully mapped; targeted C23-C25 proof complete`
 
 This ledger groups failures by causal mechanism rather than assigning one
 agent to every red test. The frozen matrix is
@@ -49,6 +49,11 @@ agent to every red test. The frozen matrix is
   shards 3, 4 and 6. Their traces and `gh` server logs show low initial API
   latency followed by degradation after a long/heavy shard; all five
   representative cases passed on fresh Node22 runtimes with retries `0`.
+- Exact-SHA GitHub run `33416748101` completed all 31 jobs with three
+  unexpected rows and no flaky retries: one tiled visual probe in critical
+  Chromium, one Creator quality-readiness row in critical iPhone, and one
+  Creator save-readiness row in extended shard 19. All three are now mapped;
+  no new product defect is proven.
 
 ## Cluster table
 
@@ -73,6 +78,9 @@ agent to every red test. The frozen matrix is
 | C17 | GitHub verify job exceeded the existing lint warning budget at `101/100`; one warning came from the new ANSI-strip regex in the summary script | `HARNESS_FAILURE` / diagnostic tooling | lead; `scripts/summarize-e2e-results.mjs` | ANSI regex no longer triggers lint; local Node22 lint returns to `100/100` |
 | C18 | exact-SHA run 33388276591: guided, keyboard, Phase 2 Bomb, iPhone accessibility and tiled glyph rows failed only after long/heavy shard lifetime; fresh repeats pass | `HARNESS_RESOURCE_LIFETIME / SHARD_PRESSURE` | lead; CI topology, shard manifest, runtime metrics and summary only | individual specs unchanged; weighted manifest and coverage preflight in progress |
 | C22 | exact-SHA run 33414881259: Mobile iPhone keyboard helper queried `.coloring-canvas` before the legacy session reached `data-route-status=ready`; one extended row | `HARNESS_FAILURE` / readiness race | lead; `e2e/input-gesture-helpers.js` only | fresh Node22 representative `5/5`; post-fix representative `5/5`; related input spec all projects green; no product change |
+| C23 | exact-SHA run 33416748101: critical Chromium tiled mid-drag center probe differed by one RGB channel (`[45,124,50]` vs `[46,125,50]`) after a 417 s / 1,596-request shard | `HARNESS_RESOURCE_LIFETIME / SHARD_PRESSURE` with visual-oracle sensitivity | lead; topology/diagnostics only; `e2e/tiled-stroke-engine.spec.js` assertions unchanged | fresh Node22 Chromium representative `5/5`; all report `30/30` painted, `wrong=false`, no HTTP errors; no product change |
+| C24 | exact-SHA run 33416748101: critical Mobile iPhone Creator quality panel remained hidden after previews were visible because selected preview readiness was not asserted | `HARNESS_FAILURE` / readiness oracle | lead; `e2e/creator.spec.js` only | selected option `data-status=ready` wait; fresh Node22 iPhone `5/5`; no product change |
+| C25 | exact-SHA run 33416748101: extended Mobile Pixel Creator 192 save waited for response while Save remained disabled during overlap with automatic 512 compute | `HARNESS_FAILURE` / test-state race | lead; `e2e/creator.spec.js` only | wait for 512 auto-compute before changing resolution, then wait for Save enabled; fresh Node22 Pixel `5/5`; no product change |
 
 ## C1 — mobile bootstrap/navigation and invocation pressure
 
@@ -319,6 +327,49 @@ before querying the canvas. Fresh isolated Node22 Mobile iPhone repeats passed
 iPhone and Mobile Pixel. This is a harness/test defect, not a product defect;
 no timeout inflation, retry, assertion weakening, quarantine or product
 source change was used.
+
+## C23 — tiled mid-drag visual probe under long shard lifetime
+
+Exact-SHA run `33416748101` produced one critical Chromium failure in the
+30-cell tiled touch drag. The failure was a two-channel off-by-one at one
+canvas center sample (`[45,124,50]` received versus `[46,125,50]` expected),
+not a missing painted cell. The same trace reported a 417-second critical
+shard, 1,596 requests, zero HTTP errors and elevated average API duration;
+the stroke diagnostic still reported `30/30` painted cells and `wrong=false`.
+
+The fresh Node22 representative passed `5/5` with retries disabled. Because
+the failure is not reproducible on the isolated runtime and the trace carries
+the established long-lifetime pressure signal, this remains an environment /
+visual-oracle observation in the shard-pressure cluster. The strict assertion
+and tiled product source remain unchanged; no RGB tolerance or retry was added.
+
+## C24 — Creator selected-preview readiness oracle
+
+The critical Mobile iPhone failure in run `33416748101` waited for
+`.creator-quality` immediately after preview thumbnails became visible. The
+trace snapshot showed the selected card still in `Подготовка · 0%`; no HTTP or
+browser console error was present. The test was observing a container before
+the selected computation reached its causal ready state.
+
+The bounded correction waits for the selected option's
+`data-status="ready"` before checking the quality indicator. Fresh Node22
+Mobile iPhone repeats passed `5/5`, retries `0`. This is a harness/test oracle
+defect, not a product defect.
+
+## C25 — Creator save enabled-state race
+
+The extended Mobile Pixel failure in run `33416748101` waited for
+`/colorings/create` while the Save button was disabled. The trace showed the
+192 option as ready while the global Creator compute state was still active;
+the test had selected 192 before the automatic default 512 computation had
+settled. This allowed two resolution lifecycles to overlap and left the Save
+oracle waiting for a response that could not start.
+
+The bounded test-only correction waits for the automatic 512 option to reach
+`data-status="ready"` before selecting 192 and separately waits for the Save
+button to be enabled before registering the response observer and clicking.
+Fresh Node22 Mobile Pixel repeats passed `5/5`, retries `0`; no product source,
+assertion, generic retry or timeout inflation was used.
 
 ## Machine-readable failure map
 
