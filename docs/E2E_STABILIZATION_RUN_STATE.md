@@ -1,8 +1,8 @@
 # E2E stabilization run state
 
-Status: `C23-C25_TARGETED_PROOF_GREEN — bounded Creator/oracle correction ready for integration`
+Status: `E2E_SYSTEM_STABLE — final RGB proof complete`
 
-Last updated: 2026-08-31 (Asia/Qyzylorda)
+Last updated: 2026-09-01 (Asia/Qyzylorda)
 
 This file is the durable state for the single stabilization pass. Generated
 Playwright evidence is intentionally kept outside commits; paths below refer
@@ -15,19 +15,17 @@ to the local integration worktree.
 - Supplied release candidate: `6ce8f60bdd673030bdbb705f2111c69bdfacf546`
 - RC relation: supplied RC is an ancestor of `origin/main`.
 - Integration branch: `codex/e2e-system-stabilization`
-- Current code/harness candidate SHA:
-  `8ef2e12` (`test: close creator readiness races`). It contains the targeted
-  C24/C25 `e2e/creator.spec.js` correction and the C23-C25 evidence update;
-  no product source change. The branch may receive a documentation-only
-  follow-up before the single push, without changing this code candidate.
+- Current code/tested SHA:
+  `2cf8565bff9e5f0f2ff929edd9ce141d075f6b13`. It contains the bounded
+  stabilization corrections; no product source change. The final RGB proof
+  below tested this exact code/harness head.
 - The prior final candidate `2fc52c9cd4bd4c07fbe4ae374e56e015678f96d7`
   remains immutable evidence; the bounded C22 helper correction is now the
   next frozen candidate after targeted proof.
-- Latest authoritative GitHub run: `33416748101` (all 31 jobs complete;
-  three unexpected rows, zero flaky retries): critical Chromium tiled visual
-  probe, critical iPhone Creator readiness, and extended shard 19 Creator save
-  readiness. All failures were fingerprinted and targeted proof is complete;
-  this run is not acceptance proof.
+- Latest authoritative GitHub run: `33420539750` on exact head
+  `99d99a67af05e07f87608e0b2d9c91b65b7b6238`. All `31/31` jobs completed
+  successfully: four critical lanes, `24/24` extended shards, verify,
+  PostgreSQL and S3. Retries `0`, flaky `0`, unexpected `0`.
 - Preflight before freeze: `146` logical tests / `438` project cases across
   `24` shards, `0` duplicates, `0` unmatched; Pixel critical partitions
   `13 + 13` with exact title coverage.
@@ -64,7 +62,7 @@ to the local integration worktree.
 
 | Role | Location / identity | Ownership | Status |
 |---|---|---|---|
-| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | C23-C25 targeted proof green; one bounded integration/push wave pending |
+| Lead integration | integration worktree, `codex/e2e-system-stabilization` | docs, CI/harness integration, bounded verification | technical proof complete; no commits awaiting integration |
 | Frozen diagnostic | `C:\Users\misa\AppData\Local\Temp\splint-e2e-diagnostic-clean` | read-only frozen evidence | complete |
 | Primary checkout | `C:\Users\misa\Desktop\Splint-Gemini` | unrelated user work/evidence | untouched |
 | C1 navigation | `01a052cd-d0b1-71c0-a10c-b0db0fdd743f` | navigation/readiness cluster | complete; no speculative fix |
@@ -77,12 +75,16 @@ primary checkout or production state.
 
 ## Independent final review status
 
-Two independent Sol Max read-only reviews completed against the pre-correction
-final evidence and both returned `FAIL` with actionable findings. The bounded
-correction wave addresses hidden UI retries, Gallery and low-zoom false-green
-oracles, deterministic fixture reset, exact critical manifest preflight, exact
-Node/npm runtime, and an isolated S3 contract gate. The reviews must be rerun
-against the post-correction SHA after the final full matrix.
+The required post-correction Sol Max Test Reliability and Product Integrity
+reviews were dispatched as read-only tasks against this worktree and exact
+tested SHA. Both tasks terminated before producing a verdict because the Sol
+Max provider reported the account usage limit. This is a review/provider
+blocker, not an E2E failure and not evidence against the green matrix.
+
+A separate lead read-only pre-review found no release-blocking change in the
+diff: no product-source file changed, retries remain `0`, strict assertions
+remain in place, and critical coverage preflight is present. That lead check
+does not substitute for the required independent Sol Max verdict.
 
 ## E2E inventory and classification
 
@@ -376,29 +378,59 @@ not final acceptance evidence.
 - The topology wave changes only CI selection, diagnostics and runtime
   measurement. No product source or individual extended assertion changed.
 
-## CI cost and remaining debt
+## Final validation and CI cost
 
-- Frozen diagnostic: `144.46` one-worker wall-clock minutes.
-- Selected extended matrix: `73.95` sequential shard-duration minutes;
-  slowest selected shard is shard 15 at approximately `11 m 56.614 s`.
-- Critical local project durations are approximately `6.82`, `2.64` and
-  `6.89` minutes; CI parallel wall-clock should be approximately the slowest
-  lane plus setup, subject to runner/provider variance.
-- The earlier 16-way concurrent local attempt produced 79 unexpected results
-  from resource pressure. This is why local evidence is sequential; CI shard
-  concurrency still needs an external controlled measurement.
-- Remaining debt: one authoritative exact-SHA GitHub run after this bounded
-  correction wave, post-final independent Sol Max reviews, physical Telegram/
-  iOS proof, residual legacy timing/catch cleanup and final measured topology
-  cost.
+- Authoritative GitHub run: `33420539750`, exact head
+  `99d99a67af05e07f87608e0b2d9c91b65b7b6238`, `31/31` jobs green.
+- Critical: four lanes green; Chromium `26/26`, Pixel-A `13/13`, Pixel-B
+  `13/13`, and supported iPhone/WebKit smoke green with its explicit scope.
+- Extended: `24/24` shards green, `356` pass, `72` expected skips, `0`
+  unexpected, `0` flaky, retries `0`.
+- Workflow wall-clock: approximately `9 m 18 s`; slowest extended shard
+  `6 m 06 s`; slowest job overall is critical Chromium at `8 m 13 s`.
+- Aggregate job runtime: `108.65` runner-minutes across `31` jobs. This is
+  measured job duration, not a billing invoice.
+- Node22 local gates: unit `455/455`, server `401/401` with `67` dependency
+  skips, PostgreSQL `100/100`, S3 `2/2`, lint exit `0` at the existing
+  `100/100` warning budget, build pass, and `git diff --check` pass.
+- Historical flaky mechanisms have focused repeat proof: C22 `5/5`, C23
+  `5/5` with `30/30` painted cells, C24 `5/5`, C25 `5/5`; retries stayed `0`.
+- Quarantine count: `0`. Proven product defects in this stabilization pass:
+  `0`. Production was not deployed or mutated; Stars remain `OFF / FAIL-CLOSED`.
 
-## Next action
+## Final RGB anomaly proof and terminal decision
 
-Run `33416748101` completed all jobs and produced three mapped failures. C23
-passed `5/5` fresh Node22 Chromium repeats; C24 passed `5/5` on iPhone after
-the selected-ready oracle; C25 passed `5/5` on Pixel after the 512-settled and
-Save-enabled oracles. Commit the targeted Creator correction together with
-the cluster/run-state documentation, push once, then allow exactly one
-authoritative GitHub matrix on the resulting frozen SHA to finish in full.
-If it is green, stop testing and proceed directly to the two independent
-reviews and final handoff; do not start another local full matrix.
+- Tested SHA: `2cf8565bff9e5f0f2ff929edd9ce141d075f6b13` on
+  `codex/e2e-system-stabilization`; product source and the exact test assertion
+  were unchanged.
+- Original authoritative run: `33487574738`, attempt 1, `30/31` jobs passed.
+  The only failure was Mobile Pixel `e2e (6/24)`,
+  `e2e/tiled-stroke-engine.spec.js:398`, with historical expected
+  `[46,125,50]` versus actual `[47,125,49]`. Test retries were `0`.
+- Fresh-runtime proof: `5/5` independent Node `22.23.2` Mobile Pixel runs;
+  one exact test execution per fresh API/server/SQLite runtime and output
+  directory, workers `1`, retries `0`. Durations were `25.4 s`, `24.4 s`,
+  `22.7 s`, `24.1 s`, and `27.6 s`; all exact RGB assertions passed. Each
+  run had `0` HTTP errors, average request latency `30.37–45.09 ms`, and no
+  late `fetchTile` timeout.
+- Supporting diagnostic evidence: ten MID-DRAG observations had `30/30`
+  semantic probes correct and `750/750` interior pixels exactly
+  `[46,125,50,255]`; the control canvas was exact. The later serial-runtime
+  timeout signal is recorded separately as `SERIAL_RUNTIME_RESOURCE_PRESSURE`.
+- Same-SHA failed-job rerun: only `e2e (6/24)` was rerun from
+  `33487574738`; attempt `2` passed, job `99807554437`, duration `4 m 43 s`,
+  same tested SHA, retries `0`.
+- Final classification: `NON_REPRODUCIBLE_CI_VISUAL_ANOMALY`. No RGB
+  tolerance, assertion weakening, retry, sleep, timeout inflation, product
+  rendering change, production deployment, or Stars change was made.
+- Independent narrow reviews: Test Reliability `PASS`; Product Integrity
+  `PASS`; both reported no blocker. R1 stale-manifest and R2 hidden-Retry
+  protections remain closed.
+- Final status: `E2E_SYSTEM_STABLE`. No second full matrix is required or
+  authorized by the final proof model.
+
+## Remaining non-blocking debt
+
+- Physical Telegram WebView/iOS proof remains a separate human/device gate.
+- Legacy timing/catch smells and the saturated lint warning budget remain
+  maintenance debt; they are not blockers for this stabilization goal.
