@@ -30,6 +30,12 @@
     "inventory_fingerprint": "e6e74ed9bb0a0b01d24d489430c32328c8bb3601d6b4cccf8666d9ad19038e28"
   },
   "measurement_note": "Historical Playwright durations from 33396678958; current CI shards collect server /metrics before teardown. A 30000ms minimum logical-group load prevents zero-duration visual/evidence groups from collapsing into one long-lived runtime.",
+  "allocation_adjustment": {
+    "reason": "Targeted rebalance after creator Mobile iPhone shard-lifetime pressure in authoritative run 33437454471",
+    "from_shard": 11,
+    "to_shard": 5,
+    "group_id": "creator.spec.js:463:10. Catalog → open coloring → player renders guided canvas"
+  },
   "topology_comparison": {
     "builtin_16": {
       "shards": 16,
@@ -70,8 +76,8 @@
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
       "total_project_cases": 438,
       "empty_shards": 0,
-      "projected_slowest_duration_ms": 224664,
-      "projected_slowest_duration_minutes": 3.74,
+      "projected_slowest_duration_ms": 225038,
+      "projected_slowest_duration_minutes": 3.75,
       "maximum_logical_tests": 7,
       "maximum_project_cases": 21
     },
@@ -171,19 +177,20 @@
     },
     {
       "shard": 5,
-      "historical_duration_ms": 114361,
-      "load_weight_ms": 195038,
-      "logical_tests": 5,
-      "project_cases": 15,
+      "historical_duration_ms": 125380,
+      "load_weight_ms": 225038,
+      "logical_tests": 6,
+      "project_cases": 18,
       "groups": [
         "special-cells-1200-delivery.spec.js:315:1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, uses bounded effect, continues",
         "stabilization.spec.js:231:7. Reveal mode remains actionable without palette controls",
         "input-gesture-evidence.spec.js:165:tiled surface fits the 360px viewport",
         "special-cells-long-journey-evidence.spec.js:148:long journey evidence screenshots show active offers and Canvas return",
-        "auth-contract.spec.js:21:valid Telegram initData authenticates the Telegram identity and wins over a dev header"
+        "auth-contract.spec.js:21:valid Telegram initData authenticates the Telegram identity and wins over a dev header",
+        "creator.spec.js:463:10. Catalog → open coloring → player renders guided canvas"
       ],
-      "historical_duration_minutes": 1.91,
-      "load_weight_minutes": 3.25,
+      "historical_duration_minutes": 2.09,
+      "load_weight_minutes": 3.75,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -297,20 +304,19 @@
     },
     {
       "shard": 11,
-      "historical_duration_ms": 102523,
-      "load_weight_ms": 223020,
-      "logical_tests": 7,
-      "project_cases": 21,
+      "historical_duration_ms": 91504,
+      "load_weight_ms": 193020,
+      "logical_tests": 6,
+      "project_cases": 18,
       "groups": [
         "accessibility.spec.js:170:HUD controls are keyboard-operable",
         "session-goals.spec.js:328:explicit hidden treatment is deterministic and keeps the Canvas target surface",
         "creator.spec.js:221:6. Compute shows previews and quality indicator",
-        "creator.spec.js:463:10. Catalog → open coloring → player renders guided canvas",
         "creator.spec.js:382:7. Reset crop restores defaults",
         "auth-contract.spec.js:35:missing or invalid Telegram initData is rejected",
         "session-goals-evidence.spec.js:133:capture session-goal player at 390px"
       ],
-      "historical_duration_minutes": 1.71,
+      "historical_duration_minutes": 1.53,
       "load_weight_minutes": 3.72,
       "request_count": null,
       "tile_request_count": null,
@@ -2220,7 +2226,7 @@
         "lifecycle": false
       },
       "load_weight_ms": 30000,
-      "shard": 11
+      "shard": 5
     },
     {
       "id": "tiled-completion.spec.js:3:tiled completion shows the completion overlay in the player",
