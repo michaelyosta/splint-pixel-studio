@@ -16,6 +16,9 @@ const POSITION_KEYS = [
   'maxHeight', 'paddingBottom', 'overflowY', 'zIndex',
 ];
 
+const DIAGNOSTIC_PAGE_IDS = ['viewport', 'telegram', 'layout', 'overlap'];
+const DIAGNOSTIC_PAGE_INTERVAL_MS = 1800;
+
 function finiteNumber(value) {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) {
@@ -150,6 +153,25 @@ function formatOverlap(value) {
   return `${value.intersects ? 'yes' : 'no'} x=${formatNumber(value.x)} y=${formatNumber(value.y)} width=${formatNumber(value.width)} height=${formatNumber(value.height)} area=${formatNumber(value.area)}`;
 }
 
+function pageIndex(value) {
+  if (Number.isInteger(value) && value >= 0 && value < DIAGNOSTIC_PAGE_IDS.length) return value;
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (/^\d+$/.test(normalized)) {
+    const index = Number(normalized) - 1;
+    return index >= 0 && index < DIAGNOSTIC_PAGE_IDS.length ? index : null;
+  }
+  const index = DIAGNOSTIC_PAGE_IDS.indexOf(normalized);
+  return index >= 0 ? index : null;
+}
+
+/** Resolves a static page selection; null means the deterministic auto-cycle. */
+export function resolveViewportDiagnosticPage(search = '') {
+  const value = new URLSearchParams(String(search || '')).get('viewportDiagnosticPage');
+  if (!value || value.trim().toLowerCase() === 'auto') return null;
+  return pageIndex(value);
+}
+
 export function collectViewportDiagnosticSnapshot({
   windowRef = globalThis.window,
   documentRef = globalThis.document,
@@ -211,40 +233,57 @@ export function collectViewportDiagnosticSnapshot({
   };
 }
 
-export function formatViewportDiagnosticSnapshot(snapshot) {
-  const lines = [
-    'PREVIEW — Telegram viewport diagnostic',
+export function getViewportDiagnosticPages(snapshot) {
+  const header = (id, index) => `PREVIEW — Telegram viewport diagnostic · page ${index + 1}/${DIAGNOSTIC_PAGE_IDS.length} · ${id}`;
+  const viewport = [
+    header('viewport', 0),
     `window.inner: ${formatNumber(snapshot.window?.innerWidth)}x${formatNumber(snapshot.window?.innerHeight)} dpr=${formatNumber(snapshot.window?.devicePixelRatio)}`,
     `visualViewport: ${formatVisualViewport(snapshot.visualViewport)}`,
+  ];
+  const telegram = [
+    header('telegram', 1),
     `telegram.viewportHeight: ${formatNumber(snapshot.telegram?.viewportHeight)}`,
     `telegram.viewportStableHeight: ${formatNumber(snapshot.telegram?.viewportStableHeight)}`,
     `telegram.safeAreaInsets: ${formatInsets(snapshot.telegram?.safeAreaInsets)}`,
     `telegram.contentSafeAreaInsets: ${formatInsets(snapshot.telegram?.contentSafeAreaInsets)}`,
   ];
   for (const name of TELEGRAM_VIEWPORT_CSS_VARIABLES) {
-    lines.push(`${name}: ${snapshot.cssVariables?.[name] || 'unavailable'}`);
+    telegram.push(`${name}: ${snapshot.cssVariables?.[name] || 'unavailable'}`);
   }
-  for (const [key, label] of [
-    ['documentElement', 'html'],
-    ['root', '#root'],
-    ['frame', '.telegram-frame'],
-    ['container', '.app-container'],
-    ['screenContent', '.screen-content'],
-    ['tabBar', '.app-tab-bar'],
-  ]) {
-    lines.push(`rect ${label}: ${formatRect(snapshot.rects?.[key])}`);
-  }
-  for (const [key, label] of [
-    ['root', '#root'],
-    ['frame', '.telegram-frame'],
-    ['tabBar', '.app-tab-bar'],
-  ]) {
-    lines.push(`position ${label}: ${formatPosition(snapshot.positions?.[key])}`);
-  }
-  lines.push(`overlap #root × .telegram-frame: ${formatOverlap(snapshot.overlaps?.rootFrame)}`);
-  lines.push(`overlap .telegram-frame × .app-tab-bar: ${formatOverlap(snapshot.overlaps?.frameTabBar)}`);
-  lines.push(`overlap .screen-content × .app-tab-bar: ${formatOverlap(snapshot.overlaps?.screenContentTabBar)}`);
-  return lines.join('\n');
+  const layout = [
+    header('layout', 2),
+    ...[
+      ['documentElement', 'html'],
+      ['root', '#root'],
+      ['frame', '.telegram-frame'],
+      ['container', '.app-container'],
+      ['screenContent', '.screen-content'],
+      ['tabBar', '.app-tab-bar'],
+    ].map(([key, label]) => `rect ${label}: ${formatRect(snapshot.rects?.[key])}`),
+    ...[
+      ['root', '#root'],
+      ['frame', '.telegram-frame'],
+      ['tabBar', '.app-tab-bar'],
+    ].map(([key, label]) => `position ${label}: ${formatPosition(snapshot.positions?.[key])}`),
+  ];
+  const overlapPage = [
+    header('overlap', 3),
+    `overlap #root × .telegram-frame: ${formatOverlap(snapshot.overlaps?.rootFrame)}`,
+    `overlap .telegram-frame × .app-tab-bar: ${formatOverlap(snapshot.overlaps?.frameTabBar)}`,
+    `overlap .screen-content × .app-tab-bar: ${formatOverlap(snapshot.overlaps?.screenContentTabBar)}`,
+  ];
+  return DIAGNOSTIC_PAGE_IDS.map((id, index) => ({
+    id,
+    index,
+    lines: [viewport, telegram, layout, overlapPage][index],
+  }));
+}
+
+export function formatViewportDiagnosticSnapshot(snapshot, selectedPage = null) {
+  const pages = getViewportDiagnosticPages(snapshot);
+  const index = pageIndex(selectedPage);
+  if (index != null) return pages[index].lines.join('\n');
+  return pages.map((page) => page.lines.join('\n')).join('\n');
 }
 
 export function mountViewportDiagnostic() {
@@ -258,10 +297,10 @@ export function mountViewportDiagnostic() {
     left: '8px',
     right: '8px',
     zIndex: '2147483647',
-    maxHeight: '70vh',
+    maxHeight: 'calc(100vh - 16px)',
     margin: '0',
     padding: '8px',
-    overflow: 'auto',
+    overflow: 'hidden',
     border: '1px solid rgba(43, 217, 254, 0.55)',
     borderRadius: '8px',
     background: 'rgba(4, 8, 14, 0.94)',
@@ -272,8 +311,10 @@ export function mountViewportDiagnostic() {
   });
   document.body.append(panel);
 
+  const selectedPage = resolveViewportDiagnosticPage(window.location.search);
+  let currentPage = selectedPage ?? 0;
   const update = () => {
-    panel.textContent = formatViewportDiagnosticSnapshot(collectViewportDiagnosticSnapshot());
+    panel.textContent = formatViewportDiagnosticSnapshot(collectViewportDiagnosticSnapshot(), currentPage);
   };
   const listeners = [];
   const addListener = (target, type) => {
@@ -292,9 +333,16 @@ export function mountViewportDiagnostic() {
     listeners.push(() => webApp.offEvent?.('viewportChanged', update));
   }
 
+  const pageTimer = selectedPage == null && typeof window.setInterval === 'function'
+    ? window.setInterval(() => {
+      currentPage = (currentPage + 1) % DIAGNOSTIC_PAGE_IDS.length;
+      update();
+    }, DIAGNOSTIC_PAGE_INTERVAL_MS)
+    : null;
   update();
   if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(update);
   return () => {
+    if (pageTimer != null) window.clearInterval?.(pageTimer);
     listeners.forEach((remove) => remove());
     panel.remove();
   };

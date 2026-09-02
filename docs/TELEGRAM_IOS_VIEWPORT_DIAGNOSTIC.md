@@ -13,23 +13,34 @@ the visual blur hypothesis. Use a preview/staging origin only.
    `https://<preview-origin>/?viewportDiagnostic=1`
 3. Start from a cold Mini App launch in Telegram. Keep the diagnostic panel
    visible. The panel is `pointer-events: none`; it must not alter the app's
-   controls or scroll handling.
+   controls or scroll handling. By default it cycles through four pages in a
+   fixed order (`viewport`, `telegram`, `layout`, `overlap`) every 1800 ms.
+   Each page is short enough to fit in one screenshot, so no panel scrolling is
+   required or possible.
+
+For a static page before starting a run, append one of these values:
+`&viewportDiagnosticPage=1`, `2`, `3`, `4` (or the names above). The static
+selection is useful for a single field group, but changing it reloads the Mini
+App; use the default auto-cycle for the lifecycle sequence below.
 
 ## Exact capture sequence
 
-Capture a screenshot of the panel and transcribe only its numeric/position
-fields at each checkpoint. Use names `portrait-cold`, `portrait-stable`,
-`landscape-stable`, `portrait-resume`.
+Capture one complete auto-cycle (pages 1 through 4, about 7.2 seconds) and
+transcribe only its numeric/position fields at each checkpoint. The page header
+contains `page N/4`, which makes omissions detectable. Use names
+`portrait-cold`, `portrait-stable`, `landscape-stable`, `portrait-resume`.
 
-1. `portrait-cold`: screenshot after the first panel paint, before manually
-   navigating away from the Mini App. Keep the initial `viewportChanged` update
-   if it arrives during this step.
-2. `portrait-stable`: after Telegram expansion settles, take the screenshot once
-   the displayed values remain unchanged for at least 1 second.
+1. `portrait-cold`: capture the first complete cycle after the first panel
+   paint, before manually navigating away from the Mini App. Keep any initial
+   `viewportChanged` updates as part of this cold snapshot.
+2. `portrait-stable`: after Telegram expansion settles, start a fresh cycle
+   once the displayed values remain unchanged for at least 1 second.
 3. Rotate the same device to landscape, wait for the displayed values to remain
-   unchanged for at least 1 second, and capture `landscape-stable`.
+   unchanged for at least 1 second, and capture one complete cycle as
+   `landscape-stable`.
 4. Return to portrait, background Telegram for 5 seconds, resume the same Mini
-   App, wait for stable displayed values, and capture `portrait-resume`.
+   App without reloading or changing the query, wait for stable displayed
+   values, and capture one complete cycle as `portrait-resume`.
 
 For every checkpoint retain these lines from the panel:
 

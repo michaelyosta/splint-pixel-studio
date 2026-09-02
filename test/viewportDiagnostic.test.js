@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   collectViewportDiagnosticSnapshot,
   formatViewportDiagnosticSnapshot,
+  getViewportDiagnosticPages,
+  resolveViewportDiagnosticPage,
 } from '../src/diagnostics/viewportDiagnostic.js';
 
 function element(rect) {
@@ -122,4 +124,24 @@ test('viewport diagnostic keeps unavailable fields explicit when bridges or elem
   assert.match(formatted, /visualViewport: unavailable/);
   assert.match(formatted, /rect #root: unavailable/);
   assert.match(formatted, /overlap #root × \.telegram-frame: unavailable/);
+});
+
+test('diagnostic pages fit a single screenshot and expose deterministic selection', () => {
+  const snapshot = collectViewportDiagnosticSnapshot({
+    windowRef: { innerWidth: 390, innerHeight: 844, devicePixelRatio: 3, visualViewport: { width: 390, height: 844, scale: 1 } },
+    documentRef: { documentElement: null, body: null, querySelector: () => null },
+    getComputedStyleRef: () => ({ getPropertyValue: () => '' }),
+  });
+  const pages = getViewportDiagnosticPages(snapshot);
+
+  assert.deepEqual(pages.map((page) => page.id), ['viewport', 'telegram', 'layout', 'overlap']);
+  assert.ok(pages.every((page) => page.lines.length <= 15), 'each page is short enough to capture without scrolling');
+  assert.match(formatViewportDiagnosticSnapshot(snapshot, 0), /page 1\/4 · viewport/);
+  assert.match(formatViewportDiagnosticSnapshot(snapshot, 'telegram'), /page 2\/4 · telegram/);
+  assert.match(formatViewportDiagnosticSnapshot(snapshot, 3), /page 4\/4 · overlap/);
+  assert.equal(resolveViewportDiagnosticPage('?viewportDiagnosticPage=1'), 0);
+  assert.equal(resolveViewportDiagnosticPage('?viewportDiagnosticPage=telegram'), 1);
+  assert.equal(resolveViewportDiagnosticPage('?viewportDiagnosticPage=4'), 3);
+  assert.equal(resolveViewportDiagnosticPage('?viewportDiagnosticPage=auto'), null);
+  assert.equal(resolveViewportDiagnosticPage('?viewportDiagnosticPage=unknown'), null);
 });
