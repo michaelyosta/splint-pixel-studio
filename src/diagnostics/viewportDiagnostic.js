@@ -1,32 +1,250 @@
-const CSS_VARIABLES = [
+const TELEGRAM_VIEWPORT_CSS_VARIABLES = [
   '--tg-viewport-height',
   '--tg-viewport-stable-height',
+  '--tg-safe-area-inset-top',
+  '--tg-safe-area-inset-right',
   '--tg-safe-area-inset-bottom',
+  '--tg-safe-area-inset-left',
+  '--tg-content-safe-area-inset-top',
+  '--tg-content-safe-area-inset-right',
   '--tg-content-safe-area-inset-bottom',
+  '--tg-content-safe-area-inset-left',
 ];
 
+const POSITION_KEYS = [
+  'position', 'top', 'right', 'bottom', 'left', 'width', 'height',
+  'maxHeight', 'paddingBottom', 'overflowY', 'zIndex',
+];
+
+function finiteNumber(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) {
+    return Number(value);
+  }
+  return null;
+}
+
 function formatNumber(value) {
-  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : 'unavailable';
+  const number = finiteNumber(value);
+  return number == null ? 'unavailable' : number.toFixed(2);
 }
 
-function formatRect(element) {
-  if (!element) return 'unavailable';
+function readRect(element) {
+  if (!element || typeof element.getBoundingClientRect !== 'function') return null;
   const rect = element.getBoundingClientRect();
-  return `x=${formatNumber(rect.x)} y=${formatNumber(rect.y)} width=${formatNumber(rect.width)} height=${formatNumber(rect.height)} top=${formatNumber(rect.top)} bottom=${formatNumber(rect.bottom)}`;
+  if (!rect) return null;
+  const x = finiteNumber(rect.x);
+  const y = finiteNumber(rect.y);
+  const width = finiteNumber(rect.width);
+  const height = finiteNumber(rect.height);
+  return {
+    x,
+    y,
+    width,
+    height,
+    top: finiteNumber(rect.top) ?? y,
+    right: finiteNumber(rect.right) ?? (x != null && width != null ? x + width : null),
+    bottom: finiteNumber(rect.bottom) ?? (y != null && height != null ? y + height : null),
+    left: finiteNumber(rect.left) ?? x,
+  };
 }
 
-function render(panel) {
-  const rootStyle = getComputedStyle(document.documentElement);
-  const viewport = window.visualViewport;
-  const values = CSS_VARIABLES.map((name) => `${name}: ${rootStyle.getPropertyValue(name).trim() || 'unavailable'}`);
-  panel.textContent = [
+function readStyleValue(style, key) {
+  if (!style) return null;
+  const value = style[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function readPosition(element, getComputedStyleRef) {
+  if (!element || typeof getComputedStyleRef !== 'function') return null;
+  let style;
+  try {
+    style = getComputedStyleRef(element);
+  } catch {
+    return null;
+  }
+  if (!style) return null;
+  return Object.fromEntries(POSITION_KEYS.map((key) => [key, readStyleValue(style, key)]));
+}
+
+function readInsets(webApp, pluralKey, singularKey) {
+  const source = webApp?.[pluralKey] ?? webApp?.[singularKey];
+  if (!source || typeof source !== 'object') return null;
+  return Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [
+    side,
+    finiteNumber(source[side]),
+  ]));
+}
+
+function readVisualViewport(viewport) {
+  if (!viewport) return null;
+  return Object.fromEntries([
+    ['width', viewport.width],
+    ['height', viewport.height],
+    ['offsetLeft', viewport.offsetLeft],
+    ['offsetTop', viewport.offsetTop],
+    ['pageLeft', viewport.pageLeft],
+    ['pageTop', viewport.pageTop],
+    ['scale', viewport.scale],
+  ].map(([key, value]) => [key, finiteNumber(value)]));
+}
+
+function overlap(first, second) {
+  if (!first || !second) return { available: false, intersects: false };
+  const left = Math.max(first.left ?? -Infinity, second.left ?? -Infinity);
+  const top = Math.max(first.top ?? -Infinity, second.top ?? -Infinity);
+  const right = Math.min(first.right ?? Infinity, second.right ?? Infinity);
+  const bottom = Math.min(first.bottom ?? Infinity, second.bottom ?? Infinity);
+  if (![left, top, right, bottom].every(Number.isFinite)) {
+    return { available: false, intersects: false };
+  }
+  const width = Math.max(0, right - left);
+  const height = Math.max(0, bottom - top);
+  return {
+    available: true,
+    intersects: width > 0 && height > 0,
+    x: left,
+    y: top,
+    width,
+    height,
+    area: width * height,
+  };
+}
+
+function formatRect(rect) {
+  if (!rect) return 'unavailable';
+  return ['x', 'y', 'width', 'height', 'top', 'right', 'bottom', 'left']
+    .map((key) => `${key}=${formatNumber(rect[key])}`)
+    .join(' ');
+}
+
+function formatPosition(position) {
+  if (!position) return 'unavailable';
+  return POSITION_KEYS
+    .map((key) => `${key}=${position[key] || 'unavailable'}`)
+    .join(' ');
+}
+
+function formatInsets(insets) {
+  if (!insets) return 'unavailable';
+  return ['top', 'right', 'bottom', 'left']
+    .map((side) => `${side}=${formatNumber(insets[side])}`)
+    .join(' ');
+}
+
+function formatVisualViewport(viewport) {
+  if (!viewport) return 'unavailable';
+  return [
+    `width=${formatNumber(viewport.width)}`,
+    `height=${formatNumber(viewport.height)}`,
+    `offsetLeft=${formatNumber(viewport.offsetLeft)}`,
+    `offsetTop=${formatNumber(viewport.offsetTop)}`,
+    `pageLeft=${formatNumber(viewport.pageLeft)}`,
+    `pageTop=${formatNumber(viewport.pageTop)}`,
+    `scale=${formatNumber(viewport.scale)}`,
+  ].join(' ');
+}
+
+function formatOverlap(value) {
+  if (!value?.available) return 'unavailable';
+  return `${value.intersects ? 'yes' : 'no'} x=${formatNumber(value.x)} y=${formatNumber(value.y)} width=${formatNumber(value.width)} height=${formatNumber(value.height)} area=${formatNumber(value.area)}`;
+}
+
+export function collectViewportDiagnosticSnapshot({
+  windowRef = globalThis.window,
+  documentRef = globalThis.document,
+  getComputedStyleRef = globalThis.getComputedStyle,
+} = {}) {
+  const root = documentRef?.documentElement || null;
+  const elements = {
+    documentElement: root,
+    body: documentRef?.body || null,
+    root: documentRef?.querySelector?.('#root') || null,
+    frame: documentRef?.querySelector?.('.telegram-frame') || null,
+    container: documentRef?.querySelector?.('.app-container') || null,
+    screenContent: documentRef?.querySelector?.('.screen-content') || null,
+    tabBar: documentRef?.querySelector?.('.app-tab-bar') || null,
+  };
+  const rects = Object.fromEntries(Object.entries(elements).map(([key, element]) => [key, readRect(element)]));
+  const positions = Object.fromEntries(
+    Object.entries(elements).map(([key, element]) => [key, readPosition(element, getComputedStyleRef)]),
+  );
+  let cssVariables = Object.fromEntries(TELEGRAM_VIEWPORT_CSS_VARIABLES.map((name) => [name, null]));
+  try {
+    const computedRoot = typeof getComputedStyleRef === 'function' ? getComputedStyleRef(root) : null;
+    cssVariables = Object.fromEntries(TELEGRAM_VIEWPORT_CSS_VARIABLES.map((name) => {
+      const value = computedRoot?.getPropertyValue?.(name)?.trim() || null;
+      return [name, value];
+    }));
+  } catch {
+    // Keep unavailable values; this preview must remain diagnostic-only.
+  }
+
+  const webApp = windowRef?.Telegram?.WebApp || null;
+  const telegram = {
+    viewportHeight: finiteNumber(webApp?.viewportHeight),
+    viewportStableHeight: finiteNumber(webApp?.viewportStableHeight),
+    safeAreaInsets: readInsets(webApp, 'safeAreaInsets', 'safeAreaInset'),
+    contentSafeAreaInsets: readInsets(webApp, 'contentSafeAreaInsets', 'contentSafeAreaInset'),
+  };
+  return {
+    window: {
+      innerWidth: finiteNumber(windowRef?.innerWidth),
+      innerHeight: finiteNumber(windowRef?.innerHeight),
+      devicePixelRatio: finiteNumber(windowRef?.devicePixelRatio),
+    },
+    visualViewport: readVisualViewport(windowRef?.visualViewport),
+    telegram,
+    cssVariables,
+    rects,
+    positions: {
+      root: positions.root,
+      frame: positions.frame,
+      tabBar: positions.tabBar,
+      screenContent: positions.screenContent,
+    },
+    overlaps: {
+      rootFrame: overlap(rects.root, rects.frame),
+      frameTabBar: overlap(rects.frame, rects.tabBar),
+      screenContentTabBar: overlap(rects.screenContent, rects.tabBar),
+    },
+  };
+}
+
+export function formatViewportDiagnosticSnapshot(snapshot) {
+  const lines = [
     'PREVIEW — Telegram viewport diagnostic',
-    `window.innerHeight: ${window.innerHeight}`,
-    `visualViewport.height: ${viewport ? formatNumber(viewport.height) : 'unavailable'}`,
-    ...values,
-    `.telegram-frame: ${formatRect(document.querySelector('.telegram-frame'))}`,
-    `.app-tab-bar: ${formatRect(document.querySelector('.app-tab-bar'))}`,
-  ].join('\n');
+    `window.inner: ${formatNumber(snapshot.window?.innerWidth)}x${formatNumber(snapshot.window?.innerHeight)} dpr=${formatNumber(snapshot.window?.devicePixelRatio)}`,
+    `visualViewport: ${formatVisualViewport(snapshot.visualViewport)}`,
+    `telegram.viewportHeight: ${formatNumber(snapshot.telegram?.viewportHeight)}`,
+    `telegram.viewportStableHeight: ${formatNumber(snapshot.telegram?.viewportStableHeight)}`,
+    `telegram.safeAreaInsets: ${formatInsets(snapshot.telegram?.safeAreaInsets)}`,
+    `telegram.contentSafeAreaInsets: ${formatInsets(snapshot.telegram?.contentSafeAreaInsets)}`,
+  ];
+  for (const name of TELEGRAM_VIEWPORT_CSS_VARIABLES) {
+    lines.push(`${name}: ${snapshot.cssVariables?.[name] || 'unavailable'}`);
+  }
+  for (const [key, label] of [
+    ['documentElement', 'html'],
+    ['root', '#root'],
+    ['frame', '.telegram-frame'],
+    ['container', '.app-container'],
+    ['screenContent', '.screen-content'],
+    ['tabBar', '.app-tab-bar'],
+  ]) {
+    lines.push(`rect ${label}: ${formatRect(snapshot.rects?.[key])}`);
+  }
+  for (const [key, label] of [
+    ['root', '#root'],
+    ['frame', '.telegram-frame'],
+    ['tabBar', '.app-tab-bar'],
+  ]) {
+    lines.push(`position ${label}: ${formatPosition(snapshot.positions?.[key])}`);
+  }
+  lines.push(`overlap #root × .telegram-frame: ${formatOverlap(snapshot.overlaps?.rootFrame)}`);
+  lines.push(`overlap .telegram-frame × .app-tab-bar: ${formatOverlap(snapshot.overlaps?.frameTabBar)}`);
+  lines.push(`overlap .screen-content × .app-tab-bar: ${formatOverlap(snapshot.overlaps?.screenContentTabBar)}`);
+  return lines.join('\n');
 }
 
 export function mountViewportDiagnostic() {
@@ -40,9 +258,10 @@ export function mountViewportDiagnostic() {
     left: '8px',
     right: '8px',
     zIndex: '2147483647',
+    maxHeight: '70vh',
     margin: '0',
     padding: '8px',
-    overflow: 'hidden',
+    overflow: 'auto',
     border: '1px solid rgba(43, 217, 254, 0.55)',
     borderRadius: '8px',
     background: 'rgba(4, 8, 14, 0.94)',
@@ -53,15 +272,30 @@ export function mountViewportDiagnostic() {
   });
   document.body.append(panel);
 
-  const update = () => render(panel);
-  window.addEventListener('resize', update, { passive: true });
-  window.addEventListener('orientationchange', update, { passive: true });
-  window.visualViewport?.addEventListener('resize', update, { passive: true });
-  window.visualViewport?.addEventListener('scroll', update, { passive: true });
+  const update = () => {
+    panel.textContent = formatViewportDiagnosticSnapshot(collectViewportDiagnosticSnapshot());
+  };
+  const listeners = [];
+  const addListener = (target, type) => {
+    if (typeof target?.addEventListener !== 'function') return;
+    target.addEventListener(type, update, { passive: true });
+    listeners.push(() => target.removeEventListener(type, update));
+  };
+  addListener(window, 'resize');
+  addListener(window, 'orientationchange');
+  addListener(window.visualViewport, 'resize');
+  addListener(window.visualViewport, 'scroll');
 
   const webApp = window.Telegram?.WebApp;
-  if (typeof webApp?.onEvent === 'function') webApp.onEvent('viewportChanged', update);
+  if (typeof webApp?.onEvent === 'function') {
+    webApp.onEvent('viewportChanged', update);
+    listeners.push(() => webApp.offEvent?.('viewportChanged', update));
+  }
 
   update();
-  requestAnimationFrame(update);
+  if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(update);
+  return () => {
+    listeners.forEach((remove) => remove());
+    panel.remove();
+  };
 }
