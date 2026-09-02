@@ -11,3 +11,9 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 )
+
+if (new URLSearchParams(window.location.search).get('viewportDiagnostic') === '1') {
+  import('./diagnostics/viewportDiagnostic.js').then(({ mountViewportDiagnostic }) => {
+    mountViewportDiagnostic();
+  });
+}
