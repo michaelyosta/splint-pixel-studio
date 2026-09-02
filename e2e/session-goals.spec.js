@@ -24,7 +24,7 @@ async function openPlayer(page, coloringId = null, search = '') {
   const target = params.toString() ? `/?${params.toString()}` : '/';
   await page.goto(target);
   if (!coloringId) {
-    const card = page.locator('.home-featured-card, .home-continue-card, .home-art-card').first();
+    const card = page.locator('.catalog-art-open').first();
     await expect(card).toBeVisible({ timeout: 15000 });
     await card.click();
   }
@@ -35,7 +35,7 @@ async function openPlayer(page, coloringId = null, search = '') {
 async function openFirstCatalogPlayer(page, search = '') {
   const query = String(search).replace(/^\?/, '');
   await page.goto(query ? `/?${query}` : '/');
-  const card = page.locator('.home-featured-card, .home-continue-card, .home-art-card').first();
+  const card = page.locator('.catalog-art-open').first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();
   await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
@@ -106,193 +106,43 @@ async function createSmallColoring(page, { leaveWorkAfterFirstGoal = false } = {
   return created.id;
 }
 
-async function paintUntilFirstGoalDone(page, card, target) {
-  const painted = new Set();
-  for (let index = 0; index < target; index += 1) {
-    if (Number(await card.getAttribute('data-done-cells')) >= target) break;
-    const before = Number(await card.getAttribute('data-done-cells'));
-    const activeHandle = await page.waitForFunction(() => {
-      const attribute = document.querySelector('canvas.coloring-canvas')?.getAttribute('data-active-work-cells') || '';
-      return attribute.split(',').map(Number).filter(Boolean);
-    }, null, { timeout: 5000 });
-    const activeCells = await activeHandle.jsonValue();
-    const current = activeCells.map(Number);
-    const nextIndex = current.find((cellIndex) => !painted.has(cellIndex)) ?? current[0];
-    painted.add(nextIndex);
-    await tapCell(page, nextIndex);
-    await expect.poll(async () => Number(await card.getAttribute('data-done-cells')), { timeout: 10000 })
-      .toBeGreaterThan(before);
-  }
-}
-
 test.describe('Session goals', () => {
   test.beforeEach(async ({ page }, testInfo) => {
     await page.context().setExtraHTTPHeaders({ 'X-User-Id': `e2e_goals_${testInfo.testId}` });
     await primeLocalStorage(page);
   });
 
-  test('goal is visible before paint, timer starts on first paint, and progress updates', async ({ page }) => {
+  test('legacy control query cannot restore the removed session-goal surface', async ({ page }) => {
     await openFirstCatalogPlayer(page, 'sessionGoals=control');
-
-    const card = page.locator('.session-goal-card');
-    await expect(card).toBeVisible({ timeout: 5000 });
-    await expect(card).toHaveAttribute('data-goal-id', 'first-progress');
-    await expect(card).toHaveAttribute('data-painted', 'false');
-    await expect(card).toHaveAttribute('data-target-cells', '10');
-    await expect(card).toContainText('0:30');
-
-    const before = Number(await card.getAttribute('data-done-cells'));
+    await expect(page.locator('.player-page')).toHaveAttribute('data-session-goals-visible', 'false');
+    await expect(page.locator('.session-goal-card')).toHaveCount(0);
     await tapActiveWorkCell(page);
-    await expect(card).toHaveAttribute('data-painted', 'true');
-    await expect.poll(async () => Number(await card.getAttribute('data-done-cells')), { timeout: 8000 }).toBeGreaterThan(before);
-    await expect.poll(async () => Number(await card.getAttribute('data-elapsed-ms')), { timeout: 3000 }).toBeGreaterThan(0);
-
+    await expect(page.locator('.save-status')).toBeVisible();
+    expect(await readStoredSession(page)).toBeNull();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
-  test('offline pause freezes elapsed time and reload/reopen reconstructs the same goal without rewards', async ({ page }) => {
+  test('offline and reopen do not create hidden progression state', async ({ page }) => {
     await openFirstCatalogPlayer(page, 'sessionGoals=control');
-
-    const card = page.locator('.session-goal-card');
-    await expect(card).toBeVisible({ timeout: 5000 });
-    await expect(card).toHaveAttribute('data-goal-id', 'first-progress');
     await tapActiveWorkCell(page);
-    await expect(card).toHaveAttribute('data-painted', 'true');
-    await expect.poll(async () => Number(await card.getAttribute('data-elapsed-ms')), { timeout: 3000 })
-      .toBeGreaterThan(0);
-
     await page.evaluate(() => window.dispatchEvent(new Event('offline')));
-    await expect(card).toHaveAttribute('data-goal-status', 'paused');
-    const pausedElapsed = Number(await card.getAttribute('data-elapsed-ms'));
-
-    await expect.poll(async () => {
-      const stored = await readStoredSession(page);
-      return stored?.data?.status === 'paused'
-        && Number(stored.data.elapsedMs) >= pausedElapsed;
-    }, { timeout: 5000 }).toBe(true);
-
-    // The active interval is paused; sample it for a bounded interval without
-    // relying on an unbounded arbitrary sleep.
-    const pausedAt = Date.now();
-    await expect.poll(async () => (
-      Number(await card.getAttribute('data-elapsed-ms')) === pausedElapsed
-      && Date.now() - pausedAt >= 1000
-    ), {
-      timeout: 3000,
-      intervals: [250, 250, 250, 250, 250, 250],
-      message: `offline goal timer did not remain at ${pausedElapsed}ms for the bounded observation window`,
-    }).toBe(true);
-
-    const stored = await readStoredSession(page);
-    expect(stored).toBeTruthy();
-    const templateId = stored.key.split(':').at(-1);
-    expect(templateId).toBeTruthy();
-
-    await openPlayer(page, templateId, 'sessionGoals=control');
-    await expect(card).toHaveAttribute('data-goal-id', 'first-progress');
-    await expect(card).toHaveAttribute('data-painted', 'true');
-    await expect(card).toHaveAttribute('data-goal-status', 'paused');
-    const reloadedElapsed = Number(await card.getAttribute('data-elapsed-ms'));
-    expect(reloadedElapsed).toBeGreaterThanOrEqual(pausedElapsed);
-    expect(reloadedElapsed).toBeLessThanOrEqual(pausedElapsed + 1000);
-
-    const storedAfterReopen = await readStoredSession(page);
-    expect(storedAfterReopen.data).not.toHaveProperty('rewards');
-    expect(storedAfterReopen.data).not.toHaveProperty('xp_awarded');
-    expect(storedAfterReopen.data).not.toHaveProperty('xp');
-
+    expect(await readStoredSession(page)).toBeNull();
     await page.evaluate(() => window.dispatchEvent(new Event('online')));
-    await expect(card).toHaveAttribute('data-goal-status', 'running');
-    const resumedBase = Number(await card.getAttribute('data-elapsed-ms'));
-    await expect.poll(async () => Number(await card.getAttribute('data-elapsed-ms')), { timeout: 3000 })
-      .toBeGreaterThan(resumedBase);
+    await page.reload();
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 60000 });
+    await expect(page.locator('.session-goal-card')).toHaveCount(0);
+    expect(await readStoredSession(page)).toBeNull();
   });
 
-  test('completing the first goal shows a server-backed celebration and the next goal without a completion modal', async ({ page }) => {
+  test('painting completion remains available without a session-goal celebration or XP copy', async ({ page }) => {
     const coloringId = await createSmallColoring(page, { leaveWorkAfterFirstGoal: true });
     await openPlayer(page, coloringId, 'sessionGoals=control');
-
-    let serverXp = null;
-    page.on('response', async (response) => {
-      if (!response.url().includes('/progress/actions') || response.status() !== 200) return;
-      const payload = await response.json().catch(() => null);
-      serverXp = Number(payload?.rewards?.xp_awarded || 0);
-    });
-
-    const card = page.locator('.session-goal-card');
-    await expect(card).toBeVisible({ timeout: 5000 });
-    await expect(card).toHaveAttribute('data-goal-id', 'first-progress');
-    await expect(card).toHaveAttribute('data-target-cells', '3');
-
-    await paintUntilFirstGoalDone(page, card, 3);
-
-    const celebrationLocator = card.locator('.session-goal-celebration');
-    let celebration;
-    await expect.poll(async () => {
-      const [goalId, status, painted, celebrationType, celebrationCount, celebrationVisible, celebrationText, text] = await Promise.all([
-        card.getAttribute('data-goal-id'),
-        card.getAttribute('data-goal-status'),
-        card.getAttribute('data-painted'),
-        card.getAttribute('data-celebration'),
-        celebrationLocator.count(),
-        celebrationLocator.isVisible(),
-        celebrationLocator.textContent(),
-        card.textContent(),
-      ]);
-      const parsedServerXp = Number(serverXp);
-      const serverXpReady = Number.isFinite(parsedServerXp) && parsedServerXp > 0;
-      const celebrationCopy = celebrationText || '';
-      const cardText = text || '';
-      celebration = {
-        goalId,
-        status,
-        painted,
-        celebration: celebrationType,
-        celebrationPresent: celebrationCount > 0,
-        celebrationVisible,
-        celebrationText: celebrationCopy,
-        celebrationTextReady: celebrationCopy.trim().length > 0,
-        text: cardText,
-        serverXp,
-        serverXpReady,
-        serverXpText: serverXpReady && cardText.includes(`+${parsedServerXp} XP`),
-        confirmedText: cardText.includes('подтверждено сервером'),
-      };
-      return celebration;
-    }, {
-      timeout: 30000,
-      message: 'completed first session goal snapshot did not reach the expected server-backed celebration state',
-    }).toMatchObject({
-      goalId: 'picture',
-      status: 'running',
-      painted: 'true',
-      celebration: 'completed',
-      celebrationPresent: true,
-      celebrationVisible: true,
-      celebrationTextReady: true,
-      serverXpReady: true,
-      serverXpText: true,
-      confirmedText: true,
-    });
+    await expect(page.locator('.session-goal-card')).toHaveCount(0);
+    await tapActiveWorkCell(page);
+    await expect(page.locator('.save-status')).toBeVisible();
     await expect(page.locator('.completion-overlay')).toHaveCount(0);
-
-    expect(serverXp).toBeGreaterThan(0);
-    expect(celebration.goalId).toBe('picture');
-    expect(celebration.status).toBe('running');
-    expect(celebration.painted).toBe('true');
-    expect(celebration.celebration).toBe('completed');
-    expect(celebration.text).toContain(`+${serverXp} XP`);
-    expect(celebration.text).toContain('подтверждено сервером');
-    expect(celebration.text).toContain('Вся картина');
-
-    await card.locator('.session-goal-next').click({ force: true });
-    const nextCard = page.locator('.player-page .session-goal-card');
-    await expect(nextCard).toHaveAttribute('data-goal-id', 'picture');
-    await expect(nextCard).toHaveAttribute('data-goal-status', 'running');
-    await expect(nextCard).toHaveAttribute('data-painted', 'true');
-    await expect(nextCard).toHaveAttribute('data-celebration', '');
-    await expect(nextCard.locator('.session-goal-celebration')).toHaveCount(0);
-    await expect(page.locator('.completion-overlay')).toHaveCount(0);
+    await expect(page.locator('.player-page')).not.toContainText(/XP|уровень|серия/i);
+    expect(await readStoredSession(page)).toBeNull();
   });
 
   test('default recovery treatment hides goals but preserves painting save and server revision', async ({ page }) => {

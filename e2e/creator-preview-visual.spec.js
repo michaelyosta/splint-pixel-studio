@@ -10,8 +10,9 @@ const evidenceDirectory = resolve(__dirname, '..', 'docs', 'evidence', 'creator-
 async function openCreator(page) {
   await page.goto('/');
   await page.getByText('Создать').first().click();
-  await page.getByRole('button', { name: 'Из изображения' }).click();
+  await page.getByRole('button', { name: /Загрузить изображение/ }).click();
   await page.locator('.file-field input[type="file"]').setInputFiles(sourceImage);
+  await page.locator('.creator-advanced summary').click();
   // The current creator contract computes only the recommended 512x512
   // preview after upload. Other resolutions are explicit, user-selected
   // comparisons so an expensive preview is never built invisibly in the
@@ -30,7 +31,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 430, height: 932 }
 
     await expect(page.locator('.creator-preview-option')).toHaveCount(4);
     await expect(page.locator('.creator-preview-report')).toBeVisible();
-    await expect(page.locator('.creator-preview-stats')).toContainText('читаемость номеров');
+    await expect(page.locator('.creator-preview-stats')).toContainText('удобство');
+    await expect(page.locator('.creator-preview-stats')).not.toContainText(/pipeline|fingerprint|fragmentation/i);
     const dimensions = await page.locator('.creator-number-preview img').evaluate((image) => ({
       width: image.naturalWidth,
       height: image.naturalHeight,

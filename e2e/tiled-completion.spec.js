@@ -59,6 +59,7 @@ test('tiled completion shows the completion overlay in the player', async ({ pag
   await expect(page.locator('.completion-overlay')).toBeVisible({ timeout: 20000 });
   await expect(page.locator('.completion-dialog')).toBeVisible();
   await expect(page.locator('#completion-title')).toContainText('Картина раскрыта');
-  await expect(page.locator('.completion-links button:has-text("Опубликовать")')).toBeVisible();
+  await expect(page.locator('[data-completion-choice][data-choice-id="open_profile"]')).toBeVisible();
+  await expect(page.locator('.completion-dialog')).not.toContainText(/Опубликовать в ленту|XP|уровень|серия/i);
   await expect(page.locator('.completion-actions button:has-text("Сохранить результат")')).toBeVisible();
 });

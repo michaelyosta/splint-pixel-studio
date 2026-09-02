@@ -22,10 +22,6 @@ function formatCount(value) {
   return Number(value || 0).toLocaleString('ru-RU');
 }
 
-function formatPercent(value) {
-  return `${(Number(value || 0) * 100).toFixed(1)}%`;
-}
-
 export default function CreatorView({
   file,
   onFileSelected,
@@ -68,22 +64,24 @@ export default function CreatorView({
       <div className="creator-success-art" style={createdColoring.previewUrl ? { backgroundImage: `url(${createdColoring.previewUrl})` } : undefined} aria-hidden="true"><Sparkles size={34} /></div>
       <p className="eyebrow">НОВАЯ РАБОТА</p>
       <h1>Раскраска готова</h1>
-      <p>«{createdColoring.title}» сохранена в вашей галерее. Теперь можно спокойно раскрыть картину.</p>
+      <p>«{createdColoring.title}» сохранена в вашем профиле. Теперь её можно раскрасить или добавить в коллекцию.</p>
       <button className="primary-button" type="button" onClick={() => onOpen(createdColoring.id)}><Sparkles size={18} /> Начать раскрашивать</button>
       <button className="secondary-button" type="button" onClick={onGoToProfile}>К моим работам</button>
     </section>;
   }
 
   return <section className="page creator-page">
-    <div className="page-heading"><div><p className="eyebrow">СВОЯ РАСКРАСКА</p><h1>Из изображения</h1></div></div>
+    <div className="page-heading"><div><p className="eyebrow">СОЗДАТЬ</p><h1>Загрузите изображение</h1></div></div>
     <div className="creator-card">
       <label className="file-field">
         <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => onFileSelected(event.target.files?.[0] || null)} />
-        {file ? file.name : 'Выбрать PNG, JPG или WebP'}
+        {file ? file.name : 'Загрузить PNG, JPG или WebP'}
       </label>
       {file && <>
         <label>Название<input value={title} maxLength="80" onChange={(event) => onChangeTitle(event.target.value)} /></label>
 
+        <details className="creator-advanced">
+          <summary>Настроить результат</summary>
         <div className="creator-crop-section"><h3>Кадрирование</h3>
           <div className="creator-crop-toggle">
             <button type="button" className={creatorCropMode === 'fit' ? 'selected' : ''} onClick={() => { onChangeCropMode('fit'); onChangeCrop({ scale: 1, offsetX: 0, offsetY: 0 }); }}>Вписать целиком</button>
@@ -98,8 +96,8 @@ export default function CreatorView({
         </div>
 
         <div className="creator-grid-section">
-          <div className="creator-section-heading"><div><h3>Выберите детализацию</h3><p>Нажмите вариант, чтобы построить его тем же конвертером, который создаст раскраску. Уже готовые варианты остаются для сравнения.</p></div></div>
-          <div className="creator-resolution-note"><strong>Для фотографий по умолчанию выбран баланс 512 × 512 и 16 цветов.</strong> Он лучше сохраняет лицо, надписи и силуэты, чем слишком грубые 192 × 192. 1200 — не автоматический «лучший» режим: больше клеток может означать больше мелких областей и труднее читаемые номера.</div>
+          <div className="creator-section-heading"><div><h3>Детализация</h3><p>Рекомендуемый баланс уже выбран. Меняйте его только если хотите крупнее или детальнее.</p></div></div>
+          <div className="creator-resolution-note"><strong>Рекомендуем: 512 × 512 и 16 цветов.</strong> Хорошо сохраняет лица, надписи и силуэты.</div>
           <input
             className="grid-detail-range creator-resolution-range"
             type="range"
@@ -150,8 +148,9 @@ export default function CreatorView({
         </div>
 
         <button className="secondary-button creator-refresh-button" type="button" disabled={creatorComputing || creating} onClick={() => onComputePreview()}>
-          {creatorComputing ? <LoaderCircle className="spin" size={18} /> : <Sparkles size={18} />} Пересчитать выбранный вариант
+          {creatorComputing ? <LoaderCircle className="spin" size={18} /> : <Sparkles size={18} />} Обновить preview
         </button>
+        </details>
 
         {(creatorPreviews?.original || selectedOption?.pixel) && <div className="creator-selected-evidence creator-previews" data-selected-resolution={selectedResolution} data-result-fingerprint={selectedOption?.resultFingerprint || ''}>
           <div className="creator-preview-item creator-source-preview"><h4>Исходный кадр</h4>{creatorPreviews.original ? <img src={creatorPreviews.original} alt="Выбранный кадр исходного изображения" /> : <div className="preview-placeholder" />}</div>
@@ -162,22 +161,18 @@ export default function CreatorView({
         {selectedOption?.status === 'ready' && <div className="creator-preview-report" aria-label="Оценка раскрашиваемости">
           <div className="creator-palette" aria-label={`${selectedOption.palette.length} цветов`}>{selectedOption.palette.map((color, index) => <span key={`${color}-${index}`} style={{ backgroundColor: color }} title={`${index + 1}: ${color}`} />)}</div>
           <div className="creator-preview-stats">
-            <span><b>{formatCount(selectedOption.insights?.totalCells)}</b><small>клеток</small></span>
-            <span><b>{formatCount(selectedOption.insights?.regionCount)}</b><small>областей</small></span>
-            <span><b>{selectedOption.insights?.fragmentationPerThousand?.toFixed(1)}</b><small>фрагм. / 1000</small></span>
-            <span><b>{formatPercent(selectedOption.insights?.tinyRegionRatio)}</b><small>малых областей</small></span>
-            <span><b>{formatCount(selectedOption.insights?.predictedEffort)}</b><small>оценка действий</small></span>
-            <span><b>{selectedOption.insights?.numberReadability}</b><small>читаемость номеров</small></span>
+            <span><b>{formatCount(selectedOption.insights?.colorsUsed)}</b><small>цветов</small></span>
+            <span><b>{selectedResolution} × {selectedResolution}</b><small>детализация</small></span>
+            <span><b>{selectedOption.insights?.paintabilityScore}/100</b><small>удобство</small></span>
           </div>
           <div className={`creator-quality creator-quality-${creatorQuality?.level || selectedOption.insights?.paintability?.level}`}>
             <span className="creator-quality-label">Раскрашиваемость: {creatorQuality?.label || selectedOption.insights?.paintability?.label} · {selectedOption.insights?.paintabilityScore}/100</span>
-            <p className="creator-quality-hint">Прогноз учитывает дробность, маленькие области и сохранение границ. Финальная художественная оценка остаётся за вами.</p>
+            <p className="creator-quality-hint">Проверили количество мелких областей, читаемость и сохранение границ.</p>
           </div>
-          <p className="creator-preview-proof">Пайплайн <code>{selectedOption.pipelineVersion}</code> · клетки <code>{selectedOption.resultFingerprint?.slice(0, 12)}</code>{selectedOption.previewPixelFingerprint && <> · пиксели <code>{selectedOption.previewPixelFingerprint.slice(0, 12)}</code></>}</p>
         </div>}
 
         {selectedMatchesSave && <button className="primary-button create-button" type="button" disabled={creating || creatorComputing} onClick={onSaveDraft}>
-          {creating ? <LoaderCircle className="spin" size={18} /> : <Star size={18} />} Сохранить и начать · {selectedResolution} × {selectedResolution}
+          {creating ? <LoaderCircle className="spin" size={18} /> : <Star size={18} />} Сохранить работу
         </button>}
         {!selectedMatchesSave && selectedOption?.status === 'computing' && <p className="creator-save-wait"><LoaderCircle className="spin" size={16} /> Готовим точный результат выбранной детализации…</p>}
       </>}

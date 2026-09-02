@@ -261,3 +261,8 @@ export function getRequestedPackId() {
   if (startParam?.startsWith('pack_')) return startParam.slice('pack_'.length);
   return null;
 }
+
+/** Reads a public showcase profile requested via `?profile=`. */
+export function getRequestedProfileId() {
+  return new URLSearchParams(window.location.search).get('profile') || null;
+}

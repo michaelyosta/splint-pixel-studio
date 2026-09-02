@@ -7,6 +7,17 @@ export function useProfileData({ showNotice, onNavigate }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [profileShelf, setProfileShelf] = useState('works');
 
+  const loadCurrentUser = useCallback(async () => {
+    try {
+      const user = await api('/users/me');
+      setCurrentUser(user);
+      return user;
+    } catch (error) {
+      showNotice(error.message, 'error');
+      return null;
+    }
+  }, [showNotice]);
+
   const loadProfile = useCallback(async (userId = null) => {
     try {
       const nextProfile = await api(userId ? `/users/${userId}/profile` : '/users/me');
@@ -40,6 +51,7 @@ export function useProfileData({ showNotice, onNavigate }) {
     currentUser,
     profileShelf,
     setProfileShelf,
+    loadCurrentUser,
     loadProfile,
     openProfile,
     toggleProfileFollow,

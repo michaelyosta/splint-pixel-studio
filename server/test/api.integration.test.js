@@ -122,7 +122,19 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(custom.response.status, 201);
   assert.equal(custom.json.visibility, 'private');
   assert.equal(custom.json.source_stored, true);
-  assert.equal(custom.json.preview_url, null, 'new user previews must not be persisted as base64 in the database');
+  assert.equal(custom.json.preview_url, validPng, 'legacy user previews must be persisted after validation');
+
+  const ownerMine = await request('/colorings/mine');
+  assert.equal(ownerMine.response.status, 200);
+  const ownerTemplate = ownerMine.json.find((item) => item.id === custom.json.id);
+  assert.ok(ownerTemplate, 'the created legacy template must be visible to its owner');
+  assert.equal(ownerTemplate.preview_url, validPng, 'owner /mine must return the persisted preview');
+
+  const invalidPreview = await request('/colorings/create', {
+    method: 'POST',
+    body: { title: 'Invalid preview', width: 8, height: 8, palette: ['#102030', '#00b5d8'], cells: Array(64).fill(0), previewDataUrl: 'data:image/png;base64,not-a-png' },
+  });
+  assert.equal(invalidPreview.response.status, 400);
 
   const maxGrid = await request('/colorings/create', {
     method: 'POST',
@@ -137,6 +149,7 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(maxGrid.response.status, 201);
   assert.equal(maxGrid.json.width, 160);
   assert.equal(maxGrid.json.height, 160);
+  assert.equal(maxGrid.json.preview_url, null, 'an absent legacy preview must remain null');
 
   const tiledGrid = await request('/colorings/create', {
     method: 'POST',

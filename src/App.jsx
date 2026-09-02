@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { metaApi } from './api/client';
 import PlayerView from './views/PlayerView';
-import HomeView from './views/HomeView';
 import CatalogView from './views/CatalogView';
 import FeedView from './views/FeedView';
 import ProfileView from './views/ProfileView';
@@ -12,7 +11,6 @@ import AchievementsView from './views/AchievementsView';
 import StoreView from './views/StoreView';
 import BottomNavigation from './components/BottomNavigation';
 import CreateHub from './components/CreateHub';
-import ManualPixelEditor from './features/creator/ManualPixelEditor';
 import CreatorCollectionsManager from './features/creator/CreatorCollectionsManager';
 import UnlockLockedView from './features/unlocks/UnlockLockedView';
 import { useUnlockData } from './features/unlocks/useUnlockData';
@@ -23,9 +21,8 @@ import { useFeedData } from './hooks/useFeedData';
 import { useProfileData } from './hooks/useProfileData';
 import { useCreatorData } from './hooks/useCreatorData';
 import { useColoringSession } from './hooks/useColoringSession';
-import { useDirectorData } from './hooks/useDirectorData';
 import { formatDifficulty } from './lib/catalogMeta';
-import { getRequestedColoringId, getRequestedPackId, hapticSelection } from './lib/telegram';
+import { getRequestedColoringId, getRequestedPackId, getRequestedProfileId, hapticSelection } from './lib/telegram';
 import { readCurrentResumeSnapshot } from './lib/resumeState.js';
 import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
 import { resolveSessionGameExperiment } from './features/sessionGame/sessionGameExperiment.js';
@@ -38,13 +35,16 @@ function App() {
   const initialResume = useMemo(() => readCurrentResumeSnapshot(), []);
   const initialRequestedId = useMemo(() => getRequestedColoringId(), []);
   const initialRequestedPackId = useMemo(() => getRequestedPackId(), []);
+  const initialRequestedProfileId = useMemo(() => getRequestedProfileId(), []);
   const [view, setView] = useState(() => {
     if (coreFeelExperiment.enabled || initialRequestedId) return 'play';
-    if (initialRequestedPackId) return 'store';
+    if (initialRequestedPackId) return 'catalog';
+    if (initialRequestedProfileId) return 'profile';
     if (initialResume?.route === 'play') return 'play';
-    return initialResume?.route || 'home';
+    return ['catalog', 'create', 'profile'].includes(initialResume?.route) ? initialResume.route : 'catalog';
   });
   const [requestedPackId, setRequestedPackId] = useState(initialRequestedPackId);
+  const [viewedProfileId, setViewedProfileId] = useState(initialRequestedProfileId);
   const [notice, setNotice] = useState(null);
   const [unlockRefreshKey, setUnlockRefreshKey] = useState(0);
   const noticeTimerRef = useRef(null);
@@ -67,6 +67,11 @@ function App() {
     setFavoriteTemplates: product.setFavoriteTemplates,
     onNavigate: setView,
   });
+  const {
+    openCatalogCollection,
+    setCatalogChip,
+    setCatalogCollection,
+  } = catalog;
   const feed = useFeedData({ showNotice });
   const profile = useProfileData({ showNotice, onNavigate: setView });
   const creator = useCreatorData({
@@ -90,24 +95,15 @@ function App() {
     coreFeelExperiment,
     sessionGameExperiment,
   });
-  const director = useDirectorData({
-    enabled: !coreFeelExperiment.enabled,
-    refreshKey: unlockRefreshKey,
-    exclude: view === 'play' && session?.template?.id ? session.template.id : null,
-  });
-
   useEffect(() => {
     if (coreFeelExperiment.enabled) return;
     catalog.loadCatalog();
-    home.loadToday();
-    home.loadStreak();
-    home.loadAchievements();
     home.loadCollections();
-    profile.loadProfile();
+    profile.loadCurrentUser();
     catalog.loadMine();
     product.loadProductProfile();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog.loadCatalog, catalog.loadMine, coreFeelExperiment.enabled, home.loadAchievements, home.loadCollections, home.loadStreak, home.loadToday, product.loadProductProfile, profile.loadProfile]);
+  }, [catalog.loadCatalog, catalog.loadMine, coreFeelExperiment.enabled, home.loadCollections, product.loadProductProfile, profile.loadCurrentUser]);
 
   useEffect(() => {
     if (!coreFeelExperiment.enabled) metaApi.track('app_open').catch(() => {});
@@ -126,14 +122,14 @@ function App() {
     if (coreFeelExperiment.enabled || resumeHandledRef.current) return;
     const requestedId = getRequestedColoringId();
     const requestedPack = getRequestedPackId();
-    const persisted = requestedId || requestedPack ? null : readCurrentResumeSnapshot();
+    const requestedProfile = getRequestedProfileId();
+    const persisted = requestedId || requestedPack || requestedProfile ? null : readCurrentResumeSnapshot();
     const persistedPlay = persisted?.route === 'play' ? persisted : null;
     const id = requestedId || persistedPlay?.artworkId;
     if (!id) {
       resumeHandledRef.current = true;
       if (requestedPack) {
-        setRequestedPackId(requestedPack);
-        setView('store');
+        setView('catalog');
       }
       return;
     }
@@ -152,18 +148,39 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (view === 'feed') feed.loadFeed(feed.feedMode); }, [view, feed.feedMode, feed.loadFeed]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (view === 'profile') profile.loadProfile(); }, [view, profile.loadProfile]);
+  useEffect(() => { if (view === 'profile') profile.loadProfile(viewedProfileId || null); }, [view, viewedProfileId, profile.loadProfile]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (view === 'profile' || view === 'home') product.loadProductProfile(); }, [view, product.loadProductProfile]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (view === 'collections') home.loadCollections(); }, [view, home.loadCollections]);
+
+  useEffect(() => {
+    if (!requestedPackId || !home.collections.length) return;
+    const requestedPack = home.collections.find((collection) => String(collection.id) === String(requestedPackId));
+    if (!requestedPack) {
+      showNotice('Коллекция по ссылке не найдена', 'error');
+      setRequestedPackId(null);
+      return;
+    }
+    if (requestedPack.pack_type === 'premium') {
+      setCatalogCollection(null);
+      setCatalogChip('premium');
+      setView('catalog');
+      return;
+    }
+    openCatalogCollection(requestedPack);
+  }, [home.collections, openCatalogCollection, requestedPackId, setCatalogChip, setCatalogCollection, showNotice]);
 
   useEffect(() => () => window.clearTimeout(noticeTimerRef.current), []);
 
   function navigatePrimary(nextView) {
     hapticSelection();
     session.setLockedUnlock(null);
-    if (nextView === 'catalog') catalog.resetCatalogScope();
+    if (nextView === 'catalog') {
+      setRequestedPackId(null);
+      catalog.resetCatalogScope();
+    }
+    if (nextView === 'profile') setViewedProfileId(null);
     setView(nextView);
   }
 
@@ -186,31 +203,10 @@ function App() {
     else setView('catalog');
   }
 
-  const completionChoices = useMemo(() => {
-    const options = [];
-    const primary = director.nextAction?.primary_action;
-    const secondary = director.nextAction?.secondary_actions || [];
-    const currentId = session.template?.id;
-    if (primary && (!primary.template_id || primary.template_id !== currentId)) {
-      options.push({ ...primary, recommended: true });
-    }
-    for (const action of secondary) {
-      if (action.template_id && action.template_id === currentId) continue;
-      if (options.some((item) => item.id === action.id || (action.template_id && item.template_id === action.template_id))) continue;
-      if (options.length >= 2) break;
-      options.push(action);
-    }
-    if (!options.some((item) => item.type === 'stop')) {
-      options.push({
-        id: 'done_today',
-        type: 'stop',
-        title: 'Завершить на сегодня',
-        reward: 'Серия и прогресс сохранятся',
-        reason: 'NATURAL_EXIT',
-      });
-    }
-    return options.slice(0, 3);
-  }, [director.nextAction, session.template?.id]);
+  const completionChoices = useMemo(() => [
+    { id: 'open_profile', type: 'profile', title: 'Открыть в профиле', reward: 'Работа сохранена в коллекции', recommended: true },
+    { id: 'browse_catalog', type: 'browse', title: 'Выбрать следующую', reward: 'Вернуться в каталог' },
+  ], []);
 
   function handleCompletionChoice(option) {
     metaApi.track('choice_selected', {
@@ -220,10 +216,10 @@ function App() {
       screen: 'completion',
     }).catch(() => {});
     session.setCompletionOpen(false);
-    if (option.type === 'stop') {
-      metaApi.track('session_natural_exit', { id: session.template?.id }).catch(() => {});
-      director.refresh();
-      setView('home');
+    if (option.type === 'profile') {
+      product.loadProductProfile();
+      catalog.loadMine();
+      setView('profile');
       return;
     }
     if (option.template_id) {
@@ -231,12 +227,11 @@ function App() {
       session.openColoring(option.template_id);
       return;
     }
-    if (option.type === 'browse' || option.type === 'collections' || option.type === 'feed') {
-      setView(option.type === 'collections' ? 'collections' : option.type === 'feed' ? 'feed' : 'catalog');
+    if (option.type === 'browse') {
+      setView('catalog');
       return;
     }
-    director.refresh();
-    setView('home');
+    setView('catalog');
   }
 
   function handleUnlockSubject(subject, mode = 'journey') {
@@ -255,7 +250,7 @@ function App() {
       catalog.openCatalogCollection({ id: subject.subject_id, title: subject.title });
       return;
     }
-    setView('home');
+    setView('catalog');
   }
 
   const creatorViewProps = {
@@ -291,7 +286,7 @@ function App() {
         unlock={session.lockedUnlock}
         nextRecommendation={nextRecommendation}
         onBack={() => { session.setLockedUnlock(null); setView('catalog'); }}
-        onBrowse={() => { session.setLockedUnlock(null); setView('home'); }}
+        onBrowse={() => { session.setLockedUnlock(null); setView('catalog'); }}
         onContinue={continueToRecommendation}
         onPremium={() => { catalog.setCatalogChip('premium'); catalog.setCatalogCollection(null); session.setLockedUnlock(null); setView('catalog'); }}
       />
@@ -332,7 +327,6 @@ function App() {
         sharing={session.sharing}
         saving={session.saving}
         onRetrySave={session.retryPendingSave}
-        publishing={session.publishing}
         setView={session.handlePlayerSetView}
         setPlayMode={session.setPlayMode}
         setFillMode={session.setFillMode}
@@ -354,7 +348,6 @@ function App() {
         onResetProgress={session.resetProgress}
         onShareResult={session.shareResult}
         onDownloadResult={session.downloadResult}
-        onPublishCompleted={session.publishCompleted}
         onDismissOnboarding={session.dismissOnboarding}
         onTrack={(event, payload) => metaApi.track(event, payload).catch(() => {})}
         formatDifficulty={formatDifficulty}
@@ -376,25 +369,6 @@ function App() {
         </button>
       </section>
     );
-  } else if (view === 'home') {
-    content = <HomeView
-      profile={profile.profile}
-      streak={home.streak}
-      progression={product.progression}
-      today={home.today}
-      templates={catalog.templates}
-      loading={catalog.loading}
-      mine={catalog.mine}
-      dailyChallenge={product.dailyChallenge}
-      weeklyChallenge={product.weeklyChallenge}
-      unlockData={unlockData}
-      director={director}
-      onOpen={session.openColoring}
-      onNavigate={navigatePrimary}
-      onOpenUnlockSubject={handleUnlockSubject}
-      onShowPopular={() => { catalog.setCatalogChip('popular'); setView('catalog'); }}
-      onTrack={(event, payload) => metaApi.track(event, payload).catch(() => {})}
-    />;
   } else if (view === 'gallery') {
     content = <GalleryView
       mine={catalog.mine}
@@ -411,7 +385,7 @@ function App() {
       feed={feed.feed}
       feedMode={feed.feedMode}
       onChangeFeedMode={feed.selectFeedMode}
-      openProfile={profile.openProfile}
+      openProfile={(userId) => { setViewedProfileId(userId); profile.openProfile(userId); }}
       onToggleFollow={feed.toggleFollow}
       followingAuthorId={feed.followingAuthorId}
       onToggleLike={feed.toggleLike}
@@ -430,9 +404,7 @@ function App() {
       currentUser={profile.currentUser}
     />;
   } else if (view === 'create') {
-    content = <CreateHub onImport={() => setView('creator')} onManualDraw={() => setView('manual')} onCreatePack={() => setView('packs')} />;
-  } else if (view === 'manual') {
-    content = <ManualPixelEditor onCreate={creator.saveManualColoring} disabled={creator.creating} />;
+    content = <CreateHub onImport={() => setView('creator')} onCreatePack={() => setView('packs')} />;
   } else if (view === 'packs') {
     content = <CreatorCollectionsManager templates={catalog.mine} onCollectionChange={() => { home.loadCollections(); product.loadProductProfile(); }} />;
   } else if (view === 'creator') {
@@ -460,6 +432,9 @@ function App() {
       onOpenCollection={catalog.openCatalogCollection}
       onSetView={setView}
       onOpenUnlockSubject={handleUnlockSubject}
+      publishingTemplateId={catalog.publishingTemplateId}
+      onToggleVisibility={catalog.setColoringVisibility}
+      onDelete={catalog.deleteColoring}
     />;
   } else if (view === 'collections') {
     content = <CollectionsView collections={home.collections} mine={catalog.mine} onOpenCollection={catalog.openCatalogCollection} onNavigate={navigatePrimary} />;
@@ -492,6 +467,7 @@ function App() {
       filters={catalog.filters}
       onChangeFilters={catalog.changeFilters}
       collections={home.collections}
+      requestedPackId={requestedPackId}
       catalogChip={catalog.catalogChip}
       onChangeChip={catalog.setCatalogChip}
       catalogQuery={catalog.catalogQuery}
@@ -519,7 +495,7 @@ function App() {
     />;
   }
 
-  return <main className="telegram-frame"><div className="app-container">{view !== 'play' && !coreFeelExperiment.enabled && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('home')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
+  return <main className="telegram-frame"><div className="app-container">{view !== 'play' && !coreFeelExperiment.enabled && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
 }
 
 export default App;

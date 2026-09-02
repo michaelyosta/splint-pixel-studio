@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test';
 
 async function openFirstColoring(page) {
-  const firstHomeCard = page.locator('.home-featured-card, .home-art-card').first();
+  const firstCatalogCard = page.locator('.catalog-art-open').first();
   // The full Alpha matrix serializes several 1200px journeys. Home data can
   // therefore arrive well after the shell; wait for the actual card instead
   // of classifying a slow API response as a product regression.
-  await expect(page.locator('.home-page')).toBeVisible({ timeout: 60000 });
-  await expect(firstHomeCard).toBeVisible({ timeout: 60000 });
-  await firstHomeCard.click();
+  await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 60000 });
+  await expect(firstCatalogCard).toBeVisible({ timeout: 60000 });
+  await firstCatalogCard.click();
 }
 
 async function clickActiveWorkCell(page) {

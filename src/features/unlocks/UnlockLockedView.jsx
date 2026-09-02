@@ -1,12 +1,8 @@
 import { ArrowRight, ChevronLeft, Lock, RefreshCw } from 'lucide-react';
 import {
-  formatRequirement,
-  reasonText,
-  reasonTitle,
   stateDescription,
   UNLOCK_STATES,
 } from '../../lib/unlockState';
-import UnlockStateChip from './UnlockStateChip';
 
 export default function UnlockLockedView({
   unlock,
@@ -18,8 +14,14 @@ export default function UnlockLockedView({
 }) {
   if (!unlock) return null;
   const premium = unlock.state === UNLOCK_STATES.PREMIUM_LOCKED;
-  const requirements = Array.isArray(unlock.requirements) ? unlock.requirements : [];
-  const readyNow = unlock.state === UNLOCK_STATES.AVAILABLE || unlock.unlockable_now;
+  const requirements = (Array.isArray(unlock.requirements) ? unlock.requirements : [])
+    .filter((requirement) => requirement && typeof requirement === 'object' && !Array.isArray(requirement));
+  const premiumRequirements = premium
+    ? requirements.filter((requirement) => (
+      String(requirement.rule_type || requirement.kind || '').trim() === 'premium'
+      || String(requirement.reason_code || '').trim() === 'PREMIUM_REQUIRED'
+    ))
+    : [];
 
   return (
     <section className="page unlock-locked-page" data-unlock-locked="true" data-locked-state={unlock.state} data-locked-reason={unlock.reason_code} data-locked-requirement-count={requirements.length}>
@@ -28,53 +30,30 @@ export default function UnlockLockedView({
           <ChevronLeft size={18} aria-hidden="true" />
         </button>
         <span className="player-topbar-title">{unlock.title || 'Раскраска'}</span>
-        {premium ? <span className="unlock-locked-unavailable-chip">Недоступно</span> : <UnlockStateChip state={unlock.state} reasonCode={unlock.reason_code} />}
+        <span className="unlock-locked-unavailable-chip">Недоступно</span>
       </div>
 
-      <div className={`unlock-locked-hero${premium ? ' unlock-locked-hero--unavailable' : ' unlock-locked-hero--progression'}`}>
+      <div className="unlock-locked-hero unlock-locked-hero--unavailable">
         <span className="unlock-locked-icon" aria-hidden="true">
           <Lock size={26} />
         </span>
-        <p className="eyebrow">{premium ? 'КОНТЕНТ НЕДОСТУПЕН' : 'КОНТЕНТ ЕЩЁ ЗАКРЫТ'}</p>
-        <h1>{premium ? 'Контент сейчас недоступен' : reasonTitle(unlock.reason_code)}</h1>
-        <p className="unlock-locked-reason">{reasonText(unlock.reason_code)}</p>
-        {!premium && !readyNow && <p className="unlock-locked-gate">Сервер подтвердил: прямой доступ к этой раскраске заблокирован, пока условия не выполнены.</p>}
+        <p className="eyebrow">КОНТЕНТ НЕДОСТУПЕН</p>
+        <h1>Эта работа пока недоступна</h1>
+        <p className="unlock-locked-reason">Выберите доступную картину в каталоге. Условия старой системы прогресса больше не являются частью Splint.</p>
       </div>
 
       <div className="unlock-locked-requirements">
-        {premium ? <p className="unlock-locked-static-status">Этот контент сейчас недоступен.</p> : <>
-          <h2>Что нужно, чтобы открыть</h2>
-          {requirements.length ? requirements.map((requirement, index) => {
-            const formatted = formatRequirement(requirement);
-            if (!formatted) return null;
-            return (
-              <div
-                className={`unlock-requirement${formatted.satisfied ? ' is-satisfied' : ''}`}
-                key={`${formatted.rule_type}-${formatted.target_value}-${index}`}
-                data-requirement-type={formatted.rule_type}
-                data-satisfied={formatted.satisfied ? 'true' : 'false'}
-              >
-                <div className="unlock-requirement-head">
-                  <span><b>{formatted.label}</b><small>{formatted.progressText}</small></span>
-                  <strong>{formatted.percent}%</strong>
-                </div>
-                <span
-                  className="unlock-requirement-track"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={formatted.percent}
-                  aria-label={`${formatted.label}: ${formatted.percent}%`}
-                >
-                  <i style={{ width: `${formatted.percent}%` }} />
-                </span>
-                <p className="unlock-requirement-action">{formatted.nextAction}</p>
-              </div>
-            );
-          }) : (
-            <p className="unlock-locked-empty">Условия появятся после первого прогресса.</p>
-          )}
-        </>}
+        <p className="unlock-locked-static-status">Доступ не выдан сервером. Splint не предлагает обходных способов открытия.</p>
+        {premiumRequirements.map((requirement, index) => (
+          <span
+            className="sr-only"
+            key={`premium-requirement-${String(requirement.target_value ?? requirement.target ?? index)}`}
+            data-requirement-type="premium"
+            data-requirement-reason-code={String(requirement.reason_code || 'PREMIUM_REQUIRED')}
+            data-requirement-target-value={String(requirement.target_value ?? '')}
+            data-requirement-satisfied={requirement.satisfied ? 'true' : 'false'}
+          />
+        ))}
       </div>
 
       <div className="unlock-locked-actions">
@@ -86,15 +65,10 @@ export default function UnlockLockedView({
             </button>
             <p className="unlock-locked-unavailable">Покупка пока не подключена. Можно посмотреть preview и сохранить желание.</p>
           </>
-        ) : readyNow ? (
-          <button className="primary-button" type="button" onClick={onBrowse}>
-            <ArrowRight size={17} aria-hidden="true" />
-            Открыть
-          </button>
         ) : (
           <button className="primary-button" type="button" onClick={onBrowse}>
             <ArrowRight size={17} aria-hidden="true" />
-            К следующей цели
+            Выбрать доступную картину
           </button>
         )}
         {nextRecommendation && (
@@ -107,7 +81,7 @@ export default function UnlockLockedView({
       </div>
 
       <span className="sr-only" role="status" aria-live="polite">
-        {unlock.title}: {stateDescription(unlock.state)}. {reasonText(unlock.reason_code)}
+        {unlock.title}: {stateDescription(unlock.state)}. Контент недоступен.
       </span>
     </section>
   );

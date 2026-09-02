@@ -38,15 +38,16 @@ async function createAndOpenBarsColoring(page) {
   // stroke recorder is compiled in.
   await page.goto('/?splintMetrics=1');
   await page.getByText('Создать').first().click();
-  await page.getByRole('button', { name: 'Из изображения' }).click();
+  await page.getByRole('button', { name: /Загрузить изображение/ }).click();
   await expect(page.locator('.creator-page')).toBeVisible({ timeout: 10000 });
   await page.locator('.file-field input[type="file"]').setInputFiles([fixture]);
+  await page.locator('.creator-advanced summary').click();
   // Select the named preset so the same React path as a user click updates
   // both the selected resolution and the authoritative preview fingerprint.
   await page.getByRole('button', { name: 'Сетка 1200 на 1200' }).click();
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 60000 });
   await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-status', 'ready', { timeout: 120000 });
-  const saveButton = page.locator('button', { hasText: 'Сохранить и начать' });
+  const saveButton = page.locator('button', { hasText: 'Сохранить работу' });
   await expect(saveButton).toBeEnabled({ timeout: 120000 });
   const [response] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/colorings/create')),

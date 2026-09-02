@@ -52,17 +52,50 @@ test.beforeEach(async ({ page }, testInfo) => {
   await page.context().setExtraHTTPHeaders({ 'X-User-Id': `e2e_guided_${testInfo.testId}` });
 });
 
-test('guided home shows one primary action and a bounded choice window', async ({ page }) => {
+test('catalog is the default and primary navigation has exactly three product tabs', async ({ page }) => {
   await primeLocalStorage(page);
   await page.goto('/');
-  await expect(page.locator('.home-page--guided')).toBeVisible({ timeout: 15000 });
-  await expect(page.locator('[data-guided-primary="true"]')).toBeVisible({ timeout: 15000 });
-  await expect(page.locator('[data-choice-window="home"]')).toBeVisible();
-  await expect(page.locator('[data-recommendations="true"]')).toBeVisible();
-  await expect(page.locator('.home-explore-row')).toBeVisible();
+  await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
+  const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
+  await expect(navigation.getByRole('button')).toHaveCount(3);
+  expect(await navigation.getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))).toEqual(['Каталог', 'Создать', 'Профиль']);
+  await expect(navigation).not.toContainText(/Главная|Сообщество|Gallery|Store|Achievements/i);
+
+  const collectionsResponse = await page.request.get('/api/meta/collections');
+  expect(collectionsResponse.ok()).toBe(true);
+  const freePack = (await collectionsResponse.json()).find((collection) => collection.pack_type !== 'premium');
+  expect(freePack).toBeTruthy();
+  await page.goto(`/?pack=${encodeURIComponent(freePack.id)}`);
+  await expect(page.locator('.catalog-heading h1')).toHaveText(freePack.title, { timeout: 15000 });
+  await expect(page.locator('.catalog-page')).toContainText('КОЛЛЕКЦИЯ');
 });
 
-test('completion hands off to a committed choice, including an honest stop', async ({ page }) => {
+test('public profile deep link opens a content-first showcase without progression UI', async ({ page }) => {
+  await page.addInitScript(() => {
+    const artworkId = 'persisted-resume-must-not-win';
+    localStorage.setItem('splint:resume-current:v1:anonymous', JSON.stringify({ artworkId, route: 'play', savedAt: Date.now() }));
+    localStorage.setItem(`splint:resume:v1:anonymous:${artworkId}`, JSON.stringify({
+      version: 1,
+      artworkId,
+      route: 'play',
+      progressRevision: 0,
+    }));
+  });
+  await page.goto('/?profile=user_lenaart');
+  const showcase = page.locator('[data-profile-showcase="true"]');
+  await expect(showcase).toBeVisible({ timeout: 15000 });
+  await expect(showcase).toContainText('КОЛЛЕКЦИЯ АВТОРА');
+  await expect(showcase).not.toContainText(/XP|уровень|серия дней|достижения/i);
+  await expect(page.locator('.player-page')).toHaveCount(0);
+  const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
+  await expect(navigation.getByRole('button')).toHaveCount(3);
+  await navigation.getByRole('button', { name: 'Каталог' }).click();
+  await navigation.getByRole('button', { name: 'Профиль' }).click();
+  await expect(page.locator('[data-profile-showcase="true"]')).toContainText('МОЯ КОЛЛЕКЦИЯ', { timeout: 15000 });
+  await expect(page.locator('[data-profile-showcase="true"]')).not.toContainText('КОЛЛЕКЦИЯ АВТОРА');
+});
+
+test('completion hands the finished work to profile or catalog without progression rewards', async ({ page }) => {
   await primeLocalStorage(page);
   const coloringId = await createAndCompleteSmallColoring(page);
   await page.goto(`/?coloring=${encodeURIComponent(coloringId)}`);
@@ -71,8 +104,12 @@ test('completion hands off to a committed choice, including an honest stop', asy
 
   await expect(page.locator('.completion-overlay')).toBeVisible({ timeout: 20000 });
   await expect(page.locator('[data-choice-window="completion"]')).toBeVisible();
-  const stop = page.locator('[data-completion-choice][data-choice-id="done_today"]');
-  await expect(stop).toBeVisible();
-  await stop.click();
-  await expect(page.locator('.home-page--guided')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.completion-dialog')).not.toContainText(/XP|уровень|серия|достижение/i);
+  const profile = page.locator('[data-completion-choice][data-choice-id="open_profile"]');
+  await expect(profile).toBeVisible();
+  await profile.click();
+  await expect(page.locator('[data-profile-showcase="true"]')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.profile-created-section')).toContainText('Guided path e2e');
+  await page.getByRole('button', { name: 'Открыть Guided path e2e' }).last().click();
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: 15000 });
 });

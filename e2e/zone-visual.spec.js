@@ -20,14 +20,15 @@ test('capture 16-zone player at 390px', async ({ page, browserName }, testInfo) 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await page.getByText('Создать').first().click();
-  await page.getByRole('button', { name: 'Из изображения' }).click();
+  await page.getByRole('button', { name: /Загрузить изображение/ }).click();
   await page.locator('.file-field input[type="file"]').setInputFiles([fixture]);
+  await page.locator('.creator-advanced summary').click();
   // Use the named preset click path so the selected option and its preview
   // fingerprint stay in the same state as normal user interaction.
   await page.getByRole('button', { name: 'Сетка 1200 на 1200' }).click();
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 60000 });
   await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-status', 'ready', { timeout: 120000 });
-  const saveButton = page.locator('button', { hasText: 'Сохранить и начать' });
+  const saveButton = page.locator('button', { hasText: 'Сохранить работу' });
   await expect(saveButton).toBeEnabled({ timeout: 120000 });
   await saveButton.click();
   await expect(page.locator('.creator-success-page')).toBeVisible({ timeout: 20000 });

@@ -19,7 +19,7 @@ async function dismissOnboarding(page) {
 
 async function openFirstCatalogPlayer(page) {
   await page.goto('/');
-  const card = page.locator('.home-featured-card, .home-continue-card, .home-art-card').first();
+  const card = page.locator('.catalog-art-open').first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();
   await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });

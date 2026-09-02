@@ -14,9 +14,10 @@ async function dismissOnboarding(page) {
 async function createAndOpenTiledColoring(page) {
   await page.goto('/');
   await page.getByText('Создать').first().click();
-  await page.getByRole('button', { name: 'Из изображения' }).click();
+  await page.getByRole('button', { name: /Загрузить изображение/ }).click();
   await expect(page.locator('.creator-page')).toBeVisible({ timeout: 10000 });
   await page.locator('.file-field input[type="file"]').setInputFiles([fixture]);
+  await page.locator('.creator-advanced summary').click();
   // The resolution control is an indexed 0..3 selector; choose the
   // labelled 1200 option instead of relying on the old pixel-count value.
   await page.getByRole('button', { name: 'Сетка 1200 на 1200' }).click();
@@ -24,7 +25,7 @@ async function createAndOpenTiledColoring(page) {
   // save button before that computation finishes: it becomes disabled while
   // the tiled payload is being built and the old test raced that transition.
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 120000 });
-  const saveButton = page.locator('button', { hasText: 'Сохранить и начать' });
+  const saveButton = page.locator('button', { hasText: 'Сохранить работу' });
   await expect(saveButton).toBeVisible({ timeout: 45000 });
   await expect(saveButton).toBeEnabled({ timeout: 120000 });
   const responsePromise = page.waitForResponse((r) => r.url().includes('/colorings/create'));

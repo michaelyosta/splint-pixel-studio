@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { ArrowRight, ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Star, Target, X } from 'lucide-react';
+import { ArrowRight, ChevronLeft, Download, LoaderCircle, Share2, Sparkles, Target, X } from 'lucide-react';
 import ColoringSession from '../features/coloring/ColoringSession';
 import ProgressiveColoringSession from '../features/coloring/large-grid/ProgressiveColoringSession.jsx';
 import SpecialHelpSheet from '../features/coloring/SpecialHelpSheet';
@@ -26,7 +26,6 @@ import { bindTelegramBackButton } from '../lib/telegram';
 import { formatContentMetadataDetail } from '../lib/contentMetadata.js';
 import {
   resolveSessionGoalsExperiment,
-  shouldShowSessionGoals,
 } from '../features/goals/sessionGoalsExperiment';
 
 const USE_NEW_COLORING_ENGINE = import.meta.env.VITE_NEW_COLORING_ENGINE !== 'false';
@@ -124,7 +123,6 @@ export default function PlayerView({
   template,
   progress,
   gameProgress,
-  progression,
   streak,
   isOnline = true,
   saveState = 'saved',
@@ -156,7 +154,6 @@ export default function PlayerView({
   sharing,
   saving,
   onRetrySave = () => {},
-  publishing,
   setView,
   setPlayMode,
   setFillMode,
@@ -178,7 +175,6 @@ export default function PlayerView({
   onResetProgress,
   onShareResult,
   onDownloadResult,
-  onPublishCompleted,
   onDismissOnboarding,
   onTrack,
   completedPreview,
@@ -193,7 +189,7 @@ export default function PlayerView({
       && template?.storage_mode === 'tiled',
   );
   const sessionGoalsExperiment = useMemo(() => resolveSessionGoalsExperiment(), []);
-  const showSessionGoals = shouldShowSessionGoals(sessionGoalsExperiment, coreFeelActive || sessionGameActive);
+  const showSessionGoals = false;
   const stopSessionGame = useCallback(() => {
     if (!sessionGameActive) return;
     onTrack?.('session_game_stop', {
@@ -380,8 +376,6 @@ export default function PlayerView({
 
   const contentMetadata = formatContentMetadataDetail(template);
   const isComplete = isProgressComplete(gameProgress);
-  const totalXp = progression?.xp_total ?? 0;
-  const level = progression?.level ?? 1;
   const hasSpecials = hasSpecialsInProgress(progress);
   const specialTreatment = !coreFeelActive && progress?.specials_experiment_group === 'treatment';
   const showSpecialOnboardingStep = specialTreatment && hasSpecials && !specialHelpState.introSeen;
@@ -402,13 +396,6 @@ export default function PlayerView({
   const contextGoal = isTiled
     ? `${gameProgress.percent}% карты раскрыто`
     : getContextGoal(zones, zoneIndices, template, progress.filled);
-
-  const publishLabel = saving || !progress?.artwork_id
-    ? 'Сохраняем работу…'
-    : publishing
-    ? 'Публикуем…'
-    : 'Опубликовать в ленту';
-  const publishDisabled = saving || !progress?.artwork_id || publishing;
 
   const finishOnboarding = () => {
     if (showSpecialOnboardingStep && onboarding === onboardingStepCount - 1) {
@@ -611,7 +598,7 @@ export default function PlayerView({
               <span className="zone-pct">{zone.percent}%</span>
             </button>)}</div>
           </div>
-          <div className="bottom-sheet-info"><span>XP: {totalXp} · Уровень {level}</span><span>Комбо: ×{combo}</span></div>
+          <div className="bottom-sheet-info"><span>Картина сохраняется автоматически</span><span>Комбо: ×{combo}</span></div>
           <div className="bottom-sheet-actions">
             <button onClick={() => { setPlayMode((v) => v === 'classic' ? 'reveal' : 'classic'); setMenuOpen(false); }}>{playMode === 'classic' ? 'Режим раскрытия' : 'По номерам'}</button>
             <button onClick={() => { setFillMode((value) => !value); setMenuOpen(false); }} className={fillMode ? 'active' : ''}>Заполнять область</button>
@@ -677,10 +664,9 @@ export default function PlayerView({
           <h2 id="completion-title">Картина раскрыта!</h2>
           <p className="completion-work-title">{template.title}</p>
           <div className="completion-rewards">
-            <span><Sparkles size={16} /> Новая работа в галерее</span>
-            <span><Star size={16} /> {latestReward?.amount ? `+${latestReward.amount} XP` : 'Награда синхронизирована'}</span>
+            <span><Sparkles size={16} /> Добавлено в профиль</span>
           </div>
-          <p className="completion-copy">Прекрасный финал. Сохраните результат или покажите его друзьям.</p>
+          <p className="completion-copy">Готовая работа стала частью вашей коллекции.</p>
           <div className="completion-actions">
             <button className="primary-button" onClick={onShareResult} disabled={sharing}>{sharing ? <><LoaderCircle className="spin" size={17} /> Открываем…</> : <><Share2 size={17} /> Поделиться</>}</button>
             <button className="secondary-button" onClick={onDownloadResult}><Download size={17} /> Сохранить результат</button>
@@ -708,13 +694,11 @@ export default function PlayerView({
             </div>
           ) : (
             <div className="completion-links">
-              <button onClick={onPublishCompleted} disabled={publishDisabled}>{publishLabel}</button>
               <button onClick={onContinue}>{nextRecommendation ? `Следующая: ${nextRecommendation.title}` : 'К следующей работе'}</button>
               <button onClick={() => { setCompletionOpen(false); setView('catalog'); }}>К каталогу</button>
             </div>
           )}
           {completionChoices.length ? <div className="completion-links completion-links--quiet">
-            <button onClick={onPublishCompleted} disabled={publishDisabled}>{publishLabel}</button>
             <button onClick={() => { setCompletionOpen(false); setView('catalog'); }}>К каталогу</button>
           </div> : null}
         </section>
