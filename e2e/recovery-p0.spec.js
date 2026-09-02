@@ -24,17 +24,10 @@ function tiledPayload(width, height, tileSize = TILE) {
 
 async function waitForSmartReady(page, timeout = 30000) {
   const session = page.locator('.progressive-coloring-session');
-  const deadline = Date.now() + timeout;
-  while (Date.now() < deadline) {
-    const state = await session.getAttribute('data-smart-state').catch(() => null);
-    if (state === 'ready') return;
-    if (state === 'errorRetryable') {
-      const retry = page.locator('.progressive-grid-error button:has-text("Повторить")');
-      if (await retry.isVisible().catch(() => false)) await retry.click();
-    }
-    await page.waitForTimeout(750);
-  }
-  await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 1000 });
+  // A retryable client state is a real failure for this release-critical
+  // journey. The test must not repair the application by clicking Retry and
+  // then report a green result.
+  await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout });
 }
 
 test('cold root reopen restores the last artwork and resumable state', async ({ page, browserName }) => {

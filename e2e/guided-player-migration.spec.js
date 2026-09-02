@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 
 /**
  * P0 regression suite for the tiled SMART ENGINE cold start.
@@ -80,6 +81,128 @@ async function prepareApp(page) {
   await page.setViewportSize({ width: 390, height: 844 });
 }
 
+async function installGuidedTransitionRecorder(page) {
+  await page.addInitScript(() => {
+    const events = [];
+    const startedAt = performance.now();
+    const observedSessions = new WeakSet();
+    const record = (kind, details = {}) => {
+      events.push({
+        kind,
+        atMs: Number((performance.now() - startedAt).toFixed(3)),
+        ...details,
+      });
+    };
+    const describeSession = (session) => {
+      const rect = session.getBoundingClientRect();
+      return {
+        state: session.getAttribute('data-smart-state'),
+        rect: { width: rect.width, height: rect.height },
+      };
+    };
+    const observeSession = (session) => {
+      if (!session || observedSessions.has(session)) return;
+      observedSessions.add(session);
+      record('session-mounted', describeSession(session));
+    };
+    const scan = () => {
+      const session = document.querySelector('.progressive-coloring-session');
+      if (session) observeSession(session);
+    };
+    const snapshot = (targetTile = null) => {
+      const mounted = events.find((event) => event.kind === 'session-mounted');
+      const transitions = events.filter((event) => event.kind === 'state-transition');
+      const loadingTarget = transitions.find((event) => event.to === 'loadingTarget');
+      const targetResponse = events.find((event) => (
+        event.kind === 'network-response'
+        && event.requestType === 'tile'
+        && event.tileKey === targetTile
+        && (!loadingTarget || event.atMs >= loadingTarget.atMs)
+      ));
+      const ready = transitions.find((event) => (
+        event.to === 'ready'
+        && (!loadingTarget || event.atMs >= loadingTarget.atMs)
+      ));
+      return {
+        targetTile,
+        mounted,
+        transitions,
+        stateSequence: [mounted?.state, ...transitions.map((event) => event.to)].filter(Boolean),
+        loadingTarget,
+        targetRequest: events.find((event) => (
+          event.kind === 'network-request'
+          && event.requestType === 'tile'
+          && event.tileKey === targetTile
+        )),
+        targetResponse,
+        ready,
+        events: [...events],
+      };
+    };
+    window.__splintGuidedTransitionRecorder = {
+      events,
+      snapshot,
+    };
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = async (...args) => {
+      const input = args[0];
+      const url = typeof input === 'string' ? input : input?.url || String(input || '');
+      const guidance = /\/api\/colorings\/[^/]+\/guidance(?:\?|$)/.exec(url);
+      const tile = /\/api\/colorings\/[^/]+\/tiles\/(\d+)\/(\d+)(?:\?|$)/.exec(url);
+      if (!guidance && !tile) return nativeFetch(...args);
+      const requestType = guidance ? 'guidance' : 'tile';
+      const tileKey = tile ? `${tile[1]}:${tile[2]}` : null;
+      const started = performance.now();
+      record('network-request', { requestType, tileKey, url });
+      try {
+        const response = await nativeFetch(...args);
+        record('network-response', {
+          requestType,
+          tileKey,
+          url,
+          status: response.status,
+          durationMs: Number((performance.now() - started).toFixed(3)),
+        });
+        return response;
+      } catch (error) {
+        record('network-error', {
+          requestType,
+          tileKey,
+          url,
+          error: error?.message || String(error),
+          durationMs: Number((performance.now() - started).toFixed(3)),
+        });
+        throw error;
+      }
+    };
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'childList') scan();
+        if (mutation.type === 'attributes' && mutation.target.matches?.('.progressive-coloring-session')) {
+          record('state-transition', {
+            from: mutation.oldValue,
+            to: mutation.target.getAttribute('data-smart-state'),
+            ...describeSession(mutation.target),
+          });
+        }
+      }
+    });
+    observer.observe(document.documentElement || document, {
+      attributes: true,
+      attributeFilter: ['data-smart-state'],
+      attributeOldValue: true,
+      childList: true,
+      subtree: true,
+    });
+    document.addEventListener('DOMContentLoaded', scan, { once: true });
+    scan();
+  });
+}
+
+async function collectGuidedTransitionEvidence(page, targetTile) {
+  return page.evaluate((tile) => window.__splintGuidedTransitionRecorder?.snapshot(tile), targetTile);
+}
+
 async function createTemplate(page, { centerHole = false } = {}) {
   const response = await page.request.post('/api/colorings/create', {
     data: {
@@ -137,6 +260,23 @@ test('migrated pre-021 template: autopilot focuses a real target and the FIRST t
   test.skip(browserName === 'webkit', '1200x1200 tiled creation is not practical on WebKit emulation');
   await prepareApp(page);
 
+  // Capture tile responses before navigation. A waitForResponse registered
+  // after READY can only miss an already-completed response and hide the
+  // readiness failure behind its timeout.
+  const tileResponseEvidence = new Map();
+  page.on('response', (response) => {
+    const match = response.url().match(/\/tiles\/(\d+)\/(\d+)(?:[/?]|$)/);
+    if (!match) return;
+    const key = `${match[1]}:${match[2]}`;
+    const entries = tileResponseEvidence.get(key) ?? [];
+    entries.push({
+      status: response.status(),
+      url: response.url(),
+      response,
+    });
+    tileResponseEvidence.set(key, entries);
+  });
+
   // Simulate a template created BEFORE migration 021 with existing progress.
   const seeded = await seedPre021Template(page);
   expect(seeded.id).toBeTruthy();
@@ -174,11 +314,23 @@ test('migrated pre-021 template: autopilot focuses a real target and the FIRST t
   expect(camera.zoom).toBeGreaterThanOrEqual(0.4);
   const targetTile = await session.getAttribute('data-smart-target-tile');
   expect(targetTile).not.toBe('');
-  const [tileX, tileY] = targetTile.split(':').map(Number);
-  await page.waitForResponse(
-    (response) => response.url().includes(`/tiles/${tileX}/${tileY}`) && response.ok(),
-    { timeout: 15000 },
-  ).catch(() => {});
+  // The target response may have completed before READY was observable, so
+  // inspect the response evidence captured from navigation instead of
+  // waiting for a historical response event.
+  const targetTileResponses = await Promise.all(
+    (tileResponseEvidence.get(targetTile) ?? []).map(async ({ status, url, response }) => ({
+      status,
+      url,
+      body: await response.text().catch((error) => `[body unavailable: ${error.message}]`),
+    })),
+  );
+  expect(
+    targetTileResponses.some(({ status }) => status === 200),
+    `target tile ${targetTile} response evidence missing or not OK: ${JSON.stringify({
+      observedTileKeys: [...tileResponseEvidence.keys()],
+      responses: targetTileResponses,
+    })}`,
+  ).toBe(true);
 
   // FIRST USER ACTION = PAINT: tap the suggested anchor cell, nothing else.
   const targetX = Number(await session.getAttribute('data-smart-target-x'));
@@ -249,7 +401,7 @@ test('cold target: the guidance target tile is explicitly requested before READY
 });
 
 // ── E2E #3 — SLOW NETWORK ───────────────────────────────────────────────────
-test('slow target tile load: LOADING_TARGET is shown, then auto-focus to READY (no overview dead-end)', async ({ page, browserName }) => {
+test('slow target tile load: LOADING_TARGET is shown, then auto-focus to READY (no overview dead-end)', async ({ page, browserName }, testInfo) => {
   test.skip(browserName === 'webkit', '1200x1200 tiled creation is not practical on WebKit emulation');
   await prepareApp(page);
   const created = await createTemplate(page);
@@ -261,27 +413,58 @@ test('slow target tile load: LOADING_TARGET is shown, then auto-focus to READY (
     await route.continue();
   });
 
+  // Install before navigation so a fast transition cannot be missed by a
+  // later test-side snapshot poll.
+  await installGuidedTransitionRecorder(page);
   await page.goto(`/?coloring=${created.id}`);
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toBeVisible({ timeout: 20000 });
 
-  // The loading indication must appear at least once…
-  await expect.poll(
-    async () => {
-      const state = await session.getAttribute('data-smart-state');
-      return state;
-    },
-    { timeout: 20000 },
-  ).toBe('loadingTarget');
+  let targetTile = null;
+  let evidence = null;
+  try {
+    // The recorder is the oracle for the transition itself; it retains events
+    // even if loadingTarget happened before this wait began.
+    await page.waitForFunction(
+      () => window.__splintGuidedTransitionRecorder?.events.some((event) => (
+        event.kind === 'state-transition' && event.to === 'loadingTarget'
+      )),
+      undefined,
+      { timeout: 20000 },
+    );
 
-  // …and the engine must still land on a working target without any click.
-  await expect.poll(
-    () => session.getAttribute('data-smart-state'),
-    { timeout: 30000 },
-  ).toBe('ready');
-  const camera = await readCamera(page.locator('.progressive-grid-area'));
-  expect(camera.zoom).toBeGreaterThanOrEqual(0.4);
-  expect(await session.getAttribute('data-smart-target-tile')).not.toBe('');
+    // The engine must still land on a working target without any click.
+    await expect.poll(
+      () => session.getAttribute('data-smart-state'),
+      { timeout: 30000 },
+    ).toBe('ready');
+    targetTile = await session.getAttribute('data-smart-target-tile');
+    expect(targetTile).not.toBe('');
+    evidence = await collectGuidedTransitionEvidence(page, targetTile);
+    expect(evidence.mounted?.state).toBe('idle');
+    const loadingIndex = evidence.stateSequence.indexOf('loadingTarget');
+    expect(loadingIndex).toBeGreaterThan(0);
+    expect(evidence.stateSequence.slice(loadingIndex + 1).some((state) => ['focusing', 'ready'].includes(state))).toBe(true);
+    expect(evidence.targetRequest?.tileKey).toBe(targetTile);
+    expect(evidence.loadingTarget).toBeTruthy();
+    expect(evidence.targetResponse).toBeTruthy();
+    expect(evidence.targetResponse.status).toBe(200);
+    expect(evidence.loadingTarget.atMs).toBeLessThan(evidence.targetResponse.atMs);
+    expect(evidence.ready).toBeTruthy();
+    expect(evidence.ready.atMs).toBeGreaterThanOrEqual(evidence.targetResponse.atMs);
+    const camera = await readCamera(page.locator('.progressive-grid-area'));
+    expect(camera.zoom).toBeGreaterThanOrEqual(0.4);
+  } finally {
+    evidence ||= await collectGuidedTransitionEvidence(page, targetTile).catch(() => null);
+    if (evidence) {
+      const evidencePath = testInfo.outputPath('guided-player-transition-evidence.json');
+      await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+      await testInfo.attach('guided-player-transition-evidence-final', {
+        path: evidencePath,
+        contentType: 'application/json',
+      });
+    }
+  }
 });
 
 // ── E2E #4 — OLD CAMERA ─────────────────────────────────────────────────────

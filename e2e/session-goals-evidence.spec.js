@@ -9,6 +9,7 @@ const viewports = [
   { width: 430, height: 932 },
 ];
 const captured = [];
+const completionPreview = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
 async function primeLocalStorage(page) {
   await page.addInitScript(() => {
@@ -26,23 +27,57 @@ async function dismissOnboarding(page) {
   if (await skip.isVisible().catch(() => false)) await skip.click({ force: true });
 }
 
-async function openFirstCatalogPlayer(page, search = '') {
-  const query = String(search).replace(/^\?/, '');
-  await page.goto(query ? `/?${query}` : '/');
-  const card = page.locator('.home-featured-card, .home-continue-card, .home-art-card').first();
-  await expect(card).toBeVisible({ timeout: 15000 });
-  await card.click();
+async function openPlayer(page, coloringId, search = '') {
+  const params = new URLSearchParams(String(search).replace(/^\?/, ''));
+  params.set('coloring', coloringId);
+  await page.goto('/?' + params);
   await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
   await dismissOnboarding(page);
 }
 
-async function tapActiveWorkCell(page) {
+async function createSmallColoring(page, suffix) {
+  const cells = new Array(64).fill(0);
+  [27, 28, 29].forEach((index) => { cells[index] = 1; });
+  const response = await page.request.post('/api/colorings/create', {
+    data: {
+      title: 'Session-goal contract evidence ' + suffix,
+      description: 'Deterministic 8x8 fixture for the no-goals player contract',
+      width: 8,
+      height: 8,
+      palette: ['#0B1522', '#2BD9FE'],
+      cells,
+      tileSize: 32,
+    },
+  });
+  expect(response.ok()).toBe(true);
+  const created = await response.json();
+  expect(created.id).toMatch(/^color_/);
+  return created.id;
+}
+
+async function readSessionGoalStorage(page) {
+  return page.evaluate(() => Object.keys(localStorage)
+    .filter((key) => key.startsWith('splint:session-goals:')));
+}
+
+async function assertNoSessionGoalSurface(page) {
+  const player = page.locator('.player-page');
+  await expect(player).toHaveAttribute('data-session-goals-visible', 'false');
+  await expect(page.locator('.session-goal-card')).toHaveCount(0);
+  await expect(page.locator('.session-goal-timer')).toHaveCount(0);
+  await expect(page.locator('.session-goal-celebration')).toHaveCount(0);
+  await expect(page.locator('.session-goal-live')).toHaveCount(0);
+  await expect(player).not.toContainText(/\bXP\b|уровень|серия/i);
+  expect(await readSessionGoalStorage(page)).toEqual([]);
+}
+
+async function tapActiveWorkCell(page, painted = new Set()) {
   const canvas = page.locator('canvas.coloring-canvas');
   await expect(canvas).toBeVisible({ timeout: 10000 });
   await expect.poll(async () => (
     (await canvas.getAttribute('data-active-work-cells').catch(() => '')).split(',').filter(Boolean).length > 0
   ), { timeout: 5000 }).toBe(true);
-  const activeCells = (await canvas.getAttribute('data-active-work-cells')).split(',').map(Number);
+  const activeCells = (await canvas.getAttribute('data-active-work-cells')).split(',').map(Number).filter(Number.isInteger);
   const templateWidth = Number(await canvas.getAttribute('data-template-width'));
   const viewport = page.locator('.coloring-canvas-viewport');
   const camera = {
@@ -50,7 +85,8 @@ async function tapActiveWorkCell(page) {
     y: Number(await viewport.getAttribute('data-camera-y')),
     zoom: Number(await viewport.getAttribute('data-camera-zoom')),
   };
-  const index = activeCells[0];
+  const index = activeCells.find((cellIndex) => !painted.has(cellIndex)) ?? activeCells[0];
+  painted.add(index);
   await canvas.click({
     force: true,
     position: {
@@ -58,6 +94,41 @@ async function tapActiveWorkCell(page) {
       y: camera.y + (Math.floor(index / templateWidth) + 0.5) * 32 * camera.zoom,
     },
   });
+}
+
+async function paintAndWaitForSave(page, coloringId, painted = new Set()) {
+  const saveResponsePromise = page.waitForResponse((response) => (
+    response.url().includes('/api/colorings/' + coloringId + '/progress/actions')
+    && response.request().method() === 'POST'
+    && response.status() === 200
+  ));
+  await tapActiveWorkCell(page, painted);
+  const saveResponse = await saveResponsePromise;
+  const saved = await saveResponse.json();
+  expect(Number(saved.revision)).toBeGreaterThan(0);
+  expect(Array.isArray(saved.filled)).toBe(true);
+  expect(saved.filled.some((value) => Number(value) !== -1)).toBe(true);
+  return saved;
+}
+
+async function applyProgressChanges(page, coloringId, changes, revision, resultDataUrl, batchKey) {
+  let saved;
+  let nextRevision = Number(revision);
+  for (let offset = 0; offset < changes.length; offset += 64) {
+    const batch = changes.slice(offset, offset + 64);
+    const response = await page.request.post('/api/colorings/' + coloringId + '/progress/actions', {
+      data: {
+        changes: batch,
+        revision: nextRevision,
+        clientBatchId: batchKey + '-' + Math.floor(offset / 64),
+        resultDataUrl: offset + 64 >= changes.length ? resultDataUrl : null,
+      },
+    });
+    expect(response.ok()).toBe(true);
+    saved = await response.json();
+    nextRevision = Number(saved.revision);
+  }
+  return saved;
 }
 
 async function collectMetrics(page) {
@@ -77,40 +148,38 @@ async function collectMetrics(page) {
         scrollWidth: element.scrollWidth,
       };
     };
-    const overlap = (first, second) => {
-      if (!first || !second) return null;
-      return !(first.right <= second.left || second.right <= first.left || first.bottom <= second.top || second.bottom <= first.top);
-    };
+    const player = document.querySelector('.player-page');
+    const playerText = player?.textContent || '';
     const topbar = rect('.player-topbar');
     const hint = rect('.player-hint');
     const card = rect('.session-goal-card');
     const canvasArea = rect('.coloring-session') || rect('.progressive-coloring-session') || rect('.player-canvas-area');
-    const textScroll = Array.from(document.querySelectorAll('.session-goal-card *'))
-      .filter((element) => !element.classList.contains('sr-only') && element.scrollWidth > element.clientWidth + 1)
-      .map((element) => ({
-        tag: element.tagName,
-        className: element.className,
-        scrollWidth: element.scrollWidth,
-        clientWidth: element.clientWidth,
-      }));
+    const storageKeys = Object.keys(localStorage)
+      .filter((key) => key.startsWith('splint:session-goals:'));
+    const hasMetaCopy = /\bXP\b|уровень|серия/i.test(playerText);
     return {
       innerWidth: window.innerWidth,
       innerHeight: window.innerHeight,
       documentWidth: document.documentElement.scrollWidth,
       documentHeight: document.documentElement.scrollHeight,
       noHorizontalOverflow: document.documentElement.scrollWidth <= window.innerWidth,
-      cardWithinViewport: card ? card.left >= 0 && card.right <= window.innerWidth : null,
-      cardClearOfCanvas: card && canvasArea ? !overlap(card, canvasArea) : null,
       topbar,
       hint,
-      goalCard: card,
       canvasArea,
+      goalCard: card,
       overlaps: {
-        cardTopbar: overlap(card, topbar),
-        cardCanvas: overlap(card, canvasArea),
+        cardTopbar: card && topbar ? !(card.right <= topbar.left || topbar.right <= card.left || card.bottom <= topbar.top || topbar.bottom <= card.top) : null,
+        cardCanvas: card && canvasArea ? !(card.right <= canvasArea.left || canvasArea.right <= card.left || card.bottom <= canvasArea.top || canvasArea.bottom <= card.top) : null,
       },
-      textScroll,
-      textScrollCount: textScroll.length,
+      sessionGoalContract: {
+        cardPresent: Boolean(card),
+        timerPresent: Boolean(document.querySelector('.session-goal-timer')),
+        celebrationPresent: Boolean(document.querySelector('.session-goal-celebration')),
+        liveRegionPresent: Boolean(document.querySelector('.session-goal-live')),
+        storageKeys,
+        metaCopyPresent: hasMetaCopy,
+      },
+      completionOverlay: rect('.completion-overlay'),
     };
   });
 }
@@ -130,27 +199,78 @@ test.describe('Session goals visual evidence', () => {
   });
 
   for (const viewport of viewports) {
-    test(`capture session-goal player at ${viewport.width}px`, async ({ page }) => {
+    test('capture no-session-goals player at ' + viewport.width + 'px', async ({ page }) => {
       mkdirSync(evidenceDir, { recursive: true });
-      await page.context().setExtraHTTPHeaders({ 'X-User-Id': `e2e_goals_evidence_${viewport.width}` });
+      await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'e2e_goals_evidence_' + viewport.width });
       await primeLocalStorage(page);
       await page.setViewportSize(viewport);
-      await openFirstCatalogPlayer(page, 'sessionGoals=control');
+      const coloringId = await createSmallColoring(page, String(viewport.width));
+      // Keep the retired control query in this evidence path: a legacy link
+      // must not restore the removed goal/timer surface.
+      await openPlayer(page, coloringId, 'sessionGoals=control');
 
-      const card = page.locator('.session-goal-card');
-      await expect(card).toBeVisible({ timeout: 5000 });
-      await expect(card).toHaveAttribute('data-painted', 'false');
+      await assertNoSessionGoalSurface(page);
+      await expect(page.locator('.coloring-task-summary')).toBeVisible();
+      await expect(page.locator('.coloring-dock')).toBeVisible();
+      await expect(page.locator('.save-status')).toBeVisible();
       const idleMetrics = await collectMetrics(page);
-      await page.screenshot({ path: resolve(evidenceDir, `player-goal-idle-${viewport.width}.png`) });
+      await page.screenshot({ path: resolve(evidenceDir, 'player-no-goals-idle-' + viewport.width + '.png') });
 
-      await tapActiveWorkCell(page);
-      await expect(card).toHaveAttribute('data-painted', 'true');
-      await expect.poll(async () => Number(await card.getAttribute('data-elapsed-ms')), { timeout: 3000 })
-        .toBeGreaterThan(0);
-      const runningMetrics = await collectMetrics(page);
-      await page.screenshot({ path: resolve(evidenceDir, `player-goal-running-${viewport.width}.png`) });
+      const painted = new Set();
+      const firstSave = await paintAndWaitForSave(page, coloringId, painted);
+      await expect(page.locator('.save-status')).toBeVisible();
+      await expect(page.locator('.save-status')).toContainText(/Сохранено|Синхронизация|Ожидает отправки|Сохранено локально/);
+      await assertNoSessionGoalSurface(page);
+      const paintedMetrics = await collectMetrics(page);
+      await page.screenshot({ path: resolve(evidenceDir, 'player-no-goals-painted-' + viewport.width + '.png') });
 
-      captured.push({ viewport, idle: idleMetrics, running: runningMetrics });
+      // Reload the same deep link to prove server-backed persistence and that
+      // reopening does not recreate retired local session-goal state.
+      await page.reload();
+      await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+      await assertNoSessionGoalSurface(page);
+      await expect(page.locator('.coloring-canvas')).toBeVisible();
+      await expect(page.locator('.save-status')).toBeVisible();
+      const persistedResponse = await page.request.get('/api/colorings/' + coloringId + '/progress');
+      expect(persistedResponse.ok()).toBe(true);
+      const persisted = await persistedResponse.json();
+      expect(Number(persisted.revision)).toBeGreaterThanOrEqual(Number(firstSave.revision));
+      expect(persisted.filled).toEqual(firstSave.filled);
+      const reopenedMetrics = await collectMetrics(page);
+
+      // Finish the 8x8 fixture through the same server-authoritative path used
+      // by the completion coverage, without reviving a goal celebration or XP.
+      const templateResponse = await page.request.get('/api/colorings/' + coloringId);
+      expect(templateResponse.ok()).toBe(true);
+      const template = await templateResponse.json();
+      const completionChanges = persisted.filled
+        .map((value, index) => Number(value) === -1 ? { index, color: template.cells[index] } : null)
+        .filter(Boolean);
+      const completed = await applyProgressChanges(
+        page,
+        coloringId,
+        completionChanges,
+        persisted.revision,
+        completionPreview,
+        'session-goals-evidence-completion-' + viewport.width,
+      );
+      expect(Number(completed.percent)).toBe(100);
+      expect(completed.completed_at).toBeTruthy();
+      await page.reload();
+      await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('.completion-overlay')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('.completion-overlay')).not.toContainText(/\bXP\b|уровень|серия/i);
+      await assertNoSessionGoalSurface(page);
+      const completionMetrics = await collectMetrics(page);
+      await page.screenshot({ path: resolve(evidenceDir, 'player-no-goals-complete-' + viewport.width + '.png') });
+
+      captured.push({
+        viewport,
+        idle: idleMetrics,
+        painted: paintedMetrics,
+        reopened: reopenedMetrics,
+        completed: completionMetrics,
+      });
     });
   }
 });

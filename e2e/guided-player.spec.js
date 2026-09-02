@@ -3,27 +3,6 @@ import { test, expect } from '@playwright/test';
 const WIDTH = 1200;
 const HEIGHT = 1200;
 const TILE_SIZE = 32;
-const PALETTE = ['#101820', '#ffffff', '#ff6b6b'];
-
-function buildTiledPayload() {
-  const columns = Math.ceil(WIDTH / TILE_SIZE);
-  const rows = Math.ceil(HEIGHT / TILE_SIZE);
-  const tiles = [];
-  for (let tileY = 0; tileY < rows; tileY += 1) {
-    for (let tileX = 0; tileX < columns; tileX += 1) {
-      const width = tileX === columns - 1 ? WIDTH - tileX * TILE_SIZE : TILE_SIZE;
-      const height = tileY === rows - 1 ? HEIGHT - tileY * TILE_SIZE : TILE_SIZE;
-      const cells = [];
-      for (let y = 0; y < height; y += 1) {
-        for (let x = 0; x < width; x += 1) {
-          cells.push((tileX + tileY + x + y) % PALETTE.length);
-        }
-      }
-      tiles.push({ tile_x: tileX, tile_y: tileY, width, height, cells });
-    }
-  }
-  return tiles;
-}
 
 async function screenPoint(gridArea, camera, cellX, cellY) {
   const box = await gridArea.boundingBox();
@@ -51,21 +30,40 @@ test('1200x1200 guided player autofocuses, auto-advances, and supports free expl
   });
   await page.setViewportSize({ width: 390, height: 844 });
 
-  const createResponse = await page.request.post('/api/colorings/create', {
-    data: {
-      title: 'Guided 1200 e2e',
-      storageMode: 'tiled',
-      width: WIDTH,
-      height: HEIGHT,
-      tileSize: TILE_SIZE,
-      palette: PALETTE,
-      tiles: buildTiledPayload(),
-    },
-    timeout: 60000,
+  // Capture tile responses before navigation. A waitForResponse registered
+  // after READY can only miss an already-completed response and hide the
+  // readiness failure behind its timeout.
+  const tileResponseEvidence = new Map();
+  page.on('response', (response) => {
+    const match = response.url().match(/\/tiles\/(\d+)\/(\d+)(?:[/?]|$)/);
+    if (!match) return;
+    const key = `${match[1]}:${match[2]}`;
+    const entries = tileResponseEvidence.get(key) ?? [];
+    entries.push({
+      status: response.status(),
+      url: response.url(),
+      response,
+    });
+    tileResponseEvidence.set(key, entries);
   });
-  expect(createResponse.ok()).toBe(true);
-  const created = await createResponse.json();
-  expect(created.storage_mode).toBe('tiled');
+
+  // This scenario verifies the generic guided player contract. Use the
+  // deterministic control fixture so a random special-cell placement cannot
+  // interrupt the stroke before the auto-advance assertion.
+  const fixtureResponse = await page.request.post('/api/__e2e/seed-cohort-template', {
+    data: {
+      cohort: 'control',
+      storage: 'tiled',
+      size: { width: WIDTH, height: HEIGHT },
+    },
+    timeout: 120000,
+  });
+  expect(fixtureResponse.ok()).toBe(true);
+  const fixture = await fixtureResponse.json();
+  expect(fixture.cohort).toBe('control');
+  expect(fixture.storage).toBe('tiled');
+  expect(fixture.size).toEqual({ width: WIDTH, height: HEIGHT });
+  const created = { id: fixture.id };
 
   const guidanceResponsePromise = page.waitForResponse(
     (response) => response.url().includes('/guidance') && response.ok(),
@@ -110,12 +108,23 @@ test('1200x1200 guided player autofocuses, auto-advances, and supports free expl
   const globalRemaining = Number(await guide.getAttribute('data-guide-remaining'));
   expect(globalRemaining).toBeGreaterThan(0);
 
-  // The target tile must be resident before painting.
-  const [tileX, tileY] = targetTile.split(':').map(Number);
-  await page.waitForResponse(
-    (response) => response.url().includes(`/tiles/${tileX}/${tileY}`) && response.ok(),
-    { timeout: 15000 },
-  ).catch(() => {});
+  // The target response may have completed before READY was observable, so
+  // inspect the response evidence captured from navigation instead of
+  // waiting for a historical response event.
+  const targetTileResponses = await Promise.all(
+    (tileResponseEvidence.get(targetTile) ?? []).map(async ({ status, url, response }) => ({
+      status,
+      url,
+      body: await response.text().catch((error) => `[body unavailable: ${error.message}]`),
+    })),
+  );
+  expect(
+    targetTileResponses.some(({ status }) => status === 200),
+    `target tile ${targetTile} response evidence missing or not OK: ${JSON.stringify({
+      observedTileKeys: [...tileResponseEvidence.keys()],
+      responses: targetTileResponses,
+    })}`,
+  ).toBe(true);
 
   // Paint the whole actionable window in one stroke. A single move per row
   // lets the stroke rasterizer fill every cell in that row, which is robust

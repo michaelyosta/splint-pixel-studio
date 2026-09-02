@@ -11,8 +11,12 @@ const widths = [
 ];
 const evidenceDir = resolve('docs', 'evidence', 'special-cells-visual-audit-2026-08-12');
 
-async function seedTreatment(page, label) {
-  const userId = `e2e_visual_audit_${label}`;
+async function seedTreatment(page, label, isolationKey = 'base') {
+  // The seed hook is intentionally idempotent for a given user. Keep the
+  // invocation key in the prefix because the server truncates owner ids when
+  // deriving deterministic fixture ids. This prevents repeat-each/retry
+  // attempts from reusing a mutable Spark-progress row.
+  const userId = `e2e_va_${isolationKey}_${label}`;
   await page.context().setExtraHTTPHeaders({ 'X-User-Id': userId });
   const response = await page.request.post('/api/__e2e/seed-cohort-template', {
     data: { cohort: 'treatment', storage: 'tiled', size: { width: GRID, height: GRID } },
@@ -143,10 +147,14 @@ async function claimSpark(page, id, spark) {
   return response.json();
 }
 
-async function auditWidth(page, size, index, { reducedMotion = false } = {}) {
+async function auditWidth(page, size, index, { reducedMotion = false, isolationKey = 'base' } = {}) {
   await page.setViewportSize(size);
   if (reducedMotion) await page.emulateMedia({ reducedMotion: 'reduce' });
-  const id = await seedTreatment(page, `${size.width}_${index}_${reducedMotion ? 'reduced' : 'normal'}`);
+  const id = await seedTreatment(
+    page,
+    `${size.width}_${index}_${reducedMotion ? 'reduced' : 'normal'}`,
+    isolationKey,
+  );
   const initialGuidanceResponse = page.waitForResponse(
     (response) => response.url().includes(`/colorings/${id}/guidance`) && response.ok(),
     { timeout: 30000 },
@@ -248,7 +256,7 @@ async function auditWidth(page, size, index, { reducedMotion = false } = {}) {
   };
 }
 
-test('fresh treatment visual audit covers responsive Spark flow and next-beat continuation', async ({ page, browserName }) => {
+test('fresh treatment visual audit covers responsive Spark flow and next-beat continuation', async ({ page, browserName }, testInfo) => {
   test.skip(browserName === 'webkit', 'Canvas audit targets Chromium');
   test.setTimeout(360000);
   mkdirSync(evidenceDir, { recursive: true });
@@ -262,10 +270,14 @@ test('fresh treatment visual audit covers responsive Spark flow and next-beat co
     await route.fulfill({ contentType: 'application/javascript', body: 'window.Telegram = window.Telegram || { WebApp: { ready() {} } };' });
   });
   const results = [];
+  const isolationKey = `r${testInfo.repeatEachIndex}_t${testInfo.retry}`;
   for (let index = 0; index < widths.length; index += 1) {
-    results.push(await auditWidth(page, widths[index], index));
+    results.push(await auditWidth(page, widths[index], index, { isolationKey }));
   }
-  results.push(await auditWidth(page, { width: 390, height: 844 }, 3, { reducedMotion: true }));
+  results.push(await auditWidth(page, { width: 390, height: 844 }, 3, {
+    reducedMotion: true,
+    isolationKey,
+  }));
   const jsonPath = resolve(evidenceDir, 'audit.json');
   writeFileSync(jsonPath, JSON.stringify({
     capturedAt: new Date().toISOString(),

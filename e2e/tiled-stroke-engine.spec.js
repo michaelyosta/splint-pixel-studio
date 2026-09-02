@@ -38,15 +38,16 @@ async function createAndOpenBarsColoring(page) {
   // stroke recorder is compiled in.
   await page.goto('/?splintMetrics=1');
   await page.getByText('Создать').first().click();
-  await page.getByRole('button', { name: 'Из изображения' }).click();
+  await page.getByRole('button', { name: /Загрузить изображение/ }).click();
   await expect(page.locator('.creator-page')).toBeVisible({ timeout: 10000 });
   await page.locator('.file-field input[type="file"]').setInputFiles([fixture]);
+  await page.locator('.creator-advanced summary').click();
   // Select the named preset so the same React path as a user click updates
   // both the selected resolution and the authoritative preview fingerprint.
   await page.getByRole('button', { name: 'Сетка 1200 на 1200' }).click();
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 60000 });
   await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-status', 'ready', { timeout: 120000 });
-  const saveButton = page.locator('button', { hasText: 'Сохранить и начать' });
+  const saveButton = page.locator('button', { hasText: 'Сохранить работу' });
   await expect(saveButton).toBeEnabled({ timeout: 120000 });
   const [response] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/colorings/create')),
@@ -62,25 +63,28 @@ async function createAndOpenBarsColoring(page) {
 }
 
 async function waitForTiledReady(page) {
-  await page.waitForResponse(
-    (r) => r.url().includes('/api/colorings/') && r.url().includes('/tiles/') && r.ok(),
-    { timeout: 30000 },
-  ).catch(() => {});
-  await expect(page.locator('.progressive-grid-area canvas').first()).toBeVisible({ timeout: 15000 });
-  // On slow emulation the guidance target fetch can transiently fail
-  // (errorRetryable banner); retry like a user would, then require ready.
+  const canvas = page.locator('.progressive-grid-area canvas').first();
+  await expect(canvas).toBeVisible({ timeout: 15000 });
   const session = page.locator('.progressive-coloring-session');
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const state = await session.getAttribute('data-smart-state').catch(() => null);
-    if (state === 'ready') break;
-    if (state === 'errorRetryable') {
-      const retry = page.locator('.progressive-grid-error button:has-text("Повторить")');
-      if (await retry.isVisible().catch(() => false)) await retry.click();
-    }
-    await page.waitForTimeout(2000);
-  }
   await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 30000 });
-  await page.waitForTimeout(600);
+  await expect.poll(
+    () => page.evaluate(() => Boolean(window.__splintClient?.getSnapshot?.()?.manifest)),
+    { timeout: 30000, message: 'tiled client manifest must be loaded before the stroke setup' },
+  ).toBe(true);
+}
+
+async function waitForTileNetworkIdle(page) {
+  await expect.poll(
+    () => page.evaluate(() => {
+      const stats = window.__splintClient?.getNetworkStats?.();
+      const snapshot = window.__splintClient?.getSnapshot?.();
+      return {
+        activeTileRequests: Number(stats?.activeTileRequests || 0),
+        pendingTiles: snapshot?.pendingTiles?.length || 0,
+      };
+    }),
+    { timeout: 60000, message: 'tiled viewport work must settle before the stroke begins' },
+  ).toEqual({ activeTileRequests: 0, pendingTiles: 0 });
 }
 
 async function readCamera(page) {
@@ -122,6 +126,22 @@ async function readRow(page, id, y, xFrom, xTo) {
   return cells;
 }
 
+async function readSpecialCellsInRange(page, id, y, xFrom, xTo) {
+  const specials = [];
+  const minTx = Math.floor(xFrom / 32);
+  const maxTx = Math.floor(xTo / 32);
+  for (let tx = minTx; tx <= maxTx; tx += 1) {
+    const tile = await fetchTile(page, id, tx, Math.floor(y / 32));
+    for (const special of tile.specials || []) {
+      const cellIndex = Number(special.cell_index);
+      const x = cellIndex % GRID;
+      const specialY = Math.floor(cellIndex / GRID);
+      if (specialY === y && x >= xFrom && x <= xTo) specials.push(special);
+    }
+  }
+  return specials;
+}
+
 /** Longest same-color horizontal run in the row, length >= minLength. */
 function findLongestRun(row, minLength) {
   let best = null;
@@ -151,7 +171,7 @@ function findLongestRun(row, minLength) {
  * rows cy±6 for a run >= minRun in [cx-70, cx+70]. With crossBoundary,
  * returns a line across the tile boundary (k*32) nearest to cx instead.
  */
-async function findLineUnderCamera(page, id, cx, cy, color, { crossBoundary = false, minRun = 60 } = {}) {
+async function findLineUnderCamera(page, id, cx, cy, color, { crossBoundary = false, minRun = 60, avoidSpecials = false } = {}) {
   for (let yOff = 0; yOff <= 6; yOff += 1) {
     for (const y of [cy + yOff, cy - yOff]) {
       if (y < 8 || y > GRID - 8) continue;
@@ -162,6 +182,12 @@ async function findLineUnderCamera(page, id, cx, cy, color, { crossBoundary = fa
       if (!crossBoundary) {
         const lineStart = Math.min(Math.max(cx - 15, run.start), runEnd - 29);
         if (lineStart < run.start) continue;
+        if (avoidSpecials) {
+          const firstSpecials = await readSpecialCellsInRange(page, id, y, lineStart, lineStart + 29);
+          const secondXStart = Math.min(lineStart + 40, runEnd - 12);
+          const secondSpecials = await readSpecialCellsInRange(page, id, y + 4, secondXStart, secondXStart + 12);
+          if (firstSpecials.length || secondSpecials.length) continue;
+        }
         return { y, lineStart, lineEnd: lineStart + 29, runStart: run.start, runEnd };
       }
       const boundary = Math.max(run.start + 1, Math.min(runEnd - 1, Math.round(cx / 32) * 32));
@@ -252,8 +278,8 @@ async function canvasPixelAt(page, cellX, cellY) {
       zoom: Number(area.getAttribute('data-camera-zoom')),
     };
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const px = (gx * 32 * cam.zoom + cam.x) * dpr + 4;
-    const py = (gy * 32 * cam.zoom + cam.y) * dpr + 4;
+    const px = ((gx + 0.5) * 32 * cam.zoom + cam.x) * dpr;
+    const py = ((gy + 0.5) * 32 * cam.zoom + cam.y) * dpr;
     const data = canvas.getContext('2d').getImageData(px, py, 1, 1).data;
     return [data[0], data[1], data[2]];
   }, { gx: cellX, gy: cellY });
@@ -320,11 +346,10 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
     const activeColor = await selectedPaletteColor(page);
     const expectedRgb = await swatchRgb(page, activeColor);
     expect(expectedRgb).toBeTruthy();
-    const line = await findLineUnderCamera(page, id, center.x, center.y, activeColor);
+    const line = await findLineUnderCamera(page, id, center.x, center.y, activeColor, { avoidSpecials: true });
     expect(line, 'a 60+ cell run of the active color under the camera is required').toBeTruthy();
 
     const cam = await zoomOutTo(page, 0.25);
-    await page.waitForTimeout(600); // viewport tiles settle
 
     const start = cellToScreen(line.lineStart, line.y, cam, viewportBox);
     const end = cellToScreen(line.lineEnd, line.y, cam, viewportBox);
@@ -351,6 +376,7 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
         message: `tile ${tx}:${ty} must be resident before the first stroke`,
       }).toBe(true);
     }
+    await waitForTileNetworkIdle(page);
 
     const progressPost = page.waitForResponse(
       (r) => r.url().includes('/progress/actions') && r.request().method() === 'POST',
@@ -420,6 +446,10 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
       { x: secondEnd.x, y: secondEnd.y },
     ], { stepDelayMs: 30 });
     await endTouchStroke(page, touchSession);
+    await expect.poll(async () => (await readStrokeMetrics(page)).strokes.length, {
+      timeout: 10000,
+      message: 'the client stroke oracle must record the second completed touch stroke',
+    }).toBe(2);
     const metricsAfter = await readStrokeMetrics(page);
     expect(metricsAfter.strokes.length).toBe(2);
 
@@ -460,7 +490,6 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
     expect(line.boundary).toBeLessThan(line.lineEnd);
 
     const cam = await zoomOutTo(page, 0.2);
-    await page.waitForTimeout(600);
 
     const start = cellToScreen(line.lineStart, line.y, cam, viewportBox);
     const end = cellToScreen(line.lineEnd, line.y, cam, viewportBox);
@@ -473,12 +502,14 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
 
     const ty = Math.floor(paintStart.y / 32);
     for (let tx = Math.floor(line.lineStart / 32); tx <= Math.floor(line.lineEnd / 32); tx += 1) {
-      await page.waitForResponse(
-        (r) => r.url().includes(`/tiles/${tx}/${ty}`) && r.ok(),
-        { timeout: 10000 },
-      ).catch(() => {});
+      await expect.poll(() => page.evaluate(({ x, y }) => (
+        window.__splintClient?.getCell(x, y)?.loaded === true
+      ), { x: tx * CELL, y: paintStart.y }), {
+        timeout: 10000,
+        message: `tile ${tx}:${ty} must be resident before the boundary stroke`,
+      }).toBe(true);
     }
-    await page.waitForTimeout(500);
+    await waitForTileNetworkIdle(page);
 
     const progressPost = page.waitForResponse(
       (r) => r.url().includes('/progress/actions') && r.request().method() === 'POST',

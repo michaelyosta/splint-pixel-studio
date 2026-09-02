@@ -28,7 +28,7 @@ async function dismissOnboarding(page) {
 
 async function openFirstCatalogPlayer(page) {
   await page.goto('/');
-  const card = page.locator('.home-featured-card, .home-continue-card, .home-art-card').first();
+  const card = page.locator('.catalog-art-open').first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();
   await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
@@ -132,16 +132,17 @@ async function collectClassicMetrics(page) {
 async function createAndOpenTiledColoring(page) {
   await page.goto('/');
   await page.getByText('Создать').first().click();
-  await page.getByRole('button', { name: 'Из изображения' }).click();
+  await page.getByRole('button', { name: /Загрузить изображение/ }).click();
   await expect(page.locator('.creator-page')).toBeVisible({ timeout: 10000 });
   await page.locator('.file-field input[type="file"]').setInputFiles([resolve(process.cwd(), 'e2e', 'fixtures', 'test-image.png')]);
+  await page.locator('.creator-advanced summary').click();
   // Resolution is a discrete preset index (0=192 ... 3=1200), not the
   // obsolete raw detail value used by the original fixture.
   await page.locator('.grid-detail-range').fill('3');
   await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 45000 });
   await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-resolution', '1200');
   await expect(page.locator('.creator-preview-option.selected')).toHaveAttribute('data-status', 'ready', { timeout: 120000 });
-  const saveButton = page.locator('button', { hasText: 'Сохранить и начать' });
+  const saveButton = page.locator('button', { hasText: 'Сохранить работу' });
   await expect(saveButton).toBeVisible({ timeout: 15000 });
   await expect(saveButton).toBeEnabled({ timeout: 120000 });
   await Promise.all([

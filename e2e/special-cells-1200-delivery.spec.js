@@ -58,19 +58,12 @@ async function createCohort1200(page, cohort) {
 async function waitForTiledReady(page) {
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const state = await session.getAttribute('data-smart-state').catch(() => null);
-    if (state === 'ready') break;
-    if (state === 'errorRetryable') {
-      const retry = page.locator('.progressive-grid-error button').last();
-      if (await retry.isVisible().catch(() => false)) await retry.click();
-    }
-    await page.waitForTimeout(1500);
-  }
+  // A retryable state is evidence that the tiled guidance path failed. Do not
+  // click the UI retry automatically: release-gate tests must expose the
+  // first failure and keep Playwright retries disabled.
   await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 30000 });
   await expect(session).toHaveAttribute('data-lod-mode', 'work', { timeout: 15000 });
   await expect(page.locator('.progressive-grid-guide')).toBeVisible();
-  await page.waitForTimeout(500);
 }
 
 async function readCamera(page) {

@@ -1,14 +1,5 @@
 import { test, expect } from '@playwright/test';
 
-const RECOMMENDATION_CODES = new Set([
-  'CONTINUE_PROGRESS',
-  'THEME_AFFINITY',
-  'COLLECTION_AFFINITY',
-  'DIFFICULTY_MATCH',
-  'DAILY_FEATURED',
-  'COLD_START',
-]);
-
 async function primeLocalStorage(page) {
   await page.addInitScript(() => {
     try {
@@ -24,9 +15,9 @@ async function useUser(page, testInfo) {
   await primeLocalStorage(page);
 }
 
-async function openHome(page) {
+async function openCatalog(page) {
   await page.goto('/');
-  await expect(page.locator('.home-page')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
 }
 
 async function openDirectId(page, coloringId) {
@@ -116,34 +107,18 @@ test.describe('Unlocks and recommendations', () => {
     await useUser(page, testInfo);
   });
 
-  test('cold-start recommendations render stable reason text in bounded cards', async ({ page }) => {
+  test('cold-start catalog stays artwork-first while recommendation data remains bounded and dormant', async ({ page }) => {
     const unlockResponse = page.waitForResponse(
       (response) => response.url().includes('/api/unlocks/me'),
     );
     const recommendationsResponse = page.waitForResponse(
       (response) => response.url().includes('/api/colorings/recommendations'),
     );
-    await openHome(page);
+    await openCatalog(page);
     expect((await unlockResponse).status()).toBe(200);
     expect((await recommendationsResponse).status()).toBe(200);
-    const strip = page.locator('[data-recommendations="true"]');
-    await expect(strip).toBeVisible();
-    await expect(page.locator('[data-recommendations-status="loading"]')).toHaveCount(0, { timeout: 15000 });
-
-    const scroll = strip.locator('[data-recommendations-count]');
-    await expect(scroll).toBeVisible({ timeout: 10000 });
-    const count = Number(await scroll.getAttribute('data-recommendations-count')) || 0;
-    expect(count).toBeGreaterThanOrEqual(1);
-    expect(count).toBeLessThanOrEqual(8);
-
-    const cards = strip.locator('[data-recommendation-id]');
-    await expect(cards).toHaveCount(count);
-    await expect(strip.locator('[data-content-metadata="authoritative"]')).toHaveCount(count);
-    for (let index = 0; index < count; index += 1) {
-      const reason = await cards.nth(index).getAttribute('data-reason-code');
-      expect(RECOMMENDATION_CODES.has(reason)).toBe(true);
-      await expect(cards.nth(index)).toContainText(/Продолжите начатую раскраску|Похоже на ваши любимые темы|Из коллекции, которую вы раскрашиваете|Подходит по сложности|Выбор дня|Новое для вас/);
-    }
+    await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-recommendations="true"], [data-unlock-journey="true"]')).toHaveCount(0);
     const bounded = await page.evaluate(() => ({
       perCellDom: document.querySelectorAll('[data-cell-index], .coloring-cell').length,
       overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
@@ -151,20 +126,17 @@ test.describe('Unlocks and recommendations', () => {
     expect(bounded.perCellDom).toBe(0);
     expect(bounded.overflow).toBe(false);
 
-    const journey = page.locator('[data-unlock-journey="true"]');
-    await expect(journey).toBeVisible();
-    await expect(page.locator('[data-journey-status="loading"]')).toHaveCount(0, { timeout: 15000 });
   });
 
-  test('progression-locked direct ID opens an actionable locked screen, not a generic error', async ({ page }) => {
+  test('legacy progression-locked direct ID stays fail-closed without progression UX', async ({ page }) => {
     await openDirectId(page, 'color_starter_night');
     const locked = page.locator('[data-unlock-locked="true"]');
     await expect(locked).toBeVisible({ timeout: 10000 });
     await expect(locked).toHaveAttribute('data-locked-state', 'progression_locked');
     await expect(locked).toHaveAttribute('data-locked-reason', 'PROGRESSION_REQUIRED');
-    await expect(locked.locator('[data-requirement-type="level"]')).toBeVisible();
-    await expect(locked.locator('[data-requirement-type="completed_artworks"]')).toBeVisible();
-    await expect(locked).toContainText('К следующей цели');
+    await expect(locked.locator('[data-requirement-type], [role="progressbar"]')).toHaveCount(0);
+    await expect(locked).not.toContainText(/XP|уровень|серия|достижение|следующая цель/i);
+    await expect(locked).toContainText('Выбрать доступную картину');
     await expect(locked).toContainText('В каталог');
     await expect(page.locator('.player-page')).toHaveCount(0);
     await expect(page.locator('.toast')).toHaveCount(0);
@@ -174,20 +146,20 @@ test.describe('Unlocks and recommendations', () => {
   });
 
   test('normal collection navigation hides premium entries from collection surfaces', async ({ page }) => {
-    await openHome(page);
+    await openCatalog(page);
     const rawCollectionsResponse = await page.request.get('/api/meta/collections');
     expect(rawCollectionsResponse.ok()).toBe(true);
     const rawCollections = await rawCollectionsResponse.json();
     expect(rawCollections.some((collection) => collection.pack_type === 'premium')).toBe(true);
     const freeCollections = rawCollections.filter((collection) => collection.pack_type !== 'premium');
 
-    await page.locator('.home-explore-row').getByRole('button', { name: 'Коллекции', exact: true }).click();
-    await expect(page.locator('.collection-list')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.collection-card')).toHaveCount(freeCollections.length);
-    await expect(page.locator('.collection-list')).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
+    await page.locator('.catalog-chips').getByRole('tab', { name: 'Коллекции', exact: true }).click();
+    await expect(page.locator('.catalog-collection-grid')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.catalog-collection-card')).toHaveCount(freeCollections.length);
+    await expect(page.locator('.catalog-collection-grid')).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
 
     await page.getByRole('button', { name: 'Профиль', exact: true }).first().click();
-    await expect(page.locator('.profile-page--redesigned')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.profile-page--showcase')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('.profile-collection-list')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('.profile-collection-list')).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
 
@@ -204,11 +176,11 @@ test.describe('Unlocks and recommendations', () => {
     await expect(locked).toBeVisible({ timeout: 10000 });
     await expect(locked).toHaveAttribute('data-locked-state', 'premium_locked');
     await expect(locked).toHaveAttribute('data-locked-reason', 'PREMIUM_REQUIRED');
-    await expect(locked.locator('[data-requirement-type="premium"]')).toHaveCount(0);
+    await expect(locked.locator('[data-requirement-type="premium"]')).toHaveCount(1);
     await expect(locked).toHaveAttribute('data-locked-requirement-count', '1');
     await expect(locked.locator('[role="progressbar"]')).toHaveCount(0);
     await expect(locked).not.toContainText(/\d+%/);
-    await expect(locked).toContainText('Контент сейчас недоступен');
+    await expect(locked).toContainText('Эта работа пока недоступна');
     // The unavailable state may explain that purchase is not connected yet;
     // it must not present a production payment CTA or claim ownership.
     await expect(locked).not.toContainText(/Premium|Премиум|Stars|витрин/i);
@@ -222,10 +194,9 @@ test.describe('Unlocks and recommendations', () => {
   });
 
   test('catalog showcase stays fail-closed without a mounted payment adapter', async ({ page }) => {
-    await openHome(page);
-    await page.locator('.home-explore-row').getByRole('button', { name: 'Каталог', exact: true }).click();
+    await openCatalog(page);
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
-    await page.locator('.catalog-chips').getByRole('tab', { name: 'Витрина', exact: true }).click();
+    await page.locator('[data-premium-pack-teaser="true"]').click();
     const showcase = page.locator('[data-premium-pack="true"]');
     await expect(showcase).toBeVisible({ timeout: 10000 });
     await expect(showcase).toHaveAttribute('data-premium-state', 'unavailable', { timeout: 15000 });
@@ -271,7 +242,7 @@ test.describe('Unlocks and recommendations', () => {
       if (/\/api\/colorings\/[^/]+\/(tiles\/|manifest)/.test(request.url())) tilesOrManifestRequests += 1;
     });
 
-    await openHome(page);
+    await openCatalog(page);
     const recommendations = await (await recommendationsResponse).json();
     const unlock = await (await unlockResponse).json();
 
@@ -284,12 +255,7 @@ test.describe('Unlocks and recommendations', () => {
     const subjects = [...(unlock.collections || []), ...(unlock.templates || [])];
     expect(subjects.every((item) => !('cells' in item) && !('filled' in item))).toBe(true);
 
-    const strip = page.locator('[data-recommendations="true"]');
-    await expect(page.locator('[data-recommendations-status="loading"]')).toHaveCount(0, { timeout: 15000 });
-    const scroll = strip.locator('[data-recommendations-count]');
-    await expect(scroll).toBeVisible({ timeout: 10000 });
-    const count = Number(await scroll.getAttribute('data-recommendations-count')) || 0;
-    expect(count).toBeLessThanOrEqual(8);
+    await expect(page.locator('[data-recommendations="true"]')).toHaveCount(0);
     const bounded = await page.evaluate(() => ({
       perCellDom: document.querySelectorAll('[data-cell-index], .coloring-cell').length,
       overflow: document.documentElement.scrollWidth > window.innerWidth + 1,

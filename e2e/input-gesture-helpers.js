@@ -76,14 +76,13 @@ export async function waitForTiledReady(page, id) {
     (response) => response.url().includes(`/colorings/${id}/tiles/`) && response.ok(),
     { timeout: 30000 },
   ).catch(() => {});
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const state = await session.getAttribute('data-smart-state').catch(() => null);
-    if (state === 'ready') break;
-    if (state === 'errorRetryable') {
-      const retry = page.locator('.progressive-grid-error button:has-text("Повторить")');
-      if (await retry.isVisible().catch(() => false)) await retry.click();
-    }
-    await page.waitForTimeout(1500);
+  const stateHandle = await page.waitForFunction(() => {
+    const state = document.querySelector('.progressive-coloring-session')?.getAttribute('data-smart-state');
+    return state === 'ready' || state === 'errorRetryable' ? state : null;
+  }, { timeout: 30000 });
+  const state = await stateHandle.jsonValue();
+  if (state === 'errorRetryable') {
+    throw new Error('Tiled player entered errorRetryable before READY. Generic readiness helper does not perform recovery. Recovery must be tested explicitly by the calling test.');
   }
   await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 30000 });
   await page.waitForTimeout(400);
@@ -213,6 +212,7 @@ export async function waitForProgressAction(page) {
 }
 
 export async function focusLegacyCell(page, index) {
+  await waitForColoringSessionReady(page, { 'data-route-status': 'ready' }, 'legacy keyboard input');
   const canvas = page.locator('.coloring-canvas');
   await expect(canvas).toBeVisible();
   await expect(page.locator('.coloring-canvas-viewport')).toHaveAttribute('data-interaction-disabled', 'false');

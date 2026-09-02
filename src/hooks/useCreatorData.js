@@ -349,7 +349,7 @@ export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNaviga
     creatorFileRef.current = selected;
     setFile(selected);
     setTitle('Моя пиксельная раскраска');
-    if (selected) prepareFromImage(selected);
+    if (selected) prepareFromImage(selected).then(() => computeRef.current?.());
   }
 
   async function saveDraftColoring() {

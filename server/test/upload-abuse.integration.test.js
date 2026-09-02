@@ -49,6 +49,25 @@ async function waitForServer(child) {
   });
 }
 
+async function stopServer(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+
+  await new Promise((resolve, reject) => {
+    const onError = (error) => {
+      child.removeListener('close', onClose);
+      reject(error);
+    };
+    const onClose = () => {
+      child.removeListener('error', onError);
+      resolve();
+    };
+
+    child.once('error', onError);
+    child.once('close', onClose);
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+  });
+}
+
 test('create budget and content-addressed originals bound upload amplification', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'splint-upload-abuse-'));
   const child = spawn('node', ['index.js'], {
@@ -69,7 +88,7 @@ test('create budget and content-addressed originals bound upload amplification',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   t.after(async () => {
-    if (child.exitCode === null) child.kill('SIGTERM');
+    await stopServer(child);
     await rm(directory, { recursive: true, force: true });
   });
   await waitForServer(child);

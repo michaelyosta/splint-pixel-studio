@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { test, expect } from '@playwright/test';
 
@@ -11,6 +11,7 @@ const LEGACY_GRID = 96;
 const TILED_GRID = 160;
 const TILE = 32;
 const GLYPH_GRID_SIZE = 12;
+const ALPHA_GLYPH_FIXTURE = 'alpha-glyph-kinds';
 const evidenceDir = resolve('docs/evidence/special-glyph-parity');
 
 function legacyFixtureOwnerId(testInfo) {
@@ -26,13 +27,14 @@ function legacyFixtureOwnerId(testInfo) {
 async function createLegacy(page, {
   cohort = 'treatment',
   allKinds = true,
-  ownerId = 'user_special_glyph_legacy',
+  ownerId = `g${randomUUID().replaceAll('-', '').slice(0, 20)}`,
 } = {}) {
   await page.context().setExtraHTTPHeaders({ 'X-User-Id': ownerId });
   const fixtureResponse = await page.request.post('/api/__e2e/seed-cohort-template', {
     data: {
       cohort,
       storage: 'legacy',
+      fixture: allKinds ? ALPHA_GLYPH_FIXTURE : undefined,
       size: { width: LEGACY_GRID, height: LEGACY_GRID },
     },
   });
@@ -50,11 +52,15 @@ async function createLegacy(page, {
     expect(KINDS.filter((kind) => progress.specials.some((special) => special.kind === kind)))
       .toHaveLength(KINDS.length);
   }
-  return { created: { id: fixture.id }, progress };
+  return { created: { id: fixture.id }, progress, ownerId };
 }
 
-async function createTiled(page, { cohort = 'treatment', allKinds = true } = {}) {
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_tiled' });
+async function createTiled(page, {
+  cohort = 'treatment',
+  allKinds = true,
+  ownerId = `g${randomUUID().replaceAll('-', '').slice(0, 20)}`,
+} = {}) {
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': ownerId });
   const fixtureResponse = await page.request.post('/api/__e2e/seed-cohort-template', {
     data: {
       cohort,
@@ -76,7 +82,7 @@ async function createTiled(page, { cohort = 'treatment', allKinds = true } = {})
     expect(KINDS.filter((kind) => specials.some((special) => special.kind === kind)))
       .toHaveLength(KINDS.length);
   }
-  return { created: { id: fixture.id }, progress, specials };
+  return { created: { id: fixture.id }, progress, specials, ownerId };
 }
 
 async function findTiledSpecials(page, id) {
@@ -125,31 +131,13 @@ async function openColoring(page, id, { width = 390, height = 844, splintMetrics
 async function waitTiledWork(page) {
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toBeVisible({ timeout: 30000 });
-  let lod = null;
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const state = await session.getAttribute('data-smart-state').catch(() => null);
-    lod = await session.getAttribute('data-lod-mode').catch(() => null);
-    if (state === 'ready' || state === 'freeExploration') break;
-    if (state === 'errorRetryable') {
-      const retry = page.locator('.progressive-grid-error button').first();
-      if (await retry.isVisible().catch(() => false)) await retry.click();
-    }
-    await page.waitForTimeout(1000);
-  }
   await expect(page.locator('.progressive-grid-area > canvas')).toBeVisible({ timeout: 30000 });
+  await expect(session).toHaveAttribute('data-smart-state', /^(ready|freeExploration)$/, { timeout: 30000 });
   await expect.poll(
     () => page.evaluate(() => Boolean(window.__splintClient?.getSnapshot?.()?.manifest)),
     { timeout: 30000 },
   ).toBe(true);
-  if (lod !== 'work') {
-    const canvas = page.locator('.progressive-grid-area > canvas');
-    await canvas.focus();
-    for (let step = 0; step < 20; step += 1) {
-      await canvas.press('+');
-      const current = await session.getAttribute('data-lod-mode');
-      if (current === 'work') break;
-    }
-  }
+  await expect(session).toHaveAttribute('data-lod-mode', 'work', { timeout: 30000 });
 }
 
 async function readCamera(page, surface) {
@@ -258,9 +246,11 @@ async function waitForTile(page, cellIndex, gridWidth, expectedKind = null) {
   const y = Math.floor(cellIndex / gridWidth);
   const key = `${Math.floor(x / TILE)}:${Math.floor(y / TILE)}`;
   await page.evaluate(async ({ tileX, tileY }) => {
-    await window.__splintClient?.loadManifest?.();
-    await window.__splintClient?.fetchTile?.(tileX, tileY, { force: true });
-  }, { tileX: Math.floor(x / TILE), tileY: Math.floor(y / TILE) }).catch(() => {});
+    const client = window.__splintClient;
+    if (!client) throw new Error('tiled client is required before waiting for a special tile');
+    await client.loadManifest();
+    await client.fetchTile(tileX, tileY, { force: true });
+  }, { tileX: Math.floor(x / TILE), tileY: Math.floor(y / TILE) });
   await page.waitForFunction(({ tileKey, targetIndex, kind }) => {
     const tile = window.__splintClient?.cache?.peek?.(tileKey);
     if (!tile) return false;
@@ -719,14 +709,39 @@ test('tiled reveal claims exactly once and survives reload without duplicate', a
   const canvas = page.locator('.progressive-grid-area > canvas');
   await canvas.press('Enter');
   await expect.poll(() => capture.requests.length, { timeout: 15000 }).toBe(1);
-  await expect.poll(
-    () => useCapture.requests.length || page.locator('.progressive-grid-special-offer').count(),
-    { timeout: 15000 },
-  ).toBeGreaterThan(0);
-  if (useCapture.requests.length) {
-    expect(useCapture.requests.at(-1).status()).toBe(200);
+  expect(capture.requests).toHaveLength(1);
+  const claimResponse = capture.requests[0];
+  expect(claimResponse.status()).toBe(200);
+  const claimed = await claimResponse.json();
+  expect(claimed.special_offer).toMatchObject({
+    kind: 'spark',
+    special_id: String(spark.id),
+    offer_token: expect.any(String),
+  });
+  expect(claimed.special_offer.auto_apply).toEqual(expect.any(Boolean));
+
+  if (claimed.special_offer.auto_apply === true) {
+    await expect.poll(() => useCapture.requests.length, { timeout: 15000 }).toBe(1);
+    expect(useCapture.requests).toHaveLength(1);
+    const useResponse = useCapture.requests[0];
+    expect(useResponse.status()).toBe(200);
+    const used = await useResponse.json();
+    expect(used.special_applied_changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ index: expect.any(Number), color: expect.any(Number) }),
+    ]));
+
+    const persistedAfterUse = await readProgress(page, created.id);
+    expect(persistedAfterUse.special_offer).toBeNull();
+    expect(persistedAfterUse.revision).toBe(used.revision);
+    expect(persistedAfterUse.completed_cells).toBe(used.completed_cells);
+    expect(persistedAfterUse.special_diagnostics.counts_by_status.consumed).toBe(1);
     await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
   } else {
+    await expect.poll(async () => {
+      const persisted = await readProgress(page, created.id);
+      return persisted.special_offer?.offer_token === claimed.special_offer.offer_token;
+    }, { timeout: 15000 }).toBe(true);
+    expect(useCapture.requests).toHaveLength(0);
     await expect(page.locator('.progressive-grid-special-offer')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(1);
   }
@@ -816,11 +831,9 @@ test('legacy reveal claims exactly once and survives reload without duplicate', 
 test('control reveal renders no markers and emits no special event', async ({ page }) => {
   test.setTimeout(120000);
   const legacy = await createLegacy(page, { cohort: 'control', allKinds: false });
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_legacy' });
   const tiled = await createTiled(page, { cohort: 'control', allKinds: false });
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_tiled' });
   const legacyCapture = await claimRequests(page, legacy.created.id, 'claim_spark');
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_legacy' });
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': legacy.ownerId });
   await openColoring(page, legacy.created.id, { width: 390 });
   await expect(page.locator('.coloring-session')).toHaveAttribute('data-special-cohort', 'control', { timeout: 30000 });
   await openRevealMode(page);
@@ -836,7 +849,7 @@ test('control reveal renders no markers and emits no special event', async ({ pa
   page.off('response', legacyCapture.handler);
 
   const tiledCapture = await claimRequests(page, tiled.created.id, 'claim_spark');
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_tiled' });
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': tiled.ownerId });
   await openColoring(page, tiled.created.id, { width: 390 });
   await waitTiledWork(page);
   await openRevealMode(page);
@@ -863,7 +876,7 @@ test('menu-open overlap QA screenshots stay separate from final evidence', async
   await page.locator('.bottom-sheet-close').click();
 
   const tiled = await createTiled(page, { allKinds: false });
-  await page.context().setExtraHTTPHeaders({ 'X-User-Id': 'user_special_glyph_tiled' });
+  await page.context().setExtraHTTPHeaders({ 'X-User-Id': tiled.ownerId });
   await openColoring(page, tiled.created.id, { width: 390 });
   await waitTiledWork(page);
   await page.locator('.player-menu-btn').click();

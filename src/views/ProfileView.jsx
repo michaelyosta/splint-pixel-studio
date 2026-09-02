@@ -1,101 +1,102 @@
-import { BookOpen, Grid3X3, Star } from 'lucide-react';
-import UnlockJourneyCard from '../features/unlocks/UnlockJourneyCard';
+import { BookOpen, Eye, EyeOff, Grid3X3, Heart, Trash2 } from 'lucide-react';
+
+const artworkImage = (work) => work?.preview_url || work?.thumbnail_url || work?.image_url || '';
+const isRare = (work) => ['rare', 'epic', 'limited', 'legendary'].includes(String(work?.rarity || '').toLowerCase());
+
+function ArtworkCard({ work, onOpen, featured = false, children = null }) {
+  const source = artworkImage(work);
+  const openId = work?.template_id || work?.id;
+  return <article className={`profile-showcase-card${featured ? ' is-featured' : ''}`}>
+    <button type="button" className="profile-showcase-open" onClick={() => onOpen?.(openId)} aria-label={`Открыть ${work.title}`}>
+      {source ? <img loading="lazy" src={source} alt="" /> : <span className="profile-work-fallback"><Grid3X3 size={24} /></span>}
+      <span className="profile-showcase-caption"><b>{work.title}</b>{isRare(work) && <small>{work.rarity}</small>}</span>
+    </button>
+    {children}
+  </article>;
+}
 
 export default function ProfileView({
   profile,
   currentUser,
-  profileArtworks,
-  mine,
-  profileShelf,
-  onChangeShelf,
-  favoriteTemplates,
-  recentTemplates,
-  collections,
-  achievements,
-  progression,
-  streak,
-  unlockData,
+  profileArtworks = [],
+  mine = [],
+  favoriteTemplates = [],
+  collections = [],
   onOpen,
   onNavigate,
   onToggleFollow,
   onOpenCollection,
-  onSetView,
-  onOpenUnlockSubject,
+  publishingTemplateId,
+  onToggleVisibility,
+  onDelete,
 }) {
-  const renderProfileLegacy = () => {
-    if (!profile) return <section className="page profile-page"><div className="skeleton-block skeleton-profile" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></section>;
-    const isOwnProfile = profile.id === currentUser?.id;
-    return <section className="page profile-page"><div className="page-heading"><div><p className="eyebrow">ПРОФИЛЬ</p><h1>{profile.nickname}</h1></div>{!isOwnProfile && <button className="follow-button" onClick={onToggleFollow}>{profile.is_following ? 'Вы подписаны' : 'Подписаться'}</button>}</div><div className="profile-card"><img loading="lazy" src={profile.avatar_url || '/favicon.svg'} alt="" /><div><b>{profile.nickname}</b><p>{profile.status || 'Любит раскрашивать пиксели по номерам.'}</p></div><div className="profile-stats"><span><b>{profile.posts_count}</b>публикаций</span><span><b>{profile.followers_count}</b>подписчиков</span><span><b>{profile.following_count}</b>подписок</span></div></div><h2 className="section-title">Готовые работы</h2><div className="profile-artworks">{profileArtworks.map((artwork) => <img loading="lazy" key={artwork.id} src={artwork.image_url} alt={artwork.title} title={artwork.title} />)}{!profileArtworks.length && <p className="empty-state">Готовых работ пока нет.{isOwnProfile && <button className="secondary-button" onClick={() => onSetView('catalog')}>Начать раскрашивать</button>}</p>}</div>
-      <h2 className="section-title">Серия и достижения</h2>
-      <div className="profile-stats"><span><b>{streak?.current_streak || 0}</b>дней подряд</span><span><b>{streak?.longest_streak || 0}</b>рекорд</span><span><b>{achievements.filter((a) => a.unlocked).length}</b>наград</span></div>
-    </section>;
-  };
-
-  if (import.meta.env.VITE_USE_LEGACY_PROFILE === 'true') return renderProfileLegacy();
   if (!profile) return <section className="page profile-page"><div className="skeleton-block skeleton-profile" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></section>;
+
   const isOwnProfile = profile.id === currentUser?.id;
-  const completedWorks = isOwnProfile ? mine.filter((item) => item.progress?.percent === 100) : profileArtworks;
-  const achievementsUnlocked = achievements.filter((achievement) => achievement.unlocked);
-  const visibleCollections = collections.filter((collection) => collection.pack_type !== 'premium').slice(0, 4);
-  const displayShelf = isOwnProfile ? profileShelf : 'works';
-  const shelfItems = displayShelf === 'favorites' ? favoriteTemplates
-    : displayShelf === 'history' ? recentTemplates
-    : completedWorks;
-  const shelfTitle = displayShelf === 'favorites' ? 'Избранные раскраски'
-    : displayShelf === 'history' ? 'Недавно открытые'
-    : 'Завершённые работы';
-  const shelfEmpty = displayShelf === 'favorites' ? 'Добавляйте картины сердцем в каталоге.'
-    : displayShelf === 'history' ? 'Здесь появятся недавно открытые раскраски.'
-    : 'Здесь появятся завершённые картины.';
-  const xpProgress = progression?.xp_per_level
-    ? Math.round(((progression.xp_total % progression.xp_per_level) / progression.xp_per_level) * 100)
-    : 0;
-  return <section className="page profile-page profile-page--redesigned">
-    <section className="profile-hero">
+  const completedWorks = isOwnProfile ? mine.filter((item) => Number(item.progress?.percent) === 100) : profileArtworks;
+  const createdWorks = isOwnProfile
+    ? mine.filter((item) => item.owner_id === currentUser?.id || item.is_owner || item.created_by_me)
+    : profileArtworks.filter((item) => item.owner_id === profile.id || item.created_by_me);
+  const favorites = isOwnProfile ? favoriteTemplates : [];
+  const showcase = [...favorites, ...completedWorks]
+    .filter((item, index, all) => item?.id && all.findIndex((candidate) => candidate.id === item.id) === index)
+    .slice(0, 5);
+  const rareWorks = [...completedWorks, ...createdWorks]
+    .filter((item, index, all) => isRare(item) && all.findIndex((candidate) => candidate.id === item.id) === index);
+  const publicCollections = [...new Map(profileArtworks
+    .filter((artwork) => artwork.collection_id)
+    .map((artwork) => [artwork.collection_id, {
+      id: artwork.collection_id,
+      title: artwork.collection_title || 'Коллекция',
+      image_url: artworkImage(artwork),
+      completed_count: profileArtworks.filter((candidate) => candidate.collection_id === artwork.collection_id).length,
+      total_count: profileArtworks.filter((candidate) => candidate.collection_id === artwork.collection_id).length,
+    }])).values()];
+  const visibleCollections = (isOwnProfile ? collections.filter((collection) => collection.pack_type !== 'premium') : publicCollections).slice(0, 6);
+
+  return <section className="page profile-page profile-page--showcase" data-profile-showcase="true">
+    <section className="profile-hero profile-hero--collection">
       <img className="profile-hero-avatar" src={profile.avatar_url || '/favicon.svg'} alt="" />
-      <div className="profile-hero-copy"><p className="eyebrow">{isOwnProfile ? 'ВАША СТУДИЯ' : 'ПРОФИЛЬ АВТОРА'}</p><h1>{profile.nickname}</h1><p>{profile.status || 'Любит раскрашивать пиксели по номерам.'}</p></div>
+      <div className="profile-hero-copy"><p className="eyebrow">{isOwnProfile ? 'МОЯ КОЛЛЕКЦИЯ' : 'КОЛЛЕКЦИЯ АВТОРА'}</p><h1>{profile.nickname}</h1><p>{profile.status || 'Собираю и создаю пиксельные картины.'}</p></div>
       {!isOwnProfile && <button className="follow-button" type="button" onClick={onToggleFollow}>{profile.is_following ? 'Вы подписаны' : 'Подписаться'}</button>}
     </section>
 
-    <div className="profile-metric-grid" aria-label="Статистика профиля">
-      <span><b>{completedWorks.length}</b><small>работы</small></span>
-      <span><b>{progression?.level || profile.level || 1}</b><small>уровень</small></span>
-      <span><b>{profile.followers_count || 0}</b><small>подписчики</small></span>
-      <span><b>{streak?.current_streak || 0}</b><small>дней подряд</small></span>
+    <div className="profile-content-metrics" aria-label="Коллекция профиля">
+      <span><b>{completedWorks.length}</b><small>картин</small></span>
+      <span><b>{visibleCollections.length}</b><small>коллекций</small></span>
+      <span><b>{rareWorks.length}</b><small>редких</small></span>
     </div>
 
-    {isOwnProfile && progression && <div className="profile-xp"><span><b>{progression.xp_total} XP</b><small>До следующего уровня: {progression.xp_to_next_level} XP</small></span><i><i style={{ width: `${xpProgress}%` }} /></i></div>}
+    {showcase.length > 0 && <section className="profile-section profile-featured-section">
+      <div className="section-heading"><div><p className="eyebrow">ВИТРИНА</p><h2>Избранные работы</h2></div></div>
+      <div className="profile-featured-grid">{showcase.map((work, index) => <ArtworkCard key={work.id} work={work} featured={index === 0} onOpen={onOpen} />)}</div>
+    </section>}
 
-    {isOwnProfile && <UnlockJourneyCard
-      journey={unlockData.journey}
-      status={unlockData.snapshotStatus}
-      error={unlockData.snapshotError}
-      onRetry={() => unlockData.refresh()}
-      onOpen={onOpenUnlockSubject}
-      compact
-    />}
+    {visibleCollections.length > 0 && <section className="profile-section">
+      <div className="section-heading"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Собранные серии</h2></div></div>
+      <div className="profile-collection-list">{visibleCollections.map((collection) => <button type="button" key={collection.id} onClick={() => onOpenCollection(collection)}><span style={collection.image_url ? { backgroundImage: `url(${collection.image_url})` } : undefined}><BookOpen size={18} /></span><div><b>{collection.title}</b><small>{collection.completed_count || 0} / {collection.total_count || collection.total_artworks || 0}</small></div></button>)}</div>
+    </section>}
 
-    {isOwnProfile && <div className="profile-quick-actions" role="tablist" aria-label="Раздел профиля"><button type="button" role="tab" aria-selected={profileShelf === 'works'} className={profileShelf === 'works' ? 'active' : ''} onClick={() => onChangeShelf('works')}>Работы</button><button type="button" role="tab" aria-selected={profileShelf === 'favorites'} className={profileShelf === 'favorites' ? 'active' : ''} onClick={() => onChangeShelf('favorites')}>Избранное</button><button type="button" role="tab" aria-selected={profileShelf === 'history'} className={profileShelf === 'history' ? 'active' : ''} onClick={() => onChangeShelf('history')}>История</button><button type="button" onClick={() => onNavigate('create')}>Создать</button></div>}
+    {rareWorks.length > 0 && <section className="profile-section">
+      <div className="section-heading"><div><p className="eyebrow">ОСОБЫЕ</p><h2>Редкие работы</h2></div></div>
+      <div className="profile-work-grid">{rareWorks.slice(0, 6).map((work) => <ArtworkCard key={work.id} work={work} onOpen={onOpen} />)}</div>
+    </section>}
 
-    <section className="profile-section">
-      <div className="section-heading"><div><p className="eyebrow">МОЯ КОЛЛЕКЦИЯ</p><h2>{isOwnProfile ? shelfTitle : 'Завершённые работы'}</h2></div>{isOwnProfile && profileShelf === 'works' && <button type="button" onClick={() => onSetView('gallery')}>Смотреть все</button>}</div>
-      <div className="profile-work-grid">{shelfItems.slice(0, 9).map((work) => {
-        const source = work.preview_url || work.thumbnail_url || work.image_url;
-        const canOpen = isOwnProfile && Boolean(work.id) && (displayShelf !== 'works' || mine.some((item) => item.id === work.id));
-        return <button className="profile-work-card" type="button" key={work.id} onClick={() => canOpen && onOpen(work.id)} disabled={!canOpen} aria-label={canOpen ? `Открыть ${work.title}` : work.title}>
-          {source ? <img loading="lazy" src={source} alt="" /> : <span className="profile-work-fallback"><Grid3X3 size={22} /></span>}<b>{work.title}</b>{isOwnProfile && work.progress && <small>{work.progress.percent}%</small>}
-        </button>;
-      })}{!shelfItems.length && <div className="profile-empty"><span>✦</span><p>{shelfEmpty}</p><button className="secondary-button" type="button" onClick={() => onNavigate('catalog')}>Открыть каталог</button></div>}</div>
-    </section>
+    {completedWorks.length > 0 && <section className="profile-section">
+      <div className="section-heading"><div><p className="eyebrow">ЗАВЕРШЕНО</p><h2>Готовые картины</h2></div></div>
+      <div className="profile-work-grid">{completedWorks.slice(0, 12).map((work) => <ArtworkCard key={work.id} work={work} onOpen={onOpen} />)}</div>
+    </section>}
 
-    <section className="profile-section">
-      <div className="section-heading"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Ваш прогресс</h2></div><button type="button" onClick={() => onSetView('collections')}>Все</button></div>
-      <div className="profile-collection-list">{visibleCollections.map((collection) => <button type="button" key={collection.id} onClick={() => onOpenCollection(collection)}><span style={collection.image_url ? { backgroundImage: `url(${collection.image_url})` } : undefined}><BookOpen size={18} /></span><div><b>{collection.title}</b><small>{collection.completed_count || 0}/{collection.total_count || collection.total_artworks || 0} завершено</small></div></button>)}{!visibleCollections.length && <p className="profile-inline-empty">Коллекции появятся после загрузки каталога.</p>}</div>
-    </section>
+    {isOwnProfile && <section className="profile-section profile-created-section">
+      <div className="section-heading"><div><p className="eyebrow">СОЗДАНО МНОЙ</p><h2>Мои раскраски</h2></div><button type="button" onClick={() => onNavigate('create')}>Создать</button></div>
+      {createdWorks.length > 0 ? <div className="profile-work-grid">{createdWorks.slice(0, 12).map((work) => <ArtworkCard key={work.id} work={work} onOpen={onOpen}>
+        <div className="profile-owner-actions">
+          <button type="button" disabled={publishingTemplateId === work.id} onClick={() => onToggleVisibility(work)} aria-label={work.visibility === 'public' ? `Скрыть ${work.title}` : `Опубликовать ${work.title}`}>{work.visibility === 'public' ? <Eye size={16} /> : <EyeOff size={16} />}</button>
+          <button type="button" onClick={() => onDelete(work)} aria-label={`Удалить ${work.title}`}><Trash2 size={16} /></button>
+        </div>
+      </ArtworkCard>)}</div> : <div className="profile-empty profile-empty--compact"><Heart size={22} /><p>Созданные вами работы появятся здесь.</p><button className="primary-button" type="button" onClick={() => onNavigate('create')}>Загрузить изображение</button></div>}
+    </section>}
 
-    <section className="profile-section">
-      <div className="section-heading"><div><p className="eyebrow">ДОСТИЖЕНИЯ</p><h2>{achievementsUnlocked.length} из {achievements.length || 0}</h2></div><button type="button" onClick={() => onSetView('achievements')}>Все</button></div>
-      <div className="profile-achievements">{achievements.slice(0, 4).map((achievement) => <span className={achievement.unlocked ? 'unlocked' : ''} key={achievement.id}><Star size={15} fill={achievement.unlocked ? 'currentColor' : 'none'} /><b>{achievement.title}</b></span>)}{!achievements.length && <p className="profile-inline-empty">Достижения загружаются…</p>}</div>
-    </section>
+    {!showcase.length && !completedWorks.length && !createdWorks.length && <div className="profile-empty"><span>✦</span><p>Коллекция начнётся с первой завершённой картины.</p><button className="primary-button" type="button" onClick={() => onNavigate('catalog')}>Открыть каталог</button></div>}
   </section>;
 }

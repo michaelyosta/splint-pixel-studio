@@ -533,7 +533,7 @@ router.get('/', authMiddleware, asyncRoute(async (req, res) => {
 router.get('/today', authMiddleware, asyncRoute(async (req, res) => {
   const featured = await get("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND source_type <> 'unlockable' AND daily_featured=1 ORDER BY added_at DESC LIMIT 1");
   const quick = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND source_type <> 'unlockable' AND est_minutes<=3 ORDER BY added_at DESC LIMIT 6");
-  const allTemplates = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND source_type <> 'unlockable' ORDER BY added_at DESC");
+  const allTemplates = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND source_type <> 'unlockable' ORDER BY added_at DESC LIMIT 8");
   const ratedRows = await attachViewerCatalogData(
     [...new Map([featured, ...quick, ...allTemplates].filter(Boolean).map((row) => [row.id, row])).values()],
     req.userId,
@@ -844,7 +844,7 @@ router.post('/create', authMiddleware, asyncRoute(async (req, res) => {
     await withDbTransaction(async (tx) => {
       await tx.run(`INSERT INTO coloring_templates (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,created_at,updated_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, req.userId, safeTitle, String(description).slice(0, 280), 'custom', 'custom', safeWidth, safeHeight, JSON.stringify(palette), JSON.stringify(cells), null, originalMediaKey, 'user', 'private', 'active', now, now]);
+      [id, req.userId, safeTitle, String(description).slice(0, 280), 'custom', 'custom', safeWidth, safeHeight, JSON.stringify(palette), JSON.stringify(cells), previewDataUrl, originalMediaKey, 'user', 'private', 'active', now, now]);
       const legacy = generateLegacySparkCells({ templateId: id, width: safeWidth, height: safeHeight, cells });
       await persistSparkCells(tx, {
         templateId: id,

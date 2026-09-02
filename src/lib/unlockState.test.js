@@ -54,6 +54,41 @@ test('premium reason stays neutral and never advertises a payment path', () => {
   assert.doesNotMatch(formatted.label, /Premium|Премиум|Stars/i);
 });
 
+test('premium locked mapping retains one server requirement for the neutral locked view', () => {
+  const normalized = normalizeSnapshot({
+    summary: { premium_locked: 1 },
+    collections: [{
+      subject_type: 'collection',
+      subject_id: 'col_premium-gallery',
+      title: 'Галерея',
+      state: UNLOCK_STATES.PREMIUM_LOCKED,
+      reason_code: REASON_CODES.PREMIUM_REQUIRED,
+      requirements: [{
+        rule_type: 'premium',
+        reason_code: REASON_CODES.PREMIUM_REQUIRED,
+        target_value: 'col_premium-gallery',
+        target: 50,
+        current: 0,
+        satisfied: false,
+        progress: 0,
+      }],
+    }],
+    templates: [],
+    next_actionable: [],
+  });
+
+  const locked = normalized.collections[0];
+  assert.equal(locked.requirements.length, 1);
+  assert.equal(locked.requirements[0].rule_type, 'premium');
+  assert.equal(locked.requirements[0].reason_code, REASON_CODES.PREMIUM_REQUIRED);
+  assert.equal(locked.requirements[0].target_value, 'col_premium-gallery');
+  const display = formatRequirement(locked.requirements[0]);
+  assert.equal(display.percent, 0);
+  assert.equal(display.progressText, 'Недоступно');
+  assert.equal(display.nextAction, 'Контент сейчас недоступен.');
+  assert.doesNotMatch(`${display.label} ${display.nextAction}`, /Premium|Премиум|Stars|купить|покупк/i);
+});
+
 test('recommendation reasons map to stable player-facing labels', () => {
   const expected = {
     [RECOMMENDATION_REASONS.CONTINUE_PROGRESS]: 'Продолжите начатую раскраску',

@@ -31,6 +31,9 @@ const child = spawn(process.execPath, ['index.js'], {
     RENDER_OUTBOX_ENABLED: 'true',
     RENDER_OUTBOX_POLL_MS: '50',
     ALLOW_DEV_AUTH: 'true',
+    // Exercise signed Telegram initData in the E2E auth contract without
+    // carrying a production credential into the test runtime.
+    TELEGRAM_BOT_TOKEN: process.env.E2E_TELEGRAM_BOT_TOKEN || 'e2e-bot-token',
     SEED_DEMO_DATA: 'true',
     E2E_SEED_HOOKS: 'true',
     GUIDANCE_BACKFILL_AUTO: 'false',
