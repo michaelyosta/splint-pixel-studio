@@ -183,6 +183,36 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  e2e-gate:
+    name: e2e
+    if: ${{ always() }}
+    needs:
+      - verify
+      - postgres
+      - storage-s3-contract
+      - e2e-critical
+      - e2e
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every CI dependency group to succeed
+        if: ${{ always() }}
+        env:
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          POSTGRES_RESULT: ${{ needs.postgres.result }}
+          STORAGE_RESULT: ${{ needs.storage-s3-contract.result }}
+          CRITICAL_RESULT: ${{ needs.e2e-critical.result }}
+          EXTENDED_RESULT: ${{ needs.e2e.result }}
+        run: |
+          set -eu
+          if [ "$VERIFY_RESULT" != "success" ] || \
+             [ "$POSTGRES_RESULT" != "success" ] || \
+             [ "$STORAGE_RESULT" != "success" ] || \
+             [ "$CRITICAL_RESULT" != "success" ] || \
+             [ "$EXTENDED_RESULT" != "success" ]; then
+            echo "e2e gate blocked: verify=$VERIFY_RESULT postgres=$POSTGRES_RESULT storage-s3-contract=$STORAGE_RESULT e2e-critical=$CRITICAL_RESULT e2e=$EXTENDED_RESULT"
+            exit 1
+          fi
+
   storage-s3-contract:
     name: storage-s3-contract
     runs-on: ubuntu-latest
