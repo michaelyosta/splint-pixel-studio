@@ -182,10 +182,10 @@ img { user-select: none; }
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  background: rgba(12, 22, 34, 0.92);
+  background: var(--app-dark-gray);
   border: 1px solid var(--app-border);
   border-radius: 20px;
-  backdrop-filter: blur(14px);
+  backdrop-filter: none;
   box-shadow: 0 12px 30px rgba(2, 8, 14, 0.6);
   z-index: 20;
 }
@@ -2144,7 +2144,7 @@ html[data-tg-theme='light'] .app-container {
     linear-gradient(rgba(0, 120, 150, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 120, 150, 0.05) 1px, transparent 1px);
 }
-html[data-tg-theme='light'] .app-tab-bar { background: rgba(255, 255, 255, 0.94); box-shadow: 0 10px 26px rgba(23, 43, 66, 0.16); }
+html[data-tg-theme='light'] .app-tab-bar { background: var(--app-bg-elevated); box-shadow: 0 10px 26px rgba(23, 43, 66, 0.16); }
 html[data-tg-theme='light'] .header-logo { text-shadow: none; }
 html[data-tg-theme='light'] .primary-button { color: #FFFFFF; }
 html[data-tg-theme='light'] .card-preview,
