@@ -33,6 +33,11 @@ not Telegram iOS and does not close the physical-device gate.
   `display=flex`, `visibility=visible`, `opacity=1`.
 - Diagnostic hit sample: `button.active`,
   `button.app-tab-bar__create`, and `button` respectively.
+- The Telegram WebApp bridge script was present in the WebKit run and reported
+  numeric `viewportHeight=844` and `viewportStableHeight=844`. Its root CSS
+  variables were exposed as the literal `100vh`, not numeric pixel values. The
+  local WebKit frame still measured 844px, but this is a concrete parity
+  question for physical iOS rather than proof that `100vh` is safe there.
 
 The local evidence therefore does not reproduce the reported physical Telegram
 iOS disappearance. It also does not establish that the current `backdrop`
@@ -50,4 +55,3 @@ opened from a dedicated staging/test bot: cold launch, reopen, Catalog/Create/
 Profile, portrait → landscape → portrait after a 5-second background/resume,
 plus standalone/PWA regression. Retain the four diagnostic pages and the
 `paint`/`hit` lines from [the physical protocol](TELEGRAM_IOS_VIEWPORT_DIAGNOSTIC.md).
-
