@@ -120,6 +120,65 @@ function readHitTarget(documentRef, rect) {
   }
 }
 
+function isPositiveRect(rect) {
+  return Boolean(rect)
+    && Number.isFinite(rect.left)
+    && Number.isFinite(rect.top)
+    && Number.isFinite(rect.right)
+    && Number.isFinite(rect.bottom)
+    && rect.right > rect.left
+    && rect.bottom > rect.top;
+}
+
+function containsRect(outer, inner) {
+  if (!isPositiveRect(outer) || !isPositiveRect(inner)) return null;
+  return inner.left >= outer.left
+    && inner.top >= outer.top
+    && inner.right <= outer.right
+    && inner.bottom <= outer.bottom;
+}
+
+function isPaintInvisible(paint) {
+  if (!paint) return null;
+  if (paint.display === 'none' || paint.visibility === 'hidden' || paint.visibility === 'collapse') return true;
+  const opacity = finiteNumber(paint.opacity);
+  return opacity != null ? opacity <= 0 : false;
+}
+
+function classifyViewportDiagnostic({ window, visualViewport, rects, navItems }) {
+  const viewportWidth = finiteNumber(visualViewport?.width) ?? finiteNumber(window?.innerWidth);
+  const viewportHeight = finiteNumber(visualViewport?.height) ?? finiteNumber(window?.innerHeight);
+  const visualRect = viewportWidth != null && viewportHeight != null && viewportWidth > 0 && viewportHeight > 0
+    ? { left: 0, top: 0, right: viewportWidth, bottom: viewportHeight }
+    : null;
+  const frameWithinVisual = containsRect(visualRect, rects?.frame);
+  const tabBarWithinFrame = containsRect(rects?.frame, rects?.tabBar);
+  const paintInvisible = (navItems || [])
+    .filter((item) => isPaintInvisible(item.paint) === true)
+    .map((item) => item.index + 1);
+  const hitUnavailable = (navItems || [])
+    .filter((item) => item.hitTarget == null || item.hitTarget === 'none')
+    .map((item) => item.index + 1);
+
+  let verdict = 'INSUFFICIENT_GEOMETRY';
+  if (frameWithinVisual === false || tabBarWithinFrame === false) {
+    verdict = 'CLIPPING_CANDIDATE';
+  } else if (paintInvisible.length) {
+    verdict = 'PAINT_CANDIDATE';
+  } else if (hitUnavailable.length) {
+    verdict = 'HIT_TEST_CANDIDATE';
+  } else if (frameWithinVisual === true && tabBarWithinFrame === true && navItems?.length === 3) {
+    verdict = 'NO_GEOMETRY_PAINT_HIT_FAILURE';
+  }
+  return {
+    verdict,
+    frameWithinVisual,
+    tabBarWithinFrame,
+    paintInvisible,
+    hitUnavailable,
+  };
+}
+
 function readInsets(webApp, pluralKey, singularKey) {
   const source = webApp?.[pluralKey] ?? webApp?.[singularKey];
   if (!source || typeof source !== 'object') return null;
@@ -189,6 +248,18 @@ function formatPaint(paint) {
     `filter=${paint.filter || 'unavailable'}`,
     `backdrop=${paint.backdropFilter || 'unavailable'}`,
     `transform=${paint.transform || 'unavailable'}`,
+  ].join(' ');
+}
+
+function formatGeometryClassification(value) {
+  if (!value) return 'unavailable';
+  const formatBool = (field) => value[field] == null ? 'unavailable' : (value[field] ? 'yes' : 'no');
+  return [
+    `verdict=${value.verdict || 'unavailable'}`,
+    `frameWithinVisual=${formatBool('frameWithinVisual')}`,
+    `tabBarWithinFrame=${formatBool('tabBarWithinFrame')}`,
+    `paintInvisible=${value.paintInvisible?.length ? value.paintInvisible.join(',') : 'none'}`,
+    `hitUnavailable=${value.hitUnavailable?.length ? value.hitUnavailable.join(',') : 'none'}`,
   ].join(' ');
 }
 
@@ -283,6 +354,19 @@ export function collectViewportDiagnosticSnapshot({
     safeAreaInsets: readInsets(webApp, 'safeAreaInsets', 'safeAreaInset'),
     contentSafeAreaInsets: readInsets(webApp, 'contentSafeAreaInsets', 'contentSafeAreaInset'),
   };
+  const geometry = classifyViewportDiagnostic({
+    window: {
+      innerWidth: finiteNumber(windowRef?.innerWidth),
+      innerHeight: finiteNumber(windowRef?.innerHeight),
+    },
+    visualViewport: readVisualViewport(windowRef?.visualViewport),
+    rects,
+    navItems: navItems.map((element, index) => ({
+      index,
+      paint: readPaint(element, getComputedStyleRef),
+      hitTarget: readHitTarget(documentRef, navItemRects[index]),
+    })),
+  });
   return {
     window: {
       innerWidth: finiteNumber(windowRef?.innerWidth),
@@ -308,6 +392,7 @@ export function collectViewportDiagnosticSnapshot({
     paints: {
       tabBar: paints.tabBar,
     },
+    geometry,
     overlaps: {
       rootFrame: overlap(rects.root, rects.frame),
       frameTabBar: overlap(rects.frame, rects.tabBar),
@@ -354,6 +439,7 @@ export function getViewportDiagnosticPages(snapshot) {
     `overlap #root × .telegram-frame: ${formatOverlap(snapshot.overlaps?.rootFrame)}`,
     `overlap .telegram-frame × .app-tab-bar: ${formatOverlap(snapshot.overlaps?.frameTabBar)}`,
     `overlap .screen-content × .app-tab-bar: ${formatOverlap(snapshot.overlaps?.screenContentTabBar)}`,
+    `geometry: ${formatGeometryClassification(snapshot.geometry)}`,
     `paint .app-tab-bar: ${formatPaint(snapshot.paints?.tabBar)}`,
     ...(snapshot.navItems || []).map((item) => [
       `paint nav[${item.index + 1}]: ${formatPaint(item.paint)}`,

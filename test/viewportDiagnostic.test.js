@@ -114,7 +114,13 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
   assert.equal(snapshot.navItems[0].paint.opacity, '1');
   assert.equal(snapshot.navItems[0].paint.backdropFilter, 'blur(14px)');
   assert.equal(snapshot.navItems[0].hitTarget, 'button.active');
+  assert.equal(snapshot.geometry.verdict, 'NO_GEOMETRY_PAINT_HIT_FAILURE');
+  assert.equal(snapshot.geometry.frameWithinVisual, true);
+  assert.equal(snapshot.geometry.tabBarWithinFrame, true);
+  assert.deepEqual(snapshot.geometry.paintInvisible, []);
+  assert.deepEqual(snapshot.geometry.hitUnavailable, []);
   assert.match(formatted, /paint \.app-tab-bar: .*opacity=1 .*backdrop=blur\(14px\)/);
+  assert.match(formatted, /geometry: verdict=NO_GEOMETRY_PAINT_HIT_FAILURE .*paintInvisible=none hitUnavailable=none/);
   assert.match(formatted, /hit nav\[1\]: button\.active/);
   assert.equal(snapshot.overlaps.rootFrame.intersects, true);
   assert.equal(snapshot.overlaps.frameTabBar.intersects, true);
@@ -142,6 +148,7 @@ test('viewport diagnostic keeps unavailable fields explicit when bridges or elem
   assert.equal(snapshot.visualViewport, null);
   assert.equal(snapshot.telegram.safeAreaInsets, null);
   assert.equal(snapshot.rects.root, null);
+  assert.equal(snapshot.geometry.verdict, 'INSUFFICIENT_GEOMETRY');
   assert.equal(snapshot.overlaps.rootFrame.available, false);
   assert.match(formatted, /window\.inner: unavailablex700\.00/);
   assert.match(formatted, /visualViewport: unavailable/);
