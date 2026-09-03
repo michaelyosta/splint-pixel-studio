@@ -53,7 +53,10 @@ For every checkpoint retain these lines from the panel:
 - rects for `html`, `#root`, `.telegram-frame`, `.app-container`,
   `.screen-content`, and `.app-tab-bar`;
 - computed positioning for `#root`, `.telegram-frame`, and `.app-tab-bar`;
-- the three reported overlap lines.
+- the three reported overlap lines;
+- the `paint .app-tab-bar`, `paint nav[1..3]`, and `hit nav[1..3]` lines on
+  the overlap page. These are computed paint values and hit-test target names,
+  not user content.
 
 If a bridge field is absent, retain `unavailable`; do not infer it from another
 field. Do not paste the full page URL if it contains anything beyond the
@@ -68,6 +71,11 @@ diagnostic query parameter.
   bar bottom beyond the frame bottom is a clipping signal.
 - `.screen-content` × `.app-tab-bar` overlap is expected from the absolute tab
   bar; record its rectangle and area before deciding whether content is hidden.
+- If a nav item has a non-zero rectangle and a `hit nav[...]` target but its
+  paint line reports `visibility=hidden`, `opacity=0`, an unexpected
+  `display`, or a non-`none` transform/filter, classify it as a paint/style
+  finding rather than a viewport clipping finding. A `none`/`unavailable`
+  hit target with a valid rectangle is a separate hit-testing finding.
 - A changed `visualViewport` offset/height with stable frame geometry indicates
   a viewport-state transition to investigate. It does not establish a CSS root
   cause.

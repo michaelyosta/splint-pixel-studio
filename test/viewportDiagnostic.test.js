@@ -19,6 +19,11 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
   const container = element({ x: 0, y: 0, width: 390, height: 844, top: 0, right: 390, bottom: 844, left: 0 });
   const screenContent = element({ x: 0, y: 60, width: 390, height: 784, top: 60, right: 390, bottom: 844, left: 0 });
   const tabBar = element({ x: 10, y: 760, width: 370, height: 68, top: 760, right: 380, bottom: 828, left: 10 });
+  const navItems = [
+    Object.assign(element({ x: 10, y: 760, width: 123, height: 68, top: 760, right: 133, bottom: 828, left: 10 }), { tagName: 'BUTTON', className: 'active' }),
+    Object.assign(element({ x: 133, y: 760, width: 123, height: 68, top: 760, right: 256, bottom: 828, left: 133 }), { tagName: 'BUTTON', className: 'app-tab-bar__create' }),
+    Object.assign(element({ x: 256, y: 760, width: 124, height: 68, top: 760, right: 380, bottom: 828, left: 256 }), { tagName: 'BUTTON', className: '' }),
+  ];
   const elements = { '#root': root, '.telegram-frame': frame, '.app-container': container, '.screen-content': screenContent, '.app-tab-bar': tabBar };
   const cssVariables = {
     '--tg-viewport-height': '844px',
@@ -44,12 +49,24 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
     paddingBottom: '34px',
     overflowY: 'auto',
     zIndex: '20',
+    display: 'block',
+    visibility: 'visible',
+    opacity: '1',
+    backgroundColor: 'rgb(12, 22, 34)',
+    color: 'rgb(43, 217, 254)',
+    filter: 'none',
+    backdropFilter: 'blur(14px)',
+    transform: 'none',
+    mixBlendMode: 'normal',
+    isolation: 'auto',
     getPropertyValue: (name) => cssVariables[name] || '',
   };
   const documentRef = {
     documentElement: html,
     body,
     querySelector: (selector) => elements[selector] || null,
+    querySelectorAll: (selector) => selector === '.app-tab-bar > button' ? navItems : [],
+    elementFromPoint: () => navItems[0],
   };
   const windowRef = {
     innerWidth: 390,
@@ -93,6 +110,12 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
   assert.equal(snapshot.rects.root.width, 390);
   assert.equal(snapshot.rects.frame.height, 844);
   assert.equal(snapshot.rects.tabBar.bottom, 828);
+  assert.equal(snapshot.navItems.length, 3);
+  assert.equal(snapshot.navItems[0].paint.opacity, '1');
+  assert.equal(snapshot.navItems[0].paint.backdropFilter, 'blur(14px)');
+  assert.equal(snapshot.navItems[0].hitTarget, 'button.active');
+  assert.match(formatted, /paint \.app-tab-bar: .*opacity=1 .*backdrop=blur\(14px\)/);
+  assert.match(formatted, /hit nav\[1\]: button\.active/);
   assert.equal(snapshot.overlaps.rootFrame.intersects, true);
   assert.equal(snapshot.overlaps.frameTabBar.intersects, true);
   assert.equal(snapshot.overlaps.screenContentTabBar.area, 25160);

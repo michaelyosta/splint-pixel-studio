@@ -16,6 +16,14 @@ const POSITION_KEYS = [
   'maxHeight', 'paddingBottom', 'overflowY', 'zIndex',
 ];
 
+// Keep this list deliberately small: these are the computed paint properties
+// that can make a hit-testable element disappear in a target WebView. Do not
+// include text, attributes, or arbitrary DOM payloads in the diagnostic.
+const PAINT_KEYS = [
+  'display', 'visibility', 'opacity', 'backgroundColor', 'color',
+  'filter', 'backdropFilter', 'transform', 'mixBlendMode', 'isolation',
+];
+
 const DIAGNOSTIC_PAGE_IDS = ['viewport', 'telegram', 'layout', 'overlap'];
 const DIAGNOSTIC_PAGE_INTERVAL_MS = 1800;
 
@@ -68,6 +76,40 @@ function readPosition(element, getComputedStyleRef) {
   }
   if (!style) return null;
   return Object.fromEntries(POSITION_KEYS.map((key) => [key, readStyleValue(style, key)]));
+}
+
+function readPaint(element, getComputedStyleRef) {
+  if (!element || typeof getComputedStyleRef !== 'function') return null;
+  let style;
+  try {
+    style = getComputedStyleRef(element);
+  } catch {
+    return null;
+  }
+  if (!style) return null;
+  return Object.fromEntries(PAINT_KEYS.map((key) => [key, readStyleValue(style, key)]));
+}
+
+function describeHitTarget(element) {
+  if (!element) return 'none';
+  const tag = String(element.tagName || element.nodeName || 'unknown').toLowerCase();
+  const className = typeof element.className === 'string'
+    ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.')
+    : '';
+  return className ? `${tag}.${className}` : tag;
+}
+
+function readHitTarget(documentRef, rect) {
+  if (typeof documentRef?.elementFromPoint !== 'function' || !rect) return null;
+  if (![rect.left, rect.right, rect.top, rect.bottom].every(Number.isFinite)) return null;
+  try {
+    return describeHitTarget(documentRef.elementFromPoint(
+      (rect.left + rect.right) / 2,
+      (rect.top + rect.bottom) / 2,
+    ));
+  } catch {
+    return null;
+  }
 }
 
 function readInsets(webApp, pluralKey, singularKey) {
@@ -126,6 +168,20 @@ function formatPosition(position) {
   return POSITION_KEYS
     .map((key) => `${key}=${position[key] || 'unavailable'}`)
     .join(' ');
+}
+
+function formatPaint(paint) {
+  if (!paint) return 'unavailable';
+  return [
+    `display=${paint.display || 'unavailable'}`,
+    `visibility=${paint.visibility || 'unavailable'}`,
+    `opacity=${paint.opacity || 'unavailable'}`,
+    `bg=${paint.backgroundColor || 'unavailable'}`,
+    `color=${paint.color || 'unavailable'}`,
+    `filter=${paint.filter || 'unavailable'}`,
+    `backdrop=${paint.backdropFilter || 'unavailable'}`,
+    `transform=${paint.transform || 'unavailable'}`,
+  ].join(' ');
 }
 
 function formatInsets(insets) {
@@ -187,9 +243,19 @@ export function collectViewportDiagnosticSnapshot({
     screenContent: documentRef?.querySelector?.('.screen-content') || null,
     tabBar: documentRef?.querySelector?.('.app-tab-bar') || null,
   };
+  let navItems = [];
+  try {
+    navItems = Array.from(documentRef?.querySelectorAll?.('.app-tab-bar > button') || []).slice(0, 3);
+  } catch {
+    navItems = [];
+  }
   const rects = Object.fromEntries(Object.entries(elements).map(([key, element]) => [key, readRect(element)]));
+  const navItemRects = navItems.map((element) => readRect(element));
   const positions = Object.fromEntries(
     Object.entries(elements).map(([key, element]) => [key, readPosition(element, getComputedStyleRef)]),
+  );
+  const paints = Object.fromEntries(
+    Object.entries(elements).map(([key, element]) => [key, readPaint(element, getComputedStyleRef)]),
   );
   let cssVariables = Object.fromEntries(TELEGRAM_VIEWPORT_CSS_VARIABLES.map((name) => [name, null]));
   try {
@@ -219,11 +285,20 @@ export function collectViewportDiagnosticSnapshot({
     telegram,
     cssVariables,
     rects,
+    navItems: navItems.map((element, index) => ({
+      index,
+      rect: navItemRects[index],
+      paint: readPaint(element, getComputedStyleRef),
+      hitTarget: readHitTarget(documentRef, navItemRects[index]),
+    })),
     positions: {
       root: positions.root,
       frame: positions.frame,
       tabBar: positions.tabBar,
       screenContent: positions.screenContent,
+    },
+    paints: {
+      tabBar: paints.tabBar,
     },
     overlaps: {
       rootFrame: overlap(rects.root, rects.frame),
@@ -271,6 +346,11 @@ export function getViewportDiagnosticPages(snapshot) {
     `overlap #root × .telegram-frame: ${formatOverlap(snapshot.overlaps?.rootFrame)}`,
     `overlap .telegram-frame × .app-tab-bar: ${formatOverlap(snapshot.overlaps?.frameTabBar)}`,
     `overlap .screen-content × .app-tab-bar: ${formatOverlap(snapshot.overlaps?.screenContentTabBar)}`,
+    `paint .app-tab-bar: ${formatPaint(snapshot.paints?.tabBar)}`,
+    ...(snapshot.navItems || []).map((item) => [
+      `paint nav[${item.index + 1}]: ${formatPaint(item.paint)}`,
+      `hit nav[${item.index + 1}]: ${item.hitTarget || 'unavailable'}`,
+    ]).flat(),
   ];
   return DIAGNOSTIC_PAGE_IDS.map((id, index) => ({
     id,
