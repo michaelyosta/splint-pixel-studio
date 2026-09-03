@@ -415,6 +415,21 @@ export function mountViewportDiagnostic() {
   addListener(window.visualViewport, 'resize');
   addListener(window.visualViewport, 'scroll');
 
+  // React may commit the app after this opt-in module resolves. Observe only
+  // #root (never document.body) so updating the panel cannot trigger its own
+  // observer, and keep the observer lifecycle-scoped with the preview.
+  const observationTarget = document.querySelector('#root');
+  if (typeof window.MutationObserver === 'function' && observationTarget) {
+    const observer = new window.MutationObserver(update);
+    observer.observe(observationTarget, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style', 'hidden', 'aria-current'],
+    });
+    listeners.push(() => observer.disconnect());
+  }
+
   const webApp = window.Telegram?.WebApp;
   if (typeof webApp?.onEvent === 'function') {
     webApp.onEvent('viewportChanged', update);
