@@ -2,7 +2,7 @@
 
 Run date: 2026-09-03. Worktree: `codex/telegram-ios-viewport-fix`.
 The tested source was the clean frozen worktree HEAD at the time of this run:
-`eb1cbd9` (`diag: wait for React viewport geometry`).
+`83fb7e3` (`diag: classify iOS nav geometry paint and hit`).
 
 ## Scope
 
@@ -33,6 +33,9 @@ not Telegram iOS and does not close the physical-device gate.
   `display=flex`, `visibility=visible`, `opacity=1`.
 - Diagnostic hit sample: `button.active`,
   `button.app-tab-bar__create`, and `button` respectively.
+- Deterministic diagnostic classification: `NO_GEOMETRY_PAINT_HIT_FAILURE`,
+  with `frameWithinVisual=yes`, `tabBarWithinFrame=yes`,
+  `paintInvisible=none`, and `hitUnavailable=none` in both browsers.
 - The Telegram WebApp bridge script was present in the WebKit run and reported
   numeric `viewportHeight=844` and `viewportStableHeight=844`. Its root CSS
   variables were exposed as the literal `100vh`, not numeric pixel values. The

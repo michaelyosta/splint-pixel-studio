@@ -54,6 +54,8 @@ For every checkpoint retain these lines from the panel:
   `.screen-content`, and `.app-tab-bar`;
 - computed positioning for `#root`, `.telegram-frame`, and `.app-tab-bar`;
 - the three reported overlap lines;
+- the `geometry` classification line (`verdict`, frame/tab-bar containment,
+  paint-invisible indexes, and hit-unavailable indexes);
 - the `paint .app-tab-bar`, `paint nav[1..3]`, and `hit nav[1..3]` lines on
   the overlap page. These are computed paint values and hit-test target names,
   not user content.
@@ -76,6 +78,13 @@ diagnostic query parameter.
   `display`, or a non-`none` transform/filter, classify it as a paint/style
   finding rather than a viewport clipping finding. A `none`/`unavailable`
   hit target with a valid rectangle is a separate hit-testing finding.
+- Treat `geometry.verdict` as a deterministic triage aid, not a fix claim:
+  `CLIPPING_CANDIDATE` means a positive frame/tab-bar rectangle is outside its
+  measured container; `PAINT_CANDIDATE` means one of the three nav items is
+  computed invisible; `HIT_TEST_CANDIDATE` means a visible-geometry item has
+  no actionable hit target; `NO_GEOMETRY_PAINT_HIT_FAILURE` means all three
+  checks are positive for the captured sample; and `INSUFFICIENT_GEOMETRY`
+  means the sample cannot support a classification.
 - A changed `visualViewport` offset/height with stable frame geometry indicates
   a viewport-state transition to investigate. It does not establish a CSS root
   cause.
