@@ -47,6 +47,10 @@ not Telegram iOS and does not close the physical-device gate.
   All three nav buttons remained visible in portrait and landscape and opened
   `Каталог`, `Создать`, and `Профиль`. This is a browser/PWA contract check,
   not proof from Safari Home Screen or Telegram iOS.
+- Diagnostic route preflight on the current local production build: HTTP `200`,
+  static pages `4/4`, auto-cycle `4/4`, and secret markers `none`, with
+  `retries=0` and `quarantine=0`. This verifies only the opt-in panel route;
+  it is not Telegram or physical-device evidence.
 - The Telegram WebApp bridge script was present in the WebKit run and reported
   numeric `viewportHeight=844` and `viewportStableHeight=844`. Its root CSS
   variables were exposed as the literal `100vh`, not numeric pixel values. The

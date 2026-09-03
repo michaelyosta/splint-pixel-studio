@@ -23,6 +23,25 @@ For a static page before starting a run, append one of these values:
 selection is useful for a single field group, but changing it reloads the Mini
 App; use the default auto-cycle for the lifecycle sequence below.
 
+## Route preflight
+
+Before handing a preview URL to the device owner, verify the opt-in route from
+the same frozen preview origin. This check is browser-only and never claims
+Telegram or iOS evidence:
+
+```powershell
+$env:TELEGRAM_IOS_DIAGNOSTIC_URL = 'https://<preview-origin>/?viewportDiagnostic=1'
+npm run verify:telegram-ios-diagnostic
+```
+
+The verifier accepts only the preview root with `viewportDiagnostic=1` and an
+optional `viewportDiagnosticPage` key. It checks HTTP 200, all four static page
+headers, the four-page auto-cycle, and the absence of secret markers in the
+panel. It emits only a safe summary (`PASS`/`FAIL`, protocol, page counts,
+`retries=0`, and `quarantine=0`); it never prints the URL, page text, network
+payloads, Telegram bridge data, or browser storage. Use a loopback HTTP URL only
+for a local preview; staging/device validation must use HTTPS.
+
 ## Exact capture sequence
 
 Capture one complete auto-cycle (pages 1 through 4, about 7.2 seconds) and
@@ -63,6 +82,30 @@ For every checkpoint retain these lines from the panel:
 If a bridge field is absent, retain `unavailable`; do not infer it from another
 field. Do not paste the full page URL if it contains anything beyond the
 diagnostic query parameter.
+
+If the route preflight fails, stop before opening Telegram. A successful
+preflight establishes only that the diagnostic panel is reachable on the
+reviewed preview; it does not establish a Telegram WebView, iOS, safe-area,
+lifecycle, or navigation fix.
+
+## Physical gate prerequisites
+
+The current handoff remains `BLOCKED` until every user-side prerequisite below
+is supplied. A missing prerequisite is not a test failure and must not be
+worked around with an emulator:
+
+| Prerequisite | Required evidence | Current handoff state |
+|---|---|---|
+| Physical iPhone running Telegram iOS | Model, iOS build, Telegram build, and home-indicator state | `BLOCKED` — device not available |
+| Dedicated staging/test bot | Bot opens the reviewed HTTPS preview SHA; production bot/origin is out of scope | `BLOCKED` — not supplied |
+| Disposable staging backend/account | Authenticated launch and test data isolated from production; no payment activation | `BLOCKED` — owner setup required |
+| Capture owner and retention location | Redacted screenshots/transcription kept outside Git with an agreed retention window | `PENDING` |
+
+Only after the first three rows are available may the owner run the exact
+capture sequence below. `TELEGRAM_IOS_NAV_FIXED` requires successful cold,
+stable, rotation, and background/resume captures on that physical iPhone, plus
+the separate standalone/PWA regression. Local Chromium/WebKit, route preflight,
+or a Playwright iPhone profile can never satisfy those rows.
 
 ## Classification rules
 
