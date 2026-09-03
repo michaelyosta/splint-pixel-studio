@@ -14,9 +14,9 @@ not Telegram iOS and does not close the physical-device gate.
 ## Results
 
 - Node 22 diagnostic unit tests: `3/3 PASS`.
-- Node 22 full unit suite on the same worktree before this docs-only addition:
-  `463/463 PASS`.
+- Node 22 full unit suite on the same frozen source: `463/463 PASS`.
 - Vite production build: `PASS`.
+- Existing lint warning budget: `100/100` (no new warning budget available).
 - `git diff --check`: `PASS`.
 - One custom browser pass, Chromium + WebKit, `retries=0`, one worker:
   `PASS`.
@@ -36,6 +36,17 @@ not Telegram iOS and does not close the physical-device gate.
 - Deterministic diagnostic classification: `NO_GEOMETRY_PAINT_HIT_FAILURE`,
   with `frameWithinVisual=yes`, `tabBarWithinFrame=yes`,
   `paintInvisible=none`, and `hitUnavailable=none` in both browsers.
+- Chromium `bfcache-lifecycle.spec.js` on a dedicated E2E SQLite/API runtime:
+  `4/4 PASS`, `retries=0`, covering legacy and tiled pagehide/pageshow plus
+  the mocked Telegram bridge lifecycle. The earlier attempt against the
+  regular disposable preview was rejected at fixture setup because that
+  runtime intentionally has no E2E seed hook; it was not product evidence.
+- Synthetic standalone regression in Chromium and WebKit: `2/2 PASS`,
+  `retries=0`, with the Telegram bridge request blocked and
+  `navigator.standalone=true` plus `(display-mode: standalone)` emulated.
+  All three nav buttons remained visible in portrait and landscape and opened
+  `Каталог`, `Создать`, and `Профиль`. This is a browser/PWA contract check,
+  not proof from Safari Home Screen or Telegram iOS.
 - The Telegram WebApp bridge script was present in the WebKit run and reported
   numeric `viewportHeight=844` and `viewportStableHeight=844`. Its root CSS
   variables were exposed as the literal `100vh`, not numeric pixel values. The
