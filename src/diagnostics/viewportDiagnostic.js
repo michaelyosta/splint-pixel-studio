@@ -92,9 +92,17 @@ function readPaint(element, getComputedStyleRef) {
 
 function describeHitTarget(element) {
   if (!element) return 'none';
-  const tag = String(element.tagName || element.nodeName || 'unknown').toLowerCase();
-  const className = typeof element.className === 'string'
-    ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.')
+  let target = element;
+  try {
+    // elementFromPoint may return an icon/span inside a button. Report the
+    // actionable ancestor so a visual-vs-hit-test comparison is meaningful.
+    target = element.closest?.('button') || element;
+  } catch {
+    target = element;
+  }
+  const tag = String(target.tagName || target.nodeName || 'unknown').toLowerCase();
+  const className = typeof target.className === 'string'
+    ? target.className.trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.')
     : '';
   return className ? `${tag}.${className}` : tag;
 }
