@@ -131,6 +131,103 @@ export function bindTelegramVerticalSwipes(webApp = getTelegramWebApp()) {
   };
 }
 
+/** Marks the document so iOS-Telegram-only compositor CSS can apply. */
+function markTelegramIosPlatform(webApp) {
+  if (typeof document === 'undefined' || webApp?.platform !== 'ios') return false;
+  document.documentElement.setAttribute('data-tg-ios', '1');
+  return true;
+}
+
+const TELEGRAM_VIEWPORT_LIFECYCLE_EVENTS = [
+  'viewportChanged',
+  'safeAreaChanged',
+  'contentSafeAreaChanged',
+  'fullscreenChanged',
+];
+
+const TELEGRAM_INSET_SIDES = ['top', 'right', 'bottom', 'left'];
+
+/** Converts a bridge number into a CSS length, rejecting unusable values. */
+function toCssPx(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? `${parsed}px` : null;
+}
+
+/**
+ * Publishes the Telegram viewport contract as CSS variables:
+ * `--tg-viewport-stable-height` plus the safe-area insets. Consumed by the
+ * shell height and safe-area fallback chains in App.css.
+ */
+export function syncTelegramViewportCssVars(webApp, root = typeof document !== 'undefined' ? document.documentElement : null) {
+  if (!root || typeof root.style?.setProperty !== 'function') return false;
+  let applied = false;
+  const stableHeight = toCssPx(webApp?.viewportStableHeight) ?? toCssPx(webApp?.viewportHeight);
+  if (stableHeight) {
+    root.style.setProperty('--tg-viewport-stable-height', stableHeight);
+    applied = true;
+  }
+  for (const side of TELEGRAM_INSET_SIDES) {
+    const deviceInset = toCssPx(webApp?.safeAreaInset?.[side]);
+    if (deviceInset) {
+      root.style.setProperty(`--tg-safe-area-inset-${side}`, deviceInset);
+      applied = true;
+    }
+    const contentInset = toCssPx(webApp?.contentSafeAreaInset?.[side]);
+    if (contentInset) {
+      root.style.setProperty(`--tg-content-safe-area-inset-${side}`, contentInset);
+      applied = true;
+    }
+  }
+  return applied;
+}
+
+/**
+ * One-shot paint invalidation for the bottom navigation. Adds a class that
+ * changes the layer's rasterization state, commits it with a single layout
+ * read, and reverts it on the next frame. No intervals, no animation loops.
+ */
+export function invalidateTelegramBottomNavigation({
+  root = typeof document !== 'undefined' ? document : null,
+  scheduleNextFrame = typeof requestAnimationFrame === 'function'
+    ? (callback) => requestAnimationFrame(callback)
+    : (callback) => setTimeout(callback, 32),
+} = {}) {
+  const bar = root?.querySelector?.('.app-tab-bar');
+  if (!bar) return false;
+  bar.classList.add('app-tab-bar--repaint');
+  void bar.getBoundingClientRect();
+  scheduleNextFrame(() => bar.classList.remove('app-tab-bar--repaint'));
+  return true;
+}
+
+/**
+ * Joins the Telegram viewport lifecycle. Stable resize events re-publish the
+ * viewport CSS variables, and on iOS-Telegram sessions every committed state
+ * also triggers the one-shot navigation repaint. Returns a cleanup function.
+ */
+export function bindTelegramViewportLifecycle(webApp = getTelegramWebApp()) {
+  if (!webApp || typeof document === 'undefined') return () => {};
+  markTelegramIosPlatform(webApp);
+  syncTelegramViewportCssVars(webApp);
+  const invalidateOnIos = isRealTelegramSession(webApp) && webApp.platform === 'ios';
+  const bound = [];
+  for (const event of TELEGRAM_VIEWPORT_LIFECYCLE_EVENTS) {
+    const handler = (payload) => {
+      // Telegram marks transient resize frames; commit only stable states.
+      if (payload?.isStateStable === false) return;
+      syncTelegramViewportCssVars(webApp);
+      if (invalidateOnIos) invalidateTelegramBottomNavigation();
+    };
+    bound.push([event, handler]);
+    try { webApp.onEvent?.(event, handler); } catch { /* older bridges */ }
+  }
+  return () => {
+    for (const [event, handler] of bound) {
+      try { webApp.offEvent?.(event, handler); } catch { /* optional */ }
+    }
+  };
+}
+
 export function initializeTelegramWebApp() {
   const webApp = getTelegramWebApp();
   if (!webApp) return null;
@@ -140,6 +237,7 @@ export function initializeTelegramWebApp() {
   try { webApp.expand?.(); } catch { /* older clients */ }
   applyTelegramTheme(webApp);
   try { webApp.onEvent?.('themeChanged', () => applyTelegramTheme(webApp)); } catch { /* optional */ }
+  bindTelegramViewportLifecycle(webApp);
   return webApp;
 }
 
