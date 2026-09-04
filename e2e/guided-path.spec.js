@@ -16,6 +16,46 @@ async function dismissOnboarding(page) {
   if (await skip.isVisible().catch(() => false)) await skip.click({ force: true });
 }
 
+async function expectNavigationBounded(page, { scrollable }) {
+  const metrics = await page.evaluate(() => {
+    const frame = document.querySelector('.telegram-frame');
+    const content = document.querySelector('.screen-content');
+    const navigation = document.querySelector('.app-tab-bar');
+    const frameRect = frame.getBoundingClientRect();
+    const navigationRect = navigation.getBoundingClientRect();
+    return {
+      frameTop: frameRect.top,
+      frameBottom: frameRect.bottom,
+      navigationTop: navigationRect.top,
+      navigationBottom: navigationRect.bottom,
+      contentClientHeight: content.clientHeight,
+      contentScrollHeight: content.scrollHeight,
+    };
+  });
+  expect(metrics.navigationTop).toBeGreaterThanOrEqual(metrics.frameTop - 0.5);
+  expect(metrics.navigationBottom).toBeLessThanOrEqual(metrics.frameBottom + 0.5);
+  if (scrollable) expect(metrics.contentScrollHeight).toBeGreaterThan(metrics.contentClientHeight);
+  else expect(metrics.contentScrollHeight).toBeLessThanOrEqual(metrics.contentClientHeight + 1);
+
+  if (!scrollable) return;
+  const before = { top: metrics.navigationTop, bottom: metrics.navigationBottom };
+  const after = await page.evaluate(() => {
+    const content = document.querySelector('.screen-content');
+    content.scrollTop = content.scrollHeight;
+    const navigationRect = document.querySelector('.app-tab-bar').getBoundingClientRect();
+    return { top: navigationRect.top, bottom: navigationRect.bottom, scrollTop: content.scrollTop };
+  });
+  expect(after.scrollTop).toBeGreaterThan(0);
+  expect(after.top).toBeCloseTo(before.top, 1);
+  expect(after.bottom).toBeCloseTo(before.bottom, 1);
+}
+
+async function markNavigationInstance(page, marker) {
+  const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
+  await navigation.evaluate((node, value) => { node.dataset.e2eInstance = value; }, marker);
+  return navigation;
+}
+
 async function createAndCompleteSmallColoring(page) {
   const width = 8;
   const height = 8;
@@ -54,12 +94,33 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test('catalog is the default and primary navigation has exactly three product tabs', async ({ page }) => {
   await primeLocalStorage(page);
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
+  await page.addStyleTag({ content: '.catalog-page, .profile-page { min-height: 1500px; }' });
   const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
   await expect(navigation.getByRole('button')).toHaveCount(3);
   expect(await navigation.getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))).toEqual(['Каталог', 'Создать', 'Профиль']);
   await expect(navigation).not.toContainText(/Главная|Сообщество|Gallery|Store|Achievements/i);
+  await expectNavigationBounded(page, { scrollable: true });
+
+  await markNavigationInstance(page, 'catalog-first');
+  await navigation.getByRole('button', { name: 'Создать' }).click();
+  await expect(page.locator('.create-hub-page')).toBeVisible();
+  await expect(navigation).not.toHaveAttribute('data-e2e-instance', 'catalog-first');
+  await expectNavigationBounded(page, { scrollable: false });
+
+  await markNavigationInstance(page, 'create');
+  await navigation.getByRole('button', { name: 'Профиль' }).click();
+  await expect(page.locator('[data-profile-showcase="true"]')).toBeVisible({ timeout: 15000 });
+  await expect(navigation).not.toHaveAttribute('data-e2e-instance', 'create');
+  await expectNavigationBounded(page, { scrollable: true });
+
+  await markNavigationInstance(page, 'profile');
+  await navigation.getByRole('button', { name: 'Каталог' }).click();
+  await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
+  await expect(navigation).not.toHaveAttribute('data-e2e-instance', 'profile');
+  await expectNavigationBounded(page, { scrollable: true });
 
   const collectionsResponse = await page.request.get('/api/meta/collections');
   expect(collectionsResponse.ok()).toBe(true);

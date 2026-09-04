@@ -12,6 +12,7 @@ import {
   getRequestedPackId,
   getTelegramVerticalSwipeStatus,
   invalidateTelegramBottomNavigation,
+  scheduleTelegramBottomNavigationRouteRepaint,
   isTelegramVersionAtLeast,
   supportsTelegramVerticalSwipes,
   syncTelegramViewportCssVars,
@@ -468,4 +469,47 @@ test('one-shot invalidation is a no-op without a rendered navigation', () => {
     globalThis.document.querySelector = () => null;
     assert.equal(invalidateTelegramBottomNavigation(), false);
   });
+});
+
+test('route repaint schedules one invalidation for a real Telegram iOS session', () => {
+  const scheduled = [];
+  const cancelled = [];
+  let invalidations = 0;
+  const cleanup = scheduleTelegramBottomNavigationRouteRepaint({
+    webApp: viewportWebApp({ platform: 'ios', initData: 'signed-query' }),
+    scheduleNextFrame(callback) {
+      scheduled.push(callback);
+      return 17;
+    },
+    cancelScheduledFrame(frameId) {
+      cancelled.push(frameId);
+    },
+    invalidate() {
+      invalidations += 1;
+    },
+  });
+
+  assert.equal(scheduled.length, 1, 'one route commit schedules one frame');
+  assert.equal(invalidations, 0, 'invalidation waits for the committed frame');
+  scheduled[0]();
+  assert.equal(invalidations, 1, 'the scheduled frame invalidates once');
+  cleanup();
+  assert.deepEqual(cancelled, [17]);
+});
+
+test('route repaint is disabled outside real Telegram iOS sessions', () => {
+  let scheduled = 0;
+  for (const webApp of [
+    viewportWebApp({ platform: 'desktop', initData: 'signed-query' }),
+    viewportWebApp({ platform: 'ios', initData: '' }),
+  ]) {
+    scheduleTelegramBottomNavigationRouteRepaint({
+      webApp,
+      scheduleNextFrame() {
+        scheduled += 1;
+        return scheduled;
+      },
+    });
+  }
+  assert.equal(scheduled, 0);
 });

@@ -201,6 +201,25 @@ export function invalidateTelegramBottomNavigation({
 }
 
 /**
+ * Schedules exactly one bottom-navigation invalidation after a React route
+ * commit. The workaround is bounded to real Telegram iOS sessions.
+ */
+export function scheduleTelegramBottomNavigationRouteRepaint({
+  webApp = getTelegramWebApp(),
+  scheduleNextFrame = typeof requestAnimationFrame === 'function'
+    ? (callback) => requestAnimationFrame(callback)
+    : (callback) => setTimeout(callback, 32),
+  cancelScheduledFrame = typeof cancelAnimationFrame === 'function'
+    ? (frameId) => cancelAnimationFrame(frameId)
+    : (frameId) => clearTimeout(frameId),
+  invalidate = () => invalidateTelegramBottomNavigation(),
+} = {}) {
+  if (!isRealTelegramSession(webApp) || webApp.platform !== 'ios') return () => {};
+  const frameId = scheduleNextFrame(invalidate);
+  return () => cancelScheduledFrame(frameId);
+}
+
+/**
  * Joins the Telegram viewport lifecycle. Stable resize events re-publish the
  * viewport CSS variables, and on iOS-Telegram sessions every committed state
  * also triggers the one-shot navigation repaint. Returns a cleanup function.

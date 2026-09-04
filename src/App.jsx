@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { metaApi } from './api/client';
 import PlayerView from './views/PlayerView';
 import CatalogView from './views/CatalogView';
@@ -22,7 +22,7 @@ import { useProfileData } from './hooks/useProfileData';
 import { useCreatorData } from './hooks/useCreatorData';
 import { useColoringSession } from './hooks/useColoringSession';
 import { formatDifficulty } from './lib/catalogMeta';
-import { getRequestedColoringId, getRequestedPackId, getRequestedProfileId, hapticSelection } from './lib/telegram';
+import { getRequestedColoringId, getRequestedPackId, getRequestedProfileId, hapticSelection, scheduleTelegramBottomNavigationRouteRepaint } from './lib/telegram';
 import { readCurrentResumeSnapshot } from './lib/resumeState.js';
 import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
 import { resolveSessionGameExperiment } from './features/sessionGame/sessionGameExperiment.js';
@@ -172,6 +172,11 @@ function App() {
   }, [home.collections, openCatalogCollection, requestedPackId, setCatalogChip, setCatalogCollection, showNotice]);
 
   useEffect(() => () => window.clearTimeout(noticeTimerRef.current), []);
+
+  useLayoutEffect(() => {
+    if (view === 'play' || coreFeelExperiment.enabled) return undefined;
+    return scheduleTelegramBottomNavigationRouteRepaint();
+  }, [coreFeelExperiment.enabled, view]);
 
   function navigatePrimary(nextView) {
     hapticSelection();
@@ -495,7 +500,7 @@ function App() {
     />;
   }
 
-  return <main className="telegram-frame"><div className="app-container">{view !== 'play' && !coreFeelExperiment.enabled && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
+  return <main className="telegram-frame"><div className={`app-container${view === 'play' ? ' app-container--play' : ''}`}>{view !== 'play' && !coreFeelExperiment.enabled && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation key={`bottom-nav-${view}`} activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
 }
 
 export default App;
