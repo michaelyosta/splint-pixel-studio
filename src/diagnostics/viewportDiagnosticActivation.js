@@ -10,6 +10,7 @@ export function readViewportDiagnosticStartParam(windowRef = globalThis.window) 
 export function isViewportDiagnosticEnabled({ search = '', startParam = null } = {}) {
   const query = new URLSearchParams(String(search || ''));
   return query.get('viewportDiagnostic') === '1'
+    || query.get('tgWebAppStartParam') === 'viewportDiagnostic'
     || startParam === 'viewportDiagnostic';
 }
 
