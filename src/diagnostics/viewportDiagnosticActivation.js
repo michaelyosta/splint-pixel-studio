@@ -19,6 +19,23 @@ function variantFromExactValue(value) {
   return VIEWPORT_DIAGNOSTIC_START_PARAMS[value] || null;
 }
 
+/**
+ * Resolve only the explicit one-shot arming values. Legacy baseline entry
+ * points such as ?viewportDiagnostic=1 intentionally stay out of this path.
+ * The Telegram bridge is read through the same narrow start_param accessor;
+ * no surrounding init data is inspected or serialized.
+ */
+export function readViewportDiagnosticArmingVariant(windowRef = globalThis.window) {
+  const query = new URLSearchParams(String(windowRef?.location?.search || ''));
+  const candidates = [
+    readViewportDiagnosticStartParam(windowRef),
+    query.get('tgWebAppStartParam'),
+    query.get('viewportDiagnosticVariant'),
+    query.get('viewportDiagnostic'),
+  ];
+  return candidates.map(variantFromExactValue).find(Boolean) || null;
+}
+
 export function readViewportDiagnosticStartParam(windowRef = globalThis.window) {
   const startParam = windowRef?.Telegram?.WebApp?.initDataUnsafe?.start_param;
   return typeof startParam === 'string' ? startParam : null;
