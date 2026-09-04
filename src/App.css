@@ -16,6 +16,22 @@ html, body, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: 
 body { display: flex; justify-content: center; align-items: center; background-color: #04080E; }
 html[data-tg-swipe-protected] { overscroll-behavior-y: none; }
 
+/* Telegram content safe areas win when present; env() covers standalone/PWA.
+   The Telegram SDK publishes the --tg-* variables (and telegram.js mirrors
+   them), so max() never double-counts — it picks the largest single inset. */
+:root {
+  --app-safe-area-top: max(
+    env(safe-area-inset-top, 0px),
+    var(--tg-safe-area-inset-top, 0px),
+    var(--tg-content-safe-area-inset-top, 0px)
+  );
+  --app-safe-area-bottom: max(
+    env(safe-area-inset-bottom, 0px),
+    var(--tg-safe-area-inset-bottom, 0px),
+    var(--tg-content-safe-area-inset-bottom, 0px)
+  );
+}
+
 button { -webkit-tap-highlight-color: transparent; }
 img { user-select: none; }
 
@@ -42,7 +58,8 @@ img { user-select: none; }
   body { background-color: var(--app-bg); background-image: none; }
   .telegram-frame {
     width: 100vw;
-    height: 100vh;
+    height: var(--tg-viewport-stable-height, 100dvh);
+    max-height: var(--tg-viewport-stable-height, 100dvh);
     border: none;
     border-radius: 0;
     box-shadow: none;
@@ -69,7 +86,7 @@ img { user-select: none; }
   justify-content: space-between;
   align-items: center;
   gap: 6px;
-  padding: 10px 14px;
+  padding: calc(10px + var(--app-safe-area-top, 0px)) 14px 10px;
   background: linear-gradient(180deg, rgba(16, 29, 45, 0.98), rgba(11, 21, 34, 0.94));
   border-bottom: 1px solid var(--app-border);
   z-index: 10;
@@ -159,7 +176,6 @@ img { user-select: none; }
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: 96px;
   position: relative;
   scrollbar-width: thin;
 }
@@ -172,20 +188,24 @@ img { user-select: none; }
   padding-bottom: 0;
 }
 
-/* ── Tab bar ──────────────────────────────────────────────────── */
+/* ── Tab bar ────────────────────────────────────────────────────
+   Structural flex item, never an absolutely positioned overlay:
+   the iOS Telegram sheet path can drop the rasterization of an
+   absolutely positioned bar's content layer, so the bar must live
+   in normal flow. backdrop-filter stays off for the same reason —
+   its pipeline kept rendering while the bar's own content layer
+   vanished. Do not re-add blur or absolute anchoring here. */
 .app-tab-bar {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  position: relative;
+  flex: 0 0 auto;
+  margin: 8px 10px calc(10px + var(--app-safe-area-bottom, 0px));
   height: 62px;
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  background: rgba(12, 22, 34, 0.92);
+  background: var(--app-dark-gray);
   border: 1px solid var(--app-border);
   border-radius: 20px;
-  backdrop-filter: blur(14px);
   box-shadow: 0 12px 30px rgba(2, 8, 14, 0.6);
   z-index: 20;
 }
@@ -1202,7 +1222,7 @@ img { user-select: none; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: calc(8px + var(--app-safe-area-top, 0px)) 10px 8px;
   min-height: 50px;
   background: linear-gradient(180deg, rgba(16, 29, 45, 0.98), rgba(11, 21, 34, 0.92));
   border-bottom: 1px solid var(--app-border);
@@ -1906,8 +1926,8 @@ html[data-tg-theme='light'] .session-goal-timer {
 
 /* ── Compact heights ──────────────────────────────────────────── */
 @media (max-height: 500px) {
-  .app-header { padding: 4px 10px; }
-  .player-topbar { min-height: 40px; padding: 2px 8px; }
+  .app-header { padding: calc(4px + var(--app-safe-area-top, 0px)) 10px 4px; }
+  .player-topbar { min-height: 40px; padding: calc(2px + var(--app-safe-area-top, 0px)) 8px 2px; }
   .player-topbar .back-button,
   .player-menu-btn { min-height: 32px; min-width: 32px; }
   .player-progress { width: 30px; height: 30px; }
@@ -2144,7 +2164,7 @@ html[data-tg-theme='light'] .app-container {
     linear-gradient(rgba(0, 120, 150, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 120, 150, 0.05) 1px, transparent 1px);
 }
-html[data-tg-theme='light'] .app-tab-bar { background: rgba(255, 255, 255, 0.94); box-shadow: 0 10px 26px rgba(23, 43, 66, 0.16); }
+html[data-tg-theme='light'] .app-tab-bar { background: var(--app-card); box-shadow: 0 10px 26px rgba(23, 43, 66, 0.16); }
 html[data-tg-theme='light'] .header-logo { text-shadow: none; }
 html[data-tg-theme='light'] .primary-button { color: #FFFFFF; }
 html[data-tg-theme='light'] .card-preview,
@@ -2221,7 +2241,7 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 /* ── Product navigation and dashboard redesign ─────────────────────── */
 .app-header--redesigned {
   min-height: 62px;
-  padding: 8px 14px;
+  padding: calc(8px + var(--app-safe-area-top, 0px)) 14px 8px;
   justify-content: space-between;
 }
 .app-header--redesigned .brand-button { min-height: 44px; }
@@ -2246,9 +2266,7 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .header-profile-button:active { transform: scale(0.94); }
 
 .app-tab-bar--redesigned {
-  left: 9px;
-  right: 9px;
-  bottom: calc(9px + env(safe-area-inset-bottom, 0px));
+  margin: 8px 9px calc(9px + var(--app-safe-area-bottom, 0px));
   height: 68px;
   padding: 0 2px;
   border-radius: 22px;
@@ -2281,12 +2299,22 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .app-tab-bar--redesigned .app-tab-bar__create > span:last-child { margin-top: -3px; }
 .app-tab-bar--redesigned .app-tab-bar__create.active .app-tab-bar__plus { box-shadow: 0 8px 24px rgba(43, 217, 254, 0.5), 0 0 0 1px #9CF2FF; }
 
+/* iOS Telegram compositor guard: keep the navigation rasterization pinned to
+   its own layer, and let the one-shot invalidation (telegram.js) toggle this
+   repaint class exactly once per committed viewport state. */
+html[data-tg-ios] .app-tab-bar {
+  transform: translateZ(0);
+}
+html[data-tg-ios] .app-tab-bar--repaint {
+  transform: translate3d(0, 0, 1px);
+}
+
 .home-page,
 .catalog-page--redesigned,
 .feed-page--redesigned,
 .profile-page--redesigned,
 .profile-page--showcase,
-.create-hub-page { padding: 18px 14px 104px; }
+.create-hub-page { padding: 18px 14px 24px; }
 .home-greeting {
   display: flex;
   align-items: center;
@@ -2555,7 +2583,7 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .catalog-empty { margin: 20px 0; padding: 20px 14px; border: 1px dashed var(--app-border-strong); border-radius: var(--radius-lg); color: var(--app-text-secondary); font-size: 12px; text-align: center; }
 
 /* ── Bounded Phase 5 store / pack preview ───────────────────────────── */
-.store-page { padding: 18px 14px 104px; }
+.store-page { padding: 18px 14px 24px; }
 .store-heading { align-items: flex-start; margin-bottom: 12px; }
 .store-heading h1 { max-width: 270px; font-size: 23px; line-height: 1.12; }
 .store-back-button { min-height: 44px; display: inline-flex; align-items: center; gap: 5px; padding: 0 6px; border: 0; background: transparent; color: var(--app-cyan); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
