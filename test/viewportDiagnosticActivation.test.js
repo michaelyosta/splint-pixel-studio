@@ -22,6 +22,17 @@ test('exact Telegram viewportDiagnostic start_param activates the same mode', ()
   assert.equal(shouldMountViewportDiagnostic(windowRef), true);
 });
 
+test('Telegram tgWebAppStartParam query activates the same mode', () => {
+  assert.equal(
+    isViewportDiagnosticEnabled({ search: '?tgWebAppStartParam=viewportDiagnostic' }),
+    true,
+  );
+  assert.equal(
+    isViewportDiagnosticEnabled({ search: '?tgWebAppStartParam=viewportDiagnostic%20' }),
+    false,
+  );
+});
+
 test('non-diagnostic Telegram start parameters stay on the ordinary flow', () => {
   const windowRef = {
     location: { search: '' },
@@ -30,6 +41,9 @@ test('non-diagnostic Telegram start parameters stay on the ordinary flow', () =>
   assert.equal(shouldMountViewportDiagnostic(windowRef), false);
   assert.equal(isViewportDiagnosticEnabled({ startParam: 'viewportDiagnostic=1' }), false);
   assert.equal(isViewportDiagnosticEnabled({ startParam: 'viewportDiagnostic ' }), false);
+  assert.equal(isViewportDiagnosticEnabled({ search: '?tgWebAppStartParam=pack_from-start' }), false);
+  assert.equal(isViewportDiagnosticEnabled({ search: '?tgWebAppStartParam=viewportDiagnostic=1' }), false);
+  assert.equal(isViewportDiagnosticEnabled({ search: '?tgWebAppStartParam=' }), false);
 });
 
 test('start-param reader does not inspect unrelated auth or identity fields', () => {
