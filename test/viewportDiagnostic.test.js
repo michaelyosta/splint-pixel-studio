@@ -96,9 +96,15 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
     windowRef,
     documentRef,
     getComputedStyleRef: () => style,
+    variant: 'noBackdrop',
   });
   const formatted = formatViewportDiagnosticSnapshot(snapshot);
 
+  assert.equal(snapshot.variant, 'noBackdrop');
+  assert.equal(typeof snapshot.capturedAt, 'string');
+  assert.deepEqual(Object.keys(snapshot.app).sort(), ['sha', 'timestamp']);
+  assert.equal(snapshot.rects.html.width, 390);
+  assert.equal(snapshot.rects.body.width, 390);
   assert.equal(snapshot.window.innerHeight, 844);
   assert.equal(snapshot.visualViewport.offsetTop, 0);
   assert.equal(snapshot.visualViewport.scale, 1);
@@ -111,11 +117,28 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
   assert.equal(snapshot.rects.frame.height, 844);
   assert.equal(snapshot.rects.tabBar.bottom, 828);
   assert.equal(snapshot.navItems.length, 3);
+  assert.equal(snapshot.navItems[0].rect.width, 123);
   assert.equal(snapshot.navItems[0].paint.opacity, '1');
   assert.equal(snapshot.navItems[0].paint.backdropFilter, 'blur(14px)');
   assert.equal(snapshot.navItems[0].hitTarget, 'button.active');
   assert.equal(snapshot.geometry.verdict, 'NO_GEOMETRY_PAINT_HIT_FAILURE');
   assert.equal(snapshot.geometry.frameWithinVisual, true);
+  assert.equal(snapshot.geometry.tabBarWithinViewport, true);
+  assert.equal(snapshot.geometry.geometryValid, true);
+  assert.equal(snapshot.geometry.paintStateValid, true);
+  assert.equal(snapshot.geometry.navPaintStateValid, true);
+  assert.equal(snapshot.geometry.hitTestValid, true);
+  assert.equal(snapshot.geometry.backdropActive, true);
+  assert.deepEqual(snapshot.classification, {
+    geometryValid: true,
+    tabBarWithinViewport: true,
+    tabBarWithinFrame: true,
+    paintStateValid: true,
+    navPaintStateValid: true,
+    hitTestValid: true,
+    backdropActive: true,
+  });
+  assert.equal(snapshot.hitTargets.tabBar, 'button.active');
   assert.equal(snapshot.geometry.tabBarWithinFrame, true);
   assert.deepEqual(snapshot.geometry.paintInvisible, []);
   assert.deepEqual(snapshot.geometry.hitUnavailable, []);
@@ -131,6 +154,7 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
   assert.match(formatted, /rect \.app-tab-bar: .*right=380\.00 .*left=10\.00/);
   assert.match(formatted, /overlap \.screen-content × \.app-tab-bar: yes/);
   assert.doesNotMatch(formatted, /must-not-be-read-or-rendered|initData/);
+  assert.doesNotMatch(JSON.stringify(snapshot), /must-not-be-read-or-rendered|initData|identity|token|cookie|auth/i);
 });
 
 test('viewport diagnostic keeps unavailable fields explicit when bridges or elements are absent', () => {

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { initializeTelegramWebApp } from './lib/telegram.js'
-import { shouldMountViewportDiagnostic } from './diagnostics/viewportDiagnosticActivation.js'
+import { resolveViewportDiagnosticVariant } from './diagnostics/viewportDiagnosticActivation.js'
 
 initializeTelegramWebApp();
 
@@ -13,8 +13,9 @@ createRoot(document.getElementById('root')).render(
   </StrictMode>,
 )
 
-if (shouldMountViewportDiagnostic()) {
+const viewportDiagnosticVariant = resolveViewportDiagnosticVariant();
+if (viewportDiagnosticVariant) {
   import('./diagnostics/viewportDiagnostic.js').then(({ mountViewportDiagnostic }) => {
-    mountViewportDiagnostic();
+    mountViewportDiagnostic({ variant: viewportDiagnosticVariant });
   });
 }

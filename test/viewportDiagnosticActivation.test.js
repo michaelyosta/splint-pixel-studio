@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import {
   isViewportDiagnosticEnabled,
   readViewportDiagnosticStartParam,
+  readViewportDiagnosticVariant,
+  resolveViewportDiagnosticVariant,
   shouldMountViewportDiagnostic,
 } from '../src/diagnostics/viewportDiagnosticActivation.js';
 
@@ -20,6 +22,33 @@ test('exact Telegram viewportDiagnostic start_param activates the same mode', ()
   };
   assert.equal(readViewportDiagnosticStartParam(windowRef), 'viewportDiagnostic');
   assert.equal(shouldMountViewportDiagnostic(windowRef), true);
+});
+
+test('exact experiment start parameters map deterministically to variants', () => {
+  assert.equal(readViewportDiagnosticVariant({ startParam: 'viewportDiagnostic_baseline' }), 'baseline');
+  assert.equal(readViewportDiagnosticVariant({ startParam: 'viewportDiagnostic_noBackdrop' }), 'noBackdrop');
+  assert.equal(readViewportDiagnosticVariant({ startParam: 'viewportDiagnostic_promotedLayer' }), 'promotedLayer');
+  assert.equal(
+    readViewportDiagnosticVariant({ search: '?tgWebAppStartParam=viewportDiagnostic_noBackdrop' }),
+    'noBackdrop',
+  );
+  assert.equal(
+    readViewportDiagnosticVariant({ search: '?viewportDiagnosticVariant=viewportDiagnostic_promotedLayer' }),
+    'promotedLayer',
+  );
+  assert.equal(readViewportDiagnosticVariant({ search: '?viewportDiagnostic=1' }), 'baseline');
+});
+
+test('unknown, malformed and ordinary launches install no diagnostic variant', () => {
+  const ordinaryWindow = { location: { search: '' }, Telegram: { WebApp: {} } };
+  assert.equal(readViewportDiagnosticVariant({ startParam: 'viewportDiagnostic_unknown' }), null);
+  assert.equal(readViewportDiagnosticVariant({ startParam: 'viewportDiagnostic_noBackdrop ' }), null);
+  assert.equal(readViewportDiagnosticVariant({ search: '?tgWebAppStartParam=viewportDiagnostic_noBackdrop%20' }), null);
+  assert.equal(readViewportDiagnosticVariant({ search: '?viewportDiagnosticVariant=viewportDiagnostic_promotedLayer=1' }), null);
+  assert.equal(readViewportDiagnosticVariant({ search: '?viewportDiagnostic=0' }), null);
+  assert.equal(resolveViewportDiagnosticVariant(ordinaryWindow), null);
+  assert.equal(shouldMountViewportDiagnostic(ordinaryWindow), false);
+  assert.equal(isViewportDiagnosticEnabled({ search: '?tgWebAppStartParam=unknown' }), false);
 });
 
 test('non-diagnostic Telegram start parameters stay on the ordinary flow', () => {
