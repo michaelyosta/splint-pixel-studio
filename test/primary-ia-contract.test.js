@@ -44,11 +44,45 @@ test('app header and default shell expose only primary navigation routes', () =>
   assert.match(header, /className="brand-button"[\s\S]*navigatePrimary\('catalog'\)/);
   assert.match(header, /className="header-profile-button"[\s\S]*navigatePrimary\('profile'\)/);
   assert.match(app, /<BottomNavigation\b[^>]*\bonNavigate=\{navigatePrimary\}/);
+  assert.match(app, /<BottomNavigation\b[^>]*\bkey=\{`bottom-nav-\$\{view\}`\}/);
   assert.match(
     app,
     /\['catalog',\s*'create',\s*'profile'\]\.includes\(initialResume\?\.route\)/,
     'resume fallback must preserve the three primary destinations',
   );
+});
+
+test('application shell keeps long content in a bounded middle grid row', () => {
+  const app = source('src/App.jsx');
+  const styles = source('src/App.css');
+  const containerRule = styles.match(/\.app-container\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const playerRule = styles.match(/\.app-container--play\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const headerRule = styles.match(/\.app-header\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const contentRule = styles.match(/\.screen-content\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const navigationRule = styles.match(/\.app-tab-bar\s*\{([\s\S]*?)\}/)?.[1] || '';
+
+  assert.match(containerRule, /display:\s*grid/);
+  assert.match(containerRule, /grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)\s+auto/);
+  assert.match(containerRule, /min-height:\s*0/);
+  assert.match(containerRule, /overflow:\s*hidden/);
+  assert.match(headerRule, /grid-row:\s*1/);
+  assert.match(contentRule, /grid-row:\s*2/);
+  assert.match(contentRule, /min-height:\s*0/);
+  assert.match(contentRule, /min-width:\s*0/);
+  assert.match(contentRule, /overflow-y:\s*auto/);
+  assert.match(navigationRule, /grid-row:\s*3/);
+  assert.match(playerRule, /display:\s*flex/);
+  assert.match(app, /view === 'play' \? ' app-container--play' : ''/);
+});
+
+test('Telegram iOS route commits disable page transforms and schedule one-shot nav repaint', () => {
+  const app = source('src/App.jsx');
+  const styles = source('src/App.css');
+
+  assert.match(styles, /html\[data-tg-ios\] \.page\s*\{[\s\S]*?animation:\s*none !important;[\s\S]*?transform:\s*none !important;/);
+  assert.match(styles, /html\[data-tg-ios\] \.screen-content\s*\{[\s\S]*?z-index:\s*1;/);
+  assert.match(styles, /html\[data-tg-ios\] \.app-tab-bar\s*\{[\s\S]*?z-index:\s*100;[\s\S]*?isolation:\s*isolate;/);
+  assert.match(app, /useLayoutEffect\(\(\) => \{[\s\S]*?scheduleTelegramBottomNavigationRouteRepaint\(\);[\s\S]*?\[coreFeelExperiment\.enabled, view\]\);/);
 });
 
 test('profile CTAs stay within primary IA while secondary routes remain implementation details', () => {
