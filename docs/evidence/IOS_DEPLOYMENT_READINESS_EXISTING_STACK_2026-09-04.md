@@ -42,6 +42,25 @@ position/paint properties, overlap, and viewport hit-test evidence. It does not
 read or render `initData`, identity, cookies, auth headers, tokens, or request
 payloads.
 
+The launch bridge now also accepts exactly the Telegram WebApp
+`initDataUnsafe.start_param` value `viewportDiagnostic`. It reads that single
+field and passes no surrounding auth or identity data to the diagnostic. The
+ordinary query activation remains unchanged.
+
+For the existing bot's Main Mini App, the exact Telegram direct-link template
+is:
+
+```text
+https://t.me/<existing_bot_username>?startapp=viewportDiagnostic
+```
+
+Telegram delivers this as `start_param=viewportDiagnostic` (and its documented
+`tgWebAppStartParam` GET value); it does not retarget the bot's configured Web
+App URL. Therefore the link activates the diagnostic only when the existing
+bot entry is already serving the reviewed branch/Pages preview. It cannot turn
+the production `showalove.ru` bundle into a preview and does not justify a
+production bot or DNS change.
+
 ## Targeted CI and local evidence
 
 The following commands passed on the pushed branch with retries and quarantine
@@ -93,6 +112,13 @@ deployments are enabled for this repository/project, select or allow
 the resulting deployment. No production branch or custom domain should be
 touched.
 
+For code delivery, a branch push/PR is sufficient for the existing Pages Git
+integration to build a preview when that integration is enabled. It is not
+sufficient to route the existing production bot to that preview: the bot must
+already have an approved non-production Web App entry. Merging to the
+production branch would deploy the diagnostic to `showalove.ru` and remains
+out of scope.
+
 After the lead supplies the actual Pages preview URL, run the verifier against
 that exact origin and use the same URL for the physical Mini App capture. Do
 not infer a successful Pages deployment from the branch push alone.
@@ -136,4 +162,3 @@ records the immutable deployment-hash URL, runs the same route verifier against
 that URL, and opens that preview through the existing bot on the physical
 iPhone. Keep the diagnostic source frozen and make no CSS change until the
 Telegram measurements are returned.
-

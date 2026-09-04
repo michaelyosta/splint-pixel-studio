@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { initializeTelegramWebApp } from './lib/telegram.js'
+import { shouldMountViewportDiagnostic } from './diagnostics/viewportDiagnosticActivation.js'
 
 initializeTelegramWebApp();
 
@@ -12,7 +13,7 @@ createRoot(document.getElementById('root')).render(
   </StrictMode>,
 )
 
-if (new URLSearchParams(window.location.search).get('viewportDiagnostic') === '1') {
+if (shouldMountViewportDiagnostic()) {
   import('./diagnostics/viewportDiagnostic.js').then(({ mountViewportDiagnostic }) => {
     mountViewportDiagnostic();
   });
