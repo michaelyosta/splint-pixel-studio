@@ -1,3 +1,6 @@
+import { VIEWPORT_DIAGNOSTIC_VARIANTS } from './viewportDiagnosticActivation.js';
+import { applyViewportDiagnosticExperiment } from './viewportDiagnosticExperiment.js';
+
 const TELEGRAM_VIEWPORT_CSS_VARIABLES = [
   '--tg-viewport-height',
   '--tg-viewport-stable-height',
@@ -21,7 +24,7 @@ const POSITION_KEYS = [
 // include text, attributes, or arbitrary DOM payloads in the diagnostic.
 const PAINT_KEYS = [
   'display', 'visibility', 'opacity', 'backgroundColor', 'color',
-  'filter', 'backdropFilter', 'transform', 'mixBlendMode', 'isolation',
+  'filter', 'backdropFilter', 'webkitBackdropFilter', 'transform', 'mixBlendMode', 'isolation',
 ];
 
 const DIAGNOSTIC_PAGE_IDS = ['viewport', 'telegram', 'layout', 'overlap'];
@@ -145,14 +148,28 @@ function isPaintInvisible(paint) {
   return opacity != null ? opacity <= 0 : false;
 }
 
-function classifyViewportDiagnostic({ window, visualViewport, rects, navItems }) {
+function classifyViewportDiagnostic({ window, visualViewport, rects, tabBarPaint, navItems }) {
   const viewportWidth = finiteNumber(visualViewport?.width) ?? finiteNumber(window?.innerWidth);
   const viewportHeight = finiteNumber(visualViewport?.height) ?? finiteNumber(window?.innerHeight);
   const visualRect = viewportWidth != null && viewportHeight != null && viewportWidth > 0 && viewportHeight > 0
     ? { left: 0, top: 0, right: viewportWidth, bottom: viewportHeight }
     : null;
   const frameWithinVisual = containsRect(visualRect, rects?.frame);
+  const tabBarWithinViewport = containsRect(visualRect, rects?.tabBar);
   const tabBarWithinFrame = containsRect(rects?.frame, rects?.tabBar);
+  const geometryValid = frameWithinVisual === true
+    && tabBarWithinViewport === true
+    && tabBarWithinFrame === true
+    && navItems?.length === 3
+    && navItems.every((item) => isPositiveRect(item.rect));
+  const paintStateValid = isPaintInvisible(tabBarPaint) === false;
+  const navPaintStateValid = navItems?.length === 3
+    && navItems.every((item) => isPaintInvisible(item.paint) === false);
+  const hitTestValid = navItems?.length === 3
+    && navItems.every((item) => item.hitTarget != null && item.hitTarget !== 'none');
+  const backdropValues = [tabBarPaint?.backdropFilter, tabBarPaint?.webkitBackdropFilter]
+    .filter((value) => typeof value === 'string' && value.trim());
+  const backdropActive = backdropValues.some((value) => value !== 'none');
   const paintInvisible = (navItems || [])
     .filter((item) => isPaintInvisible(item.paint) === true)
     .map((item) => item.index + 1);
@@ -161,19 +178,25 @@ function classifyViewportDiagnostic({ window, visualViewport, rects, navItems })
     .map((item) => item.index + 1);
 
   let verdict = 'INSUFFICIENT_GEOMETRY';
-  if (frameWithinVisual === false || tabBarWithinFrame === false) {
+  if (frameWithinVisual === false || tabBarWithinViewport === false || tabBarWithinFrame === false) {
     verdict = 'CLIPPING_CANDIDATE';
   } else if (paintInvisible.length) {
     verdict = 'PAINT_CANDIDATE';
   } else if (hitUnavailable.length) {
     verdict = 'HIT_TEST_CANDIDATE';
-  } else if (frameWithinVisual === true && tabBarWithinFrame === true && navItems?.length === 3) {
+  } else if (frameWithinVisual === true && tabBarWithinViewport === true && tabBarWithinFrame === true && navItems?.length === 3) {
     verdict = 'NO_GEOMETRY_PAINT_HIT_FAILURE';
   }
   return {
     verdict,
     frameWithinVisual,
+    tabBarWithinViewport,
     tabBarWithinFrame,
+    geometryValid,
+    paintStateValid,
+    navPaintStateValid,
+    hitTestValid,
+    backdropActive,
     paintInvisible,
     hitUnavailable,
   };
@@ -247,6 +270,7 @@ function formatPaint(paint) {
     `color=${paint.color || 'unavailable'}`,
     `filter=${paint.filter || 'unavailable'}`,
     `backdrop=${paint.backdropFilter || 'unavailable'}`,
+    `webkitBackdrop=${paint.webkitBackdropFilter || 'unavailable'}`,
     `transform=${paint.transform || 'unavailable'}`,
   ].join(' ');
 }
@@ -257,7 +281,13 @@ function formatGeometryClassification(value) {
   return [
     `verdict=${value.verdict || 'unavailable'}`,
     `frameWithinVisual=${formatBool('frameWithinVisual')}`,
+    `tabBarWithinViewport=${formatBool('tabBarWithinViewport')}`,
     `tabBarWithinFrame=${formatBool('tabBarWithinFrame')}`,
+    `geometryValid=${formatBool('geometryValid')}`,
+    `paintStateValid=${formatBool('paintStateValid')}`,
+    `navPaintStateValid=${formatBool('navPaintStateValid')}`,
+    `hitTestValid=${formatBool('hitTestValid')}`,
+    `backdropActive=${formatBool('backdropActive')}`,
     `paintInvisible=${value.paintInvisible?.length ? value.paintInvisible.join(',') : 'none'}`,
     `hitUnavailable=${value.hitUnavailable?.length ? value.hitUnavailable.join(',') : 'none'}`,
   ].join(' ');
@@ -300,6 +330,15 @@ function pageIndex(value) {
   return index >= 0 ? index : null;
 }
 
+function readBuildMetadata() {
+  const buildEnv = import.meta.env || {};
+  const readNonEmpty = (value) => typeof value === 'string' && value.trim() ? value.trim() : 'unavailable';
+  return {
+    sha: readNonEmpty(buildEnv.VITE_APP_SHA || buildEnv.VITE_COMMIT_SHA),
+    timestamp: readNonEmpty(buildEnv.VITE_BUILD_TIMESTAMP),
+  };
+}
+
 /** Resolves a static page selection; null means the deterministic auto-cycle. */
 export function resolveViewportDiagnosticPage(search = '') {
   const value = new URLSearchParams(String(search || '')).get('viewportDiagnosticPage');
@@ -311,9 +350,15 @@ export function collectViewportDiagnosticSnapshot({
   windowRef = globalThis.window,
   documentRef = globalThis.document,
   getComputedStyleRef = globalThis.getComputedStyle,
+  variant = VIEWPORT_DIAGNOSTIC_VARIANTS.baseline,
 } = {}) {
+  const diagnosticVariant = Object.values(VIEWPORT_DIAGNOSTIC_VARIANTS).includes(variant)
+    ? variant
+    : null;
+  const app = readBuildMetadata();
   const root = documentRef?.documentElement || null;
   const elements = {
+    html: root,
     documentElement: root,
     body: documentRef?.body || null,
     root: documentRef?.querySelector?.('#root') || null,
@@ -361,13 +406,19 @@ export function collectViewportDiagnosticSnapshot({
     },
     visualViewport: readVisualViewport(windowRef?.visualViewport),
     rects,
+    tabBarPaint: paints.tabBar,
     navItems: navItems.map((element, index) => ({
       index,
+      rect: navItemRects[index],
       paint: readPaint(element, getComputedStyleRef),
       hitTarget: readHitTarget(documentRef, navItemRects[index]),
     })),
   });
+  const tabBarHitTarget = readHitTarget(documentRef, rects.tabBar);
   return {
+    variant: diagnosticVariant,
+    app,
+    capturedAt: new Date().toISOString(),
     window: {
       innerWidth: finiteNumber(windowRef?.innerWidth),
       innerHeight: finiteNumber(windowRef?.innerHeight),
@@ -392,7 +443,20 @@ export function collectViewportDiagnosticSnapshot({
     paints: {
       tabBar: paints.tabBar,
     },
+    hitTargets: {
+      tabBar: tabBarHitTarget,
+      nav: navItems.map((element, index) => readHitTarget(documentRef, navItemRects[index])),
+    },
     geometry,
+    classification: {
+      geometryValid: geometry.geometryValid,
+      tabBarWithinViewport: geometry.tabBarWithinViewport,
+      tabBarWithinFrame: geometry.tabBarWithinFrame,
+      paintStateValid: geometry.paintStateValid,
+      navPaintStateValid: geometry.navPaintStateValid,
+      hitTestValid: geometry.hitTestValid,
+      backdropActive: geometry.backdropActive,
+    },
     overlaps: {
       rootFrame: overlap(rects.root, rects.frame),
       frameTabBar: overlap(rects.frame, rects.tabBar),
@@ -402,9 +466,11 @@ export function collectViewportDiagnosticSnapshot({
 }
 
 export function getViewportDiagnosticPages(snapshot) {
-  const header = (id, index) => `PREVIEW — Telegram viewport diagnostic · page ${index + 1}/${DIAGNOSTIC_PAGE_IDS.length} · ${id}`;
+  const header = (id, index) => `PREVIEW — Telegram viewport diagnostic · page ${index + 1}/${DIAGNOSTIC_PAGE_IDS.length} · ${id} · variant=${snapshot.variant || 'unavailable'}`;
   const viewport = [
     header('viewport', 0),
+    `app.sha: ${snapshot.app?.sha || 'unavailable'}`,
+    `app.timestamp: ${snapshot.app?.timestamp || 'unavailable'} captured=${snapshot.capturedAt || 'unavailable'}`,
     `window.inner: ${formatNumber(snapshot.window?.innerWidth)}x${formatNumber(snapshot.window?.innerHeight)} dpr=${formatNumber(snapshot.window?.devicePixelRatio)}`,
     `visualViewport: ${formatVisualViewport(snapshot.visualViewport)}`,
   ];
@@ -422,6 +488,7 @@ export function getViewportDiagnosticPages(snapshot) {
     header('layout', 2),
     ...[
       ['documentElement', 'html'],
+      ['body', 'body'],
       ['root', '#root'],
       ['frame', '.telegram-frame'],
       ['container', '.app-container'],
@@ -442,6 +509,7 @@ export function getViewportDiagnosticPages(snapshot) {
     `geometry: ${formatGeometryClassification(snapshot.geometry)}`,
     `paint .app-tab-bar: ${formatPaint(snapshot.paints?.tabBar)}`,
     ...(snapshot.navItems || []).map((item) => [
+      `rect nav[${item.index + 1}]: ${formatRect(item.rect)}`,
       `paint nav[${item.index + 1}]: ${formatPaint(item.paint)}`,
       `hit nav[${item.index + 1}]: ${item.hitTarget || 'unavailable'}`,
     ]).flat(),
@@ -460,8 +528,16 @@ export function formatViewportDiagnosticSnapshot(snapshot, selectedPage = null) 
   return pages.map((page) => page.lines.join('\n')).join('\n');
 }
 
-export function mountViewportDiagnostic() {
+export function mountViewportDiagnostic({ variant = VIEWPORT_DIAGNOSTIC_VARIANTS.baseline } = {}) {
   if (document.querySelector('[data-viewport-diagnostic]')) return;
+
+  const diagnosticVariant = Object.values(VIEWPORT_DIAGNOSTIC_VARIANTS).includes(variant)
+    ? variant
+    : null;
+  const removeExperiment = applyViewportDiagnosticExperiment({
+    documentRef: document,
+    variant: diagnosticVariant,
+  });
 
   const panel = document.createElement('pre');
   panel.dataset.viewportDiagnostic = 'true';
@@ -488,7 +564,10 @@ export function mountViewportDiagnostic() {
   const selectedPage = resolveViewportDiagnosticPage(window.location.search);
   let currentPage = selectedPage ?? 0;
   const update = () => {
-    panel.textContent = formatViewportDiagnosticSnapshot(collectViewportDiagnosticSnapshot(), currentPage);
+    panel.textContent = formatViewportDiagnosticSnapshot(
+      collectViewportDiagnosticSnapshot({ variant: diagnosticVariant }),
+      currentPage,
+    );
   };
   const listeners = [];
   const addListener = (target, type) => {
@@ -533,6 +612,7 @@ export function mountViewportDiagnostic() {
   return () => {
     if (pageTimer != null) window.clearInterval?.(pageTimer);
     listeners.forEach((remove) => remove());
+    removeExperiment();
     panel.remove();
   };
 }
