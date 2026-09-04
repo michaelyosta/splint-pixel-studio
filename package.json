@@ -25,6 +25,7 @@
     "test:e2e:critical-pixel-b": "node scripts/run-e2e-suite-node22.mjs critical-pixel-b",
     "test:e2e:extended": "node scripts/run-e2e-suite-node22.mjs extended",
     "test:e2e:summary": "node scripts/summarize-e2e-results.mjs",
+    "verify:telegram-ios-diagnostic": "node scripts/verify-telegram-ios-diagnostic-route.mjs",
     "test:storage:s3": "node scripts/run-s3-storage-contract-node22.mjs",
     "qa:specials": "node --env-file=.env.local scripts/check-special-cells-qa.mjs",
     "preview": "vite preview"
