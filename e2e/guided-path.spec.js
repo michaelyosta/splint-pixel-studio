@@ -177,7 +177,7 @@ test('catalog is the default and primary navigation has exactly three product ta
   await expect(page.locator('.catalog-page')).toContainText('КОЛЛЕКЦИЯ');
 });
 
-test('real Telegram iOS keeps primary navigation in the top header flow across long and short routes', async ({ page }, testInfo) => {
+test('real Telegram iOS keeps bottom primary navigation in a top-level portal across long and short routes', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'Mobile iPhone', 'Telegram iOS contract runs in the iPhone project');
   await primeLocalStorage(page);
   await installTelegramSession(page, { platform: 'ios', userId: 515151 });
@@ -187,9 +187,14 @@ test('real Telegram iOS keeps primary navigation in the top header flow across l
   await page.addStyleTag({ content: '.catalog-page, .profile-page { min-height: 1500px; }' });
 
   const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
-  await expect(navigation).toHaveAttribute('data-navigation-placement', 'top');
+  await expect(navigation).toHaveAttribute('data-navigation-placement', 'portal-bottom');
   await expect(navigation.getByRole('button')).toHaveCount(3);
-  await expect(page.locator('.app-tab-bar')).toHaveCount(0);
+  await expect(navigation).toHaveClass(/app-tab-bar/);
+  await expect(page.locator('.primary-navigation--top')).toHaveCount(0);
+  await expect(page.locator('.ios-primary-navigation-host')).toHaveCount(1);
+  await expect(page.locator('.app-container .app-tab-bar')).toHaveCount(0);
+  expect(await navigation.evaluate((node) => node.parentElement?.classList.contains('ios-primary-navigation-host'))).toBe(true);
+  expect(await navigation.evaluate((node) => node.parentElement?.parentElement?.classList.contains('telegram-frame'))).toBe(true);
   await navigation.evaluate((node) => { node.dataset.e2eStableInstance = 'ios-primary'; });
 
   const routes = [
@@ -204,7 +209,7 @@ test('real Telegram iOS keeps primary navigation in the top header flow across l
     await expect(page.locator(route.visible)).toBeVisible({ timeout: 15000 });
     await expect(navigation).toHaveAttribute('data-e2e-stable-instance', 'ios-primary');
     await expect(navigation.getByRole('button', { name: route.label })).toHaveAttribute('aria-current', 'page');
-    await expectNavigationBounded(page, { scrollable: route.scrollable, selector: '.primary-navigation--top' });
+    await expectNavigationBounded(page, { scrollable: route.scrollable, selector: '.primary-navigation--portal-bottom' });
   }
 });
 
