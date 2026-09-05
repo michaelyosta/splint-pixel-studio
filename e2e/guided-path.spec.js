@@ -1,4 +1,53 @@
+import { createHmac } from 'node:crypto';
 import { test, expect } from '@playwright/test';
+
+const BOT_TOKEN = 'e2e-bot-token';
+
+function buildValidTelegramInitData(user) {
+  const params = new URLSearchParams({
+    query_id: 'AAHdF6iqAAAAAN0X6Ko',
+    user: JSON.stringify(user),
+    auth_date: String(Math.floor(Date.now() / 1000)),
+  });
+  const dataCheckString = [...params.entries()]
+    .sort(([first], [second]) => first.localeCompare(second))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+  const secret = createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+  params.set('hash', createHmac('sha256', secret).update(dataCheckString).digest('hex'));
+  return params.toString();
+}
+
+async function installTelegramSession(page, { platform, userId }) {
+  const initData = buildValidTelegramInitData({ id: userId, username: `nav_${platform}_${userId}`, first_name: 'Navigation' });
+  await page.addInitScript(({ signedInitData, telegramPlatform }) => {
+    const listeners = new Map();
+    window.Telegram = {
+      WebApp: {
+        initData: signedInitData,
+        initDataUnsafe: {},
+        platform: telegramPlatform,
+        version: '8.0',
+        colorScheme: 'dark',
+        viewportHeight: 844,
+        viewportStableHeight: 844,
+        safeAreaInset: { top: 47, right: 0, bottom: 34, left: 0 },
+        contentSafeAreaInset: { top: 0, right: 0, bottom: 0, left: 0 },
+        ready() {},
+        expand() {},
+        onEvent(name, handler) {
+          if (!listeners.has(name)) listeners.set(name, []);
+          listeners.get(name).push(handler);
+        },
+        offEvent(name, handler) {
+          const handlers = listeners.get(name) || [];
+          const index = handlers.indexOf(handler);
+          if (index >= 0) handlers.splice(index, 1);
+        },
+      },
+    };
+  }, { signedInitData: initData, telegramPlatform: platform });
+}
 
 async function primeLocalStorage(page) {
   await page.addInitScript(() => {
@@ -16,11 +65,11 @@ async function dismissOnboarding(page) {
   if (await skip.isVisible().catch(() => false)) await skip.click({ force: true });
 }
 
-async function expectNavigationBounded(page, { scrollable }) {
-  const metrics = await page.evaluate(() => {
+async function expectNavigationBounded(page, { scrollable, selector = '.app-tab-bar' }) {
+  const metrics = await page.evaluate((navigationSelector) => {
     const frame = document.querySelector('.telegram-frame');
     const content = document.querySelector('.screen-content');
-    const navigation = document.querySelector('.app-tab-bar');
+    const navigation = document.querySelector(navigationSelector);
     const frameRect = frame.getBoundingClientRect();
     const navigationRect = navigation.getBoundingClientRect();
     return {
@@ -31,7 +80,8 @@ async function expectNavigationBounded(page, { scrollable }) {
       contentClientHeight: content.clientHeight,
       contentScrollHeight: content.scrollHeight,
     };
-  });
+  }, selector);
+  expect(metrics.navigationBottom - metrics.navigationTop).toBeGreaterThan(0);
   expect(metrics.navigationTop).toBeGreaterThanOrEqual(metrics.frameTop - 0.5);
   expect(metrics.navigationBottom).toBeLessThanOrEqual(metrics.frameBottom + 0.5);
   if (scrollable) expect(metrics.contentScrollHeight).toBeGreaterThan(metrics.contentClientHeight);
@@ -39,21 +89,15 @@ async function expectNavigationBounded(page, { scrollable }) {
 
   if (!scrollable) return;
   const before = { top: metrics.navigationTop, bottom: metrics.navigationBottom };
-  const after = await page.evaluate(() => {
+  const after = await page.evaluate((navigationSelector) => {
     const content = document.querySelector('.screen-content');
     content.scrollTop = content.scrollHeight;
-    const navigationRect = document.querySelector('.app-tab-bar').getBoundingClientRect();
+    const navigationRect = document.querySelector(navigationSelector).getBoundingClientRect();
     return { top: navigationRect.top, bottom: navigationRect.bottom, scrollTop: content.scrollTop };
-  });
+  }, selector);
   expect(after.scrollTop).toBeGreaterThan(0);
   expect(after.top).toBeCloseTo(before.top, 1);
   expect(after.bottom).toBeCloseTo(before.bottom, 1);
-}
-
-async function markNavigationInstance(page, marker) {
-  const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
-  await navigation.evaluate((node, value) => { node.dataset.e2eInstance = value; }, marker);
-  return navigation;
 }
 
 async function createAndCompleteSmallColoring(page) {
@@ -99,27 +143,23 @@ test('catalog is the default and primary navigation has exactly three product ta
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
   await page.addStyleTag({ content: '.catalog-page, .profile-page { min-height: 1500px; }' });
   const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
+  await expect(navigation).toHaveAttribute('data-navigation-placement', 'bottom');
+  await expect(page.locator('.primary-navigation--top')).toHaveCount(0);
   await expect(navigation.getByRole('button')).toHaveCount(3);
   expect(await navigation.getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))).toEqual(['Каталог', 'Создать', 'Профиль']);
   await expect(navigation).not.toContainText(/Главная|Сообщество|Gallery|Store|Achievements/i);
   await expectNavigationBounded(page, { scrollable: true });
 
-  await markNavigationInstance(page, 'catalog-first');
   await navigation.getByRole('button', { name: 'Создать' }).click();
   await expect(page.locator('.create-hub-page')).toBeVisible();
-  await expect(navigation).not.toHaveAttribute('data-e2e-instance', 'catalog-first');
   await expectNavigationBounded(page, { scrollable: false });
 
-  await markNavigationInstance(page, 'create');
   await navigation.getByRole('button', { name: 'Профиль' }).click();
   await expect(page.locator('[data-profile-showcase="true"]')).toBeVisible({ timeout: 15000 });
-  await expect(navigation).not.toHaveAttribute('data-e2e-instance', 'create');
   await expectNavigationBounded(page, { scrollable: true });
 
-  await markNavigationInstance(page, 'profile');
   await navigation.getByRole('button', { name: 'Каталог' }).click();
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
-  await expect(navigation).not.toHaveAttribute('data-e2e-instance', 'profile');
   await expectNavigationBounded(page, { scrollable: true });
 
   const collectionsResponse = await page.request.get('/api/meta/collections');
@@ -129,6 +169,50 @@ test('catalog is the default and primary navigation has exactly three product ta
   await page.goto(`/?pack=${encodeURIComponent(freePack.id)}`);
   await expect(page.locator('.catalog-heading h1')).toHaveText(freePack.title, { timeout: 15000 });
   await expect(page.locator('.catalog-page')).toContainText('КОЛЛЕКЦИЯ');
+});
+
+test('real Telegram iOS keeps primary navigation in the top header flow across long and short routes', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'Mobile iPhone', 'Telegram iOS contract runs in the iPhone project');
+  await primeLocalStorage(page);
+  await installTelegramSession(page, { platform: 'ios', userId: 515151 });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
+  await page.addStyleTag({ content: '.catalog-page, .profile-page { min-height: 1500px; }' });
+
+  const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
+  await expect(navigation).toHaveAttribute('data-navigation-placement', 'top');
+  await expect(navigation.getByRole('button')).toHaveCount(3);
+  await expect(page.locator('.app-tab-bar')).toHaveCount(0);
+  await navigation.evaluate((node) => { node.dataset.e2eStableInstance = 'ios-primary'; });
+
+  const routes = [
+    { id: 'catalog', label: 'Каталог', visible: '.catalog-page', scrollable: true },
+    { id: 'create', label: 'Создать', visible: '.create-hub-page', scrollable: false },
+    { id: 'profile', label: 'Профиль', visible: '[data-profile-showcase="true"]', scrollable: true },
+    { id: 'catalog', label: 'Каталог', visible: '.catalog-page', scrollable: true },
+  ];
+
+  for (const [index, route] of routes.entries()) {
+    if (index > 0) await navigation.getByRole('button', { name: route.label }).click();
+    await expect(page.locator(route.visible)).toBeVisible({ timeout: 15000 });
+    await expect(navigation).toHaveAttribute('data-e2e-stable-instance', 'ios-primary');
+    await expect(navigation.getByRole('button', { name: route.label })).toHaveAttribute('aria-current', 'page');
+    await expectNavigationBounded(page, { scrollable: route.scrollable, selector: '.primary-navigation--top' });
+  }
+});
+
+test('real Telegram Android keeps the existing bottom primary navigation', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'Mobile Pixel', 'Telegram Android contract runs in the Pixel project');
+  await primeLocalStorage(page);
+  await installTelegramSession(page, { platform: 'android', userId: 616161 });
+  await page.goto('/');
+  await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('.primary-navigation--top')).toHaveCount(0);
+  const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
+  await expect(navigation).toHaveAttribute('data-navigation-placement', 'bottom');
+  await expect(navigation).toHaveClass(/app-tab-bar/);
+  await expect(navigation).toBeVisible();
 });
 
 test('public profile deep link opens a content-first showcase without progression UI', async ({ page }) => {
