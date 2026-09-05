@@ -20,6 +20,12 @@ function buildValidTelegramInitData(user) {
 
 async function installTelegramSession(page, { platform, userId }) {
   const initData = buildValidTelegramInitData({ id: userId, username: `nav_${platform}_${userId}`, first_name: 'Navigation' });
+  await page.route('https://telegram.org/js/telegram-web-app.js', async (route) => {
+    await route.fulfill({
+      contentType: 'application/javascript',
+      body: 'window.Telegram = window.Telegram || {};',
+    });
+  });
   await page.addInitScript(({ signedInitData, telegramPlatform }) => {
     const listeners = new Map();
     window.Telegram = {
