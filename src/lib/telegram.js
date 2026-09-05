@@ -32,6 +32,10 @@ export function isRealTelegramSession(webApp = getTelegramWebApp()) {
   return Boolean(webApp && String(webApp.initData || '').trim());
 }
 
+export function isRealTelegramIosSession(webApp = getTelegramWebApp()) {
+  return isRealTelegramSession(webApp) && webApp.platform === 'ios';
+}
+
 /**
  * Reports whether this WebApp can disable the vertical swipe-to-close gesture.
  * Prefers Telegram's own `isVersionAtLeast` capability check and falls back to
@@ -131,13 +135,6 @@ export function bindTelegramVerticalSwipes(webApp = getTelegramWebApp()) {
   };
 }
 
-/** Marks the document so iOS-Telegram-only compositor CSS can apply. */
-function markTelegramIosPlatform(webApp) {
-  if (typeof document === 'undefined' || webApp?.platform !== 'ios') return false;
-  document.documentElement.setAttribute('data-tg-ios', '1');
-  return true;
-}
-
 const TELEGRAM_VIEWPORT_LIFECYCLE_EVENTS = [
   'viewportChanged',
   'safeAreaChanged',
@@ -182,60 +179,18 @@ export function syncTelegramViewportCssVars(webApp, root = typeof document !== '
 }
 
 /**
- * One-shot paint invalidation for the bottom navigation. Adds a class that
- * changes the layer's rasterization state, commits it with a single layout
- * read, and reverts it on the next frame. No intervals, no animation loops.
- */
-export function invalidateTelegramBottomNavigation({
-  root = typeof document !== 'undefined' ? document : null,
-  scheduleNextFrame = typeof requestAnimationFrame === 'function'
-    ? (callback) => requestAnimationFrame(callback)
-    : (callback) => setTimeout(callback, 32),
-} = {}) {
-  const bar = root?.querySelector?.('.app-tab-bar');
-  if (!bar) return false;
-  bar.classList.add('app-tab-bar--repaint');
-  void bar.getBoundingClientRect();
-  scheduleNextFrame(() => bar.classList.remove('app-tab-bar--repaint'));
-  return true;
-}
-
-/**
- * Schedules exactly one bottom-navigation invalidation after a React route
- * commit. The workaround is bounded to real Telegram iOS sessions.
- */
-export function scheduleTelegramBottomNavigationRouteRepaint({
-  webApp = getTelegramWebApp(),
-  scheduleNextFrame = typeof requestAnimationFrame === 'function'
-    ? (callback) => requestAnimationFrame(callback)
-    : (callback) => setTimeout(callback, 32),
-  cancelScheduledFrame = typeof cancelAnimationFrame === 'function'
-    ? (frameId) => cancelAnimationFrame(frameId)
-    : (frameId) => clearTimeout(frameId),
-  invalidate = () => invalidateTelegramBottomNavigation(),
-} = {}) {
-  if (!isRealTelegramSession(webApp) || webApp.platform !== 'ios') return () => {};
-  const frameId = scheduleNextFrame(invalidate);
-  return () => cancelScheduledFrame(frameId);
-}
-
-/**
  * Joins the Telegram viewport lifecycle. Stable resize events re-publish the
- * viewport CSS variables, and on iOS-Telegram sessions every committed state
- * also triggers the one-shot navigation repaint. Returns a cleanup function.
+ * viewport CSS variables. Returns a cleanup function.
  */
 export function bindTelegramViewportLifecycle(webApp = getTelegramWebApp()) {
   if (!webApp || typeof document === 'undefined') return () => {};
-  markTelegramIosPlatform(webApp);
   syncTelegramViewportCssVars(webApp);
-  const invalidateOnIos = isRealTelegramSession(webApp) && webApp.platform === 'ios';
   const bound = [];
   for (const event of TELEGRAM_VIEWPORT_LIFECYCLE_EVENTS) {
     const handler = (payload) => {
       // Telegram marks transient resize frames; commit only stable states.
       if (payload?.isStateStable === false) return;
       syncTelegramViewportCssVars(webApp);
-      if (invalidateOnIos) invalidateTelegramBottomNavigation();
     };
     bound.push([event, handler]);
     try { webApp.onEvent?.(event, handler); } catch { /* older bridges */ }

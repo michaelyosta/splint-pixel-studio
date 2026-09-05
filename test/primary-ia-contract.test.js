@@ -19,11 +19,11 @@ function staticRoutes(text, pattern = /(?:navigatePrimary|setView)\(\s*'([^']+)'
   return [...text.matchAll(pattern)].map((match) => match[1]);
 }
 
-test('BottomNavigation declares exactly the three primary destinations', () => {
-  const navigation = source('src/components/BottomNavigation.jsx');
+test('PrimaryNavigation declares exactly the three primary destinations', () => {
+  const navigation = source('src/components/PrimaryNavigation.jsx');
   const itemsBody = navigation.match(/const ITEMS\s*=\s*\[([\s\S]*?)\];/)?.[1];
 
-  assert.ok(itemsBody, 'BottomNavigation must keep a static ITEMS declaration');
+  assert.ok(itemsBody, 'PrimaryNavigation must keep a static ITEMS declaration');
   assert.deepEqual(
     [...itemsBody.matchAll(/\bid\s*:\s*['"]([^'"]+)['"]/g)].map((match) => match[1]),
     primaryDestinations.map(({ id }) => id),
@@ -43,8 +43,9 @@ test('app header and default shell expose only primary navigation routes', () =>
   assert.deepEqual(staticRoutes(header), ['catalog', 'profile']);
   assert.match(header, /className="brand-button"[\s\S]*navigatePrimary\('catalog'\)/);
   assert.match(header, /className="header-profile-button"[\s\S]*navigatePrimary\('profile'\)/);
-  assert.match(app, /<BottomNavigation\b[^>]*\bonNavigate=\{navigatePrimary\}/);
-  assert.match(app, /<BottomNavigation\b[^>]*\bkey=\{`bottom-nav-\$\{view\}`\}/);
+  assert.match(app, /<PrimaryNavigation placement="top"[^>]*\bonNavigate=\{navigatePrimary\}/);
+  assert.match(app, /<PrimaryNavigation activeView=\{view\}\s+onNavigate=\{navigatePrimary\}/);
+  assert.doesNotMatch(app, /<PrimaryNavigation\b[^>]*\bkey=/, 'primary navigation must remain mounted across route commits');
   assert.match(
     app,
     /\['catalog',\s*'create',\s*'profile'\]\.includes\(initialResume\?\.route\)/,
@@ -75,14 +76,26 @@ test('application shell keeps long content in a bounded middle grid row', () => 
   assert.match(app, /view === 'play' \? ' app-container--play' : ''/);
 });
 
-test('Telegram iOS route commits disable page transforms and schedule one-shot nav repaint', () => {
+test('real Telegram iOS uses a top navigation row without rendering the bottom bar', () => {
   const app = source('src/App.jsx');
   const styles = source('src/App.css');
+  const telegram = source('src/lib/telegram.js');
+  const topShellRule = styles.match(/\.app-container--ios-primary-top\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const topNavigationRule = styles.match(/\.primary-navigation--top\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const topButtonRule = styles.match(/\.primary-navigation--top > button\s*\{([\s\S]*?)\}/)?.[1] || '';
 
-  assert.match(styles, /html\[data-tg-ios\] \.page\s*\{[\s\S]*?animation:\s*none !important;[\s\S]*?transform:\s*none !important;/);
-  assert.match(styles, /html\[data-tg-ios\] \.screen-content\s*\{[\s\S]*?z-index:\s*1;/);
-  assert.match(styles, /html\[data-tg-ios\] \.app-tab-bar\s*\{[\s\S]*?z-index:\s*100;[\s\S]*?isolation:\s*isolate;/);
-  assert.match(app, /useLayoutEffect\(\(\) => \{[\s\S]*?scheduleTelegramBottomNavigationRouteRepaint\(\);[\s\S]*?\[coreFeelExperiment\.enabled, view\]\);/);
+  assert.match(telegram, /isRealTelegramSession\(webApp\)\s*&&\s*webApp\.platform === 'ios'/);
+  assert.match(app, /showPrimaryNavigation && useIosTopNavigation && <PrimaryNavigation placement="top"/);
+  assert.match(app, /showPrimaryNavigation && !useIosTopNavigation && <PrimaryNavigation/);
+  assert.match(topShellRule, /grid-template-rows:\s*auto\s+54px\s+minmax\(0,\s*1fr\)/);
+  assert.match(topNavigationRule, /grid-row:\s*2/);
+  assert.match(topNavigationRule, /height:\s*54px/);
+  assert.match(topNavigationRule, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(topButtonRule, /min-height:\s*44px/);
+  assert.doesNotMatch(topNavigationRule, /\b(?:position|transform|filter|backdrop-filter|isolation|mix-blend-mode)\s*:/);
+  assert.doesNotMatch(styles, /data-tg-ios|app-tab-bar--repaint|translateZ\(0\)/);
+  assert.doesNotMatch(app, /scheduleTelegramBottomNavigationRouteRepaint|useLayoutEffect/);
+  assert.doesNotMatch(telegram, /invalidateTelegramBottomNavigation|scheduleTelegramBottomNavigationRouteRepaint/);
 });
 
 test('profile CTAs stay within primary IA while secondary routes remain implementation details', () => {

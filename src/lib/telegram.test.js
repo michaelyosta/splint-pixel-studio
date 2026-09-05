@@ -11,8 +11,7 @@ import {
   getRequestedColoringId,
   getRequestedPackId,
   getTelegramVerticalSwipeStatus,
-  invalidateTelegramBottomNavigation,
-  scheduleTelegramBottomNavigationRouteRepaint,
+  isRealTelegramIosSession,
   isTelegramVersionAtLeast,
   supportsTelegramVerticalSwipes,
   syncTelegramViewportCssVars,
@@ -285,30 +284,7 @@ function viewportWebApp({ platform = 'ios', initData = 'test-init-data', ...extr
 
 function withViewportDocument(run) {
   const previousDocument = globalThis.document;
-  const previousRaf = globalThis.requestAnimationFrame;
   const setProperties = [];
-  const rafQueue = [];
-  const bar = {
-    repaintClass: false,
-    rectReads: 0,
-    classList: {
-      add(name) {
-        assert.equal(name, 'app-tab-bar--repaint');
-        this.mark(true);
-      },
-      remove(name) {
-        assert.equal(name, 'app-tab-bar--repaint');
-        this.mark(false);
-      },
-      mark(visible) {
-        bar.repaintClass = visible;
-      },
-    },
-    getBoundingClientRect() {
-      bar.rectReads += 1;
-      return { top: 700, bottom: 768 };
-    },
-  };
   globalThis.document = {
     documentElement: {
       style: {
@@ -316,29 +292,13 @@ function withViewportDocument(run) {
           setProperties.push([name, value]);
         },
       },
-      attrs: {},
-      setAttribute(name, value) {
-        this.attrs[name] = value;
-      },
-      removeAttribute(name) {
-        delete this.attrs[name];
-      },
     },
-    querySelector(selector) {
-      return selector === '.app-tab-bar' ? bar : null;
-    },
-  };
-  globalThis.requestAnimationFrame = (callback) => {
-    rafQueue.push(callback);
-    return rafQueue.length;
   };
   try {
-    return run({ bar, rafQueue, setProperties });
+    return run({ setProperties });
   } finally {
     if (previousDocument === undefined) delete globalThis.document;
     else globalThis.document = previousDocument;
-    if (previousRaf === undefined) delete globalThis.requestAnimationFrame;
-    else globalThis.requestAnimationFrame = previousRaf;
   }
 }
 
@@ -373,18 +333,12 @@ test('viewport CSS variable sync rejects unusable bridge values', () => {
   });
 });
 
-test('iOS Telegram sessions are marked for compositor-scoped CSS', () => {
-  withViewportDocument(({ setProperties }) => {
-    const root = globalThis.document.documentElement;
-    const iosApp = viewportWebApp({ platform: 'ios' });
-    assert.equal(bindTelegramViewportLifecycle(iosApp)(), undefined);
-    assert.equal(root.attrs['data-tg-ios'], '1');
-
-    const androidApp = viewportWebApp({ platform: 'android' });
-    assert.equal(bindTelegramViewportLifecycle(androidApp)(), undefined);
-    assert.equal(root.attrs['data-tg-ios'], '1', 'iOS marker from the prior session stays');
-    assert.deepEqual(setProperties.map(([name]) => name), ['--tg-viewport-stable-height', '--tg-viewport-stable-height']);
-  });
+test('real Telegram iOS detection excludes Android, desktop, and browser SDK stubs', () => {
+  assert.equal(isRealTelegramIosSession(viewportWebApp({ platform: 'ios', initData: 'signed-query' })), true);
+  assert.equal(isRealTelegramIosSession(viewportWebApp({ platform: 'android', initData: 'signed-query' })), false);
+  assert.equal(isRealTelegramIosSession(viewportWebApp({ platform: 'tdesktop', initData: 'signed-query' })), false);
+  assert.equal(isRealTelegramIosSession(viewportWebApp({ platform: 'ios', initData: '' })), false);
+  assert.equal(isRealTelegramIosSession(null), false);
 });
 
 test('lifecycle binder subscribes to the four Telegram viewport events', () => {
@@ -401,33 +355,21 @@ test('lifecycle binder subscribes to the four Telegram viewport events', () => {
   });
 });
 
-test('viewportChanged commits only stable states and repaints navigation once', () => {
-  withViewportDocument(({ bar, rafQueue, setProperties }) => {
+test('viewportChanged commits only stable states', () => {
+  withViewportDocument(({ setProperties }) => {
     const webApp = viewportWebApp({ viewportStableHeight: 600 });
     bindTelegramViewportLifecycle(webApp);
 
     webApp.emit('viewportChanged', { height: 500, isStateStable: false });
     assert.deepEqual(setProperties, [['--tg-viewport-stable-height', '600px']], 'initial sync only');
-    assert.equal(bar.repaintClass, false);
-
     webApp.viewportStableHeight = 500;
     webApp.emit('viewportChanged', { height: 500, isStateStable: true });
     assert.deepEqual(setProperties.slice(1), [['--tg-viewport-stable-height', '500px']]);
-    assert.equal(bar.repaintClass, true, 'repaint class applied one-shot');
-    assert.equal(bar.rectReads, 1, 'exactly one bounded layout read');
-    assert.equal(rafQueue.length, 1, 'revert scheduled on the next frame');
-
-    rafQueue[0]();
-    assert.equal(bar.repaintClass, false, 'repaint class removed next frame');
-    assert.equal(rafQueue.length, 1, 'no polling or animation loops');
-
-    webApp.emit('viewportChanged', { height: 500, isStateStable: true });
-    assert.equal(rafQueue.length, 2, 'each stable state invalidates at most once');
   });
 });
 
 test('viewport events without a stability flag count as committed states', () => {
-  withViewportDocument(({ bar, setProperties }) => {
+  withViewportDocument(({ setProperties }) => {
     const webApp = viewportWebApp({ safeAreaInset: { top: 10, bottom: 20, left: 0, right: 0 } });
     bindTelegramViewportLifecycle(webApp);
     const initialCount = setProperties.length;
@@ -439,77 +381,27 @@ test('viewport events without a stability flag count as committed states', () =>
       ['--tg-safe-area-inset-bottom', '20px'],
       ['--tg-safe-area-inset-left', '0px'],
     ]);
-    assert.equal(bar.repaintClass, true);
   });
 });
 
-test('non-iOS Telegram sessions sync variables without compositor repaint', () => {
-  withViewportDocument(({ bar, rafQueue }) => {
+test('non-iOS Telegram sessions retain viewport lifecycle variable sync', () => {
+  withViewportDocument(({ setProperties }) => {
     const webApp = viewportWebApp({ platform: 'desktop' });
     bindTelegramViewportLifecycle(webApp);
+    webApp.viewportStableHeight = 600;
     webApp.emit('viewportChanged', { height: 600, isStateStable: true });
-    assert.equal(bar.repaintClass, false, 'desktop never triggers the iOS compositor workaround');
-    assert.equal(rafQueue.length, 0);
+    assert.deepEqual(setProperties, [
+      ['--tg-viewport-stable-height', '734px'],
+      ['--tg-viewport-stable-height', '600px'],
+    ]);
   });
 });
 
-test('browser SDK stubs without initData never run the compositor workaround', () => {
-  withViewportDocument(({ bar, rafQueue, setProperties }) => {
+test('browser SDK stubs retain viewport lifecycle variable sync', () => {
+  withViewportDocument(({ setProperties }) => {
     const webApp = viewportWebApp({ platform: 'ios', initData: '' });
     bindTelegramViewportLifecycle(webApp);
     webApp.emit('viewportChanged', { height: 600, isStateStable: true });
     assert.deepEqual(setProperties.map(([name]) => name), ['--tg-viewport-stable-height', '--tg-viewport-stable-height']);
-    assert.equal(bar.repaintClass, false);
-    assert.equal(rafQueue.length, 0);
   });
-});
-
-test('one-shot invalidation is a no-op without a rendered navigation', () => {
-  withViewportDocument(() => {
-    globalThis.document.querySelector = () => null;
-    assert.equal(invalidateTelegramBottomNavigation(), false);
-  });
-});
-
-test('route repaint schedules one invalidation for a real Telegram iOS session', () => {
-  const scheduled = [];
-  const cancelled = [];
-  let invalidations = 0;
-  const cleanup = scheduleTelegramBottomNavigationRouteRepaint({
-    webApp: viewportWebApp({ platform: 'ios', initData: 'signed-query' }),
-    scheduleNextFrame(callback) {
-      scheduled.push(callback);
-      return 17;
-    },
-    cancelScheduledFrame(frameId) {
-      cancelled.push(frameId);
-    },
-    invalidate() {
-      invalidations += 1;
-    },
-  });
-
-  assert.equal(scheduled.length, 1, 'one route commit schedules one frame');
-  assert.equal(invalidations, 0, 'invalidation waits for the committed frame');
-  scheduled[0]();
-  assert.equal(invalidations, 1, 'the scheduled frame invalidates once');
-  cleanup();
-  assert.deepEqual(cancelled, [17]);
-});
-
-test('route repaint is disabled outside real Telegram iOS sessions', () => {
-  let scheduled = 0;
-  for (const webApp of [
-    viewportWebApp({ platform: 'desktop', initData: 'signed-query' }),
-    viewportWebApp({ platform: 'ios', initData: '' }),
-  ]) {
-    scheduleTelegramBottomNavigationRouteRepaint({
-      webApp,
-      scheduleNextFrame() {
-        scheduled += 1;
-        return scheduled;
-      },
-    });
-  }
-  assert.equal(scheduled, 0);
 });

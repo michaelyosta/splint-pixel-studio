@@ -15,8 +15,8 @@
     "shards": 24,
     "strategy": "weighted_24_minimum_30000ms",
     "selector": "file arguments plus escaped test-title grep alternatives",
-    "expected_logical_tests": 150,
-    "expected_project_cases": 450,
+    "expected_logical_tests": 152,
+    "expected_project_cases": 456,
     "minimum_group_weight_ms": 30000
   },
   "coverage": {
@@ -25,16 +25,16 @@
       "Mobile iPhone",
       "Mobile Pixel"
     ],
-    "expected_logical_tests": 150,
-    "expected_project_cases": 450,
-    "inventory_fingerprint": "34859ccbe80a535b67a076386314f27c87592238921c0832eca99dcae4bb5bce"
+    "expected_logical_tests": 152,
+    "expected_project_cases": 456,
+    "inventory_fingerprint": "6b579707c983267ba6c92ec4fde472dab975648f68d53bc5bc9397f1111588f6"
   },
-  "measurement_note": "Historical durations preserved from run 33396678958; intentional product-contract migrations and new visual/public-profile coverage use the 30000ms minimum logical-group load.",
+  "measurement_note": "Historical durations preserved from run 33396678958; intentional product-contract migrations and new visual/public-profile/navigation coverage use the 30000ms minimum logical-group load.",
   "topology_comparison": {
     "builtin_16": {
       "shards": 16,
       "strategy": "playwright --shard=N/16",
-      "total_project_cases": 450,
+      "total_project_cases": 456,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 1354083,
       "projected_slowest_duration_minutes": 22.57
@@ -42,7 +42,7 @@
     "builtin_24": {
       "shards": 24,
       "strategy": "playwright --shard=N/24",
-      "total_project_cases": 450,
+      "total_project_cases": 456,
       "empty_shards": 3,
       "projected_slowest_duration_ms": 1190064,
       "projected_slowest_duration_minutes": 19.83
@@ -50,7 +50,7 @@
     "builtin_32": {
       "shards": 32,
       "strategy": "playwright --shard=N/32",
-      "total_project_cases": 450,
+      "total_project_cases": 456,
       "empty_shards": 4,
       "projected_slowest_duration_ms": 1052217,
       "projected_slowest_duration_minutes": 17.54
@@ -58,27 +58,27 @@
     "weighted_16": {
       "shards": 16,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 450,
+      "total_project_cases": 456,
       "empty_shards": 0,
-      "projected_slowest_duration_ms": 337559,
-      "projected_slowest_duration_minutes": 5.63,
+      "projected_slowest_duration_ms": 341962,
+      "projected_slowest_duration_minutes": 5.7,
       "maximum_logical_tests": 11,
       "maximum_project_cases": 33
     },
     "weighted_24": {
       "shards": 24,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 450,
+      "total_project_cases": 456,
       "empty_shards": 0,
-      "projected_slowest_duration_ms": 231367,
-      "projected_slowest_duration_minutes": 3.86,
+      "projected_slowest_duration_ms": 237586,
+      "projected_slowest_duration_minutes": 3.96,
       "maximum_logical_tests": 7,
       "maximum_project_cases": 21
     },
     "weighted_32": {
       "shards": 32,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 450,
+      "total_project_cases": 456,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 187105,
       "projected_slowest_duration_minutes": 3.12,
@@ -88,12 +88,12 @@
     "selected": {
       "shards": 24,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 450,
+      "total_project_cases": 456,
       "empty_shards": 0,
-      "projected_slowest_duration_ms": 231367,
-      "projected_slowest_duration_minutes": 3.86,
-      "maximum_logical_tests": 7,
-      "maximum_project_cases": 21
+      "projected_slowest_duration_ms": 240000,
+      "projected_slowest_duration_minutes": 4,
+      "maximum_logical_tests": 8,
+      "maximum_project_cases": 24
     }
   },
   "shards": [
@@ -478,9 +478,9 @@
     {
       "shard": 19,
       "historical_duration_ms": 111147,
-      "load_weight_ms": 210000,
-      "logical_tests": 7,
-      "project_cases": 21,
+      "load_weight_ms": 240000,
+      "logical_tests": 8,
+      "project_cases": 24,
       "groups": [
         "bfcache-lifecycle.spec.js:224:browser SDK stub without initData does not apply the global overscroll fallback",
         "coloring-surface-gesture-guard.spec.js:105:tiled surface suppresses selection, keeps editable controls selectable; guards scoped",
@@ -576,10 +576,11 @@
         "special-help-onboarding-responsive-evidence.spec.js:145:treatment onboarding and help stay visible, bounded, reduced-motion safe, and keyboard-trapped",
         "special-help-onboarding.spec.js:47:legacy picture with specials shows compact special-cell onboarding once and opens the legend",
         "stabilization.spec.js:201:5. Camera auto does not move during painting",
+        "guided-path.spec.js:174:real Telegram iOS keeps primary navigation in the top header flow across long and short routes",
         "unlocks-recommendations.spec.js:207:eligible user gets an actionable direct-ID open and owned transition"
       ],
       "historical_duration_minutes": 1.69,
-      "load_weight_minutes": 3.5,
+      "load_weight_minutes": 4,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -588,20 +589,21 @@
     {
       "shard": 24,
       "historical_duration_ms": 100509,
-      "load_weight_ms": 210000,
-      "logical_tests": 7,
-      "project_cases": 21,
+      "load_weight_ms": 240000,
+      "logical_tests": 8,
+      "project_cases": 24,
       "groups": [
         "accessibility.spec.js:239:mobile widths stay within viewport without text overflow",
         "creator.spec.js:602:17. Player dock switches between reveal and classic coloring",
         "input-gesture-evidence.spec.js:127:pointercancel does not leave a stuck stroke; next touch still commits",
         "input-gesture-evidence.spec.js:165:tiled surface fits the 430px viewport",
+        "guided-path.spec.js:205:real Telegram Android keeps the existing bottom primary navigation",
         "special-cells-responsive-evidence.spec.js:76:tiled special offer stays usable at mobile widths and honors reduced motion",
         "special-cells.spec.js:157:legacy 28x28 treatment discovers Spark in the real canvas and continues",
         "stabilization.spec.js:266:9. Free exploration requires an explicit return to the same target"
       ],
       "historical_duration_minutes": 1.68,
-      "load_weight_minutes": 3.5,
+      "load_weight_minutes": 4,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -3737,6 +3739,48 @@
       },
       "load_weight_ms": 30000,
       "shard": 17
+    },
+    {
+      "id": "guided-path.spec.js:174:real Telegram iOS keeps primary navigation in the top header flow across long and short routes",
+      "file": "guided-path.spec.js",
+      "line": 174,
+      "title": "real Telegram iOS keeps primary navigation in the top header flow across long and short routes",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile iPhone",
+        "Mobile Pixel"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "load_weight_ms": 30000,
+      "shard": 23
+    },
+    {
+      "id": "guided-path.spec.js:205:real Telegram Android keeps the existing bottom primary navigation",
+      "file": "guided-path.spec.js",
+      "line": 205,
+      "title": "real Telegram Android keeps the existing bottom primary navigation",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile iPhone",
+        "Mobile Pixel"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "load_weight_ms": 30000,
+      "shard": 24
     },
     {
       "id": "zone-visual.spec.js:8:capture 16-zone player at 390px",
