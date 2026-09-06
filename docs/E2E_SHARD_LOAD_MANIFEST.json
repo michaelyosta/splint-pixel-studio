@@ -27,7 +27,7 @@
     ],
     "expected_logical_tests": 152,
     "expected_project_cases": 456,
-    "inventory_fingerprint": "6b579707c983267ba6c92ec4fde472dab975648f68d53bc5bc9397f1111588f6"
+    "inventory_fingerprint": "6825a19329205ecdb8fafcce48147457c5d64c580ec85112d7c1f59e82c123a6"
   },
   "measurement_note": "Historical durations preserved from run 33396678958; intentional product-contract migrations and new visual/public-profile/navigation coverage use the 30000ms minimum logical-group load.",
   "topology_comparison": {
@@ -576,7 +576,7 @@
         "special-help-onboarding-responsive-evidence.spec.js:145:treatment onboarding and help stay visible, bounded, reduced-motion safe, and keyboard-trapped",
         "special-help-onboarding.spec.js:47:legacy picture with specials shows compact special-cell onboarding once and opens the legend",
         "stabilization.spec.js:201:5. Camera auto does not move during painting",
-        "guided-path.spec.js:174:real Telegram iOS keeps primary navigation in the top header flow across long and short routes",
+        "guided-path.spec.js:180:real Telegram iOS keeps bottom primary navigation in a top-level portal across long and short routes",
         "unlocks-recommendations.spec.js:207:eligible user gets an actionable direct-ID open and owned transition"
       ],
       "historical_duration_minutes": 1.69,
@@ -3741,10 +3741,10 @@
       "shard": 17
     },
     {
-      "id": "guided-path.spec.js:174:real Telegram iOS keeps primary navigation in the top header flow across long and short routes",
+      "id": "guided-path.spec.js:180:real Telegram iOS keeps bottom primary navigation in a top-level portal across long and short routes",
       "file": "guided-path.spec.js",
-      "line": 174,
-      "title": "real Telegram iOS keeps primary navigation in the top header flow across long and short routes",
+      "line": 180,
+      "title": "real Telegram iOS keeps bottom primary navigation in a top-level portal across long and short routes",
       "historical_duration_ms": 0,
       "project_cases": 3,
       "projects": [
