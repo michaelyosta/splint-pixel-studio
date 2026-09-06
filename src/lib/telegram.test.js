@@ -11,8 +11,10 @@ import {
   getRequestedColoringId,
   getRequestedPackId,
   getTelegramVerticalSwipeStatus,
+  initializeTelegramWebApp,
   isRealTelegramIosSession,
   isTelegramVersionAtLeast,
+  shouldAutoExpandTelegramWebApp,
   supportsTelegramVerticalSwipes,
   syncTelegramViewportCssVars,
   TELEGRAM_SWIPE_CONTROL_VERSION,
@@ -302,6 +304,32 @@ function withViewportDocument(run) {
   }
 }
 
+function initializeWebAppProbe({ platform, initData }) {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  const calls = [];
+  const webApp = viewportWebApp({ platform, initData });
+  webApp.ready = () => calls.push('ready');
+  webApp.expand = () => calls.push('expand');
+  globalThis.window = { Telegram: { WebApp: webApp } };
+  globalThis.document = {
+    documentElement: {
+      dataset: {},
+      setAttribute() {},
+      style: { setProperty() {} },
+    },
+  };
+  try {
+    assert.equal(initializeTelegramWebApp(), webApp);
+    return calls;
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+  }
+}
+
 test('viewport CSS variable sync publishes stable height and insets', () => {
   withViewportDocument(({ setProperties }) => {
     const webApp = viewportWebApp({
@@ -339,6 +367,16 @@ test('real Telegram iOS detection excludes Android, desktop, and browser SDK stu
   assert.equal(isRealTelegramIosSession(viewportWebApp({ platform: 'tdesktop', initData: 'signed-query' })), false);
   assert.equal(isRealTelegramIosSession(viewportWebApp({ platform: 'ios', initData: '' })), false);
   assert.equal(isRealTelegramIosSession(null), false);
+});
+
+test('startup keeps real Telegram iOS compact while other clients retain auto-expand', () => {
+  assert.equal(shouldAutoExpandTelegramWebApp(viewportWebApp({ platform: 'ios', initData: 'signed-query' })), false);
+  assert.equal(shouldAutoExpandTelegramWebApp(viewportWebApp({ platform: 'android', initData: 'signed-query' })), true);
+  assert.equal(shouldAutoExpandTelegramWebApp(viewportWebApp({ platform: 'tdesktop', initData: 'signed-query' })), true);
+  assert.equal(shouldAutoExpandTelegramWebApp(viewportWebApp({ platform: 'ios', initData: '' })), true);
+  assert.equal(shouldAutoExpandTelegramWebApp(null), false);
+  assert.deepEqual(initializeWebAppProbe({ platform: 'ios', initData: 'signed-query' }), ['ready']);
+  assert.deepEqual(initializeWebAppProbe({ platform: 'android', initData: 'signed-query' }), ['ready', 'expand']);
 });
 
 test('lifecycle binder subscribes to the four Telegram viewport events', () => {
