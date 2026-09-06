@@ -37,6 +37,16 @@ export function isRealTelegramIosSession(webApp = getTelegramWebApp()) {
 }
 
 /**
+ * Keeps the primary iOS shell in Telegram's compact viewport. Physical iOS
+ * evidence shows that the expanded WebView can stop painting bottom content
+ * while leaving its hit targets active. Other Telegram clients retain the
+ * existing full-height startup behavior.
+ */
+export function shouldAutoExpandTelegramWebApp(webApp = getTelegramWebApp()) {
+  return Boolean(webApp) && !isRealTelegramIosSession(webApp);
+}
+
+/**
  * Reports whether this WebApp can disable the vertical swipe-to-close gesture.
  * Prefers Telegram's own `isVersionAtLeast` capability check and falls back to
  * comparing `version` when the capability helper is unavailable or throws.
@@ -206,9 +216,9 @@ export function initializeTelegramWebApp() {
   const webApp = getTelegramWebApp();
   if (!webApp) return null;
   webApp.ready();
-  // Ask Telegram for the full viewport height right away so the studio
-  // never renders in the collapsed in-app window.
-  try { webApp.expand?.(); } catch { /* older clients */ }
+  if (shouldAutoExpandTelegramWebApp(webApp)) {
+    try { webApp.expand?.(); } catch { /* older clients */ }
+  }
   applyTelegramTheme(webApp);
   try { webApp.onEvent?.('themeChanged', () => applyTelegramTheme(webApp)); } catch { /* optional */ }
   bindTelegramViewportLifecycle(webApp);

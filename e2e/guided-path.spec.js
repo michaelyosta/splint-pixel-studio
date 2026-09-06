@@ -28,6 +28,7 @@ async function installTelegramSession(page, { platform, userId }) {
   });
   await page.addInitScript(({ signedInitData, telegramPlatform }) => {
     const listeners = new Map();
+    window.__telegramExpandCalls = 0;
     window.Telegram = {
       WebApp: {
         initData: signedInitData,
@@ -40,7 +41,7 @@ async function installTelegramSession(page, { platform, userId }) {
         safeAreaInset: { top: 47, right: 0, bottom: 34, left: 0 },
         contentSafeAreaInset: { top: 0, right: 0, bottom: 0, left: 0 },
         ready() {},
-        expand() {},
+        expand() { window.__telegramExpandCalls += 1; },
         onEvent(name, handler) {
           if (!listeners.has(name)) listeners.set(name, []);
           listeners.get(name).push(handler);
@@ -184,6 +185,7 @@ test('real Telegram iOS keeps bottom primary navigation in a top-level portal ac
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
+  expect(await page.evaluate(() => window.__telegramExpandCalls)).toBe(0);
   await page.addStyleTag({ content: '.catalog-page, .profile-page { min-height: 1500px; }' });
 
   const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
@@ -219,6 +221,7 @@ test('real Telegram Android keeps the existing bottom primary navigation', async
   await installTelegramSession(page, { platform: 'android', userId: 616161 });
   await page.goto('/');
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
+  expect(await page.evaluate(() => window.__telegramExpandCalls)).toBe(1);
   await expect(page.locator('.primary-navigation--top')).toHaveCount(0);
   const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
   await expect(navigation).toHaveAttribute('data-navigation-placement', 'bottom');
