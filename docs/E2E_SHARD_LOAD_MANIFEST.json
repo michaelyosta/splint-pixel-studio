@@ -15,8 +15,8 @@
     "shards": 24,
     "strategy": "weighted_24_minimum_30000ms",
     "selector": "file arguments plus escaped test-title grep alternatives",
-    "expected_logical_tests": 152,
-    "expected_project_cases": 456,
+    "expected_logical_tests": 153,
+    "expected_project_cases": 459,
     "minimum_group_weight_ms": 30000
   },
   "coverage": {
@@ -25,16 +25,16 @@
       "Mobile iPhone",
       "Mobile Pixel"
     ],
-    "expected_logical_tests": 152,
-    "expected_project_cases": 456,
-    "inventory_fingerprint": "6825a19329205ecdb8fafcce48147457c5d64c580ec85112d7c1f59e82c123a6"
+    "expected_logical_tests": 153,
+    "expected_project_cases": 459,
+    "inventory_fingerprint": "966673e7263be877f263f52e6ec4f3ead2d9da5d8affb853e955c2c57d25d020"
   },
   "measurement_note": "Historical durations preserved from run 33396678958; intentional product-contract migrations and new visual/public-profile/navigation coverage use the 30000ms minimum logical-group load.",
   "topology_comparison": {
     "builtin_16": {
       "shards": 16,
       "strategy": "playwright --shard=N/16",
-      "total_project_cases": 456,
+      "total_project_cases": 459,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 1354083,
       "projected_slowest_duration_minutes": 22.57
@@ -42,7 +42,7 @@
     "builtin_24": {
       "shards": 24,
       "strategy": "playwright --shard=N/24",
-      "total_project_cases": 456,
+      "total_project_cases": 459,
       "empty_shards": 3,
       "projected_slowest_duration_ms": 1190064,
       "projected_slowest_duration_minutes": 19.83
@@ -50,7 +50,7 @@
     "builtin_32": {
       "shards": 32,
       "strategy": "playwright --shard=N/32",
-      "total_project_cases": 456,
+      "total_project_cases": 459,
       "empty_shards": 4,
       "projected_slowest_duration_ms": 1052217,
       "projected_slowest_duration_minutes": 17.54
@@ -58,27 +58,27 @@
     "weighted_16": {
       "shards": 16,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 456,
+      "total_project_cases": 459,
       "empty_shards": 0,
-      "projected_slowest_duration_ms": 341962,
-      "projected_slowest_duration_minutes": 5.7,
+      "projected_slowest_duration_ms": 343020,
+      "projected_slowest_duration_minutes": 5.72,
       "maximum_logical_tests": 11,
       "maximum_project_cases": 33
     },
     "weighted_24": {
       "shards": 24,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 456,
+      "total_project_cases": 459,
       "empty_shards": 0,
-      "projected_slowest_duration_ms": 237586,
-      "projected_slowest_duration_minutes": 3.96,
-      "maximum_logical_tests": 7,
-      "maximum_project_cases": 21
+      "projected_slowest_duration_ms": 240000,
+      "projected_slowest_duration_minutes": 4,
+      "maximum_logical_tests": 8,
+      "maximum_project_cases": 24
     },
     "weighted_32": {
       "shards": 32,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 456,
+      "total_project_cases": 459,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 187105,
       "projected_slowest_duration_minutes": 3.12,
@@ -88,7 +88,7 @@
     "selected": {
       "shards": 24,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 456,
+      "total_project_cases": 459,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 240000,
       "projected_slowest_duration_minutes": 4,
@@ -259,19 +259,20 @@
     {
       "shard": 9,
       "historical_duration_ms": 111189,
-      "load_weight_ms": 204897,
-      "logical_tests": 6,
-      "project_cases": 18,
+      "load_weight_ms": 234897,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "coloring-surface-gesture-guard.spec.js:232:camera zoom still works on the tiled surface",
         "core-feel-slice.spec.js:187:partial manual progress reloads into a meaningful resume action",
         "creator.spec.js:414:8. Save flow: saves, confirms, and opens play view",
         "creator.spec.js:576:15. Player menu opens and shows secondary actions",
+        "guided-path.spec.js:269:Telegram iOS startup self-heal preserves deep-link and resume player launches",
         "tiled-stroke-engine.spec.js:469:drag across a tile boundary paints every valid cell with no stall",
         "unlocks-recommendations.spec.js:131:legacy progression-locked direct ID stays fail-closed without progression UX"
       ],
       "historical_duration_minutes": 1.85,
-      "load_weight_minutes": 3.41,
+      "load_weight_minutes": 3.91,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -3781,6 +3782,27 @@
       },
       "load_weight_ms": 30000,
       "shard": 24
+    },
+    {
+      "id": "guided-path.spec.js:269:Telegram iOS startup self-heal preserves deep-link and resume player launches",
+      "file": "guided-path.spec.js",
+      "line": 269,
+      "title": "Telegram iOS startup self-heal preserves deep-link and resume player launches",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile iPhone",
+        "Mobile Pixel"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": true
+      },
+      "load_weight_ms": 30000,
+      "shard": 9
     },
     {
       "id": "zone-visual.spec.js:8:capture 16-zone player at 390px",

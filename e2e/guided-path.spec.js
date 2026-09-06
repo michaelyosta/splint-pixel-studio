@@ -29,12 +29,17 @@ async function installTelegramSession(page, { platform, userId }) {
   await page.addInitScript(({ signedInitData, telegramPlatform }) => {
     const listeners = new Map();
     window.__telegramExpandCalls = 0;
-    window.Telegram = {
-      WebApp: {
+    window.__telegramFullscreenRequests = 0;
+    window.__telegramFullscreenExits = 0;
+    const emit = (name, payload) => {
+      for (const handler of [...(listeners.get(name) || [])]) handler(payload);
+    };
+    const webApp = {
         initData: signedInitData,
         initDataUnsafe: {},
         platform: telegramPlatform,
         version: '8.0',
+        isFullscreen: false,
         colorScheme: 'dark',
         viewportHeight: 844,
         viewportStableHeight: 844,
@@ -42,6 +47,21 @@ async function installTelegramSession(page, { platform, userId }) {
         contentSafeAreaInset: { top: 0, right: 0, bottom: 0, left: 0 },
         ready() {},
         expand() { window.__telegramExpandCalls += 1; },
+        isVersionAtLeast(minimum) { return Number(this.version) >= Number(minimum); },
+        requestFullscreen() {
+          window.__telegramFullscreenRequests += 1;
+          queueMicrotask(() => {
+            webApp.isFullscreen = true;
+            emit('fullscreenChanged', { isFullscreen: true });
+          });
+        },
+        exitFullscreen() {
+          window.__telegramFullscreenExits += 1;
+          queueMicrotask(() => {
+            webApp.isFullscreen = false;
+            emit('fullscreenChanged', { isFullscreen: false });
+          });
+        },
         onEvent(name, handler) {
           if (!listeners.has(name)) listeners.set(name, []);
           listeners.get(name).push(handler);
@@ -51,8 +71,8 @@ async function installTelegramSession(page, { platform, userId }) {
           const index = handlers.indexOf(handler);
           if (index >= 0) handlers.splice(index, 1);
         },
-      },
     };
+    window.Telegram = { WebApp: webApp };
   }, { signedInitData: initData, telegramPlatform: platform });
 }
 
@@ -139,6 +159,25 @@ async function createAndCompleteSmallColoring(page) {
   return created.id;
 }
 
+async function createSmallColoring(page, { title = 'iOS self-heal route fixture', userId = null } = {}) {
+  const width = 8;
+  const height = 8;
+  const response = await page.request.post('/api/colorings/create', {
+    headers: userId ? { 'X-User-Id': userId } : undefined,
+    data: {
+      title,
+      description: 'Deterministic startup-route fixture',
+      width,
+      height,
+      palette: ['#0B1522', '#2BD9FE'],
+      cells: new Array(width * height).fill(0),
+      tileSize: 32,
+    },
+  });
+  expect(response.ok()).toBe(true);
+  return response.json();
+}
+
 test.beforeEach(async ({ page }, testInfo) => {
   await page.context().setExtraHTTPHeaders({ 'X-User-Id': `e2e_guided_${testInfo.testId}` });
 });
@@ -184,8 +223,20 @@ test('real Telegram iOS keeps bottom primary navigation in a top-level portal ac
   await installTelegramSession(page, { platform: 'ios', userId: 515151 });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  await expect(page.locator('.telegram-startup-surface')).toHaveCount(0, { timeout: 5000 });
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
   expect(await page.evaluate(() => window.__telegramExpandCalls)).toBe(0);
+  expect(await page.evaluate(() => window.__telegramFullscreenRequests)).toBe(1);
+  expect(await page.evaluate(() => window.__telegramFullscreenExits)).toBe(1);
+  expect(await page.evaluate(() => window.__splintIosViewportSelfHeal)).toMatchObject({
+    attempted: true,
+    outcome: 'success',
+    fullscreenTransitionConfirmed: true,
+    fullscreenExitConfirmed: true,
+    viewportResyncExecuted: true,
+    shellInvalidationExecuted: true,
+  });
+  await expect(page.locator('.telegram-frame')).toHaveAttribute('data-shell-generation', '1');
   await page.addStyleTag({ content: '.catalog-page, .profile-page { min-height: 1500px; }' });
 
   const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
@@ -215,6 +266,50 @@ test('real Telegram iOS keeps bottom primary navigation in a top-level portal ac
   }
 });
 
+test('Telegram iOS startup self-heal preserves deep-link and resume player launches', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'Mobile iPhone', 'Telegram iOS contract runs in the iPhone project');
+  await primeLocalStorage(page);
+  await installTelegramSession(page, { platform: 'ios', userId: 525252 });
+  const coloring = await createSmallColoring(page, { userId: 'tg_525252' });
+  const progressResponse = await page.request.post(`/api/colorings/${coloring.id}/progress/actions`, {
+    headers: { 'X-User-Id': 'tg_525252' },
+    data: {
+      changes: [{ index: 0, color: 0 }],
+      revision: 0,
+      clientBatchId: 'ios-self-heal-resume-fixture',
+    },
+  });
+  expect(progressResponse.ok()).toBe(true);
+  const seededProgress = await progressResponse.json();
+
+  await page.goto(`/?coloring=${encodeURIComponent(coloring.id)}`);
+  await expect(page.locator('.telegram-startup-surface')).toHaveCount(0, { timeout: 5000 });
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toHaveCount(0);
+  await expect(page.locator('.telegram-frame')).toHaveAttribute('data-shell-generation', '1');
+  expect(await page.evaluate(() => window.__splintIosViewportSelfHeal?.outcome)).toBe('success');
+
+  await page.evaluate(({ artworkId, progressRevision }) => {
+    const snapshot = {
+      version: 1,
+      artworkId,
+      route: 'play',
+      progressRevision,
+    };
+    localStorage.setItem('splint:resume-current:v1:anonymous', JSON.stringify({ artworkId, route: 'play', savedAt: Date.now() }));
+    localStorage.setItem(`splint:resume:v1:anonymous:${artworkId}`, JSON.stringify(snapshot));
+  }, { artworkId: coloring.id, progressRevision: Number(seededProgress.revision) });
+
+  await page.goto('/');
+  await expect(page.locator('.telegram-startup-surface')).toHaveCount(0, { timeout: 5000 });
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toHaveCount(0);
+  await expect(page.locator('.telegram-frame')).toHaveAttribute('data-shell-generation', '1');
+  expect(await page.evaluate(() => window.__telegramFullscreenRequests)).toBe(1);
+  expect(await page.evaluate(() => window.__telegramFullscreenExits)).toBe(1);
+  expect(await page.evaluate(() => window.__splintIosViewportSelfHeal?.outcome)).toBe('success');
+});
+
 test('real Telegram Android keeps the existing bottom primary navigation', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'Mobile Pixel', 'Telegram Android contract runs in the Pixel project');
   await primeLocalStorage(page);
@@ -222,6 +317,8 @@ test('real Telegram Android keeps the existing bottom primary navigation', async
   await page.goto('/');
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
   expect(await page.evaluate(() => window.__telegramExpandCalls)).toBe(1);
+  expect(await page.evaluate(() => window.__telegramFullscreenRequests)).toBe(0);
+  expect(await page.evaluate(() => window.__telegramFullscreenExits)).toBe(0);
   await expect(page.locator('.primary-navigation--top')).toHaveCount(0);
   const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
   await expect(navigation).toHaveAttribute('data-navigation-placement', 'bottom');

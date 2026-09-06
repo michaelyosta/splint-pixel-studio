@@ -225,6 +225,46 @@ img { user-select: none; }
   min-width: 0;
 }
 
+/* Opaque and short-lived: masks the single native iOS viewport self-heal and
+   prevents interaction until fullscreen enter/exit settles or times out. */
+.telegram-startup-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.telegram-startup-surface__mark {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  image-rendering: pixelated;
+  clip-path: var(--pixel-corners);
+  background:
+    linear-gradient(to right, var(--app-gold) 50%, var(--app-cyan) 50%) top / 100% 50% no-repeat,
+    linear-gradient(to right, var(--app-violet) 50%, var(--app-pink) 50%) bottom / 100% 50% no-repeat;
+}
+
+.telegram-startup-surface b {
+  display: block;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--app-cyan);
+}
+
+.telegram-startup-surface small {
+  display: block;
+  margin-top: 6px;
+  color: var(--app-text-secondary);
+  font-size: 11px;
+}
+
 /* ── Tab bar ────────────────────────────────────────────────────
    Structural flex item, never an absolutely positioned overlay.
    On real Telegram iOS the same product bar is portaled into a
