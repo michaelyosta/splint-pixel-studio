@@ -32,20 +32,6 @@ export function isRealTelegramSession(webApp = getTelegramWebApp()) {
   return Boolean(webApp && String(webApp.initData || '').trim());
 }
 
-export function isRealTelegramIosSession(webApp = getTelegramWebApp()) {
-  return isRealTelegramSession(webApp) && webApp.platform === 'ios';
-}
-
-/**
- * Keeps the primary iOS shell in Telegram's compact viewport. Physical iOS
- * evidence shows that the expanded WebView can stop painting bottom content
- * while leaving its hit targets active. Other Telegram clients retain the
- * existing full-height startup behavior.
- */
-export function shouldAutoExpandTelegramWebApp(webApp = getTelegramWebApp()) {
-  return Boolean(webApp) && !isRealTelegramIosSession(webApp);
-}
-
 /**
  * Reports whether this WebApp can disable the vertical swipe-to-close gesture.
  * Prefers Telegram's own `isVersionAtLeast` capability check and falls back to
@@ -145,83 +131,15 @@ export function bindTelegramVerticalSwipes(webApp = getTelegramWebApp()) {
   };
 }
 
-const TELEGRAM_VIEWPORT_LIFECYCLE_EVENTS = [
-  'viewportChanged',
-  'safeAreaChanged',
-  'contentSafeAreaChanged',
-  'fullscreenChanged',
-];
-
-const TELEGRAM_INSET_SIDES = ['top', 'right', 'bottom', 'left'];
-
-/** Converts a bridge number into a CSS length, rejecting unusable values. */
-function toCssPx(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? `${parsed}px` : null;
-}
-
-/**
- * Publishes the Telegram viewport contract as CSS variables:
- * `--tg-viewport-stable-height` plus the safe-area insets. Consumed by the
- * shell height and safe-area fallback chains in App.css.
- */
-export function syncTelegramViewportCssVars(webApp, root = typeof document !== 'undefined' ? document.documentElement : null) {
-  if (!root || typeof root.style?.setProperty !== 'function') return false;
-  let applied = false;
-  const stableHeight = toCssPx(webApp?.viewportStableHeight) ?? toCssPx(webApp?.viewportHeight);
-  if (stableHeight) {
-    root.style.setProperty('--tg-viewport-stable-height', stableHeight);
-    applied = true;
-  }
-  for (const side of TELEGRAM_INSET_SIDES) {
-    const deviceInset = toCssPx(webApp?.safeAreaInset?.[side]);
-    if (deviceInset) {
-      root.style.setProperty(`--tg-safe-area-inset-${side}`, deviceInset);
-      applied = true;
-    }
-    const contentInset = toCssPx(webApp?.contentSafeAreaInset?.[side]);
-    if (contentInset) {
-      root.style.setProperty(`--tg-content-safe-area-inset-${side}`, contentInset);
-      applied = true;
-    }
-  }
-  return applied;
-}
-
-/**
- * Joins the Telegram viewport lifecycle. Stable resize events re-publish the
- * viewport CSS variables. Returns a cleanup function.
- */
-export function bindTelegramViewportLifecycle(webApp = getTelegramWebApp()) {
-  if (!webApp || typeof document === 'undefined') return () => {};
-  syncTelegramViewportCssVars(webApp);
-  const bound = [];
-  for (const event of TELEGRAM_VIEWPORT_LIFECYCLE_EVENTS) {
-    const handler = (payload) => {
-      // Telegram marks transient resize frames; commit only stable states.
-      if (payload?.isStateStable === false) return;
-      syncTelegramViewportCssVars(webApp);
-    };
-    bound.push([event, handler]);
-    try { webApp.onEvent?.(event, handler); } catch { /* older bridges */ }
-  }
-  return () => {
-    for (const [event, handler] of bound) {
-      try { webApp.offEvent?.(event, handler); } catch { /* optional */ }
-    }
-  };
-}
-
 export function initializeTelegramWebApp() {
   const webApp = getTelegramWebApp();
   if (!webApp) return null;
   webApp.ready();
-  if (shouldAutoExpandTelegramWebApp(webApp)) {
-    try { webApp.expand?.(); } catch { /* older clients */ }
-  }
+  // Ask Telegram for the full viewport height right away so the studio
+  // never renders in the collapsed in-app window.
+  try { webApp.expand?.(); } catch { /* older clients */ }
   applyTelegramTheme(webApp);
   try { webApp.onEvent?.('themeChanged', () => applyTelegramTheme(webApp)); } catch { /* optional */ }
-  bindTelegramViewportLifecycle(webApp);
   return webApp;
 }
 

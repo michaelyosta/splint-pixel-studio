@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   bindTelegramVerticalSwipes,
-  bindTelegramViewportLifecycle,
   disableTelegramVerticalSwipes,
   enableTelegramVerticalSwipes,
   buildColoringDeepLink,
@@ -12,11 +11,8 @@ import {
   getRequestedPackId,
   getTelegramVerticalSwipeStatus,
   initializeTelegramWebApp,
-  isRealTelegramIosSession,
   isTelegramVersionAtLeast,
-  shouldAutoExpandTelegramWebApp,
   supportsTelegramVerticalSwipes,
-  syncTelegramViewportCssVars,
   TELEGRAM_SWIPE_CONTROL_VERSION,
 } from './telegram.js';
 
@@ -258,188 +254,30 @@ test('deep-link readers accept query and Telegram start parameters', () => {
   }
 });
 
-function viewportWebApp({ platform = 'ios', initData = 'test-init-data', ...extra } = {}) {
-  const handlers = new Map();
-  return {
-    platform,
-    initData,
-    viewportStableHeight: 734,
-    viewportHeight: 734,
-    ...extra,
-    onEvent(event, handler) {
-      if (!handlers.has(event)) handlers.set(event, []);
-      handlers.get(event).push(handler);
-    },
-    offEvent(event, handler) {
-      const list = handlers.get(event) || [];
-      const index = list.indexOf(handler);
-      if (index >= 0) list.splice(index, 1);
-    },
-    emit(event, payload) {
-      for (const handler of handlers.get(event) || []) handler(payload);
-    },
-    listenerCount(event) {
-      return (handlers.get(event) || []).length;
-    },
-  };
-}
-
-function withViewportDocument(run) {
-  const previousDocument = globalThis.document;
-  const setProperties = [];
-  globalThis.document = {
-    documentElement: {
-      style: {
-        setProperty(name, value) {
-          setProperties.push([name, value]);
-        },
-      },
-    },
-  };
-  try {
-    return run({ setProperties });
-  } finally {
-    if (previousDocument === undefined) delete globalThis.document;
-    else globalThis.document = previousDocument;
-  }
-}
-
-function initializeWebAppProbe({ platform, initData }) {
-  const previousWindow = globalThis.window;
-  const previousDocument = globalThis.document;
-  const calls = [];
-  const webApp = viewportWebApp({ platform, initData });
-  webApp.ready = () => calls.push('ready');
-  webApp.expand = () => calls.push('expand');
-  globalThis.window = { Telegram: { WebApp: webApp } };
-  globalThis.document = {
-    documentElement: {
-      dataset: {},
-      setAttribute() {},
-      style: { setProperty() {} },
-    },
-  };
-  try {
-    assert.equal(initializeTelegramWebApp(), webApp);
-    return calls;
-  } finally {
-    if (previousWindow === undefined) delete globalThis.window;
-    else globalThis.window = previousWindow;
-    if (previousDocument === undefined) delete globalThis.document;
-    else globalThis.document = previousDocument;
-  }
-}
-
-test('viewport CSS variable sync publishes stable height and insets', () => {
-  withViewportDocument(({ setProperties }) => {
-    const webApp = viewportWebApp({
-      viewportStableHeight: 700,
-      safeAreaInset: { top: 59, bottom: 34, left: 0, right: 0 },
-      contentSafeAreaInset: { top: 0, bottom: 0, left: 0, right: 0 },
-    });
-    assert.equal(syncTelegramViewportCssVars(webApp), true);
-    assert.deepEqual(setProperties, [
-      ['--tg-viewport-stable-height', '700px'],
-      ['--tg-safe-area-inset-top', '59px'],
-      ['--tg-content-safe-area-inset-top', '0px'],
-      ['--tg-safe-area-inset-right', '0px'],
-      ['--tg-content-safe-area-inset-right', '0px'],
-      ['--tg-safe-area-inset-bottom', '34px'],
-      ['--tg-content-safe-area-inset-bottom', '0px'],
-      ['--tg-safe-area-inset-left', '0px'],
-      ['--tg-content-safe-area-inset-left', '0px'],
-    ]);
-  });
-});
-
-test('viewport CSS variable sync rejects unusable bridge values', () => {
-  withViewportDocument(({ setProperties }) => {
-    assert.equal(syncTelegramViewportCssVars(viewportWebApp({ viewportStableHeight: undefined, viewportHeight: undefined })), false);
-    assert.equal(syncTelegramViewportCssVars(viewportWebApp({ viewportStableHeight: -5, viewportHeight: -3 })), false);
-    assert.equal(syncTelegramViewportCssVars(null), false);
-    assert.deepEqual(setProperties, []);
-  });
-});
-
-test('real Telegram iOS detection excludes Android, desktop, and browser SDK stubs', () => {
-  assert.equal(isRealTelegramIosSession(viewportWebApp({ platform: 'ios', initData: 'signed-query' })), true);
-  assert.equal(isRealTelegramIosSession(viewportWebApp({ platform: 'android', initData: 'signed-query' })), false);
-  assert.equal(isRealTelegramIosSession(viewportWebApp({ platform: 'tdesktop', initData: 'signed-query' })), false);
-  assert.equal(isRealTelegramIosSession(viewportWebApp({ platform: 'ios', initData: '' })), false);
-  assert.equal(isRealTelegramIosSession(null), false);
-});
-
-test('startup keeps real Telegram iOS compact while other clients retain auto-expand', () => {
-  assert.equal(shouldAutoExpandTelegramWebApp(viewportWebApp({ platform: 'ios', initData: 'signed-query' })), false);
-  assert.equal(shouldAutoExpandTelegramWebApp(viewportWebApp({ platform: 'android', initData: 'signed-query' })), true);
-  assert.equal(shouldAutoExpandTelegramWebApp(viewportWebApp({ platform: 'tdesktop', initData: 'signed-query' })), true);
-  assert.equal(shouldAutoExpandTelegramWebApp(viewportWebApp({ platform: 'ios', initData: '' })), true);
-  assert.equal(shouldAutoExpandTelegramWebApp(null), false);
-  assert.deepEqual(initializeWebAppProbe({ platform: 'ios', initData: 'signed-query' }), ['ready']);
-  assert.deepEqual(initializeWebAppProbe({ platform: 'android', initData: 'signed-query' }), ['ready', 'expand']);
-});
-
-test('lifecycle binder subscribes to the four Telegram viewport events', () => {
-  withViewportDocument(() => {
-    const webApp = viewportWebApp();
-    const cleanup = bindTelegramViewportLifecycle(webApp);
-    for (const event of ['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged']) {
-      assert.equal(webApp.listenerCount(event), 1, `${event} has exactly one handler`);
+test('Telegram startup expands the WebApp on every platform', () => {
+  for (const platform of ['ios', 'android', 'tdesktop']) {
+    const previousWindow = globalThis.window;
+    const previousDocument = globalThis.document;
+    const calls = [];
+    const webApp = {
+      platform,
+      initData: 'signed-query',
+      ready: () => calls.push('ready'),
+      expand: () => calls.push('expand'),
+      onEvent() {},
+      colorScheme: 'dark',
+      themeParams: {},
+    };
+    globalThis.window = { Telegram: { WebApp: webApp } };
+    globalThis.document = { documentElement: { dataset: {} } };
+    try {
+      assert.equal(initializeTelegramWebApp(), webApp);
+      assert.deepEqual(calls, ['ready', 'expand']);
+    } finally {
+      if (previousWindow === undefined) delete globalThis.window;
+      else globalThis.window = previousWindow;
+      if (previousDocument === undefined) delete globalThis.document;
+      else globalThis.document = previousDocument;
     }
-    cleanup();
-    for (const event of ['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged']) {
-      assert.equal(webApp.listenerCount(event), 0, `${event} handler removed on cleanup`);
-    }
-  });
-});
-
-test('viewportChanged commits only stable states', () => {
-  withViewportDocument(({ setProperties }) => {
-    const webApp = viewportWebApp({ viewportStableHeight: 600 });
-    bindTelegramViewportLifecycle(webApp);
-
-    webApp.emit('viewportChanged', { height: 500, isStateStable: false });
-    assert.deepEqual(setProperties, [['--tg-viewport-stable-height', '600px']], 'initial sync only');
-    webApp.viewportStableHeight = 500;
-    webApp.emit('viewportChanged', { height: 500, isStateStable: true });
-    assert.deepEqual(setProperties.slice(1), [['--tg-viewport-stable-height', '500px']]);
-  });
-});
-
-test('viewport events without a stability flag count as committed states', () => {
-  withViewportDocument(({ setProperties }) => {
-    const webApp = viewportWebApp({ safeAreaInset: { top: 10, bottom: 20, left: 0, right: 0 } });
-    bindTelegramViewportLifecycle(webApp);
-    const initialCount = setProperties.length;
-    webApp.emit('safeAreaChanged', { safeAreaInset: webApp.safeAreaInset });
-    assert.deepEqual(setProperties.slice(initialCount), [
-      ['--tg-viewport-stable-height', '734px'],
-      ['--tg-safe-area-inset-top', '10px'],
-      ['--tg-safe-area-inset-right', '0px'],
-      ['--tg-safe-area-inset-bottom', '20px'],
-      ['--tg-safe-area-inset-left', '0px'],
-    ]);
-  });
-});
-
-test('non-iOS Telegram sessions retain viewport lifecycle variable sync', () => {
-  withViewportDocument(({ setProperties }) => {
-    const webApp = viewportWebApp({ platform: 'desktop' });
-    bindTelegramViewportLifecycle(webApp);
-    webApp.viewportStableHeight = 600;
-    webApp.emit('viewportChanged', { height: 600, isStateStable: true });
-    assert.deepEqual(setProperties, [
-      ['--tg-viewport-stable-height', '734px'],
-      ['--tg-viewport-stable-height', '600px'],
-    ]);
-  });
-});
-
-test('browser SDK stubs retain viewport lifecycle variable sync', () => {
-  withViewportDocument(({ setProperties }) => {
-    const webApp = viewportWebApp({ platform: 'ios', initData: '' });
-    bindTelegramViewportLifecycle(webApp);
-    webApp.emit('viewportChanged', { height: 600, isStateStable: true });
-    assert.deepEqual(setProperties.map(([name]) => name), ['--tg-viewport-stable-height', '--tg-viewport-stable-height']);
-  });
+  }
 });

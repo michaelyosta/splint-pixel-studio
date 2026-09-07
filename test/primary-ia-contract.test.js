@@ -19,11 +19,11 @@ function staticRoutes(text, pattern = /(?:navigatePrimary|setView)\(\s*'([^']+)'
   return [...text.matchAll(pattern)].map((match) => match[1]);
 }
 
-test('PrimaryNavigation declares exactly the three primary destinations', () => {
-  const navigation = source('src/components/PrimaryNavigation.jsx');
+test('BottomNavigation declares exactly the three primary destinations', () => {
+  const navigation = source('src/components/BottomNavigation.jsx');
   const itemsBody = navigation.match(/const ITEMS\s*=\s*\[([\s\S]*?)\];/)?.[1];
 
-  assert.ok(itemsBody, 'PrimaryNavigation must keep a static ITEMS declaration');
+  assert.ok(itemsBody, 'BottomNavigation must keep a static ITEMS declaration');
   assert.deepEqual(
     [...itemsBody.matchAll(/\bid\s*:\s*['"]([^'"]+)['"]/g)].map((match) => match[1]),
     primaryDestinations.map(({ id }) => id),
@@ -43,9 +43,7 @@ test('app header and default shell expose only primary navigation routes', () =>
   assert.deepEqual(staticRoutes(header), ['catalog', 'profile']);
   assert.match(header, /className="brand-button"[\s\S]*navigatePrimary\('catalog'\)/);
   assert.match(header, /className="header-profile-button"[\s\S]*navigatePrimary\('profile'\)/);
-  assert.match(app, /createPortal\(<PrimaryNavigation portal[^>]*\bonNavigate=\{navigatePrimary\}/);
-  assert.match(app, /<PrimaryNavigation activeView=\{view\}\s+onNavigate=\{navigatePrimary\}/);
-  assert.doesNotMatch(app, /<PrimaryNavigation\b[^>]*\bkey=/, 'primary navigation must remain mounted across route commits');
+  assert.match(app, /view !== 'play' && !coreFeelExperiment\.enabled && <BottomNavigation activeView=\{view\} onNavigate=\{navigatePrimary\}/);
   assert.match(
     app,
     /\['catalog',\s*'create',\s*'profile'\]\.includes\(initialResume\?\.route\)/,
@@ -53,52 +51,40 @@ test('app header and default shell expose only primary navigation routes', () =>
   );
 });
 
-test('application shell keeps long content in a bounded middle grid row', () => {
+test('application shell restores the known-good flex and absolute navigation contract', () => {
   const app = source('src/App.jsx');
   const styles = source('src/App.css');
   const containerRule = styles.match(/\.app-container\s*\{([\s\S]*?)\}/)?.[1] || '';
-  const playerRule = styles.match(/\.app-container--play\s*\{([\s\S]*?)\}/)?.[1] || '';
-  const headerRule = styles.match(/\.app-header\s*\{([\s\S]*?)\}/)?.[1] || '';
   const contentRule = styles.match(/\.screen-content\s*\{([\s\S]*?)\}/)?.[1] || '';
   const navigationRule = styles.match(/(?:^|\n)\.app-tab-bar\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const redesignedButtonRule = styles.match(/\.app-tab-bar--redesigned > button\s*\{([\s\S]*?)\}/)?.[1] || '';
 
-  assert.match(containerRule, /display:\s*grid/);
-  assert.match(containerRule, /grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)\s+auto/);
-  assert.match(containerRule, /min-height:\s*0/);
-  assert.match(containerRule, /overflow:\s*hidden/);
-  assert.match(headerRule, /grid-row:\s*1/);
-  assert.match(contentRule, /grid-row:\s*2/);
+  assert.match(containerRule, /display:\s*flex/);
+  assert.match(containerRule, /flex-direction:\s*column/);
+  assert.match(containerRule, /position:\s*relative/);
+  assert.doesNotMatch(containerRule, /display:\s*grid|grid-template-rows/);
+  assert.match(contentRule, /flex:\s*1/);
   assert.match(contentRule, /min-height:\s*0/);
-  assert.match(contentRule, /min-width:\s*0/);
   assert.match(contentRule, /overflow-y:\s*auto/);
-  assert.match(navigationRule, /grid-row:\s*3/);
-  assert.match(playerRule, /display:\s*flex/);
-  assert.match(app, /view === 'play' \? ' app-container--play' : ''/);
+  assert.match(contentRule, /padding-bottom:\s*96px/);
+  assert.match(navigationRule, /position:\s*absolute/);
+  assert.match(navigationRule, /bottom:\s*calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
+  assert.match(navigationRule, /backdrop-filter:\s*blur\(14px\)/);
+  assert.match(redesignedButtonRule, /width:\s*20%/);
+  assert.doesNotMatch(app, /createPortal|shellGeneration|telegramStartupBlocked|app-container--play/);
 });
 
-test('real Telegram iOS uses a bottom navigation portal outside the app container', () => {
+test('navigation shell contains no post-regression iOS paint workarounds', () => {
   const app = source('src/App.jsx');
   const styles = source('src/App.css');
   const telegram = source('src/lib/telegram.js');
-  const frameRule = styles.match(/\.telegram-frame--ios-primary-portal\s*\{([\s\S]*?)\}/)?.[1] || '';
-  const portalShellRule = styles.match(/\.app-container--ios-primary-portal\s*\{([\s\S]*?)\}/)?.[1] || '';
-  const hostRule = styles.match(/\.ios-primary-navigation-host\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const main = source('src/main.jsx');
 
-  assert.match(telegram, /isRealTelegramSession\(webApp\)\s*&&\s*webApp\.platform === 'ios'/);
-  assert.match(app, /import \{ createPortal \} from 'react-dom'/);
-  assert.match(app, /showPrimaryNavigation && useIosPortalNavigation && <div ref=\{setIosNavigationHost\} className="ios-primary-navigation-host"/);
-  assert.match(app, /createPortal\(<PrimaryNavigation portal activeView=\{view\} onNavigate=\{navigatePrimary\} \/>, iosNavigationHost\)/);
-  assert.match(app, /showPrimaryNavigation && !useIosPortalNavigation && <PrimaryNavigation/);
-  assert.match(frameRule, /display:\s*grid/);
-  assert.match(frameRule, /grid-template-rows:\s*minmax\(0,\s*1fr\)\s+auto/);
-  assert.match(portalShellRule, /grid-template-rows:\s*auto\s+minmax\(0,\s*1fr\)/);
-  assert.match(portalShellRule, /height:\s*auto/);
-  assert.match(hostRule, /grid-row:\s*2/);
-  assert.doesNotMatch(hostRule, /\b(?:position|transform|filter|backdrop-filter|isolation|mix-blend-mode)\s*:/);
-  assert.doesNotMatch(styles, /primary-navigation--top|app-container--ios-primary-top/);
-  assert.doesNotMatch(styles, /data-tg-ios|app-tab-bar--repaint|translateZ\(0\)/);
-  assert.doesNotMatch(app, /scheduleTelegramBottomNavigationRouteRepaint|useLayoutEffect/);
-  assert.doesNotMatch(telegram, /invalidateTelegramBottomNavigation|scheduleTelegramBottomNavigationRouteRepaint/);
+  assert.doesNotMatch(app, /createPortal|isRealTelegramIosSession|iosNavigationHost|shellGeneration|telegramStartupBlocked/);
+  assert.doesNotMatch(styles, /ios-primary|primary-navigation--portal|telegram-startup-surface|data-tg-ios|app-tab-bar--repaint|translateZ\(0\)|grid-template-rows/);
+  assert.doesNotMatch(telegram, /isRealTelegramIosSession|shouldAutoExpandTelegramWebApp|syncTelegramViewportCssVars|bindTelegramViewportLifecycle|requestFullscreen|exitFullscreen/);
+  assert.doesNotMatch(main, /ViewportSelfHeal|viewportDiagnostic|flushSync|shellGeneration/);
+  assert.match(telegram, /webApp\.ready\(\)[\s\S]*webApp\.expand\?\.\(\)/);
 });
 
 test('profile CTAs stay within primary IA while secondary routes remain implementation details', () => {

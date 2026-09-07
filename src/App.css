@@ -16,22 +16,6 @@ html, body, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: 
 body { display: flex; justify-content: center; align-items: center; background-color: #04080E; }
 html[data-tg-swipe-protected] { overscroll-behavior-y: none; }
 
-/* Telegram content safe areas win when present; env() covers standalone/PWA.
-   The Telegram SDK publishes the --tg-* variables (and telegram.js mirrors
-   them), so max() never double-counts — it picks the largest single inset. */
-:root {
-  --app-safe-area-top: max(
-    env(safe-area-inset-top, 0px),
-    var(--tg-safe-area-inset-top, 0px),
-    var(--tg-content-safe-area-inset-top, 0px)
-  );
-  --app-safe-area-bottom: max(
-    env(safe-area-inset-bottom, 0px),
-    var(--tg-safe-area-inset-bottom, 0px),
-    var(--tg-content-safe-area-inset-bottom, 0px)
-  );
-}
-
 button { -webkit-tap-highlight-color: transparent; }
 img { user-select: none; }
 
@@ -58,8 +42,7 @@ img { user-select: none; }
   body { background-color: var(--app-bg); background-image: none; }
   .telegram-frame {
     width: 100vw;
-    height: var(--tg-viewport-stable-height, 100dvh);
-    max-height: var(--tg-viewport-stable-height, 100dvh);
+    height: 100vh;
     border: none;
     border-radius: 0;
     box-shadow: none;
@@ -70,43 +53,23 @@ img { user-select: none; }
 .app-container {
   width: 100%;
   height: 100%;
-  min-height: 0;
-  overflow: hidden;
   background-color: var(--app-bg);
   background-image:
     linear-gradient(rgba(43, 217, 254, 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(43, 217, 254, 0.025) 1px, transparent 1px);
   background-size: 28px 28px;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  position: relative;
-}
-
-/* The player keeps its dedicated single-surface flex sizing. */
-.app-container--play {
   display: flex;
   flex-direction: column;
-}
-
-.telegram-frame--ios-primary-portal {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-}
-
-.app-container--ios-primary-portal {
-  grid-row: 1;
-  height: auto;
-  grid-template-rows: auto minmax(0, 1fr);
+  position: relative;
 }
 
 /* ── Header ───────────────────────────────────────────────────── */
 .app-header {
-  grid-row: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 6px;
-  padding: calc(10px + var(--app-safe-area-top, 0px)) 14px 10px;
+  padding: 10px 14px;
   background: linear-gradient(180deg, rgba(16, 29, 45, 0.98), rgba(11, 21, 34, 0.94));
   border-bottom: 1px solid var(--app-border);
   z-index: 10;
@@ -192,17 +155,16 @@ img { user-select: none; }
 
 /* ── Scrollable content ───────────────────────────────────────── */
 .screen-content {
-  grid-row: 2;
+  flex: 1;
   min-height: 0;
-  min-width: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  padding-bottom: 96px;
   position: relative;
   scrollbar-width: thin;
 }
 
 .screen-content--play {
-  flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -210,77 +172,20 @@ img { user-select: none; }
   padding-bottom: 0;
 }
 
-.ios-primary-navigation-host {
-  grid-row: 2;
-  min-width: 0;
-  display: flow-root;
-  background: var(--app-bg);
-}
-
-.ios-primary-navigation-host .app-tab-bar {
-  grid-row: auto;
-}
-
-.primary-navigation--portal-bottom {
-  min-width: 0;
-}
-
-/* Opaque and short-lived: masks the single native iOS viewport self-heal and
-   prevents interaction until fullscreen enter/exit settles or times out. */
-.telegram-startup-surface {
-  position: absolute;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  background: var(--app-bg);
-  color: var(--app-text);
-}
-
-.telegram-startup-surface__mark {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  image-rendering: pixelated;
-  clip-path: var(--pixel-corners);
-  background:
-    linear-gradient(to right, var(--app-gold) 50%, var(--app-cyan) 50%) top / 100% 50% no-repeat,
-    linear-gradient(to right, var(--app-violet) 50%, var(--app-pink) 50%) bottom / 100% 50% no-repeat;
-}
-
-.telegram-startup-surface b {
-  display: block;
-  font-family: var(--font-pixel);
-  font-size: 12px;
-  letter-spacing: 1px;
-  color: var(--app-cyan);
-}
-
-.telegram-startup-surface small {
-  display: block;
-  margin-top: 6px;
-  color: var(--app-text-secondary);
-  font-size: 11px;
-}
-
-/* ── Tab bar ────────────────────────────────────────────────────
-   Structural flex item, never an absolutely positioned overlay.
-   On real Telegram iOS the same product bar is portaled into a
-   top-level normal-flow host outside the app/content subtree. */
+/* ── Tab bar ──────────────────────────────────────────────────── */
 .app-tab-bar {
-  grid-row: 3;
-  position: relative;
-  flex: 0 0 auto;
-  margin: 8px 10px calc(10px + var(--app-safe-area-bottom, 0px));
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   height: 62px;
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  background: var(--app-dark-gray);
+  background: rgba(12, 22, 34, 0.92);
   border: 1px solid var(--app-border);
   border-radius: 20px;
+  backdrop-filter: blur(14px);
   box-shadow: 0 12px 30px rgba(2, 8, 14, 0.6);
   z-index: 20;
 }
@@ -1297,7 +1202,7 @@ img { user-select: none; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: calc(8px + var(--app-safe-area-top, 0px)) 10px 8px;
+  padding: 8px 10px;
   min-height: 50px;
   background: linear-gradient(180deg, rgba(16, 29, 45, 0.98), rgba(11, 21, 34, 0.92));
   border-bottom: 1px solid var(--app-border);
@@ -2001,8 +1906,8 @@ html[data-tg-theme='light'] .session-goal-timer {
 
 /* ── Compact heights ──────────────────────────────────────────── */
 @media (max-height: 500px) {
-  .app-header { padding: calc(4px + var(--app-safe-area-top, 0px)) 10px 4px; }
-  .player-topbar { min-height: 40px; padding: calc(2px + var(--app-safe-area-top, 0px)) 8px 2px; }
+  .app-header { padding: 4px 10px; }
+  .player-topbar { min-height: 40px; padding: 2px 8px; }
   .player-topbar .back-button,
   .player-menu-btn { min-height: 32px; min-width: 32px; }
   .player-progress { width: 30px; height: 30px; }
@@ -2239,7 +2144,7 @@ html[data-tg-theme='light'] .app-container {
     linear-gradient(rgba(0, 120, 150, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 120, 150, 0.05) 1px, transparent 1px);
 }
-html[data-tg-theme='light'] .app-tab-bar { background: var(--app-card); box-shadow: 0 10px 26px rgba(23, 43, 66, 0.16); }
+html[data-tg-theme='light'] .app-tab-bar { background: rgba(255, 255, 255, 0.94); box-shadow: 0 10px 26px rgba(23, 43, 66, 0.16); }
 html[data-tg-theme='light'] .header-logo { text-shadow: none; }
 html[data-tg-theme='light'] .primary-button { color: #FFFFFF; }
 html[data-tg-theme='light'] .card-preview,
@@ -2316,7 +2221,7 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 /* ── Product navigation and dashboard redesign ─────────────────────── */
 .app-header--redesigned {
   min-height: 62px;
-  padding: calc(8px + var(--app-safe-area-top, 0px)) 14px 8px;
+  padding: 8px 14px;
   justify-content: space-between;
 }
 .app-header--redesigned .brand-button { min-height: 44px; }
@@ -2341,13 +2246,15 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .header-profile-button:active { transform: scale(0.94); }
 
 .app-tab-bar--redesigned {
-  margin: 8px 9px calc(9px + var(--app-safe-area-bottom, 0px));
+  left: 9px;
+  right: 9px;
+  bottom: calc(9px + env(safe-area-inset-bottom, 0px));
   height: 68px;
   padding: 0 2px;
   border-radius: 22px;
 }
 .app-tab-bar--redesigned > button {
-  width: 33.333%;
+  width: 20%;
   min-height: 60px;
   gap: 3px;
   padding: 5px 1px 4px;
@@ -2379,7 +2286,7 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .feed-page--redesigned,
 .profile-page--redesigned,
 .profile-page--showcase,
-.create-hub-page { padding: 18px 14px 24px; }
+.create-hub-page { padding: 18px 14px 104px; }
 .home-greeting {
   display: flex;
   align-items: center;
@@ -2648,7 +2555,7 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .catalog-empty { margin: 20px 0; padding: 20px 14px; border: 1px dashed var(--app-border-strong); border-radius: var(--radius-lg); color: var(--app-text-secondary); font-size: 12px; text-align: center; }
 
 /* ── Bounded Phase 5 store / pack preview ───────────────────────────── */
-.store-page { padding: 18px 14px 24px; }
+.store-page { padding: 18px 14px 104px; }
 .store-heading { align-items: flex-start; margin-bottom: 12px; }
 .store-heading h1 { max-width: 270px; font-size: 23px; line-height: 1.12; }
 .store-back-button { min-height: 44px; display: inline-flex; align-items: center; gap: 5px; padding: 0 6px; border: 0; background: transparent; color: var(--app-cyan); font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }

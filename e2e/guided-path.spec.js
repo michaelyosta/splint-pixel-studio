@@ -1,80 +1,4 @@
-import { createHmac } from 'node:crypto';
 import { test, expect } from '@playwright/test';
-
-const BOT_TOKEN = 'e2e-bot-token';
-
-function buildValidTelegramInitData(user) {
-  const params = new URLSearchParams({
-    query_id: 'AAHdF6iqAAAAAN0X6Ko',
-    user: JSON.stringify(user),
-    auth_date: String(Math.floor(Date.now() / 1000)),
-  });
-  const dataCheckString = [...params.entries()]
-    .sort(([first], [second]) => first.localeCompare(second))
-    .map(([key, value]) => `${key}=${value}`)
-    .join('\n');
-  const secret = createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-  params.set('hash', createHmac('sha256', secret).update(dataCheckString).digest('hex'));
-  return params.toString();
-}
-
-async function installTelegramSession(page, { platform, userId }) {
-  const initData = buildValidTelegramInitData({ id: userId, username: `nav_${platform}_${userId}`, first_name: 'Navigation' });
-  await page.route('https://telegram.org/js/telegram-web-app.js', async (route) => {
-    await route.fulfill({
-      contentType: 'application/javascript',
-      body: 'window.Telegram = window.Telegram || {};',
-    });
-  });
-  await page.addInitScript(({ signedInitData, telegramPlatform }) => {
-    const listeners = new Map();
-    window.__telegramExpandCalls = 0;
-    window.__telegramFullscreenRequests = 0;
-    window.__telegramFullscreenExits = 0;
-    const emit = (name, payload) => {
-      for (const handler of [...(listeners.get(name) || [])]) handler(payload);
-    };
-    const webApp = {
-        initData: signedInitData,
-        initDataUnsafe: {},
-        platform: telegramPlatform,
-        version: '8.0',
-        isFullscreen: false,
-        colorScheme: 'dark',
-        viewportHeight: 844,
-        viewportStableHeight: 844,
-        safeAreaInset: { top: 47, right: 0, bottom: 34, left: 0 },
-        contentSafeAreaInset: { top: 0, right: 0, bottom: 0, left: 0 },
-        ready() {},
-        expand() { window.__telegramExpandCalls += 1; },
-        isVersionAtLeast(minimum) { return Number(this.version) >= Number(minimum); },
-        requestFullscreen() {
-          window.__telegramFullscreenRequests += 1;
-          queueMicrotask(() => {
-            webApp.isFullscreen = true;
-            emit('fullscreenChanged', { isFullscreen: true });
-          });
-        },
-        exitFullscreen() {
-          window.__telegramFullscreenExits += 1;
-          queueMicrotask(() => {
-            webApp.isFullscreen = false;
-            emit('fullscreenChanged', { isFullscreen: false });
-          });
-        },
-        onEvent(name, handler) {
-          if (!listeners.has(name)) listeners.set(name, []);
-          listeners.get(name).push(handler);
-        },
-        offEvent(name, handler) {
-          const handlers = listeners.get(name) || [];
-          const index = handlers.indexOf(handler);
-          if (index >= 0) handlers.splice(index, 1);
-        },
-    };
-    window.Telegram = { WebApp: webApp };
-  }, { signedInitData: initData, telegramPlatform: platform });
-}
 
 async function primeLocalStorage(page) {
   await page.addInitScript(() => {
@@ -159,14 +83,14 @@ async function createAndCompleteSmallColoring(page) {
   return created.id;
 }
 
-async function createSmallColoring(page, { title = 'iOS self-heal route fixture', userId = null } = {}) {
+async function createSmallColoring(page, { title = 'navigation player fixture', userId = null } = {}) {
   const width = 8;
   const height = 8;
   const response = await page.request.post('/api/colorings/create', {
     headers: userId ? { 'X-User-Id': userId } : undefined,
     data: {
       title,
-      description: 'Deterministic startup-route fixture',
+      description: 'Deterministic navigation contract fixture',
       width,
       height,
       palette: ['#0B1522', '#2BD9FE'],
@@ -189,23 +113,29 @@ test('catalog is the default and primary navigation has exactly three product ta
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
   await page.addStyleTag({ content: '.catalog-page, .profile-page { min-height: 1500px; }' });
   const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
-  await expect(navigation).toHaveAttribute('data-navigation-placement', 'bottom');
-  await expect(page.locator('.primary-navigation--top')).toHaveCount(0);
   await expect(navigation.getByRole('button')).toHaveCount(3);
   expect(await navigation.getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))).toEqual(['Каталог', 'Создать', 'Профиль']);
   await expect(navigation).not.toContainText(/Главная|Сообщество|Gallery|Store|Achievements/i);
+  await expect(navigation.getByRole('button', { name: 'Каталог' })).toHaveAttribute('aria-current', 'page');
+  await navigation.evaluate((node) => { node.dataset.e2eStableInstance = 'known-good-bottom'; });
   await expectNavigationBounded(page, { scrollable: true });
 
   await navigation.getByRole('button', { name: 'Создать' }).click();
   await expect(page.locator('.create-hub-page')).toBeVisible();
+  await expect(navigation).toHaveAttribute('data-e2e-stable-instance', 'known-good-bottom');
+  await expect(navigation.getByRole('button', { name: 'Создать' })).toHaveAttribute('aria-current', 'page');
   await expectNavigationBounded(page, { scrollable: false });
 
   await navigation.getByRole('button', { name: 'Профиль' }).click();
   await expect(page.locator('[data-profile-showcase="true"]')).toBeVisible({ timeout: 15000 });
+  await expect(navigation).toHaveAttribute('data-e2e-stable-instance', 'known-good-bottom');
+  await expect(navigation.getByRole('button', { name: 'Профиль' })).toHaveAttribute('aria-current', 'page');
   await expectNavigationBounded(page, { scrollable: true });
 
   await navigation.getByRole('button', { name: 'Каталог' }).click();
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
+  await expect(navigation).toHaveAttribute('data-e2e-stable-instance', 'known-good-bottom');
+  await expect(navigation.getByRole('button', { name: 'Каталог' })).toHaveAttribute('aria-current', 'page');
   await expectNavigationBounded(page, { scrollable: true });
 
   const collectionsResponse = await page.request.get('/api/meta/collections');
@@ -215,115 +145,11 @@ test('catalog is the default and primary navigation has exactly three product ta
   await page.goto(`/?pack=${encodeURIComponent(freePack.id)}`);
   await expect(page.locator('.catalog-heading h1')).toHaveText(freePack.title, { timeout: 15000 });
   await expect(page.locator('.catalog-page')).toContainText('КОЛЛЕКЦИЯ');
-});
 
-test('real Telegram iOS keeps bottom primary navigation in a top-level portal across long and short routes', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'Mobile iPhone', 'Telegram iOS contract runs in the iPhone project');
-  await primeLocalStorage(page);
-  await installTelegramSession(page, { platform: 'ios', userId: 515151 });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  await expect(page.locator('.telegram-startup-surface')).toHaveCount(0, { timeout: 5000 });
-  await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
-  expect(await page.evaluate(() => window.__telegramExpandCalls)).toBe(0);
-  expect(await page.evaluate(() => window.__telegramFullscreenRequests)).toBe(1);
-  expect(await page.evaluate(() => window.__telegramFullscreenExits)).toBe(1);
-  expect(await page.evaluate(() => window.__splintIosViewportSelfHeal)).toMatchObject({
-    attempted: true,
-    outcome: 'success',
-    fullscreenTransitionConfirmed: true,
-    fullscreenExitConfirmed: true,
-    viewportResyncExecuted: true,
-    shellInvalidationExecuted: true,
-  });
-  await expect(page.locator('.telegram-frame')).toHaveAttribute('data-shell-generation', '1');
-  await page.addStyleTag({ content: '.catalog-page, .profile-page { min-height: 1500px; }' });
-
-  const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
-  await expect(navigation).toHaveAttribute('data-navigation-placement', 'portal-bottom');
-  await expect(navigation.getByRole('button')).toHaveCount(3);
-  await expect(navigation).toHaveClass(/app-tab-bar/);
-  await expect(page.locator('.primary-navigation--top')).toHaveCount(0);
-  await expect(page.locator('.ios-primary-navigation-host')).toHaveCount(1);
-  await expect(page.locator('.app-container .app-tab-bar')).toHaveCount(0);
-  expect(await navigation.evaluate((node) => node.parentElement?.classList.contains('ios-primary-navigation-host'))).toBe(true);
-  expect(await navigation.evaluate((node) => node.parentElement?.parentElement?.classList.contains('telegram-frame'))).toBe(true);
-  await navigation.evaluate((node) => { node.dataset.e2eStableInstance = 'ios-primary'; });
-
-  const routes = [
-    { id: 'catalog', label: 'Каталог', visible: '.catalog-page', scrollable: true },
-    { id: 'create', label: 'Создать', visible: '.create-hub-page', scrollable: false },
-    { id: 'profile', label: 'Профиль', visible: '[data-profile-showcase="true"]', scrollable: true },
-    { id: 'catalog', label: 'Каталог', visible: '.catalog-page', scrollable: true },
-  ];
-
-  for (const [index, route] of routes.entries()) {
-    if (index > 0) await navigation.getByRole('button', { name: route.label }).click();
-    await expect(page.locator(route.visible)).toBeVisible({ timeout: 15000 });
-    await expect(navigation).toHaveAttribute('data-e2e-stable-instance', 'ios-primary');
-    await expect(navigation.getByRole('button', { name: route.label })).toHaveAttribute('aria-current', 'page');
-    await expectNavigationBounded(page, { scrollable: route.scrollable, selector: '.primary-navigation--portal-bottom' });
-  }
-});
-
-test('Telegram iOS startup self-heal preserves deep-link and resume player launches', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'Mobile iPhone', 'Telegram iOS contract runs in the iPhone project');
-  await primeLocalStorage(page);
-  await installTelegramSession(page, { platform: 'ios', userId: 525252 });
-  const coloring = await createSmallColoring(page, { userId: 'tg_525252' });
-  const progressResponse = await page.request.post(`/api/colorings/${coloring.id}/progress/actions`, {
-    headers: { 'X-User-Id': 'tg_525252' },
-    data: {
-      changes: [{ index: 0, color: 0 }],
-      revision: 0,
-      clientBatchId: 'ios-self-heal-resume-fixture',
-    },
-  });
-  expect(progressResponse.ok()).toBe(true);
-  const seededProgress = await progressResponse.json();
-
+  const coloring = await createSmallColoring(page);
   await page.goto(`/?coloring=${encodeURIComponent(coloring.id)}`);
-  await expect(page.locator('.telegram-startup-surface')).toHaveCount(0, { timeout: 5000 });
   await expect(page.locator('.player-page')).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toHaveCount(0);
-  await expect(page.locator('.telegram-frame')).toHaveAttribute('data-shell-generation', '1');
-  expect(await page.evaluate(() => window.__splintIosViewportSelfHeal?.outcome)).toBe('success');
-
-  await page.evaluate(({ artworkId, progressRevision }) => {
-    const snapshot = {
-      version: 1,
-      artworkId,
-      route: 'play',
-      progressRevision,
-    };
-    localStorage.setItem('splint:resume-current:v1:anonymous', JSON.stringify({ artworkId, route: 'play', savedAt: Date.now() }));
-    localStorage.setItem(`splint:resume:v1:anonymous:${artworkId}`, JSON.stringify(snapshot));
-  }, { artworkId: coloring.id, progressRevision: Number(seededProgress.revision) });
-
-  await page.goto('/');
-  await expect(page.locator('.telegram-startup-surface')).toHaveCount(0, { timeout: 5000 });
-  await expect(page.locator('.player-page')).toBeVisible({ timeout: 15000 });
-  await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toHaveCount(0);
-  await expect(page.locator('.telegram-frame')).toHaveAttribute('data-shell-generation', '1');
-  expect(await page.evaluate(() => window.__telegramFullscreenRequests)).toBe(1);
-  expect(await page.evaluate(() => window.__telegramFullscreenExits)).toBe(1);
-  expect(await page.evaluate(() => window.__splintIosViewportSelfHeal?.outcome)).toBe('success');
-});
-
-test('real Telegram Android keeps the existing bottom primary navigation', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'Mobile Pixel', 'Telegram Android contract runs in the Pixel project');
-  await primeLocalStorage(page);
-  await installTelegramSession(page, { platform: 'android', userId: 616161 });
-  await page.goto('/');
-  await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
-  expect(await page.evaluate(() => window.__telegramExpandCalls)).toBe(1);
-  expect(await page.evaluate(() => window.__telegramFullscreenRequests)).toBe(0);
-  expect(await page.evaluate(() => window.__telegramFullscreenExits)).toBe(0);
-  await expect(page.locator('.primary-navigation--top')).toHaveCount(0);
-  const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
-  await expect(navigation).toHaveAttribute('data-navigation-placement', 'bottom');
-  await expect(navigation).toHaveClass(/app-tab-bar/);
-  await expect(navigation).toBeVisible();
 });
 
 test('public profile deep link opens a content-first showcase without progression UI', async ({ page }) => {

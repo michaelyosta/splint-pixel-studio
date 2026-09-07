@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { metaApi } from './api/client';
 import PlayerView from './views/PlayerView';
 import CatalogView from './views/CatalogView';
@@ -10,7 +9,7 @@ import GalleryView from './views/GalleryView';
 import CollectionsView from './views/CollectionsView';
 import AchievementsView from './views/AchievementsView';
 import StoreView from './views/StoreView';
-import PrimaryNavigation from './components/PrimaryNavigation';
+import BottomNavigation from './components/BottomNavigation';
 import CreateHub from './components/CreateHub';
 import CreatorCollectionsManager from './features/creator/CreatorCollectionsManager';
 import UnlockLockedView from './features/unlocks/UnlockLockedView';
@@ -23,17 +22,16 @@ import { useProfileData } from './hooks/useProfileData';
 import { useCreatorData } from './hooks/useCreatorData';
 import { useColoringSession } from './hooks/useColoringSession';
 import { formatDifficulty } from './lib/catalogMeta';
-import { getRequestedColoringId, getRequestedPackId, getRequestedProfileId, hapticSelection, isRealTelegramIosSession } from './lib/telegram';
+import { getRequestedColoringId, getRequestedPackId, getRequestedProfileId, hapticSelection } from './lib/telegram';
 import { readCurrentResumeSnapshot } from './lib/resumeState.js';
 import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
 import { resolveSessionGameExperiment } from './features/sessionGame/sessionGameExperiment.js';
 import './App.css';
 import './features/unlocks/unlocks.css';
 
-function App({ shellGeneration = 0, telegramStartupBlocked = false }) {
+function App() {
   const coreFeelExperiment = useMemo(() => resolveCoreFeelExperiment(), []);
   const sessionGameExperiment = useMemo(() => resolveSessionGameExperiment(), []);
-  const useIosPortalNavigation = useMemo(() => isRealTelegramIosSession(), []);
   const initialResume = useMemo(() => readCurrentResumeSnapshot(), []);
   const initialRequestedId = useMemo(() => getRequestedColoringId(), []);
   const initialRequestedPackId = useMemo(() => getRequestedPackId(), []);
@@ -48,7 +46,6 @@ function App({ shellGeneration = 0, telegramStartupBlocked = false }) {
   const [requestedPackId, setRequestedPackId] = useState(initialRequestedPackId);
   const [viewedProfileId, setViewedProfileId] = useState(initialRequestedProfileId);
   const [notice, setNotice] = useState(null);
-  const [iosNavigationHost, setIosNavigationHost] = useState(null);
   const [unlockRefreshKey, setUnlockRefreshKey] = useState(0);
   const noticeTimerRef = useRef(null);
   const resumeHandledRef = useRef(false);
@@ -498,13 +495,7 @@ function App({ shellGeneration = 0, telegramStartupBlocked = false }) {
     />;
   }
 
-  const showPrimaryNavigation = view !== 'play' && !coreFeelExperiment.enabled;
-
-  const iosPortalNavigation = showPrimaryNavigation && useIosPortalNavigation && iosNavigationHost
-    ? createPortal(<PrimaryNavigation portal activeView={view} onNavigate={navigatePrimary} />, iosNavigationHost)
-    : null;
-
-  return <main key={`telegram-shell-${shellGeneration}`} data-shell-generation={shellGeneration} className={`telegram-frame${showPrimaryNavigation && useIosPortalNavigation ? ' telegram-frame--ios-primary-portal' : ''}`} aria-busy={telegramStartupBlocked ? 'true' : undefined}><div inert={telegramStartupBlocked} className={`app-container${view === 'play' ? ' app-container--play' : ''}${showPrimaryNavigation && useIosPortalNavigation ? ' app-container--ios-primary-portal' : ''}`}>{showPrimaryNavigation && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{showPrimaryNavigation && !useIosPortalNavigation && <PrimaryNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{showPrimaryNavigation && useIosPortalNavigation && <div ref={setIosNavigationHost} className="ios-primary-navigation-host" />}{iosPortalNavigation}{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}{telegramStartupBlocked && <div className="telegram-startup-surface" role="status" aria-live="polite"><span className="telegram-startup-surface__mark" aria-hidden="true" /><span><b>SPLINT</b><small>Подготавливаем студию…</small></span></div>}</main>;
+  return <main className="telegram-frame"><div className="app-container">{view !== 'play' && !coreFeelExperiment.enabled && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
 }
 
 export default App;
