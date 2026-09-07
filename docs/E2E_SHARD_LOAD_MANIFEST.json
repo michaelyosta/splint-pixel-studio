@@ -5,7 +5,7 @@
   "source_run_id": "33396678958",
   "duration_source_sha": "e17e915aceeb0ec7b454ca82d10efba9ac1d0b93",
   "duration_source_run_id": "33396678958",
-  "generated_at": "2026-09-01T11:37:43.916Z",
+  "generated_at": "2026-09-07T10:08:36.479Z",
   "authoritative_runtime": {
     "node": "22.23.2",
     "npm": "10.9.8",
@@ -15,8 +15,8 @@
     "shards": 24,
     "strategy": "weighted_24_minimum_30000ms",
     "selector": "file arguments plus escaped test-title grep alternatives",
-    "expected_logical_tests": 153,
-    "expected_project_cases": 459,
+    "expected_logical_tests": 150,
+    "expected_project_cases": 450,
     "minimum_group_weight_ms": 30000
   },
   "coverage": {
@@ -25,9 +25,9 @@
       "Mobile iPhone",
       "Mobile Pixel"
     ],
-    "expected_logical_tests": 153,
-    "expected_project_cases": 459,
-    "inventory_fingerprint": "966673e7263be877f263f52e6ec4f3ead2d9da5d8affb853e955c2c57d25d020"
+    "expected_logical_tests": 150,
+    "expected_project_cases": 450,
+    "inventory_fingerprint": "34859ccbe80a535b67a076386314f27c87592238921c0832eca99dcae4bb5bce"
   },
   "measurement_note": "Historical durations preserved from run 33396678958; intentional product-contract migrations and new visual/public-profile/navigation coverage use the 30000ms minimum logical-group load.",
   "topology_comparison": {
@@ -3740,69 +3740,6 @@
       },
       "load_weight_ms": 30000,
       "shard": 17
-    },
-    {
-      "id": "guided-path.spec.js:180:real Telegram iOS keeps bottom primary navigation in a top-level portal across long and short routes",
-      "file": "guided-path.spec.js",
-      "line": 180,
-      "title": "real Telegram iOS keeps bottom primary navigation in a top-level portal across long and short routes",
-      "historical_duration_ms": 0,
-      "project_cases": 3,
-      "projects": [
-        "chromium",
-        "Mobile iPhone",
-        "Mobile Pixel"
-      ],
-      "flags": {
-        "heavy_tiled": false,
-        "visual": false,
-        "creator": false,
-        "lifecycle": false
-      },
-      "load_weight_ms": 30000,
-      "shard": 23
-    },
-    {
-      "id": "guided-path.spec.js:205:real Telegram Android keeps the existing bottom primary navigation",
-      "file": "guided-path.spec.js",
-      "line": 205,
-      "title": "real Telegram Android keeps the existing bottom primary navigation",
-      "historical_duration_ms": 0,
-      "project_cases": 3,
-      "projects": [
-        "chromium",
-        "Mobile iPhone",
-        "Mobile Pixel"
-      ],
-      "flags": {
-        "heavy_tiled": false,
-        "visual": false,
-        "creator": false,
-        "lifecycle": false
-      },
-      "load_weight_ms": 30000,
-      "shard": 24
-    },
-    {
-      "id": "guided-path.spec.js:269:Telegram iOS startup self-heal preserves deep-link and resume player launches",
-      "file": "guided-path.spec.js",
-      "line": 269,
-      "title": "Telegram iOS startup self-heal preserves deep-link and resume player launches",
-      "historical_duration_ms": 0,
-      "project_cases": 3,
-      "projects": [
-        "chromium",
-        "Mobile iPhone",
-        "Mobile Pixel"
-      ],
-      "flags": {
-        "heavy_tiled": false,
-        "visual": false,
-        "creator": false,
-        "lifecycle": true
-      },
-      "load_weight_ms": 30000,
-      "shard": 9
     },
     {
       "id": "zone-visual.spec.js:8:capture 16-zone player at 390px",
