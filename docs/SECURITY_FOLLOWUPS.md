@@ -1,5 +1,10 @@
 # Security follow-ups
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 This index supersedes stale follow-up references. Historical evidence remains in [AUDIT_FINDINGS.md](AUDIT_FINDINGS.md); current adjudication is in [ADJUDICATED_AUDIT_2026-08-02.md](ADJUDICATED_AUDIT_2026-08-02.md), and implementation status/exit criteria are in [remediation/IMPLEMENTATION_PLAN.md](remediation/IMPLEMENTATION_PLAN.md).
 
 ## 2026-08-08 snapshot

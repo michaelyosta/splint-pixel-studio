@@ -1,5 +1,10 @@
 # Tiled Smart Engine
 
+Status: CANONICAL
+Authority: Bounded tiled guidance and large-map player contract.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
 ## Old Problem
 
 The legacy coloring engine had global knowledge: it could find the best next

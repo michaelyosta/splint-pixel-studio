@@ -1,6 +1,11 @@
 # Canonical Render Outbox Checkpoint
 
-Status: implemented and covered by focused server tests.
+Status: CANONICAL
+Authority: Durable canonical media render lifecycle.
+
+Navigation: [../INDEX.md](../INDEX.md) · Current state: [../CURRENT_STATE.md](../CURRENT_STATE.md)
+
+Implementation evidence: covered by focused server tests.
 
 ## Goal
 

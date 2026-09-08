@@ -1,5 +1,10 @@
 /goal
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 ## Verification metadata
 
 This file remains the canonical adjudicated specification supplied for the review. It is not a substitute for runtime evidence. The independent local evidence and claim-level verdicts are recorded in [remediation/FINAL_REPORT.md](remediation/FINAL_REPORT.md). Verification date: 2026-08-02. PostgreSQL, object storage, Telegram WebView, and restore are intentionally still marked as environment validation gates.

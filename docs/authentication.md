@@ -1,5 +1,10 @@
 # Authentication
 
+Status: CANONICAL
+Authority: Authentication, development-auth, and role boundary.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
 ## Overview
 
 Splint supports two authentication modes:

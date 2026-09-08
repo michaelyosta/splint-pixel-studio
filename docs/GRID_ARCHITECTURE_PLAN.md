@@ -1,5 +1,10 @@
 # План увеличения сетки раскрашивания
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 > Статус: исторический research-документ от 03.08.2026. Вывод «официальный лимит до 160×160 нельзя поднимать» устарел: tiled-архитектура реализована (migration `017`, `server/services/tiled-coloring.js`, `src/features/coloring/large-grid/`), creator принимает до `1200×1200`. Измерения ниже не являются текущими регрессионными прогонами.
 
 Дата фиксации: 03.08.2026  

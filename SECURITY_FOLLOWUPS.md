@@ -1,5 +1,10 @@
 # Повторная проверка security follow-ups
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](docs/CURRENT_STATE.md).
+
 ## Актуальный снимок на 08.08.2026
 
 Проверено на HEAD `37180e0ca2b0e793ad42814d7a7f7df760b4872a` ветки `codex/tiled-player-1200`; baseline `main` — `origin/main` `68d751e1da35de3bfd92f6bec382f0af830ac502`. Снимок от 01.08.2026 ниже сохранён как история.

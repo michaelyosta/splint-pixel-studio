@@ -1,5 +1,10 @@
 # Special Cells v0 — gameplay experiment
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Status: ready for controlled human gameplay testing; not a claim of product
 success. The experiment tests whether events inside the Canvas make ordinary
 painting more engaging without turning it into a menu-driven progression

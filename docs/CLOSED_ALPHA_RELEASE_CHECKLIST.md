@@ -1,5 +1,10 @@
 # Splint Closed Alpha Release Checklist
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Every PASS below points at machine-verifiable evidence produced during this
 release run. Debt items list what remains and who owns it. No PASS is claimed
 without evidence.

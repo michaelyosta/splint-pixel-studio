@@ -1,5 +1,10 @@
 # Splint Product Recovery — Phase 0/1 Handoff
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 ## Status
 
 **READY FOR CORE FEEL PLAYTEST**, subject to the physical Telegram checks listed in `CORE_FEEL_PLAYTEST.md`.

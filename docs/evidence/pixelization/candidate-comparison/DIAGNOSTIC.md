@@ -1,5 +1,10 @@
 # Paintable candidate diagnostic at `7feaf06`
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../../../CURRENT_STATE.md).
+
 This run is a diagnostic snapshot of the first paintable candidate, not a default recommendation. It used identical inputs, crop/options and final-cell evaluator metrics for `classic` and `paintable`. The production-side metrics/fingerprint of this candidate were separately red-teamed as stale/non-local, so they are not used as evaluation truth here.
 
 The independent final-cell measurements are mixed rather than uniformly favorable:

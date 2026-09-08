@@ -1,5 +1,10 @@
 # Product Phase 5 Decisions
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 ## Scope
 
 Phase 5 prepares a controlled monetization/distribution surface. It does not launch production payments, set final prices, or make irreversible business decisions.

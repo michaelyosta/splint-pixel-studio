@@ -1,5 +1,10 @@
 # PostgreSQL final service evidence
 
+Status: HISTORICAL
+Role: EVIDENCE.
+Authority: Dated disposable-service evidence only; not current production state.
+For current state see [CURRENT_STATE.md](../CURRENT_STATE.md).
+
 - Runtime: Node `22.23.2`, npm `10.9.8`
 - Service: fresh disposable Docker `postgres:16`
 - Database: `splint_test` at `127.0.0.1:5432`

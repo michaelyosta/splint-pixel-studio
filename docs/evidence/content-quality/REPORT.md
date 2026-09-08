@@ -1,5 +1,10 @@
 # Content quality audit
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../../CURRENT_STATE.md).
+
 Generated: `2026-08-21T01:06:48.589Z`
 
 > Advisory diagnostic only. It does not mutate catalog content, change creator defaults, or claim that a style is artistically approved.

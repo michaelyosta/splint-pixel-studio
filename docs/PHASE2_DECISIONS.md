@@ -1,5 +1,10 @@
 # Product Phase 2 Decision Log
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 ## DECISION: constrain the session game to one spectacle and one discovery
 
 **EVIDENCE:** The product audit found that Spark/Choice overlap, Fuse/Hazard

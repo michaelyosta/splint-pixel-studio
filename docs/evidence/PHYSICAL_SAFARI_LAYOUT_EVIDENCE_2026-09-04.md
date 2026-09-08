@@ -1,5 +1,10 @@
 # Physical Safari layout evidence — 2026-09-04
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../CURRENT_STATE.md).
+
 This is a bounded analysis of the attached physical iPhone Safari screenshot.
 It is not Telegram Mini App WebView evidence and does not justify a Telegram
 causal classification or a CSS change.

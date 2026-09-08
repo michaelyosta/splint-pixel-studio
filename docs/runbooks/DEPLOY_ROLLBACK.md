@@ -1,5 +1,10 @@
 # Deploy and rollback runbook
 
+Status: CANONICAL
+Authority: Short deploy/rollback checklist for the existing stack.
+
+Navigation: [../INDEX.md](../INDEX.md) · Current state: [../CURRENT_STATE.md](../CURRENT_STATE.md)
+
 ## Release gate
 
 ```bash

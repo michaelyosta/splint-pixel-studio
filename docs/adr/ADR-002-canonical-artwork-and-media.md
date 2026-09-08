@@ -1,7 +1,11 @@
 # ADR-002: canonical artwork and private media
 
-Status: accepted for public alpha.  
-Date: 2026-08-02
+Status: CANONICAL
+Authority: Stable artwork/media ownership and publication invariant.
+
+Navigation: [../INDEX.md](../INDEX.md) · Current state: [../CURRENT_STATE.md](../CURRENT_STATE.md)
+
+Decision recorded: 2026-08-02
 
 The server derives the completed artwork from template cells and authoritative progress, encodes a deterministic PNG, stores immutable metadata, and publishes only a bounded media URL. Client-supplied `resultDataUrl` is ignored for truth and is not persisted as the artwork source.
 

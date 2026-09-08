@@ -1,5 +1,10 @@
 # Special Cells v1 — balance record
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 This is an engineering balance hypothesis, not proof of product success. The
 simulator models the existing Smart Engine target route and server-derived
 bounded effects; it does not model manual travel time, hesitation, or whether

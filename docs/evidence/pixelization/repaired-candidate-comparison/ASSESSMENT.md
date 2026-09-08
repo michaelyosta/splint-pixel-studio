@@ -1,5 +1,10 @@
 # Independent assessment of repaired paintable candidate
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../../../CURRENT_STATE.md).
+
 ## Decision
 
 `paintable-v1` is materially more paintable by structural effort metrics at 512, and its repaired producer evidence now matches the final cells. It is **not yet safe to select as the universal creator default**: strong-edge recall regresses in most 512 cases, two 192 cases increase manual effort, and the candidate deliberately rejects 1024/1200 logical grids. Beauty, number readability and paint feel remain owner/device human gates.

@@ -1,5 +1,10 @@
 # Карта проекта Splint Pixel Studio
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 ## Актуальное состояние на 08.08.2026
 
 Проверка выполнена на ветке `codex/tiled-player-1200`, HEAD `37180e0ca2b0e793ad42814d7a7f7df760b4872a`. Запрашиваемая `main` на момент проверки: локальный ref `d850c5198f3e38e80fae9cb1f8d49721e081023d`, актуальный `origin/main` — `68d751e1da35de3bfd92f6bec382f0af830ac502`. Снимок от 01.08.2026 ниже сохранён как история; при расхождении приоритет у этого раздела.

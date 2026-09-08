@@ -1,5 +1,10 @@
 # Git checkpoint plan for the current local work
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Status: plan only. No files have been staged, committed, or pushed.
 
 ## Current state

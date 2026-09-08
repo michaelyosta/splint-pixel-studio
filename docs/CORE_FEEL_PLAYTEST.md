@@ -1,5 +1,10 @@
 # Splint Core Feel Playtest — Phase 0/1
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Status: **technical prototype; enjoyment is not yet validated**.
 
 ## Decision this test must make

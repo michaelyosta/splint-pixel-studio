@@ -1,5 +1,10 @@
 # PRODUCT-PHASE-4 — Autonomous Handoff
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Status: `SUCCESS_WITH_VALIDATION_DEBT`
 
 Phase 4 is provisionally complete as a bounded collection/return/content-quality slice. It does not claim human retention or Telegram-device validation.

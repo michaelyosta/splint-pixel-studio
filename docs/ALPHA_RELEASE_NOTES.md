@@ -1,5 +1,10 @@
 # Splint — Closed Alpha Release Notes
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Candidate: `codex/alpha-rc-1` (see `docs/RELEASE_RUN_STATE.md` for the exact SHA).
 Audience: closed-alpha participants and the release owner. This is a product
 summary, not a Git changelog.
