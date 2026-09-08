@@ -1,5 +1,10 @@
 # Alpha RC failure burn-down
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Status: `CLOSED — ALPHA RC full-suite gate passed`
 
 Historical triage baseline: `87 PASS / 47 FAIL / 10 SKIP` across 144 Chromium

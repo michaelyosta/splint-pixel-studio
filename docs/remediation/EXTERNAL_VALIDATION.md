@@ -1,5 +1,10 @@
 # External infrastructure validation
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../CURRENT_STATE.md).
+
 ## Latest validation pass addendum — 2026-08-03
 
 This follow-up did not claim new external-infrastructure evidence. Docker Desktop was unavailable, so no disposable PostgreSQL or MinIO project was started. An ephemeral HTTPS Quick Tunnel was used only for frontend/API smoke; its hostname is intentionally omitted. `/api/live` and `/api/ready` returned 200, while the exact production ingress topology and root `/live`/`/ready` routing remain unverified. No production credentials, Telegram configuration, deployment, push, tag, or release action was used.

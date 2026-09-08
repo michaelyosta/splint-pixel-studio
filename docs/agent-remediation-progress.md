@@ -1,5 +1,10 @@
 # Agent remediation progress — codex/tiled-player-1200
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Engineering log for the merge-readiness loop on commit
 `8c8ebab92dcb86b2670ac0921d21ac340c5053ee`.
 

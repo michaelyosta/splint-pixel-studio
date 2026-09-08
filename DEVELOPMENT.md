@@ -1,5 +1,11 @@
 # SPLINT Development Guide
 
+Status: CANONICAL
+Authority: Local development and QA setup.
+
+For the documentation route and current operational state, read
+[docs/INDEX.md](docs/INDEX.md) and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
+
 ## First Run
 
 1. Install dependencies:

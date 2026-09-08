@@ -1,5 +1,10 @@
 # Splint Closed Alpha Release Handoff
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Operational handoff for the closed alpha release decision. Evidence-first:
 every claim below was reproduced during this run unless explicitly marked as
 debt.

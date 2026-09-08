@@ -1,5 +1,10 @@
 # Automatic pixelization routing diagnostic
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../../../CURRENT_STATE.md).
+
 This evidence-only stream turns the existing paired pixelization matrix into a
 conservative per-artwork/per-logical-resolution routing suggestion. It does
 not change `src/lib/pixelColoring.js`, the creator default, or the painting

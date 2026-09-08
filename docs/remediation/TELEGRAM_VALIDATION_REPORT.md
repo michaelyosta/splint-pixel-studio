@@ -1,5 +1,10 @@
 # Telegram WebView validation report
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../CURRENT_STATE.md).
+
 Date: 2026-08-03  
 Branch: `release/public-alpha-rc1`  
 Initial HEAD: `7246358dd4fc958f8780ff24a7f8c1b617979e79`  

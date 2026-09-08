@@ -1,6 +1,11 @@
 # Special Cells QA Override and Server Diagnostics Contract
 
-Status: server-side contract for development and staging QA. It does not
+Status: CANONICAL
+Authority: Development/staging-only QA override and diagnostics boundary.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
+Scope: server-side contract for development and staging QA. It does not
 change production cohort assignment or the frozen event set/balance, and the
 override never applies to every dev/staging user. User-facing special-cell
 onboarding and hints coordinate through the normal treatment cohort field

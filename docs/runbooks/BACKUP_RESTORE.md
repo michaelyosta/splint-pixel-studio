@@ -1,5 +1,10 @@
 # Backup and restore runbook
 
+Status: CANONICAL
+Authority: Database/object-storage backup and restore procedure.
+
+Navigation: [../INDEX.md](../INDEX.md) · Current state: [../CURRENT_STATE.md](../CURRENT_STATE.md)
+
 ## Release-candidate validation order
 
 Run only against disposable services and keep credentials outside Git. This sequence was prepared during the local review but was not executed because Docker/PostgreSQL/S3 credentials were unavailable:

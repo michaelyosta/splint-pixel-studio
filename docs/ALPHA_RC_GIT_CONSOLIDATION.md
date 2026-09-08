@@ -1,5 +1,10 @@
 # Alpha RC Git consolidation audit
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Audit date: 2026-08-21  
 Repository: `michaelyosta/splint-pixel-studio`  
 Scope: branch/worktree topology, Phase 0-5 history, candidate integration

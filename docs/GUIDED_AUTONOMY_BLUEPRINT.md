@@ -1,5 +1,10 @@
 # Splint Pixel Studio: Guided Autonomy Blueprint
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Research deliverable, companion to `GAME_EXPERIENCE_AUDIT.md` and
 `GAME_EXPERIENCE_ROADMAP.md`. No production code was changed in this task.
 

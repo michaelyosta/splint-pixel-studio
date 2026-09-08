@@ -1,5 +1,10 @@
 # Abuse control matrix
 
+Status: CANONICAL
+Authority: Layered abuse validation, limits, and moderation boundary.
+
+Navigation: [../INDEX.md](../INDEX.md) · Current state: [../CURRENT_STATE.md](../CURRENT_STATE.md)
+
 The controls below are layered: validation prevents malformed input, durable counters share budgets across API instances, transaction/CAS logic prevents state corruption, and moderation/reporting handles content that is syntactically valid but harmful.
 
 | Surface | Threat | Current control | Response | Remaining validation |

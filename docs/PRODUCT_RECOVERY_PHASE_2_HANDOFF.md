@@ -1,5 +1,10 @@
 # Splint Product Recovery — Phase 2 Handoff
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Статус этой поставки: **SUCCESS_WITH_VALIDATION_DEBT — PHASE 2 MACHINE/AGENT PASS; PHASE 3 CEREMONY INTEGRATED**.
 
 Это означает, что vertical slice собран, серверный контракт и automated regression checks проходят. Это **не** означает, что удовольствие, желание продолжить или retention доказаны: для этого нужны настоящие игроки на Telegram device.

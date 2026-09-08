@@ -1,5 +1,10 @@
 # Tiled 1200×1200 checkpoint
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Status as of 2026-08-07:
 
 - The creator uses tiled storage for dimensions from 161×161 through 1200×1200, packs the row-major result into 32×32 tiles, and omits the source-image duplicate from large requests.

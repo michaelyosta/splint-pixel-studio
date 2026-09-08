@@ -1,7 +1,15 @@
 # Server-Authoritative Unlockable Content Checkpoint
 
-Status: implemented end-to-end and covered by focused SQLite + PostgreSQL
+Status: CANONICAL
+Authority: Server access and unlock projection; not permission to restore progression UI.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
+Implementation evidence: covered by focused SQLite + PostgreSQL
 tests. This slice owns the server side only; no client files were modified.
+
+Scope: progression facts and unlock rules remain backend compatibility data;
+they do not authorize progression UI or a return to the retired RPG loop.
 
 ## Goal
 
@@ -80,7 +88,7 @@ reads return `403` with the stable code on `GET /colorings/:id`, `/manifest`,
 `server/db.js` bootstraps durable unlockable content (idempotent upserts):
 
 - `col_starter-path` (free): level 2 + 1 completed artwork.
-- `col_premium-gallery` (premium, 120 stars): purchase-only, no progression
+- `col_premium-gallery` (premium, configured test price): purchase-only, no progression
   rules.
 - `col_master-gallery` (free): requires completing `col_starter-path`.
 - `color_streak_badge`: streak 3.

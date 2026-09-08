@@ -1,5 +1,10 @@
 # Pixelization routing recommendation
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../../../CURRENT_STATE.md).
+
 Policy: `pixelization-routing-v1`
 Source run: `091a9c683919a1a0808f1af6d58cb9d9b6272b28` (2026-08-20T17:11:39.295Z)
 

@@ -1,5 +1,10 @@
 # Product Phase 4 Decisions
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 ## DECISION: Collection-first return surface
 
 EVIDENCE: Gallery shelf separates the next unfinished beat from completed collection; Collections adds bounded progress; focused gallery tests pass.

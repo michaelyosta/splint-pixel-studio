@@ -1,5 +1,10 @@
 # Public-alpha benchmark record
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../CURRENT_STATE.md).
+
 This record separates measured evidence from unsupported product claims.
 
 The historical renderer/browser measurements are retained in [GRID_BENCHMARK.md](../GRID_BENCHMARK.md). They show that the current algorithm becomes materially expensive for large and highly fragmented grids; they do not certify Telegram WebView or a production device fleet.

@@ -1,5 +1,10 @@
 # Independent representative classic baseline review
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../../../CURRENT_STATE.md).
+
 This snapshot establishes the classic converter baseline on seven hash-pinned, evaluation-only Public Domain/CC0 inputs: a real portrait, animal, landscape, isolated object, gradient-heavy photo, simple non-pixel illustration and strong photographic silhouette.
 
 The run completed 14 measurements at 192 and 512 with no adapter/source warnings. Visual inspection confirmed that every generated panel contains the intended source, converter output, number-grid preview and metric vector. Labels are honestly hidden at these whole-art preview scales because a 320-pixel preview gives less than two pixels per logical cell at 192; number readability therefore remains a zoom/mobile human gate rather than a panel PASS.

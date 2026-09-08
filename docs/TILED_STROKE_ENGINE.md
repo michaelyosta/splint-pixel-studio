@@ -1,5 +1,10 @@
 # TILED STROKE ENGINE — «краска следует за пальцем»
 
+Status: CANONICAL
+Authority: Tiled painting input and stroke continuity contract.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
 Цель: сделать процесс раскрашивания в 1200×1200 tiled-плеере таким же
 непосредственным, как в legacy-плеере. Критерий: пользователь ведёт пальцем
 по клеткам одного цвета и видит, как каждая клетка заполняется ВО ВРЕМЯ

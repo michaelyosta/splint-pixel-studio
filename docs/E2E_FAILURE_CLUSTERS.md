@@ -1,5 +1,10 @@
 # E2E failure clusters
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Status: `BOUNDED_CORRECTION_READY — exact-SHA run 33416748101 fully mapped; targeted C23-C25 proof complete`
 
 This ledger groups failures by causal mechanism rather than assigning one

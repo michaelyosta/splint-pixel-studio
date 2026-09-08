@@ -1,5 +1,10 @@
 # Telegram iOS viewport diagnostic protocol (preview only)
 
+Status: CANONICAL
+Authority: Bounded physical Telegram iOS diagnostic protocol.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
 This protocol is for one bounded physical measurement pass. It does not change
 CSS, Telegram lifecycle behavior, authentication, production configuration, or
 the visual blur hypothesis. Use a preview/staging origin only.
@@ -90,16 +95,17 @@ lifecycle, or navigation fix.
 
 ## Physical gate prerequisites
 
-The current handoff remains `BLOCKED` until every user-side prerequisite below
-is supplied. A missing prerequisite is not a test failure and must not be
-worked around with an emulator:
+The final pass requires every prerequisite below. This protocol does not own a
+current pass result; record that result in dated evidence and
+`CURRENT_STATE.md`. A missing prerequisite is not a test failure and must not
+be worked around with an emulator:
 
 | Prerequisite | Required evidence | Current handoff state |
 |---|---|---|
-| Physical iPhone running Telegram iOS | Model, iOS build, Telegram build, and home-indicator state | `BLOCKED` — device not available |
-| Dedicated staging/test bot | Bot opens the reviewed HTTPS preview SHA; production bot/origin is out of scope | `BLOCKED` — not supplied |
-| Disposable staging backend/account | Authenticated launch and test data isolated from production; no payment activation | `BLOCKED` — owner setup required |
-| Capture owner and retention location | Redacted screenshots/transcription kept outside Git with an agreed retention window | `PENDING` |
+| Physical iPhone running Telegram iOS | Model, iOS build, Telegram build, and home-indicator state | `REQUIRED` — owner validation |
+| Dedicated staging/test bot | Bot opens the reviewed HTTPS preview; production bot/origin is out of scope | `REQUIRED` |
+| Disposable staging backend/account | Authenticated launch and test data isolated from production; no payment activation | `REQUIRED` |
+| Capture owner and retention location | Redacted screenshots/transcription kept outside Git with an agreed retention window | `REQUIRED` |
 
 Only after the first three rows are available may the owner run the exact
 capture sequence below. `TELEGRAM_IOS_NAV_FIXED` requires successful cold,

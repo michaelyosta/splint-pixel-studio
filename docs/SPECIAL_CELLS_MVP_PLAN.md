@@ -1,5 +1,10 @@
 # Special Cells MVP Plan
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 > **Current implementation note (2026-08-11).** The original plan below is
 > retained as the conservative product decision and rollback boundary. The
 > working branch has since added server/client slices for Bomb, Fuse, Choice,
