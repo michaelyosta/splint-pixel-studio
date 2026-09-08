@@ -193,12 +193,15 @@ test('manifest and tile API projects legacy arrays without exposing an unsafe pu
   });
   assert.equal(tiled.response.status, 201);
   assert.equal(tiled.json.storage_mode, 'tiled');
+  assert.equal(tiled.json.visibility, 'private');
   assert.equal(tiled.json.cells.length, 0, 'tiled template must not return a full legacy map');
   const tiledId = tiled.json.id;
   const tiledManifest = await request(`/colorings/${tiledId}/manifest`);
   assert.equal(tiledManifest.response.status, 200);
   assert.equal(tiledManifest.json.grid.storage_mode, 'tiled');
   assert.equal(tiledManifest.json.grid.tiles_x, 38);
+  const privateTiledFromOtherUser = await request(`/colorings/${tiledId}/manifest`, { userId: 'user_lenaart' });
+  assert.equal(privateTiledFromOtherUser.response.status, 404, 'private tiled manifests remain owner-only');
   const tiledTile = await request(`/colorings/${tiledId}/tiles/37/37`);
   assert.equal(tiledTile.response.status, 200);
   assert.equal(tiledTile.json.tile.width, 16);
