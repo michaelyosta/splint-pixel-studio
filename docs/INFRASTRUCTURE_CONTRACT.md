@@ -12,7 +12,7 @@ Splint uses the existing controlled closed-alpha stack:
 | Boundary | Service | Stable role |
 | --- | --- | --- |
 | Frontend | Cloudflare Pages, project `splint-pixel-studio` | Serves the Vite frontend |
-| Public domain | `showalove.ru` | Public Mini App domain |
+| Public domain | `pixel.showalove.ru` | Primary public Mini App domain |
 | Backend | Render, service `splint-api` | Runs the Node/Express API |
 | Database | Neon PostgreSQL | Production relational persistence |
 | Object storage | Cloudflare R2, bucket `splint-originals` | Private originals and canonical media |
@@ -22,6 +22,12 @@ Browser Telegram Login uses the same frontend/backend topology. The backend
 owns the OIDC client secret, callback, token validation, session cookie, and
 CSRF checks. No second auth service, bot, database, or storage project is
 permitted for this capability.
+
+During the pixel-subdomain migration window, `showalove.ru` and
+`www.showalove.ru` remain attached to the same Pages project and active as
+fallback origins. Unrelated hostnames such as `crm-pilot.showalove.ru`,
+`pos-pilot.showalove.ru`, and `maps.showalove.ru` are separate services and
+must not be changed as part of this migration.
 
 These names are stable topology, not proof that the services are currently
 deployed or healthy. Current deployment status is in

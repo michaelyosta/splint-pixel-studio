@@ -10,6 +10,11 @@ This runbook describes the release boundary. It does not claim that a current
 commit is deployed. Confirm live state with direct provider/deployment
 evidence and update [CURRENT_STATE.md](CURRENT_STATE.md) separately.
 
+The current primary public origin is `https://pixel.showalove.ru`. During the
+migration fallback window, keep `https://showalove.ru` and
+`https://www.showalove.ru` active until the new origin has passed the live
+smoke checks and the owner approves any later redirect.
+
 ## Release gate
 
 1. Start from a fresh feature branch/worktree and inspect `git status`.
@@ -29,7 +34,7 @@ The existing production topology is:
 merge production branch
 → Cloudflare Pages frontend deployment
 → configured Render backend deployment
-→ smoke verification against the configured domain/API
+→ smoke verification against `https://pixel.showalove.ru` and the configured API
 ```
 
 A feature-branch push is not a production deployment. Do not create parallel
@@ -43,6 +48,8 @@ Use the provider's deployment receipt and the configured health endpoints
 (`/live`, `/health`, and `/ready` where the ingress exposes them). Verify:
 
 - frontend loads from the configured HTTPS origin;
+- the primary origin is `https://pixel.showalove.ru`, while the legacy origins
+  remain available during the fallback window;
 - backend readiness reports database, object-storage, and configuration state;
 - Telegram authentication is used in the real Mini App context;
 - a bounded catalog/open/paint/save/resume path works;
