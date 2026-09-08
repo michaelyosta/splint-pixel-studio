@@ -2,9 +2,8 @@
 
 Status: CURRENT
 Authority: Current operational truth for this repository.
-Last verified: 2026-09-08 (Asia/Almaty)
-Main HEAD: `98ecec59e844d5b188f982d4e3bf354c71e9da53`
-`origin/main`: same commit at verification time.
+Last verified: 2026-09-08
+Repository state: verify current HEAD and origin/main at task start per AGENTS.md.
 
 This document is intentionally short and bounded. It records what is
 currently verifiable from the repository and its checked-in configuration. It
