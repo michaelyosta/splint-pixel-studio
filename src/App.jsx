@@ -222,7 +222,7 @@ function App() {
     { id: 'browse_catalog', type: 'browse', title: 'Выбрать следующую', reward: 'Вернуться в каталог' },
   ], []);
 
-  async function handleCompletionChoice(option) {
+  function handleCompletionChoice(option) {
     metaApi.track('choice_selected', {
       id: option.id,
       type: option.type,
@@ -231,16 +231,12 @@ function App() {
     }).catch(() => {});
     session.setCompletionOpen(false);
     if (option.type === 'profile') {
-      // Load the destination data before switching away from the player. This
-      // keeps the completion hand-off atomic on slower mobile/WebKit hosts:
-      // the profile shell and the newly completed/created work arrive
-      // together instead of racing the profile view's mount effect.
-      await Promise.all([
-        profile.loadProfile(null),
-        catalog.loadMine(),
-        product.loadProductProfile(),
-      ]);
+      // Switch immediately so a slow mobile request cannot leave the player
+      // mounted while the async profile/catalog refresh is still in flight.
+      // The profile view effect performs its own authoritative load on mount.
       setView('profile');
+      catalog.loadMine();
+      product.loadProductProfile();
       return;
     }
     if (option.template_id) {
