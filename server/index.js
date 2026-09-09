@@ -19,6 +19,7 @@ import mediaRouter       from './routes/media.js';
 import creatorCollectionsRouter from './routes/creator-collections.js';
 import unlocksRouter from './routes/unlocks.js';
 import directorRouter from './routes/director.js';
+import authRouter from './routes/auth.js';
 import { validateProductionConfiguration } from './config.js';
 import { checkMediaStorage } from './services/media-storage.js';
 import { cleanupExpiredPaymentRequests } from './services/message-cleanup.js';
@@ -70,6 +71,7 @@ app.use((req, res, next) => {
 });
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+app.use('/auth',        authRouter);
 app.use('/feed',        feedRouter);
 app.use('/posts',       postsRouter);
 app.use('/posts',       likesRouter);       // POST /posts/:id/like

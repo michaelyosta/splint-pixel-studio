@@ -22,7 +22,7 @@ import {
   writeSpecialHelpState,
 } from '../lib/specialHelp';
 import { isLargeGridTemplate } from '../lib/tileGrid';
-import { bindTelegramBackButton } from '../lib/telegram';
+import { bindTelegramBackButton, hapticSelection } from '../lib/telegram';
 import { formatContentMetadataDetail } from '../lib/contentMetadata.js';
 import {
   resolveSessionGoalsExperiment,
@@ -570,7 +570,7 @@ export default function PlayerView({
             </div>
             {playMode === 'classic' && <div className="palette" aria-label="Палитра цветов">{template.palette.map((color, index) => {
               const remaining = template.cells.reduce((total, target, cellIndex) => total + (target === index && progress.filled[cellIndex] === -1 ? 1 : 0), 0);
-              return <button key={color} className={`color-swatch ${selectedColor === index ? 'selected' : ''}`} onClick={() => { onSelectColor(index); window.Telegram?.WebApp?.HapticFeedback?.selectionChanged?.(); }} title={`Цвет ${index + 1}`}><i style={{ background: color }} /><span>{index + 1}</span><small>{remaining}</small></button>;
+              return <button key={color} className={`color-swatch ${selectedColor === index ? 'selected' : ''}`} onClick={() => { onSelectColor(index); hapticSelection(); }} title={`Цвет ${index + 1}`}><i style={{ background: color }} /><span>{index + 1}</span><small>{remaining}</small></button>;
             })}</div>}
           </div>
         </>

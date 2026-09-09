@@ -2,8 +2,10 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { get, run } from '../db.js';
 import { asyncRoute } from './asyncRoute.js';
 import { isDevelopmentAuthEnabled } from '../config.js';
+import { ensureTelegramUser } from '../services/identity.js';
+import { getBrowserSession, verifySessionCsrf } from '../services/auth-session.js';
 
-function validateTelegramInitData(initData, token) {
+export function validateTelegramInitData(initData, token) {
   const params = new URLSearchParams(initData);
   const hash = params.get('hash');
   const authDate = Number(params.get('auth_date'));
@@ -18,22 +20,6 @@ function validateTelegramInitData(initData, token) {
   try { return JSON.parse(params.get('user') || ''); } catch { return null; }
 }
 
-async function ensureTelegramUser(telegramUser) {
-  const userId = `tg_${telegramUser.id}`;
-  const now = new Date().toISOString();
-  const nickname = String(telegramUser.username || telegramUser.first_name || `User ${telegramUser.id}`).slice(0, 80);
-  const avatarUrl = typeof telegramUser.photo_url === 'string' ? telegramUser.photo_url.slice(0, 2_000) : null;
-  if (!await get('SELECT id FROM users WHERE id=?', [userId])) {
-    await run(`INSERT INTO users (id,telegram_id,nickname,avatar_url,status,karma,stars_balance,messages_disabled,followers_only,paid_open,price_in_stars,is_banned,role,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [userId, telegramUser.id, nickname, avatarUrl, '', 0, 0, 0, 0, 0, 10, 0, 'user', now, now]);
-  } else {
-    // Telegram is the identity source; refresh only Telegram-owned profile
-    // fields and never overwrite moderation, payment, or user preferences.
-    await run('UPDATE users SET nickname=?, avatar_url=?, updated_at=? WHERE id=?', [nickname, avatarUrl, now, userId]);
-  }
-  return userId;
-}
-
 async function requireActiveUser(req, res, next) {
   const user = await get('SELECT id,is_banned FROM users WHERE id=?', [req.userId]);
   if (!user) return res.status(401).json({ error: 'Authenticated user not found' });
@@ -44,7 +30,8 @@ async function requireActiveUser(req, res, next) {
   return next();
 }
 
-// Telegram initData is mandatory in production. X-User-Id is intentionally development-only.
+// Telegram initData or a server-issued browser session is mandatory in
+// production. X-User-Id remains intentionally development-only.
 export const authMiddleware = asyncRoute(
   async function authMiddleware(req, res, next) {
     if (process.env.NODE_ENV === 'test' && req.headers['x-test-auth-error'] === 'true') {
@@ -57,6 +44,20 @@ export const authMiddleware = asyncRoute(
       if (!telegramUser?.id) return res.status(401).json({ error: 'Invalid Telegram authorization data' });
       req.userId = await ensureTelegramUser(telegramUser);
       req.authMode = 'telegram';
+      return requireActiveUser(req, res, next);
+    }
+
+    const browserSession = await getBrowserSession(req);
+    if (browserSession) {
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        const csrfToken = req.headers['x-csrf-token'];
+        if (!verifySessionCsrf(browserSession, csrfToken)) {
+          return res.status(403).json({ error: 'CSRF token required', code: 'CSRF_REQUIRED' });
+        }
+      }
+      req.userId = browserSession.userId;
+      req.session = browserSession;
+      req.authMode = 'browser';
       return requireActiveUser(req, res, next);
     }
 

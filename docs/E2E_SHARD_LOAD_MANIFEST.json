@@ -15,8 +15,8 @@
     "shards": 24,
     "strategy": "weighted_24_minimum_30000ms",
     "selector": "file arguments plus escaped test-title grep alternatives",
-    "expected_logical_tests": 150,
-    "expected_project_cases": 450,
+    "expected_logical_tests": 152,
+    "expected_project_cases": 456,
     "minimum_group_weight_ms": 30000
   },
   "coverage": {
@@ -25,9 +25,9 @@
       "Mobile iPhone",
       "Mobile Pixel"
     ],
-    "expected_logical_tests": 150,
-    "expected_project_cases": 450,
-    "inventory_fingerprint": "34859ccbe80a535b67a076386314f27c87592238921c0832eca99dcae4bb5bce"
+    "expected_logical_tests": 152,
+    "expected_project_cases": 456,
+    "inventory_fingerprint": "42847225a322cd2c0a773d35650ddd221c7d52758135453d442367307bcfa3c9"
   },
   "measurement_note": "Historical durations preserved from run 33396678958; intentional product-contract migrations and new visual/public-profile/navigation coverage use the 30000ms minimum logical-group load.",
   "topology_comparison": {
@@ -238,16 +238,17 @@
     {
       "shard": 8,
       "historical_duration_ms": 113339,
-      "load_weight_ms": 207586,
-      "logical_tests": 6,
-      "project_cases": 18,
+      "load_weight_ms": 237586,
+      "logical_tests": 7,
+      "project_cases": 21,
       "groups": [
         "bfcache-lifecycle.spec.js:113:legacy queue keeps painting after persisted pagehide/pageshow",
         "phase2-manual-first-reveal.spec.js:3:Phase 2 keeps the first reveal player-authored before any special event",
         "phase2-positive-events.spec.js:28:Phase 2 automatic Spark resolves one bounded default target without a choice modal",
         "special-glyph-parity.spec.js:867:menu-open overlap QA screenshots stay separate from final evidence",
         "tiled-low-zoom.spec.js:99:overview is preview-stable, work reloads tiles, 502 stays local and retry recovers",
-        "unlocks-recommendations.spec.js:196:catalog showcase stays fail-closed without a mounted payment adapter"
+        "unlocks-recommendations.spec.js:196:catalog showcase stays fail-closed without a mounted payment adapter",
+        "responsive-platform.spec.js:12:Catalog/Create/Profile shell has no horizontal overflow across the responsive matrix"
       ],
       "historical_duration_minutes": 1.89,
       "load_weight_minutes": 3.46,
@@ -545,9 +546,9 @@
     {
       "shard": 22,
       "historical_duration_ms": 103264,
-      "load_weight_ms": 210000,
-      "logical_tests": 7,
-      "project_cases": 21,
+      "load_weight_ms": 240000,
+      "logical_tests": 8,
+      "project_cases": 24,
       "groups": [
         "accessibility.spec.js:190:reduced motion does not disable painting or controls",
         "coloring-surface-gesture-guard.spec.js:194:tiled pointer capture is established on a loaded target and paint commits progress",
@@ -555,7 +556,8 @@
         "creator.spec.js:617:18. Reveal mode paints without selecting a palette color first",
         "guided-player-migration.spec.js:501:transient 500 on the target tile shows the retryable error and recovers via Повторить",
         "session-goals.spec.js:188:core-feel suppresses an explicit goal-card control override but keeps painting guidance",
-        "unlocks-recommendations.spec.js:148:normal collection navigation hides premium entries from collection surfaces"
+        "unlocks-recommendations.spec.js:148:normal collection navigation hides premium entries from collection surfaces",
+        "responsive-platform.spec.js:33:Telegram wide-host stub uses the platform adapter without showing browser login"
       ],
       "historical_duration_minutes": 1.72,
       "load_weight_minutes": 3.5,
@@ -3761,6 +3763,48 @@
       },
       "load_weight_ms": 30000,
       "shard": 21
+    },
+    {
+      "id": "responsive-platform.spec.js:12:Catalog/Create/Profile shell has no horizontal overflow across the responsive matrix",
+      "file": "responsive-platform.spec.js",
+      "line": 12,
+      "title": "Catalog/Create/Profile shell has no horizontal overflow across the responsive matrix",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile iPhone",
+        "Mobile Pixel"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "load_weight_ms": 30000,
+      "shard": 8
+    },
+    {
+      "id": "responsive-platform.spec.js:33:Telegram wide-host stub uses the platform adapter without showing browser login",
+      "file": "responsive-platform.spec.js",
+      "line": 33,
+      "title": "Telegram wide-host stub uses the platform adapter without showing browser login",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile iPhone",
+        "Mobile Pixel"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "load_weight_ms": 30000,
+      "shard": 22
     }
   ]
 }

@@ -4,6 +4,11 @@ Splint Pixel Studio is a Telegram Mini App for painting, creating, collecting,
 and discovering visual works. Painting is the primary action; the stable
 product shell is `Каталог` / `Создать` / `Профиль`.
 
+The same shell is responsive in an ordinary browser. Browser owner functions
+use the feature-gated server-side Telegram OIDC + PKCE flow and resolve to the
+same verified Telegram account as Mini App initData; no anonymous persistent
+accounts are created. See [docs/RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md](docs/RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md).
+
 Project documentation:
 
 - Operating contract: [AGENTS.md](AGENTS.md)

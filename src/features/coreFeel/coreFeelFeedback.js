@@ -1,15 +1,15 @@
+import { hapticImpact, hapticNotification } from '../../lib/telegram.js';
+
 let audioContext = null;
 let lastStrokeFeedbackAt = Number.NEGATIVE_INFINITY;
 const STROKE_FEEDBACK_COOLDOWN_MS = 140;
 
 function telegramHaptic(kind, intensity) {
-  const haptics = globalThis.window?.Telegram?.WebApp?.HapticFeedback;
-  if (!haptics) return;
   if (kind === 'fragment') {
-    haptics.notificationOccurred?.('success');
+    hapticNotification('success');
     return;
   }
-  haptics.impactOccurred?.(intensity === 'expressive' ? 'medium' : 'light');
+  hapticImpact(intensity === 'expressive' ? 'medium' : 'light');
 }
 
 function playTone(frequency, start, duration, gainValue) {
