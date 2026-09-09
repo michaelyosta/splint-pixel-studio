@@ -40,7 +40,11 @@ export async function bootstrapBrowserSession({ force = false } = {}) {
   }
   if (!force && browserSessionState.status !== 'unknown') return browserSessionState;
   if (browserSessionPromise && !force) return browserSessionPromise;
-  browserSessionPromise = fetch(resolveApiUrl('/auth/session'), { credentials: 'include', headers: { Accept: 'application/json' } })
+  browserSessionPromise = fetch(resolveApiUrl('/auth/session'), {
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { Accept: 'application/json' },
+  })
     .then(async (response) => {
       const data = await response.json().catch(() => ({}));
       if (response.ok && data.authenticated && data.user && data.csrfToken) {
@@ -75,6 +79,9 @@ async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signa
     method,
     signal,
     credentials: 'include',
+    // User-scoped JSON endpoints must not be revalidated into an empty 304
+    // response: mobile WebKit can otherwise leave profile state unhydrated.
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders(userId),
@@ -98,6 +105,7 @@ export async function downloadColoringResult(id, { userId = DEV_USER_ID, signal 
     method: 'GET',
     signal,
     credentials: 'include',
+    cache: 'no-store',
     headers: {
       Accept: 'image/png,image/*',
       ...authHeaders(userId),
