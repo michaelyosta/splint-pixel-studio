@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { formatPaletteState } from '../../lib/accessibility.js';
+import { hapticImpact, hapticSelection } from '../../lib/telegram.js';
 
 const LONG_PRESS_MS = 450;
 
@@ -36,7 +37,7 @@ export default function ColoringPalette({ template, filled, selectedColor, onSel
       pressTimerRef.current = null;
       peekingRef.current = true;
       onPeekColor(index);
-      window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
+      hapticImpact('light');
     }, LONG_PRESS_MS);
   }
 
@@ -63,7 +64,7 @@ export default function ColoringPalette({ template, filled, selectedColor, onSel
               return;
             }
             onSelectColor(info.index);
-            window.Telegram?.WebApp?.HapticFeedback?.selectionChanged?.();
+            hapticSelection();
           }}
           onPointerDown={() => handlePressStart(info.index)}
           onPointerUp={cancelPress}

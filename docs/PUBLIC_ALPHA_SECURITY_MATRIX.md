@@ -1,9 +1,18 @@
 # Public Alpha Security Matrix
 
+Status: CANONICAL
+Authority: Authenticated route, content exposure, and production security boundaries.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
 The public-alpha policy is a full account ban. A banned user receives
 `403 {"error":"Account is banned","code":"ACCOUNT_BANNED"}` from every
 authenticated route, including read-only routes. Moderator and admin roles do
 not bypass a ban. `/health` is the only intentionally unauthenticated endpoint.
+
+The social/meta route rows below document retained backend/security boundaries;
+they do not make Feed, achievements, streaks, or other retired surfaces part
+of the primary product IA.
 
 ## Authenticated route coverage
 

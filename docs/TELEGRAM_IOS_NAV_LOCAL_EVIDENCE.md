@@ -1,5 +1,10 @@
 # Telegram iOS navigation — local evidence (not physical proof)
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Run date: 2026-09-03. Worktree: `codex/telegram-ios-viewport-fix`.
 The tested source was the clean frozen worktree HEAD at the time of this run:
 `83fb7e3` (`diag: classify iOS nav geometry paint and hit`).

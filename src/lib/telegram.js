@@ -1,5 +1,5 @@
 export function getTelegramWebApp() {
-  return window.Telegram?.WebApp ?? null;
+  return typeof window === 'undefined' ? null : window.Telegram?.WebApp ?? null;
 }
 
 /**
@@ -171,6 +171,10 @@ export function hapticSelection() {
   try { getTelegramWebApp()?.HapticFeedback?.selectionChanged?.(); } catch { /* optional */ }
 }
 
+export function hapticNotification(type = 'success') {
+  try { getTelegramWebApp()?.HapticFeedback?.notificationOccurred?.(type); } catch { /* optional */ }
+}
+
 /**
  * Shows the native Telegram back button while `onBack` is relevant and
  * restores the previous state on cleanup. Returns a cleanup function.
@@ -214,6 +218,7 @@ export async function shareViaTelegram({ url, text }) {
 }
 
 function buildAppDeepLink(params) {
+  if (typeof window === 'undefined') return '';
   const base = `${window.location.origin}${window.location.pathname}`;
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params || {})) {

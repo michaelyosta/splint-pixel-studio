@@ -6,7 +6,7 @@ import { isLargeGridTemplate } from '../lib/tileGrid';
 import { createSaveQueue, isIdempotentReplay, isTerminalSpecialError, offerFromProgress } from '../lib/progressSaveQueue';
 import { createProgressJournal } from '../lib/progressJournal';
 import { createHistoryOperation } from '../features/coloring/engine/historyOperations.js';
-import { buildColoringDeepLink, shareViaTelegram } from '../lib/telegram';
+import { buildColoringDeepLink, hapticImpact, hapticNotification, shareViaTelegram } from '../lib/telegram';
 import { takePrefetchedColoring } from '../lib/coloringPrefetch';
 import { recordSpecialCellsError } from '../lib/specialCellsDiagnostics';
 import {
@@ -866,7 +866,7 @@ export function useColoringSession({
     if (isCoreFeelReference(coreFeelExperiment, template)) return false;
     setZoneReward(`Фрагмент «${completedZone.title}» раскрыт`);
     window.setTimeout(() => setZoneReward(null), 2200);
-    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+    hapticNotification('success');
     metaApi.track('zone_complete', { id: template.id, zone: completedZone.id }).catch(() => {});
     return true;
   }
@@ -907,13 +907,13 @@ export function useColoringSession({
       nextFilled,
       createHistoryOperation({ type: 'fill', changes, color: targetColor }),
     );
-    if (!completedZone) window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('medium');
+    if (!completedZone) hapticImpact('medium');
   }
 
   function handleWrongCell() {
     comboRef.current = 0;
     setCombo(0);
-    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('error');
+    hapticNotification('error');
   }
 
   function undo() {

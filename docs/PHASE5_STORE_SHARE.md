@@ -1,5 +1,10 @@
 # Phase 5 store and Telegram share slice
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 This slice is a bounded product prototype. It uses the existing
 `/meta/collections` and `/unlocks/me` responses and deliberately does not add
 an internal social feed or a payment implementation.

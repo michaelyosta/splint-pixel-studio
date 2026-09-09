@@ -1,11 +1,19 @@
 # Authentication
 
+Status: CANONICAL
+Authority: Authentication, development-auth, and role boundary.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
 ## Overview
 
-Splint supports two authentication modes:
+Splint supports Telegram Mini App authentication and a feature-gated browser
+session flow:
 
 1. **Telegram Mini App** — production mode using Telegram's initData HMAC verification.
-2. **Dev-auth** — development-only mode using `X-User-Id` header.
+2. **Browser Telegram Login** — server-side OIDC Authorization Code + PKCE,
+   issuing an opaque HttpOnly session and CSRF token when explicitly configured.
+3. **Dev-auth** — development-only mode using `X-User-Id` header.
 
 ## Production
 
@@ -18,6 +26,16 @@ ALLOW_DEV_AUTH=false
 - `ALLOW_DEV_AUTH` must never be enabled in production. The server will refuse to start if `NODE_ENV=production` and `ALLOW_DEV_AUTH=true`.
 - `TELEGRAM_BOT_TOKEN` is mandatory in production. The server will refuse to start without it.
 - The Telegram SDK (`telegram-web-app.js`) must be loaded in the Mini App context. It provides `initData` which is sent as the `X-Telegram-Init-Data` header.
+- Browser OIDC is not enabled by `NODE_ENV=production` alone. It requires all
+  `TELEGRAM_OIDC_CLIENT_ID`, `TELEGRAM_OIDC_CLIENT_SECRET`, and
+  `TELEGRAM_OIDC_REDIRECT_URI` values plus an exact `BROWSER_AUTH_ORIGIN`.
+  Production startup rejects partial, credential-bearing, non-HTTPS, or
+  cross-origin values.
+- The secret is server-only. The callback exchanges the code server-side,
+  validates the signed id_token, binds the single-use state to a short-lived
+  HttpOnly browser cookie, and sets `splint_session` as Secure,
+  HttpOnly, SameSite=Lax. A separate readable CSRF cookie is checked against
+  `X-CSRF-Token` for state-changing requests.
 
 ## Local browser development
 
@@ -36,9 +54,24 @@ VITE_DEV_USER_ID=user_pixelhunter
 
 ## Auth flow
 
-1. If `window.Telegram?.WebApp?.initData` is non-empty, the client sends `X-Telegram-Init-Data`.
-2. If Telegram initData is absent and `VITE_ALLOW_DEV_AUTH=true`, the client sends `X-User-Id`.
-3. If neither is present, the client sends no auth headers, and the server returns `401`.
+1. If `window.Telegram?.WebApp?.initData` is non-empty, the client sends
+   `X-Telegram-Init-Data`; the server verifies the HMAC and resolves the
+   canonical Telegram account.
+2. Otherwise, the client sends the server-issued session cookie. Mutating
+   requests also send the CSRF token; the server never trusts a frontend user
+   id or localStorage value.
+3. If neither is present, standalone browser UI shows `Войти через Telegram`
+   and owner APIs return `401`. There is no anonymous persistent account.
+
+## Unified Telegram account identity
+
+Mini App initData and browser OIDC both use the verified numeric Telegram user
+identifier. `ensureTelegramUser()` first searches `users.telegram_id`, then
+the canonical `tg_<id>` row, and refreshes only Telegram-owned profile fields.
+Username, display name, avatar, OIDC `sub`, and client headers cannot link two
+accounts. The OIDC provider contract and endpoint values are maintained by
+[Telegram Login](https://core.telegram.org/bots/telegram-login); production
+configuration must still be checked against the exact BotFather Allowed URLs.
 
 ## Roles
 

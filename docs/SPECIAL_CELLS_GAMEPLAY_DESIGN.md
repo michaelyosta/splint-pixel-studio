@@ -1,5 +1,10 @@
 # Special Cells: финальный adversarial design review
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 > **Implementation status (2026-08-11).** This document began as the Spark-only
 > design review. The current implementation has now advanced through the first
 > multi-kind vertical slices: Spark, Bomb, Fuse, Choice, Artifact, and Hazard. The

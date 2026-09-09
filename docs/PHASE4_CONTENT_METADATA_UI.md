@@ -1,5 +1,10 @@
 # Phase 4 content metadata UI contract
 
+Status: CANONICAL
+Authority: Bounded server-owned content metadata presentation.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
 ## Decision
 
 Phase 4 surfaces must display the bounded `content_metadata` object produced by
@@ -12,6 +17,10 @@ or unknown schema as an explicit `Метаданные не проверены` 
 fixtures and synthetic previews honest while the server data catches up.
 
 ## Covered surfaces
+
+The legacy surface names below describe compatibility projections and retained
+test fixtures. They are not primary navigation destinations; the primary IA is
+only Catalog / Create / Profile.
 
 - Catalog artwork cards, quick picks, and the editorial card.
 - Gallery rows, completed collection objects, and the next-reveal resume shelf.

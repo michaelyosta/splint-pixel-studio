@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEV_USER_ID } from '../../api/client.js';
+import { hapticNotification } from '../../lib/telegram.js';
 import {
   GOAL_STATUS,
   advanceToNextGoal,
@@ -155,7 +156,7 @@ export function useSessionGoals({
 
   useEffect(() => {
     if (!celebration) return undefined;
-    window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+    hapticNotification('success');
     celebrationTimerRef.current = window.setTimeout(() => setCelebration(null), 5000);
     return () => window.clearTimeout(celebrationTimerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps

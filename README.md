@@ -1,29 +1,25 @@
 # Splint Pixel Studio
 
-Локальный MVP Telegram Mini App для раскрашивания пиксельных изображений по номерам. Пользователь выбирает готовую раскраску или создаёт приватную из собственного изображения, сохраняет прогресс на сервере, завершает работу и публикует её в ленте.
+Splint Pixel Studio is a Telegram Mini App for painting, creating, collecting,
+and discovering visual works. Painting is the primary action; the stable
+product shell is `Каталог` / `Создать` / `Профиль`.
 
-## Что работает
+The same shell is responsive in an ordinary browser. Browser owner functions
+use the feature-gated server-side Telegram OIDC + PKCE flow and resolve to the
+same verified Telegram account as Mini App initData; no anonymous persistent
+accounts are created. See [docs/RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md](docs/RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md).
 
-- каталог серверных пиксельных раскрасок;
-- Canvas-редактор с номерами, палитрой, подсветкой, отменой и повтором;
-- игровые задания по цветам, комбо, XP, уровни, этапы прогресса и тактильная обратная связь Telegram;
-- серверное автосохранение прогресса с ревизиями;
-- восстановление прогресса после перезапуска;
-- создание приватной раскраски из PNG, JPG или WebP в браузере;
-- точное превью результата перед сохранением и удаление собственных загрузок;
-- завершение работы и публикация в ленте;
-- API лайков, комментариев, подписок, профилей и модерации;
-- локальный режим пользователя `user_pixelhunter`.
-- каталог из шести оригинальных Image Gen-сцен, преобразованных в точные карты 28–32 пикселя.
+Project documentation:
 
-## Требования
+- Operating contract: [AGENTS.md](AGENTS.md)
+- Documentation map: [docs/INDEX.md](docs/INDEX.md)
+- Current operational truth: [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md)
 
-- Node.js 20 или новее;
-- npm.
+## Local development
 
-## Первый запуск
+Requirements: Node.js 20 or newer and npm.
 
-Установите зависимости в корне и в серверной папке:
+Install dependencies in the root and server directories:
 
 ```powershell
 npm.cmd install
@@ -32,21 +28,18 @@ npm.cmd install
 Set-Location ..
 ```
 
-В первом терминале запустите API:
+Start the API in one terminal and the Vite client in another:
 
 ```powershell
 npm.cmd run dev:api
-```
-
-Во втором терминале запустите клиент:
-
-```powershell
 npm.cmd run dev
 ```
 
-Откройте `http://localhost:5173`. При первом запуске API автоматически создаст файл локальной базы `server/splint.db.bin`, тестовых пользователей и каталог раскрасок.
+Open `http://127.0.0.1:5173`. Local development uses the existing SQLite
+fallback unless `DATABASE_URL` is configured. See [DEVELOPMENT.md](DEVELOPMENT.md)
+for environment setup, ports, QA flags, and troubleshooting.
 
-## Проверка
+## Checks
 
 ```powershell
 npm.cmd run lint
@@ -57,49 +50,22 @@ Set-Location server
 npm.cmd run check
 ```
 
-## PostgreSQL и MinIO локально
+The authoritative CI workflow also runs the server suite, PostgreSQL checks,
+storage checks, and the critical/extended Playwright topology described in
+[docs/E2E_TEST_INVENTORY.md](docs/E2E_TEST_INVENTORY.md).
 
-Для production-совместимой базы и объектного хранилища скопируйте `.env.example` в `.env`, затем запустите сервисы:
+## Repository orientation
 
-```powershell
-docker compose up -d
-Set-Location server
-Copy-Item .env.example .env
-npm.cmd run dev:postgres
-```
+- `src/App.jsx` and `src/components/BottomNavigation.jsx` — application shell;
+- `src/views/PlayerView.jsx` and `src/features/coloring/` — painting and tiled player;
+- `src/components/CreateHub.jsx` and `src/views/CreatorView.jsx` — import-first creator;
+- `src/views/ProfileView.jsx` — creator/collector showcase;
+- `server/routes/colorings.js` — catalog, uploads, progress, and completion;
+- `server/services/canonical-renderer.js` and `server/services/render-outbox.js` — server-authoritative result media;
+- `server/db.js` and `server/migrations/` — SQLite/PostgreSQL persistence;
+- `server/catalog-templates.json` — built-in catalog templates.
 
-PostgreSQL-миграция описывает ту же доменную модель, что и локальная БД: пользователей, раскраски, прогресс, готовые работы, публикации и социальные связи. При заданном `DATABASE_URL` API автоматически выбирает PostgreSQL и применяет миграцию при старте; без него продолжает использовать файл `server/splint.db.bin`. MinIO сохраняет исходные пользовательские изображения приватно, а API отдаёт только производную миниатюру и карту клеток.
-
-## Архитектура
-
-- `src/App.jsx` — экранный слой и состояния приложения;
-- `src/components/PixelCanvas.jsx` — Canvas-редактор;
-- `src/lib/pixelColoring.js` — игровая логика и преобразование пользовательского изображения;
-- `server/catalog-templates.json` — карты клеток и палитры встроенного каталога;
-- `server/scripts/build-catalog-assets.py` — воспроизводимая сборка Image Gen-исходников в точные пиксельные превью и шаблоны;
-- `src/api/client.js` — HTTP-клиент;
-- `server/routes/colorings.js` — каталог, приватные шаблоны и сохранение прогресса;
-- `server/db.js` — адаптер локальной `sql.js` или PostgreSQL и стартовые данные.
-
-В разработке Vite перенаправляет `/api/*` на `http://localhost:3001`. При наличии `DATABASE_URL` тот же слой `server/db.js` подключается к PostgreSQL без изменения контрактов API.
-
-## Переменные окружения
-
-Клиент поддерживает:
-
-```env
-VITE_API_URL=/api
-VITE_DEV_USER_ID=user_pixelhunter
-```
-
-When `TELEGRAM_BOT_TOKEN` is configured, the server validates `X-Telegram-Init-Data` from Telegram Web Apps and creates a local user profile on first sign-in. `X-User-Id` is accepted only outside production or when `ALLOW_DEV_AUTH=true` is explicitly set.
-
-В production-режиме авторизацию через заголовок `X-User-Id` нужно заменить проверкой Telegram Mini Apps `initData`.
-
-## Public-alpha release-candidate posture (2026-08-02, historical snapshot)
-
-> Snapshot from 2026-08-02; the current implementation state on `codex/tiled-player-1200` is recorded in [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md), [docs/AUDIT_FINDINGS.md](docs/AUDIT_FINDINGS.md), and [docs/SECURITY_FOLLOWUPS.md](docs/SECURITY_FOLLOWUPS.md).
-
-This repository is a local public-alpha release candidate without real payments. Production defaults to `PAYMENTS_MODE=disabled`; internal credits are not Telegram Stars. Completion is server-authoritative, canonical feed media is thumbnail-based, and new canonical artwork rows do not store base64 images.
-
-Local verification passed: root tests 201/201, server tests 223 total with 167 passed and 56 environment-conditional skips, E2E 110 passed with 4 expected skips, lint 89 warnings within the 100-warning budget, syntax/build checks passed, and dependency audits report 0 vulnerabilities. The disposable external pass also passed PostgreSQL 91/91, MinIO/S3 2/2, migrations, database backup/restore, object backup/restore, media sweep, `/live`, and POSIX graceful shutdown. Telegram WebView, real Telegram Stars, production credentials, production IAM/retention, and target-runtime behavior remain required gates. See [docs/remediation/FINAL_REPORT.md](docs/remediation/FINAL_REPORT.md), [docs/remediation/EXTERNAL_VALIDATION.md](docs/remediation/EXTERNAL_VALIDATION.md), and [docs/remediation/TELEGRAM_WEBVIEW_VALIDATION.md](docs/remediation/TELEGRAM_WEBVIEW_VALIDATION.md).
+Production deployment, current blockers, content approval, and commerce
+activation are deliberately not asserted here. Read the documentation map and
+current-state document for those decisions. Real Telegram Stars, marketplace
+purchases, and payouts are fail-closed until separately verified and approved.

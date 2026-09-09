@@ -1,5 +1,10 @@
 # Upload and render abuse guardrails
 
+Status: CANONICAL
+Authority: Upload, render, and owner-scoped storage guardrails.
+
+Navigation: [../INDEX.md](../INDEX.md) · Current state: [../CURRENT_STATE.md](../CURRENT_STATE.md)
+
 The creator endpoint accepts browser-converted image payloads, so it is protected at both the request edge and the durable user boundary:
 
 - `express.json` remains capped at 15 MiB globally; source images are rejected before decoding when the data URL exceeds 14,000,000 characters, and decoded private originals remain capped at 10 MiB.

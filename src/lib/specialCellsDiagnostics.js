@@ -4,7 +4,7 @@
  * and dump are development-only and stay hidden unless explicitly enabled.
  */
 
-import { getTelegramVerticalSwipeStatus } from './telegram.js';
+import { getTelegramWebApp, getTelegramVerticalSwipeStatus } from './telegram.js';
 
 export const SPECIAL_CELL_KINDS = Object.freeze([
   'spark',
@@ -170,7 +170,7 @@ export function normalizeLastError(error) {
 
 export function getTelegramCapability() {
   if (typeof window === 'undefined') return { available: false };
-  const webApp = window.Telegram?.WebApp || null;
+  const webApp = getTelegramWebApp();
   return {
     available: Boolean(webApp),
     initData: Boolean(webApp?.initData?.trim()),

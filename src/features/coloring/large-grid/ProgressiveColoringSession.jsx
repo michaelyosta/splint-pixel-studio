@@ -27,6 +27,7 @@ import {
 } from '../../../lib/specialCellsGameplay.js';
 import SpecialCellsDevHud from '../SpecialCellsDevHud.jsx';
 import { isSessionGameSpecialAllowed } from '../../sessionGame/sessionGameExperiment.js';
+import { getTelegramWebApp, hapticImpact, hapticNotification, hapticSelection } from '../../../lib/telegram.js';
 import {
   GRID_LOD_MODE,
   resolveGridLodMode,
@@ -1417,7 +1418,7 @@ export default function ProgressiveColoringSession({
       if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
       successNoticeTimerRef.current = setTimeout(() => setSuccessNotice(null), 3600);
       try {
-        window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+        hapticNotification('success');
       } catch {
         // Haptics are optional.
       }
@@ -1837,7 +1838,7 @@ export default function ProgressiveColoringSession({
         },
       }),
       headers: () => {
-        const telegramInitData = window.Telegram?.WebApp?.initData?.trim();
+        const telegramInitData = getTelegramWebApp()?.initData?.trim();
         return telegramInitData
           ? { 'X-Telegram-Init-Data': telegramInitData }
           : import.meta.env.VITE_ALLOW_DEV_AUTH === 'true' ? { 'X-User-Id': DEV_USER_ID } : {};
@@ -2344,7 +2345,7 @@ export default function ProgressiveColoringSession({
     if (wrongNoticeTimerRef.current) clearTimeout(wrongNoticeTimerRef.current);
     wrongNoticeTimerRef.current = setTimeout(() => setWrongNotice(null), 2200);
     try {
-      window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('error');
+      hapticNotification('error');
     } catch {
       // Haptics are optional.
     }
@@ -2509,7 +2510,7 @@ export default function ProgressiveColoringSession({
         color: normalized[0].to,
       }, gatedSpecialAction);
       try {
-        window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
+        hapticImpact('light');
       } catch {
         // Haptics are optional.
       }
@@ -2542,7 +2543,7 @@ export default function ProgressiveColoringSession({
             if (successNoticeTimerRef.current) clearTimeout(successNoticeTimerRef.current);
             successNoticeTimerRef.current = setTimeout(() => setSuccessNotice(null), 1600);
             try {
-              window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+              hapticNotification('success');
             } catch {
               // Haptics are optional.
             }
@@ -3288,7 +3289,7 @@ export default function ProgressiveColoringSession({
             className={navigationMode ? 'active' : ''}
             onClick={() => {
               setNavigationMode((value) => !value);
-              window.Telegram?.WebApp?.HapticFeedback?.selectionChanged?.();
+              hapticSelection();
             }}
             aria-label="Режим перемещения"
             aria-pressed={navigationMode}

@@ -1,5 +1,10 @@
 # Telegram iOS physical-evidence handoff — blocked
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../CURRENT_STATE.md).
+
 Date: 2026-09-04
 Worktree: `codex/telegram-ios-viewport-fix`
 Commit under review: `b6c5889` (`qa: add safe Telegram iOS diagnostic route preflight`)

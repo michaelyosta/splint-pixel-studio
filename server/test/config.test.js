@@ -32,6 +32,42 @@ test('complete production configuration is accepted', () => {
   assert.deepStrictEqual(result.trustProxy, ['10.0.0.0/8', '192.168.10.4']);
 });
 
+test('production browser OIDC configuration must be complete and exact', () => {
+  assert.throws(() => validateProductionConfiguration({
+    ...validProduction,
+    TELEGRAM_OIDC_CLIENT_ID: '123',
+  }), /must be configured together/);
+  assert.throws(() => validateProductionConfiguration({
+    ...validProduction,
+    TELEGRAM_OIDC_CLIENT_ID: '123',
+    TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
+    TELEGRAM_OIDC_REDIRECT_URI: 'http://app.example.com/api/auth/telegram/callback',
+    BROWSER_AUTH_ORIGIN: 'https://app.example.com',
+  }), /HTTPS/);
+  assert.throws(() => validateProductionConfiguration({
+    ...validProduction,
+    TELEGRAM_OIDC_CLIENT_ID: '123',
+    TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
+    TELEGRAM_OIDC_REDIRECT_URI: 'https://other.example.com/api/auth/telegram/callback',
+    BROWSER_AUTH_ORIGIN: 'https://app.example.com',
+  }), /belong to BROWSER_AUTH_ORIGIN/);
+  assert.throws(() => validateProductionConfiguration({
+    ...validProduction,
+    TELEGRAM_OIDC_CLIENT_ID: '123',
+    TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
+    TELEGRAM_OIDC_REDIRECT_URI: 'https://app.example.com/api/auth/telegram/callback',
+    BROWSER_AUTH_ORIGIN: 'https://app.example.com',
+    TELEGRAM_OIDC_DISCOVERY_URL: 'https://example.com/.well-known/openid-configuration',
+  }), /official Telegram OIDC discovery URL/);
+  assert.throws(() => validateProductionConfiguration({
+    ...validProduction,
+    TELEGRAM_OIDC_CLIENT_ID: '123',
+    TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
+    TELEGRAM_OIDC_REDIRECT_URI: 'https://login.example.com/api/auth/telegram/callback',
+    BROWSER_AUTH_ORIGIN: 'https://login.example.com',
+  }), /included in CORS_ORIGINS/);
+});
+
 test('production configuration is case-insensitive for the environment name', () => {
   const result = validateProductionConfiguration({ ...validProduction, NODE_ENV: 'PRODUCTION' });
   assert.equal(result.isProduction, true);

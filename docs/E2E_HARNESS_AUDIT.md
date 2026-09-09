@@ -1,5 +1,10 @@
 # E2E harness static audit
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Audit scope: read-only inspection of the 39 Playwright specs, shared setup,
 package scripts, and CI workflows at frozen base
 `dc01c103544ac953e97cb77fc501842f9dab5f1b`. No source or harness changes were

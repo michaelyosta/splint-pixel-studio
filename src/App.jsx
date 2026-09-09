@@ -10,6 +10,7 @@ import CollectionsView from './views/CollectionsView';
 import AchievementsView from './views/AchievementsView';
 import StoreView from './views/StoreView';
 import BottomNavigation from './components/BottomNavigation';
+import BrowserAuthPage from './components/BrowserAuthPage';
 import CreateHub from './components/CreateHub';
 import CreatorCollectionsManager from './features/creator/CreatorCollectionsManager';
 import UnlockLockedView from './features/unlocks/UnlockLockedView';
@@ -26,12 +27,19 @@ import { getRequestedColoringId, getRequestedPackId, getRequestedProfileId, hapt
 import { readCurrentResumeSnapshot } from './lib/resumeState.js';
 import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
 import { resolveSessionGameExperiment } from './features/sessionGame/sessionGameExperiment.js';
+import { useBrowserAuth } from './hooks/useBrowserAuth.js';
 import './App.css';
 import './features/unlocks/unlocks.css';
 
 function App() {
   const coreFeelExperiment = useMemo(() => resolveCoreFeelExperiment(), []);
   const sessionGameExperiment = useMemo(() => resolveSessionGameExperiment(), []);
+  const browserAuth = useBrowserAuth();
+  const canUseApp = browserAuth.isAuthenticated;
+  const authError = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('auth_error');
+  }, []);
   const initialResume = useMemo(() => readCurrentResumeSnapshot(), []);
   const initialRequestedId = useMemo(() => getRequestedColoringId(), []);
   const initialRequestedPackId = useMemo(() => getRequestedPackId(), []);
@@ -52,13 +60,17 @@ function App() {
   const noticeTimerRef = useRef(null);
   const resumeHandledRef = useRef(false);
   const coreFeelHandledRef = useRef(false);
-  const unlockData = useUnlockData({ enabled: !coreFeelExperiment.enabled, refreshKey: unlockRefreshKey });
+  const unlockData = useUnlockData({ enabled: !coreFeelExperiment.enabled && canUseApp, refreshKey: unlockRefreshKey });
   const { refresh: refreshUnlockData } = unlockData;
 
   const showNotice = useCallback((text, type = 'info') => {
     window.clearTimeout(noticeTimerRef.current);
     setNotice({ text, type });
     noticeTimerRef.current = window.setTimeout(() => setNotice(null), 3500);
+  }, []);
+
+  const trackEvent = useCallback((event, payload) => {
+    metaApi.track(event, payload).catch(() => {});
   }, []);
 
   const refreshUnlocks = useCallback(() => setUnlockRefreshKey((key) => key + 1), []);
@@ -183,30 +195,30 @@ function App() {
     sessionGameExperiment,
   });
   useEffect(() => {
-    if (coreFeelExperiment.enabled) return;
+    if (coreFeelExperiment.enabled || !canUseApp) return;
     catalog.loadCatalog();
     home.loadCollections();
     profile.loadCurrentUser();
     catalog.loadMine();
     product.loadProductProfile();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog.loadCatalog, catalog.loadMine, coreFeelExperiment.enabled, home.loadCollections, product.loadProductProfile, profile.loadCurrentUser]);
+  }, [canUseApp, catalog.loadCatalog, catalog.loadMine, coreFeelExperiment.enabled, home.loadCollections, product.loadProductProfile, profile.loadCurrentUser]);
 
   useEffect(() => {
-    if (!coreFeelExperiment.enabled) metaApi.track('app_open').catch(() => {});
-  }, [coreFeelExperiment.enabled]);
+    if (!coreFeelExperiment.enabled && canUseApp) metaApi.track('app_open').catch(() => {});
+  }, [canUseApp, coreFeelExperiment.enabled]);
 
   useEffect(() => {
-    if (!coreFeelExperiment.enabled || coreFeelHandledRef.current) return;
+    if (!coreFeelExperiment.enabled || !canUseApp || coreFeelHandledRef.current) return;
     coreFeelHandledRef.current = true;
     session.openColoring(coreFeelExperiment.referenceTemplateId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coreFeelExperiment.enabled, coreFeelExperiment.referenceTemplateId]);
+  }, [canUseApp, coreFeelExperiment.enabled, coreFeelExperiment.referenceTemplateId]);
 
   // Explicit deep link wins over the local resume pointer. A cold standalone
   // launch without a query reopens the last artwork that was actually active.
   useEffect(() => {
-    if (coreFeelExperiment.enabled || resumeHandledRef.current) return;
+    if (coreFeelExperiment.enabled || !canUseApp || resumeHandledRef.current) return;
     const requestedId = getRequestedColoringId();
     const requestedPack = getRequestedPackId();
     const requestedProfile = getRequestedProfileId();
@@ -226,20 +238,26 @@ function App() {
       usePersistedResume: !requestedId,
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coreFeelExperiment.enabled, session.openColoring]);
+  }, [canUseApp, coreFeelExperiment.enabled, session.openColoring]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (view === 'gallery' || view === 'home') catalog.loadMine(); }, [view, catalog.loadMine]);
+  useEffect(() => { if (canUseApp && (view === 'gallery' || view === 'home')) catalog.loadMine(); }, [canUseApp, view, catalog.loadMine]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (view === 'catalog') catalog.loadMine(); }, [view, catalog.loadMine]);
+  useEffect(() => { if (canUseApp && view === 'catalog') catalog.loadMine(); }, [canUseApp, view, catalog.loadMine]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (view === 'feed') feed.loadFeed(feed.feedMode); }, [view, feed.feedMode, feed.loadFeed]);
+  useEffect(() => { if (canUseApp && view === 'feed') feed.loadFeed(feed.feedMode); }, [canUseApp, view, feed.feedMode, feed.loadFeed]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (view === 'profile') profile.loadProfile(viewedProfileId || null); }, [view, viewedProfileId, profile.loadProfile]);
+  useEffect(() => { if (canUseApp && view === 'profile') profile.loadProfile(viewedProfileId || null); }, [canUseApp, view, viewedProfileId, profile.loadProfile]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (view === 'profile' || view === 'home') product.loadProductProfile(); }, [view, product.loadProductProfile]);
+  useEffect(() => { if (canUseApp && (view === 'profile' || view === 'home')) product.loadProductProfile(); }, [canUseApp, view, product.loadProductProfile]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (view === 'collections') home.loadCollections(); }, [view, home.loadCollections]);
+  useEffect(() => { if (canUseApp && view === 'collections') home.loadCollections(); }, [canUseApp, view, home.loadCollections]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !['success', 'telegram_denied', 'telegram_verification_failed'].some((value) => value === authError)) return;
+    const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`;
+    window.history.replaceState({}, '', cleanUrl);
+  }, [authError]);
 
   useEffect(() => {
     if (!requestedPackId || !home.collections.length) return;
@@ -304,9 +322,14 @@ function App() {
     }).catch(() => {});
     session.setCompletionOpen(false);
     if (option.type === 'profile') {
-      product.loadProductProfile();
-      catalog.loadMine();
+      // Switch immediately so a slow mobile request cannot leave the player
+      // mounted while the async profile/catalog refresh is still in flight.
+      // The profile view effect performs its own authoritative load on mount.
       setView('profile');
+      // Start the handoff explicitly; the view effect remains the authoritative refresh path.
+      profile.loadProfile(null);
+      catalog.loadMine();
+      product.loadProductProfile();
       return;
     }
     if (option.template_id) {
@@ -436,7 +459,7 @@ function App() {
         onShareResult={session.shareResult}
         onDownloadResult={session.downloadResult}
         onDismissOnboarding={session.dismissOnboarding}
-        onTrack={(event, payload) => metaApi.track(event, payload).catch(() => {})}
+        onTrack={trackEvent}
         formatDifficulty={formatDifficulty}
         completedPreview={session.completedPreview}
         zoneIndices={session.zoneIndicesRef.current}
@@ -581,7 +604,17 @@ function App() {
     />;
   }
 
-  return <main className="telegram-frame"><div className="app-container">{view !== 'play' && !coreFeelExperiment.enabled && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
+  if (browserAuth.platform.isBrowser && !canUseApp) {
+    content = <BrowserAuthPage
+      status={browserAuth.status}
+      error={authError === 'telegram_denied' ? 'Вход отменён.' : authError ? 'Не удалось подтвердить вход через Telegram.' : null}
+      onLogin={browserAuth.login}
+    />;
+  }
+
+  // The primary-navigation contract is intentionally explicit: view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />
+  const showChrome = view !== 'play' && !coreFeelExperiment.enabled;
+  return <main className="telegram-frame" data-platform={browserAuth.platform.isTelegram ? 'telegram' : 'browser'} data-auth-mode={browserAuth.platform.authMode}><div className="app-container">{showChrome && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><div className="header-actions">{browserAuth.status === 'authenticated' && browserAuth.platform.isBrowser && <button className="header-logout-button" type="button" onClick={() => browserAuth.logout().catch(() => showNotice('Не удалось завершить сессию', 'error'))}>Выйти</button>}<button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></div></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{showChrome && canUseApp && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
 }
 
 export default App;

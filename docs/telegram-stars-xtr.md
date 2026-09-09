@@ -1,6 +1,10 @@
-# Telegram Stars (XTR) vertical slice
+# Telegram Stars (XTR) provider lifecycle
 
-Status: implemented as a provider-shaped, mock-only contract; production activation is intentionally deferred.
+Status: CANONICAL
+Authority: Detailed provider-shaped XTR lifecycle; production activation is a separate decision.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+Overview: [COMMERCE_CONTRACT.md](COMMERCE_CONTRACT.md)
 
 The XTR path is isolated from the existing internal-credits ledger. The state machine lives in
 `server/services/telegram-stars.js`, the only shipped provider adapter is

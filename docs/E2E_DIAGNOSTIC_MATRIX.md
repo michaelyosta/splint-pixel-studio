@@ -1,5 +1,10 @@
 # Frozen E2E diagnostic matrix
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Status: `COMPLETE — failures collected before fixes`
 
 This is the complete failure matrix for one frozen SHA. No source, test, or CI

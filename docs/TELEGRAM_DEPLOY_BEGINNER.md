@@ -1,5 +1,10 @@
 # Splint Pixel Studio: понятная инструкция для первого staging/deploy
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Этот документ объясняет, как впервые разместить Splint Pixel Studio в интернете и открыть его как Telegram Mini App. Он рассчитан на человека, который раньше не разворачивал Telegram-приложения.
 
 Главная мысль: в этом репозитории есть код frontend, Node.js API, миграции и локальный `docker-compose.yml`, но нет готового production Dockerfile, reverse proxy, Terraform/IaC или автоматического deploy. Docker Compose из репозитория поднимает только PostgreSQL и MinIO, а не само приложение. Поэтому hosting для frontend, API и домена нужно выбрать отдельно.

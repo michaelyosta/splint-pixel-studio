@@ -1,5 +1,10 @@
 # SPLINT PIXEL STUDIO — независимый аудит игры и продукта
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 > **Splint сейчас не становится «конфеткой», потому что продукт оптимизирует количество систем и скорость закрытия клеток раньше, чем удовольствие от собственноручного раскрашивания. Главный следующий рывок — вернуть игроку авторство первого и каждого следующего приятного reveal-момента, а Smart Engine, прогрессию и контент подчинить этому. Всё остальное пока вторично.**
 
 Дата аудита: 12 августа 2026 года.  

@@ -1,5 +1,10 @@
 # Verification snapshot
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../../../CURRENT_STATE.md).
+
 Run on 2026-08-15 in `C:\Users\misa\Desktop\Splint-Recovery-Eval` after repair commit `a92f919` (cherry-pick of `551fe72`) and before the evaluator evidence commit.
 
 ## Automated checks

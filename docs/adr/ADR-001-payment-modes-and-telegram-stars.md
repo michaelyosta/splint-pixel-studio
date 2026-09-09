@@ -1,31 +1,50 @@
 # ADR-001: payment modes and Telegram Stars gate
 
-Status: accepted for public alpha; real Stars activation is deferred.  
-Date: 2026-08-02
+Status: CANONICAL
+Authority: Commerce activation decision record.
+Decision recorded: 2026-08-02
+
+Navigation: [../INDEX.md](../INDEX.md) · Current state: [../CURRENT_STATE.md](../CURRENT_STATE.md)
+Detailed contract: [../COMMERCE_CONTRACT.md](../COMMERCE_CONTRACT.md)
 
 ## Decision
 
 The application exposes an explicit `PAYMENTS_MODE`:
 
-- `disabled` — default public-alpha mode; paid actions fail closed with a stable `PAYMENTS_DISABLED` response.
-- `internal_credits` — development/test ledger only; UI and API terminology says internal credits, not Telegram Stars.
-- `telegram_stars` — future production mode. It is rejected unless Telegram bot payment webhook, support contact and refund contact are configured.
+- `disabled` — production fail-closed mode; paid actions return a stable
+  disabled response and do not grant entitlement.
+- `internal_credits` — development/test ledger only; its terminology is not
+  Telegram Stars and it cannot boot in production.
+- `telegram_stars` — future production mode. This release rejects it during
+  production configuration because the real Bot API adapter/webhook is not
+  mounted.
 
-No endpoint, seed, demo credit or frontend path may imply that a Telegram purchase succeeded while this mode is disabled.
+No endpoint, seed, demo credit, invoice, frontend callback, or provider-shaped
+test path may imply that a Telegram purchase succeeded while production
+payments are disabled.
 
 ## Why
 
-Real payments create irreversible financial, support, reconciliation and abuse obligations. A stable feature gate lets the social and creative alpha ship while the payment design is reviewed independently.
+Real payments create irreversible financial, support, reconciliation, refund,
+and abuse obligations. A stable feature gate lets the creative alpha operate
+without crossing the economic boundary before the provider and operations
+evidence are complete.
 
 ## Activation checklist
 
-Before setting `PAYMENTS_MODE=telegram_stars`, the release owner must attach:
+Before a future release can enable `PAYMENTS_MODE=telegram_stars`, the owner
+must attach all of the following:
 
 1. Telegram Bot API payment configuration and webhook verification evidence.
-2. A tested idempotency/replay design for payment updates and application retries.
+2. A tested idempotency/replay design for payment updates and retries.
 3. Refund/chargeback/support ownership and an auditable ledger reconciliation job.
-4. Production database backup/restore evidence and alerting for payment state divergence.
-5. Staging tests for duplicate, delayed, reordered, malformed and unknown payment events.
-6. A kill-switch drill that returns the system to `disabled` without deleting ledger history.
+4. Production database and object-storage backup/restore evidence plus alerts
+   for payment-state divergence.
+5. Tests for duplicate, delayed, reordered, malformed, and unknown payment
+   events.
+6. A kill-switch drill returning the system to `disabled` without deleting
+   ledger history.
 
-Until all six are signed off, the value is a strategic decision blocker, not a code defect.
+All six are required. A passing local test or the presence of payment code is
+not activation evidence. Marketplace purchase and payout require separate
+decisions.

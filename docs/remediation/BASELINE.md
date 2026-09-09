@@ -1,5 +1,10 @@
 # Public-alpha remediation baseline
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../CURRENT_STATE.md).
+
 Date: 2026-08-02  
 Original branch: `agent/complete-mvp-patch`  
 Original HEAD: `140f122` (`docs: map project and deployment readiness`)

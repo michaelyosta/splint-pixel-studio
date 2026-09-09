@@ -1,5 +1,10 @@
 # Phase 2 positive-event candidate scorecard
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Статус: **reversible agent prototype; не выбор победителя**.
 
 Цель сравнения — проверить, какой один редкий positive event лучше усиливает

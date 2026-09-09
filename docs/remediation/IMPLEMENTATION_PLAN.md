@@ -1,5 +1,10 @@
 # Implementation plan: public alpha without real payments
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../CURRENT_STATE.md).
+
 ## Latest validation status — 2026-08-03
 
 No implementation change was justified by this pass. The source tree retained only the two protected pre-existing local modifications. Local HTTPS/browser smoke passed, but the browser was not Telegram and used development auth; real `initData`, Android/iOS device lifecycle, offline replay, and disposable PostgreSQL/MinIO remain environment gates. The current release classification is `telegram_rc_partially_verified`, with operational subtype `operational_rc_verified_except_telegram`.

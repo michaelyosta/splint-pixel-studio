@@ -1,5 +1,10 @@
 # Session goals visual evidence — 2026-08-07
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](../../CURRENT_STATE.md).
+
 This evidence captures the existing goal-card control (`?sessionGoals=control`) for the 30-second / 3-minute / 10-minute player goal loop before the first paint and while the timer is running.
 
 Recovery Canvas defaults to the explicit no-goals treatment. Use `?sessionGoals=hidden` to reproduce it deterministically; the treatment hides only the session-goal card and its local timer loop, not contextual painting guidance. Server progress/rewards, save status, target/fragment prompts, palette/dock and Specials remain active. `?sessionGoals=control` restores the card for comparison, except inside an active core-feel experiment where the focused first-minute HUD remains authoritative.

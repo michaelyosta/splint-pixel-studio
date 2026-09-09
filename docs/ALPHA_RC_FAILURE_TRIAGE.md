@@ -1,5 +1,10 @@
 # Alpha RC Chromium failure triage
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Status: `CLOSED — final integration full-suite rerun passed`
 
 Final closure (2026-08-21): the historical failures below are retained as an

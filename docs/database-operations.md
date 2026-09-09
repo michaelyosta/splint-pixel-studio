@@ -1,5 +1,10 @@
 # Database Operations
 
+Status: CANONICAL
+Authority: Local SQLite/PostgreSQL operations and migration procedure.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
 ## Running SQLite (default)
 
 ```bash

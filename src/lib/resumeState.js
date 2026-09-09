@@ -2,6 +2,7 @@ import {
   normalizeResumeBeat,
   normalizeSessionDurationBucket,
 } from './resumeBeat.js';
+import { getTelegramResumeScopeId } from './platform.js';
 
 export const RESUME_STATE_VERSION = 1;
 
@@ -37,7 +38,7 @@ function getStorage(storage) {
 }
 
 export function getResumeScope(win = typeof window !== 'undefined' ? window : null) {
-  const telegramUserId = win?.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+  const telegramUserId = getTelegramResumeScopeId(win);
   if (telegramUserId != null) return `telegram:${telegramUserId}`;
   return 'anonymous';
 }

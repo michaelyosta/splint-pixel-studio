@@ -53,6 +53,36 @@ function emptyCreatorPreviews(selectedResolution = DEFAULT_CREATOR_RESOLUTION) {
   };
 }
 
+function loadImageElement(sourceUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new window.Image();
+    let settled = false;
+    const cleanup = () => {
+      image.onload = null;
+      image.onerror = null;
+    };
+    const handleLoad = () => {
+      if (settled) return;
+      // WebKit can report a completed blob request before it exposes the
+      // decoded dimensions. Keep the load event as the compatibility path,
+      // but only resolve once drawImage has a usable source.
+      if (!image.naturalWidth || !image.naturalHeight) return;
+      settled = true;
+      cleanup();
+      resolve(image);
+    };
+    image.onload = handleLoad;
+    image.onerror = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error('Не удалось подготовить preview изображения'));
+    };
+    image.src = sourceUrl;
+    if (image.complete) handleLoad();
+  });
+}
+
 function asPreviewSummary(data) {
   const { width, height, palette, cells, metrics = {}, previewDataUrl = null } = data;
   const resultFingerprint = data.resultFingerprint || null;
@@ -191,9 +221,9 @@ export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNaviga
   async function loadSourcePreview(sourceFile, crop, batchId) {
     const objectUrl = URL.createObjectURL(sourceFile);
     try {
-      const image = new window.Image();
-      image.src = objectUrl;
-      await image.decode();
+      // Use the load event instead of relying only on HTMLImageElement.decode:
+      // the latter is flaky for blob URLs on older mobile WebKit builds.
+      const image = await loadImageElement(objectUrl);
       if (!isCreatorPreviewCurrent(batchId, creatorComputeRef.current)) return;
       const original = crop
         ? renderImageCropPreview(image, { ...creatorCrop, size: 512 })

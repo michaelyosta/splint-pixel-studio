@@ -1,5 +1,10 @@
 # Product contract migration
 
+Status: CANONICAL
+Authority: Stable product IA and intentional contract replacements.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
 | Old contract | New contract |
 | --- | --- |
 | Home tab | Removed; Catalog is the default surface. |

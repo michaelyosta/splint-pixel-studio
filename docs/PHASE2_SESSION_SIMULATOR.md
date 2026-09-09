@@ -1,5 +1,10 @@
 # Phase 2 session simulator
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 `scripts/phase2-session-simulator.mjs` is a bounded, deterministic qualitative
 harness for the Phase 2 session slice. It does not drive React, mutate a
 database, or claim that the simulated flow is fun. Its purpose is to make the

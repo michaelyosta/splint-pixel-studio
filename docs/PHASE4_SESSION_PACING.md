@@ -1,5 +1,10 @@
 # Product Phase 4 — session pacing and controlled long-form pilot
 
+Status: HISTORICAL
+Role: HANDOFF, RESEARCH, or EVIDENCE (see DOCUMENTATION_INVENTORY.md).
+Authority: Historical material only. This document records a dated or task-specific state and is not authoritative for current project state.
+For current state see [CURRENT_STATE.md](CURRENT_STATE.md).
+
 Status: **machine/agent-ready as a bounded pilot gate; human enjoyment remains validation debt**.
 
 This note covers one narrow Phase 4 question: can an artwork give a player a

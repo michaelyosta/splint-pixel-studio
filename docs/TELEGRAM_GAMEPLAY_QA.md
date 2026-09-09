@@ -1,5 +1,10 @@
 # Telegram Gameplay QA: input, gesture, onboarding, diagnostics
 
+Status: CANONICAL
+Authority: Telegram/WebView gameplay QA protocol.
+
+Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
+
 Практический чек-лист для ручной QA в Telegram WebView и автоматической
 проверки input/gesture-слоя. Документ не меняет игровую механику: он
 описывает, как включить treatment/control, с какого пользователя тестировать
