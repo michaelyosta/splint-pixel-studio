@@ -98,7 +98,9 @@ router.post('/request/create', authMiddleware, asyncRoute(async (req, res) => {
       const pending = await tx.get("SELECT COUNT(*) AS c FROM message_requests WHERE sender_id=? AND status='payment_pending'", [senderId]);
       if (Number(senderDaily.c) >= 20 || Number(receiverDaily.c) >= 100 || Number(pending.c) >= 10) return { quota: true };
       const price = receiver.paid_open ? (receiver.price_in_stars || 10) : 0;
-      if (price > 0 && getPaymentsMode() === 'disabled') return { paymentsDisabled: true };
+      // Telegram Stars controlled mode is a separate commerce boundary. It
+      // must never fall through to the legacy internal-credits ledger.
+      if (price > 0 && getPaymentsMode() !== 'internal_credits') return { paymentsDisabled: true };
       const now = new Date().toISOString();
       const id = `msg_${uuid()}`;
       await tx.run(`INSERT INTO message_requests (id,sender_id,receiver_id,related_post_id,price_in_stars,text,reply_text,status,created_at,updated_at)
@@ -122,7 +124,13 @@ router.post('/request/create', authMiddleware, asyncRoute(async (req, res) => {
 }));
 
 router.post('/request/pay', authMiddleware, asyncRoute(async (req, res) => {
-  if (getPaymentsMode() === 'disabled') return res.status(503).json({ error: 'Telegram Payments отключены', code: 'PAYMENTS_DISABLED' });
+  const paymentsMode = getPaymentsMode();
+  if (paymentsMode !== 'internal_credits') {
+    return res.status(503).json({
+      error: paymentsMode === 'disabled' ? 'Telegram Payments отключены' : 'Платёжный провайдер не поддерживается для этого действия',
+      code: paymentsMode === 'disabled' ? 'PAYMENTS_DISABLED' : 'PAYMENTS_PROVIDER_MISMATCH',
+    });
+  }
   const { requestId } = req.body;
   const idempotencyKey = req.headers['idempotency-key'];
   if (!requestId || typeof requestId !== 'string') return res.status(400).json({ error: 'requestId обязателен' });

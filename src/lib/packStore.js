@@ -33,6 +33,11 @@ export const PAYMENT_STATES = CHECKOUT_STATES;
 const VALID_PACK_STATES = new Set(Object.values(PACK_STATES));
 const VALID_CHECKOUT_STATES = new Set(Object.values(CHECKOUT_STATES));
 
+export function isTelegramStarsPaymentMode(mode) {
+  const normalized = safeString(mode, 'disabled').toLowerCase();
+  return normalized === 'telegram_stars_controlled' || normalized === 'telegram_stars';
+}
+
 function safeString(value, fallback = '') {
   const text = String(value ?? '').trim();
   return text || fallback;
@@ -100,7 +105,7 @@ export function normalizePack(collection, { unlock = null, paymentsMode = 'disab
   const price = safeInteger(source.price_in_stars);
   const packState = getPackState(source, unlock);
   const paymentMode = safeString(paymentsMode, 'disabled').toLowerCase();
-  const checkoutEnabled = packState === PACK_STATES.PAID && paymentMode === 'telegram_stars';
+  const checkoutEnabled = packState === PACK_STATES.PAID && isTelegramStarsPaymentMode(paymentMode);
   const total = safeInteger(source.total_count ?? source.total_artworks);
   const completed = Math.min(total, safeInteger(source.completed_count));
 
@@ -183,7 +188,7 @@ export function canCheckout(pack, paymentsMode = pack?.payments_mode) {
   return Boolean(
     pack
       && pack.pack_state === PACK_STATES.PAID
-      && safeString(paymentsMode, 'disabled').toLowerCase() === 'telegram_stars',
+      && isTelegramStarsPaymentMode(paymentsMode),
   );
 }
 

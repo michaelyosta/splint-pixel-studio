@@ -35,7 +35,7 @@ async function ensureTelegramUser(telegramUser) {
 }
 
 async function requireActiveUser(req, res, next) {
-  const user = await get('SELECT id,is_banned FROM users WHERE id=?', [req.userId]);
+  const user = await get('SELECT id,is_banned,telegram_id FROM users WHERE id=?', [req.userId]);
   if (!user) return res.status(401).json({ error: 'Authenticated user not found' });
   if (user.is_banned) {
     return res.status(403).json({ error: 'Account is banned', code: 'ACCOUNT_BANNED' });

@@ -25,6 +25,8 @@ import { cleanupExpiredPaymentRequests } from './services/message-cleanup.js';
 import { metricsSnapshot, requestObservability, safeErrorClass } from './observability.js';
 import { asyncRoute } from './middleware/asyncRoute.js';
 import { drainRenderJobs } from './services/render-outbox.js';
+import { createTelegramStarsRuntime } from './services/telegram-stars-runtime.js';
+import { createTelegramStarsCommerceRouter, createTelegramStarsWebhookRouter } from './routes/telegram-stars.js';
 
 const PORT = process.env.PORT || 3001;
 const productionConfig = validateProductionConfiguration();
@@ -34,6 +36,19 @@ const { isProduction, allowedOrigins, trustProxy } = productionConfig;
 await initDb();
 const db = getDb();
 console.log(`${db.mode} database ready`);
+const telegramStarsRuntime = createTelegramStarsRuntime({ dbMode: db.mode });
+if (telegramStarsRuntime.enabled) {
+  try {
+    await telegramStarsRuntime.adapter.setWebhook({
+      url: telegramStarsRuntime.config.webhookUrl,
+      secretToken: telegramStarsRuntime.config.webhookSecret,
+    });
+    console.log('Telegram Stars controlled webhook registered');
+  } catch (error) {
+    console.error('Telegram Stars controlled webhook registration failed');
+    throw error;
+  }
+}
 
 if (process.env.SEED_DEMO_DATA === 'true') {
   await bootstrapSystemData();
@@ -85,6 +100,15 @@ app.use('/meta',        metaRouter);
 app.use('/unlocks',     unlocksRouter);
 app.use('/director',    directorRouter);
 app.use('/media',       mediaRouter);
+app.use('/payments/telegram-stars', createTelegramStarsCommerceRouter({ runtime: telegramStarsRuntime }));
+if (telegramStarsRuntime.enabled) {
+  app.use('/payments/telegram-stars/webhook', createTelegramStarsWebhookRouter({
+    service: telegramStarsRuntime.service,
+    webhookSecret: telegramStarsRuntime.config.webhookSecret,
+  }));
+} else {
+  app.use('/payments/telegram-stars/webhook', (_req, res) => res.status(503).json({ error: 'Telegram Stars webhook is not configured', code: 'PAYMENTS_DISABLED' }));
+}
 
 // ── Health and readiness ─────────────────────────────────────────────────────
 app.get('/live', (_req, res) => res.json({ status: 'alive' }));

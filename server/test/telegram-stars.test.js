@@ -471,6 +471,36 @@ test('refund requests reserve the remaining capture before the mock provider cal
   );
 });
 
+test('Bot API-shaped adapter rejects partial refund requests before provider mutation', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  let refundCalls = 0;
+  const adapter = {
+    providerName: 'telegram_stars_bot_api',
+    supportsPartialRefund: false,
+    async createInvoice() { return { invoiceUrl: 'https://t.me/$invoice' }; },
+    async answerPreCheckoutQuery() { return { ok: true }; },
+    async refundStarPayment(input) {
+      refundCalls += 1;
+      return { refundId: 'telegram_refund:real-charge', telegramPaymentChargeId: input.telegramPaymentChargeId, amountXtr: input.amountXtr };
+    },
+    async listCapturedPayments() { return []; },
+  };
+  const { svc } = service(db, adapter, {
+    productResolver: () => ({ id: 'real-product', title: 'Real product', packType: 'premium', status: 'published', visibility: 'public', amountXtr: 100 }),
+  });
+  const created = await svc.createOrder({ userId: 'tg_123', productId: 'real-product', amountXtr: 1, idempotencyKey: 'real-order-key' });
+  await svc.successfulPayment({ userId: 'tg_123', invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 100, telegramPaymentChargeId: 'real-charge' });
+  await assert.rejects(
+    () => svc.requestRefund({ userId: 'tg_123', idempotencyKey: 'real-partial-refund', telegramPaymentChargeId: 'real-charge', amountXtr: 40 }),
+    (error) => errorCode(error, 'REFUND_PARTIAL_UNSUPPORTED'),
+  );
+  assert.equal(refundCalls, 0);
+  const full = await svc.requestRefund({ userId: 'tg_123', idempotencyKey: 'real-full-refund', telegramPaymentChargeId: 'real-charge', amountXtr: 100 });
+  assert.equal(full.status, 'refunded');
+  assert.equal(refundCalls, 1);
+});
+
 test('support cases and reconciliation have stable contracts and no entitlement auto-grant', async () => {
   const db = await createDb();
   await seedUser(db);
@@ -491,6 +521,18 @@ test('support cases and reconciliation have stable contracts and no entitlement 
   assert.equal(buildTelegramStarsSupportContract({ TELEGRAM_PAYMENT_SUPPORT: '@splint_support', TELEGRAM_PAYMENT_REFUND_CONTACT: 'refunds@example.test' }).paysupport_command, '/paysupport');
 });
 
+test('reconciliation detects provider refund totals that do not match the local ledger', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const { svc, adapter } = service(db);
+  const created = await svc.createOrder({ userId: 'tg_123', productId: 'refund-mismatch', amountXtr: 8, idempotencyKey: 'refund-mismatch-order' });
+  await svc.successfulPayment({ userId: 'tg_123', invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 8, telegramPaymentChargeId: 'refund-mismatch-charge' });
+  adapter.seedCapture({ telegramPaymentChargeId: 'refund-mismatch-charge', invoicePayload: created.order.invoice_payload, amountXtr: 8, refundedAmountXtr: 8, currency: 'XTR' });
+  const report = await svc.reconcile();
+  assert.ok(report.issues.some((issue) => issue.issue_type === 'refund_amount_mismatch'));
+  assert.equal((await svc.getEntitlement({ userId: 'tg_123', orderId: created.order.id })).status, 'active');
+});
+
 test('reconciliation surfaces durable refund requests that need provider recovery', async () => {
   const db = await createDb();
   await seedUser(db);
@@ -507,4 +549,41 @@ test('reconciliation surfaces durable refund requests that need provider recover
   adapter.seedCapture({ telegramPaymentChargeId: 'refund-recovery-charge', invoicePayload: created.order.invoice_payload, amountXtr: 8, currency: 'XTR' });
   const report = await svc.reconcile();
   assert.ok(report.issues.some((issue) => issue.issue_type === 'refund_request_failed'));
+});
+
+test('refund retry reconciles an ambiguous Bot API outcome before any second provider call', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  let refundCalls = 0;
+  let listCalls = 0;
+  const adapter = {
+    providerName: 'telegram_stars_bot_api',
+    supportsPartialRefund: false,
+    refundIdForCharge: ({ telegramPaymentChargeId }) => `telegram_refund:${telegramPaymentChargeId}`,
+    async createInvoice() { return { invoiceUrl: 'https://t.me/$invoice' }; },
+    async answerPreCheckoutQuery() { return { ok: true }; },
+    async refundStarPayment() {
+      refundCalls += 1;
+      throw new Error('timeout after provider acceptance');
+    },
+    async listCapturedPayments() {
+      listCalls += 1;
+      return [{ telegramPaymentChargeId: 'ambiguous-charge', amountXtr: 8, refundedAmountXtr: 8, currency: 'XTR' }];
+    },
+  };
+  const { svc } = service(db, adapter, {
+    productResolver: () => ({ id: 'ambiguous-product', title: 'Ambiguous product', packType: 'premium', status: 'published', visibility: 'public', amountXtr: 8 }),
+  });
+  const created = await svc.createOrder({ userId: 'tg_123', productId: 'ambiguous-product', amountXtr: 1, idempotencyKey: 'ambiguous-order' });
+  await svc.successfulPayment({ userId: 'tg_123', invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 8, telegramPaymentChargeId: 'ambiguous-charge' });
+  await assert.rejects(
+    () => svc.requestRefund({ userId: 'tg_123', idempotencyKey: 'ambiguous-refund', telegramPaymentChargeId: 'ambiguous-charge', amountXtr: 8 }),
+    (error) => errorCode(error, 'PROVIDER_UNAVAILABLE'),
+  );
+
+  const recovered = await svc.requestRefund({ userId: 'tg_123', idempotencyKey: 'ambiguous-refund', telegramPaymentChargeId: 'ambiguous-charge', amountXtr: 8 });
+  assert.equal(recovered.recovered, true);
+  assert.equal(refundCalls, 1);
+  assert.equal(listCalls, 1);
+  assert.equal((await svc.getEntitlement({ userId: 'tg_123', orderId: created.order.id })).status, 'revoked');
 });

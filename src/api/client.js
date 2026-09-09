@@ -20,7 +20,7 @@ function authHeaders(userId = DEV_USER_ID) {
   return headers;
 }
 
-async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signal } = {}) {
+async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signal, headers: extraHeaders = {} } = {}) {
 
   const response = await fetch(`${API_BASE}${path}`, {
     method,
@@ -28,6 +28,7 @@ async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signa
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders(userId),
+      ...extraHeaders,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -101,6 +102,21 @@ export const unlocksApi = {
   me: () => request('/unlocks/me'),
   collection: (id) => request(`/unlocks/collections/${encodeURIComponent(id)}`),
   template: (id) => request(`/unlocks/templates/${encodeURIComponent(id)}`),
+};
+
+export const telegramStarsApi = {
+  config: () => request('/payments/telegram-stars/config'),
+  createOrder: (productId, idempotencyKey) => request('/payments/telegram-stars/orders', {
+    method: 'POST',
+    body: { product_id: productId },
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+  }),
+  order: (orderId) => request(`/payments/telegram-stars/orders/${encodeURIComponent(orderId)}`),
+  support: (body, idempotencyKey) => request('/payments/telegram-stars/support', {
+    method: 'POST',
+    body,
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {},
+  }),
 };
 
 export const directorApi = {

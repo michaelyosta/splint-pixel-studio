@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getPaymentsMode, isDevelopmentAuthEnabled, validateProductionConfiguration } from '../config.js';
+import { getPaymentsMode, getTelegramStarsControlledConfiguration, isDevelopmentAuthEnabled, validateProductionConfiguration } from '../config.js';
 
 const validProduction = {
   NODE_ENV: 'production',
@@ -45,6 +45,62 @@ test('production Telegram Stars mode remains fail-closed until a release wires t
 test('production rejects internal credits instead of exposing a non-provider purchase path', () => {
   const env = { ...validProduction, PAYMENTS_MODE: 'internal_credits' };
   assert.throws(() => validateProductionConfiguration(env), /internal_credits cannot be enabled in production/);
+});
+
+test('controlled Telegram Stars mode requires and returns an explicit release gate', () => {
+  const env = {
+    ...validProduction,
+    PAYMENTS_MODE: 'telegram_stars_controlled',
+    TELEGRAM_PAYMENTS_WEBHOOK_URL: 'https://api.example.com/payments/telegram-stars/webhook',
+    TELEGRAM_PAYMENTS_WEBHOOK_SECRET: 'secret_123',
+    TELEGRAM_PAYMENT_SUPPORT: '@support',
+    TELEGRAM_PAYMENT_REFUND_CONTACT: '@refunds',
+    TELEGRAM_STARS_ALLOWLIST_USER_IDS: '123,456,123',
+    TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS: 'col_premium-gallery',
+  };
+  const result = validateProductionConfiguration(env);
+  assert.equal(result.paymentsMode, 'telegram_stars_controlled');
+  assert.deepEqual(result.telegramStars.allowlistedUserIds, ['123', '456']);
+  assert.deepEqual(result.telegramStars.allowlistedProductIds, ['col_premium-gallery']);
+  assert.deepEqual(getTelegramStarsControlledConfiguration(env).allowlistedUserIds, ['123', '456']);
+});
+
+for (const [name, key, value, expected] of [
+  ['allowlisted users', 'TELEGRAM_STARS_ALLOWLIST_USER_IDS', '', /ALLOWLIST_USER_IDS is required/],
+  ['allowlisted product', 'TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS', '', /ALLOWLIST_PRODUCT_IDS is required/],
+  ['webhook URL', 'TELEGRAM_PAYMENTS_WEBHOOK_URL', 'http://api.example.com/webhook', /WEBHOOK_URL must be an HTTPS URL/],
+  ['webhook secret', 'TELEGRAM_PAYMENTS_WEBHOOK_SECRET', 'bad secret', /WEBHOOK_SECRET must be/],
+  ['support contact', 'TELEGRAM_PAYMENT_SUPPORT', '', /PAYMENT_SUPPORT is required/],
+  ['refund contact', 'TELEGRAM_PAYMENT_REFUND_CONTACT', '', /PAYMENT_REFUND_CONTACT is required/],
+]) {
+  test(`controlled Telegram Stars rejects missing or invalid ${name}`, () => {
+    const env = {
+      ...validProduction,
+      PAYMENTS_MODE: 'telegram_stars_controlled',
+      TELEGRAM_PAYMENTS_WEBHOOK_URL: 'https://api.example.com/payments/telegram-stars/webhook',
+      TELEGRAM_PAYMENTS_WEBHOOK_SECRET: 'secret_123',
+      TELEGRAM_PAYMENT_SUPPORT: '@support',
+      TELEGRAM_PAYMENT_REFUND_CONTACT: '@refunds',
+      TELEGRAM_STARS_ALLOWLIST_USER_IDS: '123',
+      TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS: 'col_premium-gallery',
+      [key]: value,
+    };
+    assert.throws(() => validateProductionConfiguration(env), expected);
+  });
+}
+
+test('controlled Telegram Stars rejects malformed Telegram user ids', () => {
+  const env = {
+    ...validProduction,
+    PAYMENTS_MODE: 'telegram_stars_controlled',
+    TELEGRAM_PAYMENTS_WEBHOOK_URL: 'https://api.example.com/payments/telegram-stars/webhook',
+    TELEGRAM_PAYMENTS_WEBHOOK_SECRET: 'secret_123',
+    TELEGRAM_PAYMENT_SUPPORT: '@support',
+    TELEGRAM_PAYMENT_REFUND_CONTACT: '@refunds',
+    TELEGRAM_STARS_ALLOWLIST_USER_IDS: '123-nope',
+    TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS: 'col_premium-gallery',
+  };
+  assert.throws(() => validateProductionConfiguration(env), /invalid Telegram user id/);
 });
 
 test('invalid payment mode is rejected', () => {
