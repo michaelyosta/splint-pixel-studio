@@ -45,6 +45,7 @@ test('state resolver shows preview while entitlement is loading', () => {
 
 test('state resolver never turns a payment intent into ownership', () => {
   assert.equal(resolvePremiumPackState({ paymentsMode: 'telegram_stars' }), PREMIUM_PACK_STATES.PAID);
+  assert.equal(resolvePremiumPackState({ paymentsMode: 'telegram_stars_controlled' }), PREMIUM_PACK_STATES.PAID);
   assert.equal(resolvePremiumPackState({ paymentsMode: 'disabled' }), PREMIUM_PACK_STATES.UNAVAILABLE);
   assert.equal(resolvePremiumPackState({ paymentsMode: 'telegram_stars', entitlement: { state: 'owned' } }), PREMIUM_PACK_STATES.OWNED);
   assert.equal(resolvePremiumPackState({ paymentsMode: 'telegram_stars', entitlement: { owned: false } }), PREMIUM_PACK_STATES.PAID);
