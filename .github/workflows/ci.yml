@@ -88,6 +88,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          shopt -s nullglob
+          google_apt_sources=(/etc/apt/sources.list.d/*google*.list)
+          for source_file in "${google_apt_sources[@]}"; do
+            sudo mv "$source_file" "$source_file.codex-disabled"
+          done
           for attempt in 1 2 3; do
             if npx playwright install --with-deps chromium webkit; then
               exit 0
@@ -166,6 +171,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          shopt -s nullglob
+          google_apt_sources=(/etc/apt/sources.list.d/*google*.list)
+          for source_file in "${google_apt_sources[@]}"; do
+            sudo mv "$source_file" "$source_file.codex-disabled"
+          done
           for attempt in 1 2 3; do
             if npx playwright install --with-deps chromium webkit; then
               exit 0
