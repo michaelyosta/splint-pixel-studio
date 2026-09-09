@@ -84,6 +84,34 @@ export function validateProductionConfiguration(env = process.env) {
   if (!env.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required in production');
   if (env.SEED_DEMO_DATA === 'true') throw new Error('SEED_DEMO_DATA cannot be enabled in production');
 
+  const browserAuthFields = ['TELEGRAM_OIDC_CLIENT_ID', 'TELEGRAM_OIDC_CLIENT_SECRET', 'TELEGRAM_OIDC_REDIRECT_URI'];
+  const browserAuthConfigured = browserAuthFields.some((name) => String(env[name] || '').trim());
+  let browserAuthOrigin = null;
+  if (browserAuthConfigured && browserAuthFields.some((name) => !String(env[name] || '').trim())) {
+    throw new Error('TELEGRAM_OIDC_CLIENT_ID, TELEGRAM_OIDC_CLIENT_SECRET, and TELEGRAM_OIDC_REDIRECT_URI must be configured together');
+  }
+  if (browserAuthConfigured) {
+    let redirect;
+    try { redirect = new URL(env.TELEGRAM_OIDC_REDIRECT_URI); } catch { throw new Error('TELEGRAM_OIDC_REDIRECT_URI must be a valid HTTPS URL'); }
+    if (redirect.protocol !== 'https:' || redirect.username || redirect.password || redirect.hash) {
+      throw new Error('TELEGRAM_OIDC_REDIRECT_URI must be an HTTPS URL without credentials or fragment');
+    }
+    const browserOrigin = String(env.BROWSER_AUTH_ORIGIN || redirect.origin).trim();
+    browserAuthOrigin = browserOrigin;
+    let origin;
+    try { origin = new URL(browserOrigin); } catch { throw new Error('BROWSER_AUTH_ORIGIN must be a valid HTTPS origin'); }
+    if (origin.protocol !== 'https:' || origin.origin !== browserOrigin || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) {
+      throw new Error('BROWSER_AUTH_ORIGIN must be an exact HTTPS origin');
+    }
+    if (redirect.origin !== origin.origin) throw new Error('TELEGRAM_OIDC_REDIRECT_URI must belong to BROWSER_AUTH_ORIGIN');
+    if (String(env.TELEGRAM_OIDC_ISSUER || 'https://oauth.telegram.org').trim().replace(/\/$/, '') !== 'https://oauth.telegram.org') {
+      throw new Error('Production browser auth must use the official Telegram OIDC issuer');
+    }
+    if (String(env.TELEGRAM_OIDC_DISCOVERY_URL || 'https://oauth.telegram.org/.well-known/openid-configuration').trim() !== 'https://oauth.telegram.org/.well-known/openid-configuration') {
+      throw new Error('Production browser auth must use the official Telegram OIDC discovery URL');
+    }
+  }
+
   if (paymentsMode === 'internal_credits') {
     throw new Error('PAYMENTS_MODE=internal_credits cannot be enabled in production; keep production payments disabled');
   }
@@ -102,6 +130,9 @@ export function validateProductionConfiguration(env = process.env) {
   validateProductionS3Endpoint(env.S3_ENDPOINT);
 
   const allowedOrigins = parseOrigins(env.CORS_ORIGINS);
+  if (browserAuthOrigin && !allowedOrigins.includes(browserAuthOrigin)) {
+    throw new Error('BROWSER_AUTH_ORIGIN must be included in CORS_ORIGINS');
+  }
   const trustProxyValues = String(env.TRUST_PROXY || '').split(',').map((value) => value.trim()).filter(Boolean);
   if (!trustProxyValues.length) throw new Error('TRUST_PROXY is required in production');
   if (trustProxyValues.some((value) => /^\d+$/.test(value))) {

@@ -654,3 +654,27 @@ large refactors without proof
 ```
 
 The goal is to ship Splint, not to maximize the sophistication of the implementation.
+
+---
+
+# 24. Responsive web and unified Telegram identity
+
+The primary IA remains exactly `Каталог` / `Создать` / `Профиль` across Telegram
+iOS, Android, Desktop, Telegram Web, and ordinary browsers. Layout responds to
+viewport width; host capabilities are read through `src/lib/platform.js` and
+must not be inferred from viewport size.
+
+Browser owner functions require the server-side Telegram OIDC Authorization
+Code flow with PKCE S256, state, nonce, exact redirect URI, signed token
+validation, an opaque Secure HttpOnly SameSite session, and CSRF protection.
+The verified numeric Telegram user identifier is the only account-linking key;
+never trust frontend user ids, localStorage, usernames, or `X-User-Id` outside
+explicit local development.
+
+Browser OIDC is feature-gated and must remain inactive until its server-only
+configuration and BotFather Allowed URLs are manually verified. Cross-platform
+identity readiness does not enable Stars, marketplace purchases, payouts, or
+any other commerce path; those remain disabled and fail-closed.
+
+See [docs/RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md](docs/RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md)
+for the canonical responsive, browser-auth, and verification contract.

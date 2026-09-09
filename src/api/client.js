@@ -1,14 +1,60 @@
 import { getCoreFeelDevSubject } from '../features/coreFeel/coreFeelExperiment.js';
 import { getSessionGameDevSubject } from '../features/sessionGame/sessionGameExperiment.js';
 import { resolveApiUrl } from './apiBase.js';
+import { getPlatform } from '../lib/platform.js';
+import { getTelegramWebApp } from '../lib/telegram.js';
 
 export const DEV_USER_ID = getCoreFeelDevSubject()
   || getSessionGameDevSubject()
   || import.meta.env.VITE_DEV_USER_ID
   || 'user_pixelhunter';
 
+let browserSessionState = Object.freeze({ status: 'unknown', user: null, csrfToken: null, expiresAt: null });
+let browserSessionPromise = null;
+
+function notifyBrowserSession() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('splint:browser-session', { detail: browserSessionState }));
+}
+
+function setBrowserSessionState(next) {
+  browserSessionState = Object.freeze({ ...browserSessionState, ...next });
+  notifyBrowserSession();
+  return browserSessionState;
+}
+
+export function getBrowserSessionState() {
+  return browserSessionState;
+}
+
+export function subscribeBrowserSession(listener) {
+  if (typeof window === 'undefined') return () => {};
+  const handleChange = (event) => listener(event.detail || browserSessionState);
+  window.addEventListener('splint:browser-session', handleChange);
+  return () => window.removeEventListener('splint:browser-session', handleChange);
+}
+
+export async function bootstrapBrowserSession({ force = false } = {}) {
+  const platform = getPlatform();
+  if (platform.isTelegram || import.meta.env.VITE_ALLOW_DEV_AUTH === 'true') {
+    return setBrowserSessionState({ status: 'development', user: null, csrfToken: null, expiresAt: null });
+  }
+  if (!force && browserSessionState.status !== 'unknown') return browserSessionState;
+  if (browserSessionPromise && !force) return browserSessionPromise;
+  browserSessionPromise = fetch(resolveApiUrl('/auth/session'), { credentials: 'include', headers: { Accept: 'application/json' } })
+    .then(async (response) => {
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.authenticated && data.user && data.csrfToken) {
+        return setBrowserSessionState({ status: 'authenticated', user: data.user, csrfToken: data.csrfToken, expiresAt: data.expiresAt || null });
+      }
+      return setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null });
+    })
+    .catch(() => setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null }))
+    .finally(() => { browserSessionPromise = null; });
+  return browserSessionPromise;
+}
+
 function authHeaders(userId = DEV_USER_ID) {
-  const telegramInitData = window.Telegram?.WebApp?.initData?.trim();
+  const telegramInitData = getTelegramWebApp()?.initData?.trim();
   const allowDevAuth = import.meta.env.VITE_ALLOW_DEV_AUTH === 'true';
 
   const headers = telegramInitData
@@ -20,13 +66,19 @@ function authHeaders(userId = DEV_USER_ID) {
 }
 
 async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signal } = {}) {
+  await bootstrapBrowserSession();
+  const csrfHeader = !['GET', 'HEAD', 'OPTIONS'].includes(method) && browserSessionState.csrfToken
+    ? { 'X-CSRF-Token': browserSessionState.csrfToken }
+    : {};
 
   const response = await fetch(resolveApiUrl(path), {
     method,
     signal,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders(userId),
+      ...csrfHeader,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -41,9 +93,11 @@ async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signa
 }
 
 export async function downloadColoringResult(id, { userId = DEV_USER_ID, signal } = {}) {
+  await bootstrapBrowserSession();
   const response = await fetch(resolveApiUrl(`/colorings/${encodeURIComponent(id)}/result`), {
     method: 'GET',
     signal,
+    credentials: 'include',
     headers: {
       Accept: 'image/png,image/*',
       ...authHeaders(userId),
@@ -60,6 +114,18 @@ export async function downloadColoringResult(id, { userId = DEV_USER_ID, signal 
 }
 
 export const api = request;
+
+export const authApi = {
+  session: () => bootstrapBrowserSession({ force: true }),
+  loginUrl: () => resolveApiUrl('/auth/telegram/start'),
+  login: () => {
+    if (typeof window !== 'undefined') window.location.assign(resolveApiUrl('/auth/telegram/start'));
+  },
+  logout: async () => {
+    await request('/auth/logout', { method: 'POST' });
+    setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null });
+  },
+};
 
 export const metaApi = {
   streak: () => request('/meta/streak'),

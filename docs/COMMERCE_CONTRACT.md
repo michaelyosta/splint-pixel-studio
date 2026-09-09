@@ -56,6 +56,12 @@ Any production provider implementation must preserve:
 The client can display an intent or a pending state, but it cannot be the
 source of entitlement truth.
 
+Cross-platform browser readiness does not change this boundary. Browser and
+Telegram hosts share verified account identity and future entitlements, but
+Stars checkout, marketplace purchase activation, and payout remain disabled
+and fail-closed in this release. No browser payment UI or frontend callback
+may grant an entitlement.
+
 ## Repository implementation boundary
 
 The provider-shaped lifecycle is implemented in

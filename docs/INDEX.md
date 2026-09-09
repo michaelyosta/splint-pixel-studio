@@ -26,6 +26,7 @@ current merely because it is detailed.
 | [COMMERCE_CONTRACT.md](COMMERCE_CONTRACT.md) | XTR payment, entitlement, marketplace, payout, and fail-closed boundary | Canonical commerce contract | Any payment, Stars, marketplace, purchase, refund, or payout task | Whether production is currently active |
 | [CONTENT_PIPELINE_CONTRACT.md](CONTENT_PIPELINE_CONTRACT.md) | Source approval, technical validity, quality, and publication separation | Canonical content/pixelization contract | Upload, content factory, catalog, or pixelization work | Declaring visual approval from metrics alone |
 | [INFRASTRUCTURE_CONTRACT.md](INFRASTRUCTURE_CONTRACT.md) | Existing stack and normal release path | Canonical infrastructure contract | Deployment, hosting, database, storage, or environment work | Current deployment health without direct evidence |
+| [RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md](RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md) | Responsive web host, platform adapter, browser OIDC, session, CSRF, and shared Telegram identity | Canonical cross-platform contract | Responsive web, browser login, cross-device identity, or host capability work | Production activation or physical Telegram proof |
 
 ## Product / UX
 
@@ -94,6 +95,12 @@ not establish a current winner or authorize a production algorithm change.
 | [evidence/TELEGRAM_IOS_PHYSICAL_BLOCKER_2026-09-04.md](evidence/TELEGRAM_IOS_PHYSICAL_BLOCKER_2026-09-04.md) | Dated physical Telegram evidence/blocker | Historical evidence | Reviewing that specific validation attempt | Generic permanent blocker or current root cause |
 | [TELEGRAM_IOS_NAV_LOCAL_EVIDENCE.md](TELEGRAM_IOS_NAV_LOCAL_EVIDENCE.md) | Local/browser navigation evidence | Historical evidence | Comparing the 2026-09-03 local run | Physical Telegram iOS proof |
 | [evidence/PHYSICAL_SAFARI_LAYOUT_EVIDENCE_2026-09-04.md](evidence/PHYSICAL_SAFARI_LAYOUT_EVIDENCE_2026-09-04.md) | Physical Safari screenshot analysis | Historical evidence | Reviewing that screenshot | Telegram WebView proof |
+
+For browser login and cross-platform identity, read
+[RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md](RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md)
+and [authentication.md](authentication.md). The OIDC provider's current
+protocol details are maintained in the official [Telegram Login
+documentation](https://core.telegram.org/bots/telegram-login).
 
 ## E2E / CI
 

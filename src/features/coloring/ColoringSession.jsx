@@ -26,6 +26,7 @@ import {
 } from '../coreFeel/coreFeelExperiment.js';
 import { playCoreFeelFeedback } from '../coreFeel/coreFeelFeedback.js';
 import { isSessionGameSpecialAllowed } from '../sessionGame/sessionGameExperiment.js';
+import { hapticImpact, hapticNotification } from '../../lib/telegram.js';
 import './coloring.css';
 
 const LARGE_ROUTE_DIMENSION = 160;
@@ -1068,7 +1069,7 @@ export default function ColoringSession({
       if (stroke.indices.length >= 2) playCoreFeelFeedback('stroke', coreFeelExperiment);
     } else {
       try {
-        window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.('light');
+        hapticImpact('light');
       } catch {
         // Haptics are optional.
       }
@@ -1079,7 +1080,7 @@ export default function ColoringSession({
       if (remainingForColor === 0) {
         if (onTrack) onTrack('coloring_color_complete', { templateId: template.id, color: stroke.color });
         try {
-          window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred?.('success');
+          hapticNotification('success');
         } catch {
           // Haptics are optional.
         }
