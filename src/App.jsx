@@ -24,6 +24,7 @@ import { useCreatorData } from './hooks/useCreatorData';
 import { useColoringSession } from './hooks/useColoringSession';
 import { formatDifficulty } from './lib/catalogMeta';
 import { getRequestedColoringId, getRequestedPackId, getRequestedProfileId, hapticSelection } from './lib/telegram';
+import { shouldResolveRequestedPackRoute } from './lib/navigation.js';
 import { readCurrentResumeSnapshot } from './lib/resumeState.js';
 import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
 import { resolveSessionGameExperiment } from './features/sessionGame/sessionGameExperiment.js';
@@ -260,7 +261,7 @@ function App() {
   }, [authError]);
 
   useEffect(() => {
-    if (!requestedPackId || !home.collections.length) return;
+    if (!shouldResolveRequestedPackRoute({ view, requestedPackId, collections: home.collections })) return;
     const requestedPack = home.collections.find((collection) => String(collection.id) === String(requestedPackId));
     if (!requestedPack) {
       showNotice('Коллекция по ссылке не найдена', 'error');
@@ -274,7 +275,7 @@ function App() {
       return;
     }
     openCatalogCollection(requestedPack);
-  }, [home.collections, openCatalogCollection, requestedPackId, setCatalogChip, setCatalogCollection, showNotice]);
+  }, [home.collections, openCatalogCollection, requestedPackId, setCatalogChip, setCatalogCollection, showNotice, view]);
 
   useEffect(() => () => window.clearTimeout(noticeTimerRef.current), []);
 

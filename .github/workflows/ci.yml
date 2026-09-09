@@ -84,7 +84,34 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm --prefix server ci
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Install Playwright browsers and system dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source_file in /etc/apt/sources.list.d/*; do
+            if [ -f "$source_file" ] && grep -qi 'dl.google.com' "$source_file"; then
+              sudo mv "$source_file" "$source_file.codex-disabled"
+            fi
+          done
+          for attempt in 1 2 3; do
+            if npx playwright install --with-deps chromium webkit; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sudo rm -rf /var/lib/apt/lists/*
+              sudo apt-get clean
+              for apt_attempt in 1 2 3; do
+                if sudo apt-get update -o Acquire::Retries=3; then
+                  break
+                fi
+                if [ "$apt_attempt" -eq 3 ]; then
+                  exit 1
+                fi
+                sleep 5
+              done
+            fi
+          done
+          exit 1
       - name: Run release-critical E2E
         env:
           E2E_RUN_ID: ${{ github.run_id }}
@@ -140,7 +167,34 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm --prefix server ci
-      - run: npx playwright install --with-deps chromium webkit
+      - name: Install Playwright browsers and system dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source_file in /etc/apt/sources.list.d/*; do
+            if [ -f "$source_file" ] && grep -qi 'dl.google.com' "$source_file"; then
+              sudo mv "$source_file" "$source_file.codex-disabled"
+            fi
+          done
+          for attempt in 1 2 3; do
+            if npx playwright install --with-deps chromium webkit; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sudo rm -rf /var/lib/apt/lists/*
+              sudo apt-get clean
+              for apt_attempt in 1 2 3; do
+                if sudo apt-get update -o Acquire::Retries=3; then
+                  break
+                fi
+                if [ "$apt_attempt" -eq 3 ]; then
+                  exit 1
+                fi
+                sleep 5
+              done
+            fi
+          done
+          exit 1
       - name: Run E2E shard
         env:
           E2E_RUN_ID: ${{ github.run_id }}
