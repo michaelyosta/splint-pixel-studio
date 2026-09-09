@@ -428,7 +428,9 @@ test.describe('Creator 2.0 — full E2E', () => {
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 5000 });
     await page.getByRole('button', { name: 'Профиль' }).first().click();
     await expect(page.locator('.profile-created-section')).toBeVisible({ timeout: 10000 });
-    await page.locator('.profile-created-section .profile-showcase-card').filter({ hasText: created.title }).locator('.profile-showcase-open').click();
+    const createdWork = page.locator('.profile-created-section .profile-showcase-card');
+    await expect(createdWork).toHaveCount(1);
+    await createdWork.locator('.profile-showcase-open').click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
     await expect.poll(() => page.evaluate(() => window.__splintClient?.getSnapshot?.()?.status), { timeout: 15000 }).toBe('ready');
     const reopenedProgress = await page.request.get(`/api/colorings/${id}/progress`, { headers: API_HEADERS });
