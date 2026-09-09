@@ -10,6 +10,7 @@ import {
   mergeShowcasePackServerProjection,
   resolvePremiumPackState,
 } from '../lib/premiumPack.js';
+import { createPremiumPackPurchaseIntent } from '../lib/premiumPurchase.js';
 import PremiumPackView, { PremiumPackTeaser } from '../features/premium/PremiumPackView.jsx';
 
 export default function CatalogView({
@@ -44,6 +45,7 @@ export default function CatalogView({
   onOpenFreePack,
   onPremiumWish,
   paymentsMode = 'disabled',
+  onOpenStore,
 }) {
   const renderCatalogLegacy = () => {
     const progressMap = {};
@@ -194,6 +196,7 @@ export default function CatalogView({
         onOpenItem={onOpenPremiumItem}
         onOpenFree={onOpenFreePack}
         onSaveWish={onPremiumWish}
+        onPurchaseIntent={createPremiumPackPurchaseIntent(premiumPack.id, onOpenStore)}
       /> : catalogChip === 'collections' && !catalogCollection ? <>
         <div className="catalog-section-heading catalog-section-heading--single"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Серии картин</h2></div></div>
         {renderCollectionGrid(freeCollections, 'Коллекции каталога')}
