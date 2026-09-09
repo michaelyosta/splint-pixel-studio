@@ -235,6 +235,8 @@ function App() {
       // mounted while the async profile/catalog refresh is still in flight.
       // The profile view effect performs its own authoritative load on mount.
       setView('profile');
+      // Start the handoff explicitly; the view effect remains the authoritative refresh path.
+      profile.loadProfile(null);
       catalog.loadMine();
       product.loadProductProfile();
       return;
