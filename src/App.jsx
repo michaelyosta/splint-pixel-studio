@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { metaApi } from './api/client';
+import { metaApi, telegramStarsApi, unlocksApi } from './api/client';
 import PlayerView from './views/PlayerView';
 import CatalogView from './views/CatalogView';
 import FeedView from './views/FeedView';
@@ -55,10 +55,13 @@ function App() {
   const [viewedProfileId, setViewedProfileId] = useState(initialRequestedProfileId);
   const [notice, setNotice] = useState(null);
   const [unlockRefreshKey, setUnlockRefreshKey] = useState(0);
+  const [paymentsMode, setPaymentsMode] = useState('disabled');
+  const [paymentProductIds, setPaymentProductIds] = useState([]);
   const noticeTimerRef = useRef(null);
   const resumeHandledRef = useRef(false);
   const coreFeelHandledRef = useRef(false);
   const unlockData = useUnlockData({ enabled: !coreFeelExperiment.enabled && canUseApp, refreshKey: unlockRefreshKey });
+  const { refresh: refreshUnlockData } = unlockData;
 
   const showNotice = useCallback((text, type = 'info') => {
     window.clearTimeout(noticeTimerRef.current);
@@ -71,6 +74,90 @@ function App() {
   }, []);
 
   const refreshUnlocks = useCallback(() => setUnlockRefreshKey((key) => key + 1), []);
+
+  useEffect(() => {
+    let active = true;
+    telegramStarsApi.config()
+      .then((config) => {
+        if (!active || config?.mode !== 'telegram_stars_controlled') {
+          if (active) {
+            setPaymentsMode('disabled');
+            setPaymentProductIds([]);
+          }
+          return;
+        }
+        setPaymentsMode(config.mode);
+        setPaymentProductIds(Array.isArray(config.product_ids) ? config.product_ids.map(String) : []);
+      })
+      .catch(() => {
+        if (active) {
+          setPaymentsMode('disabled');
+          setPaymentProductIds([]);
+        }
+      });
+    return () => { active = false; };
+  }, []);
+
+  const purchaseTelegramStars = useCallback(async (pack) => {
+    const openInvoice = window.Telegram?.WebApp?.openInvoice;
+    if (typeof openInvoice !== 'function') return { success: false, error: 'Telegram invoice UI недоступен' };
+    const idempotencyKey = globalThis.crypto?.randomUUID?.() || `xtr-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+    const created = await telegramStarsApi.createOrder(pack.id, idempotencyKey);
+    const order = created?.order;
+    if (!order?.id || !order.invoice_url) return { success: false, error: 'Счёт не был создан сервером' };
+
+    const invoiceStatus = await new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(String(value || 'pending').toLowerCase());
+      };
+      const timer = window.setTimeout(() => finish('pending'), 25_000);
+      try {
+        openInvoice(order.invoice_url, finish);
+      } catch {
+        finish('failed');
+      }
+    });
+
+    if (invoiceStatus === 'cancelled') return { cancelled: true, status: 'cancelled' };
+    if (invoiceStatus === 'failed') return { success: false, error: 'Telegram не подтвердил счёт' };
+
+    // The invoice callback is only a UI signal. Proof comes from the durable
+    // order written by successful_payment and the unlock endpoint.
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      try {
+        const current = (await telegramStarsApi.order(order.id))?.order;
+        if (current?.status === 'paid') {
+          const entitlement = await unlocksApi.collection(pack.id);
+          if (entitlement?.owned !== true && entitlement?.state !== 'owned') {
+            return { success: false, error: 'Платёж принят, но доступ ещё не подтверждён сервером' };
+          }
+          await refreshUnlockData();
+          return { success: true, server_confirmed: true, entitlement_status: 'active', operation_id: order.id };
+        }
+        if (current?.status === 'refunded' || current?.status === 'partially_refunded') {
+          return { success: false, error: 'Покупка была возвращена до выдачи доступа' };
+        }
+      } catch {
+        // A short provider/webhook delay is expected; retry with the same
+        // order id instead of creating another invoice.
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+    }
+    return { pending_confirmation: true, status: 'pending_confirmation', operation_id: order.id };
+  }, [refreshUnlockData]);
+
+  const restoreTelegramStars = useCallback(async (pack) => {
+    const entitlement = await unlocksApi.collection(pack.id);
+    if (entitlement?.owned === true && entitlement?.state === 'owned') {
+      await refreshUnlockData();
+      return { success: true, server_confirmed: true, entitlement_status: 'active', restored: true };
+    }
+    return { success: false, error: 'Покупка для восстановления не найдена' };
+  }, [refreshUnlockData]);
 
   const product = useProductProfileData({ showNotice });
   const home = useHomeData();
@@ -467,10 +554,11 @@ function App() {
       unlockSnapshot={unlockData.snapshot}
       requestedPackId={requestedPackId}
       // No browser-side invoice adapter is mounted yet. Keep the product
-      // surface explicitly fail-closed even if a local env accidentally sets
-      // VITE_PAYMENTS_MODE; the future Stars adapter must pass server proof
-      // through onPurchase/onRestore before this prop can be enabled.
-      paymentsMode="disabled"
+      // surface controlled by the authenticated server configuration.
+      paymentsMode={paymentsMode}
+      allowedProductIds={paymentProductIds}
+      onPurchase={purchaseTelegramStars}
+      onRestore={restoreTelegramStars}
       onRetry={home.loadCollections}
       onOpenCollection={catalog.openCatalogCollection}
       onBack={() => setView('catalog')}
@@ -511,9 +599,7 @@ function App() {
       onOpenPremiumItem={session.openColoring}
       onOpenFreePack={() => { catalog.setCatalogChip('free'); catalog.setCatalogCollection(null); }}
       onPremiumWish={() => showNotice('Желание сохранено — сообщим, когда витрина откроется', 'success')}
-      // Keep the Catalog showcase fail-closed until a server-confirmed
-      // purchase adapter is mounted alongside StoreView.
-      paymentsMode="disabled"
+      paymentsMode={paymentsMode}
       onOpenStore={openStore}
     />;
   }

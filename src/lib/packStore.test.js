@@ -50,6 +50,12 @@ test('paid checkout is disabled unless the explicit Telegram Stars mode is enabl
   assert.equal(canCheckout(enabled), true);
 });
 
+test('controlled Telegram Stars mode enables only the server-approved checkout surface', () => {
+  const pack = normalizeStorePacks([collection({ pack_type: 'premium', price_in_stars: 120 })], null, { paymentsMode: 'telegram_stars_controlled' })[0];
+  assert.equal(pack.checkout_enabled, true);
+  assert.equal(canCheckout(pack, 'telegram_stars_controlled'), true);
+});
+
 test('checkout reducer covers pending, success, cancel, retry and restore without inferring success', () => {
   let state = reduceCheckoutState(undefined, { type: 'BEGIN', requestId: 'req-1' });
   assert.equal(state.status, CHECKOUT_STATES.PENDING);

@@ -77,6 +77,7 @@ export default function StoreView({
   loading = false,
   error = false,
   paymentsMode = 'disabled',
+  allowedProductIds = [],
   onRetry,
   onOpenCollection,
   onBack,
@@ -106,6 +107,7 @@ export default function StoreView({
 
   const selected = packs.find((pack) => pack.id === selectedPackId) || null;
   const selectedMetadata = formatContentMetadataDetail(selected);
+  const selectedProductAllowed = !allowedProductIds.length || allowedProductIds.includes(selected?.id);
 
   useEffect(() => {
     dispatchCheckout({ type: 'RESET' });
@@ -118,7 +120,7 @@ export default function StoreView({
   }
 
   async function runPayment(kind) {
-    if (!selected || !canCheckout(selected, paymentsMode)) return;
+    if (!selected || !selectedProductAllowed || !canCheckout(selected, paymentsMode)) return;
     const callback = kind === 'restore' ? onRestore : onPurchase;
     dispatchCheckout({ type: kind === 'restore' ? 'RESTORE' : 'BEGIN', requestId: `${kind}:${selected.id}` });
     if (typeof callback !== 'function') {
@@ -179,7 +181,7 @@ export default function StoreView({
     onOpenCollection(selected);
   }
 
-  const checkoutEnabled = selected ? canCheckout(selected, paymentsMode) : false;
+  const checkoutEnabled = selected ? selectedProductAllowed && canCheckout(selected, paymentsMode) : false;
   const retryable = checkout.status === CHECKOUT_STATES.ERROR || checkout.status === CHECKOUT_STATES.CANCELLED;
   const checkoutBusy = [
     CHECKOUT_STATES.PENDING,

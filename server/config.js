@@ -1,6 +1,81 @@
 import { isIP } from 'node:net';
 
-export const PAYMENT_MODES = Object.freeze(['disabled', 'internal_credits', 'telegram_stars']);
+export const TELEGRAM_STARS_CONTROLLED_MODE = 'telegram_stars_controlled';
+
+export const PAYMENT_MODES = Object.freeze([
+  'disabled',
+  'internal_credits',
+  'telegram_stars',
+  TELEGRAM_STARS_CONTROLLED_MODE,
+]);
+
+const TELEGRAM_USER_ID_RE = /^\d{1,30}$/;
+const PRINTABLE_TOKEN_RE = /^[\x21-\x7E]+$/;
+
+function parseCsv(raw, name) {
+  const values = String(raw || '').split(',').map((value) => value.trim()).filter(Boolean);
+  if (!values.length) throw new Error(`${name} is required for controlled Telegram Stars`);
+  return [...new Set(values)];
+}
+
+function parseTelegramStarsAllowlist(raw) {
+  const values = parseCsv(raw, 'TELEGRAM_STARS_ALLOWLIST_USER_IDS');
+  for (const value of values) {
+    if (!TELEGRAM_USER_ID_RE.test(value)) {
+      throw new Error(`TELEGRAM_STARS_ALLOWLIST_USER_IDS contains an invalid Telegram user id: ${value}`);
+    }
+  }
+  return values;
+}
+
+function parseProductAllowlist(raw) {
+  const values = parseCsv(raw, 'TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS');
+  for (const value of values) {
+    if (value.length > 200 || !PRINTABLE_TOKEN_RE.test(value)) {
+      throw new Error(`TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS contains an invalid product id: ${value}`);
+    }
+  }
+  return values;
+}
+
+function parseWebhookUrl(raw) {
+  const value = String(raw || '').trim();
+  let url;
+  try { url = new URL(value); } catch { throw new Error('TELEGRAM_PAYMENTS_WEBHOOK_URL must be an HTTPS URL for controlled Telegram Stars'); }
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+    throw new Error('TELEGRAM_PAYMENTS_WEBHOOK_URL must be an HTTPS URL without credentials, query, or hash');
+  }
+  return value;
+}
+
+function parseWebhookSecret(raw) {
+  const value = String(raw || '').trim();
+  if (value.length < 1 || value.length > 256 || !/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new Error('TELEGRAM_PAYMENTS_WEBHOOK_SECRET must be 1-256 letters, numbers, underscores, or hyphens');
+  }
+  return value;
+}
+
+function requiredContact(raw, name) {
+  const value = String(raw || '').trim();
+  if (!value || value.length > 500 || !PRINTABLE_TOKEN_RE.test(value)) throw new Error(`${name} is required for controlled Telegram Stars`);
+  return value;
+}
+
+export function getTelegramStarsControlledConfiguration(env = process.env) {
+  if (getPaymentsMode(env) !== TELEGRAM_STARS_CONTROLLED_MODE) {
+    return Object.freeze({ enabled: false, allowlistedUserIds: Object.freeze([]), allowlistedProductIds: Object.freeze([]) });
+  }
+  return Object.freeze({
+    enabled: true,
+    allowlistedUserIds: Object.freeze(parseTelegramStarsAllowlist(env.TELEGRAM_STARS_ALLOWLIST_USER_IDS)),
+    allowlistedProductIds: Object.freeze(parseProductAllowlist(env.TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS)),
+    webhookUrl: parseWebhookUrl(env.TELEGRAM_PAYMENTS_WEBHOOK_URL),
+    webhookSecret: parseWebhookSecret(env.TELEGRAM_PAYMENTS_WEBHOOK_SECRET),
+    supportContact: requiredContact(env.TELEGRAM_PAYMENT_SUPPORT, 'TELEGRAM_PAYMENT_SUPPORT'),
+    refundContact: requiredContact(env.TELEGRAM_PAYMENT_REFUND_CONTACT, 'TELEGRAM_PAYMENT_REFUND_CONTACT'),
+  });
+}
 
 // An omitted NODE_ENV is kept compatible with the existing local test
 // harnesses. Explicitly named staging/preview environments must never inherit
@@ -123,6 +198,13 @@ export function validateProductionConfiguration(env = process.env) {
     throw new Error('PAYMENTS_MODE=telegram_stars is not available in this release; keep production payments disabled');
   }
 
+  if (paymentsMode === TELEGRAM_STARS_CONTROLLED_MODE) {
+    // Controlled activation is deliberately explicit. A production process
+    // must not boot with a mode that can create invoices but lacks a complete
+    // allowlist, webhook authentication, or support/refund contact.
+    getTelegramStarsControlledConfiguration(env);
+  }
+
   const required = ['DATABASE_URL', 'S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];
   const missing = required.filter((name) => !String(env[name] || '').trim());
   if (env.STORAGE_DRIVER !== 's3') missing.push('STORAGE_DRIVER=s3');
@@ -144,5 +226,8 @@ export function validateProductionConfiguration(env = process.env) {
     allowedOrigins,
     trustProxy: trustProxyValues.map(parseProxyAddress),
     paymentsMode,
+    telegramStars: paymentsMode === TELEGRAM_STARS_CONTROLLED_MODE
+      ? getTelegramStarsControlledConfiguration(env)
+      : null,
   };
 }
