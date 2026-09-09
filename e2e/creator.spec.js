@@ -301,7 +301,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     // The bounded tiled player itself is covered on chromium and Mobile
     // Pixel. Same skip rationale as the accessibility-1200 webkit case.
     test.skip(testInfo.project.name === 'Mobile iPhone', 'detail-18 creator compute is unbounded under Playwright WebKit emulation');
-    await page.goto('/');
+    await page.goto('/?splintMetrics=1');
     await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles([fixturePath('test-image.png')]);
     await openAdvancedCreatorSettings(page);
@@ -312,6 +312,13 @@ test.describe('Creator 2.0 — full E2E', () => {
     await expect(page.locator('.creator-previews')).toBeVisible({ timeout: 45000 });
     const selectedFingerprint = await selectedCard.getAttribute('data-result-fingerprint');
     let createPayload = null;
+    const manifestResponses = [];
+    const tileResponses = [];
+    page.on('response', (response) => {
+      const url = response.url();
+      if (/\/colorings\/[^/]+\/manifest(?:\?|$)/.test(url)) manifestResponses.push(response);
+      if (/\/colorings\/[^/]+\/tiles\/\d+\/\d+(?:\?|$)/.test(url)) tileResponses.push(response);
+    });
     page.on('request', (request) => {
       if (request.method() === 'POST' && request.url().includes('/colorings/create')) {
         createPayload = request.postDataJSON();
@@ -333,6 +340,15 @@ test.describe('Creator 2.0 — full E2E', () => {
     const firstTile = await (await page.request.get(`/api/colorings/${id}/tiles/0/0`, { headers: API_HEADERS })).json();
     expect(firstTile.cells).toEqual(createPayload.tiles[0].cells);
     await expect(page.locator('.progressive-coloring-session')).toBeVisible({ timeout: 15000 });
+    await expect.poll(() => manifestResponses.filter((response) => response.url().includes(`/colorings/${id}/manifest`)).length, { timeout: 15000 }).toBeGreaterThan(0);
+    const playerManifestResponse = manifestResponses.find((response) => response.url().includes(`/colorings/${id}/manifest`));
+    expect(playerManifestResponse.status()).toBe(200);
+    expect(playerManifestResponse.headers()['content-type']).toMatch(/application\/json/i);
+    const playerManifest = await playerManifestResponse.json();
+    expect(playerManifest.grid.storage_mode).toBe('tiled');
+    await expect.poll(() => page.evaluate(() => window.__splintClient?.getSnapshot?.()?.status), { timeout: 15000 }).toBe('ready');
+    const configuredApiBase = String(process.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+    if (configuredApiBase) expect(playerManifestResponse.url()).toBe(`${configuredApiBase}/colorings/${id}/manifest`);
 
     // A visible 1200×1200 tile must be actionable, not just rendered.
     // Jump to zone 1, read the cell under the camera centre, and select its
@@ -345,6 +361,11 @@ test.describe('Creator 2.0 — full E2E', () => {
     await mainCanvas.focus();
     await page.keyboard.press('1');
     await expect(gridArea).not.toHaveAttribute('data-camera-x', cameraBeforeZone);
+    await expect.poll(() => tileResponses.filter((response) => response.url().includes(`/colorings/${id}/tiles/`)).length, { timeout: 15000 }).toBeGreaterThan(0);
+    const playerTileResponse = tileResponses.find((response) => response.url().includes(`/colorings/${id}/tiles/`));
+    expect(playerTileResponse.status()).toBe(200);
+    expect(playerTileResponse.headers()['content-type']).toMatch(/application\/json/i);
+    expect((await playerTileResponse.json()).cells.length).toBeGreaterThan(0);
     const canvas = mainCanvas;
     const box = await canvas.boundingBox();
     expect(box).toBeTruthy();
@@ -395,7 +416,28 @@ test.describe('Creator 2.0 — full E2E', () => {
     );
     const saved = await progressAction;
     expect(saved.status()).toBe(200);
-    expect((await saved.json()).completed_cells).toBeGreaterThan(0);
+    const savedProgress = await saved.json();
+    expect(savedProgress.completed_cells).toBeGreaterThan(0);
+    const persistedProgress = await page.request.get(`/api/colorings/${id}/progress`, { headers: API_HEADERS });
+    expect(persistedProgress.ok()).toBe(true);
+    expect((await persistedProgress.json()).revision).toBe(savedProgress.revision);
+
+    // Reopen the saved private tiled template and prove that its progress is
+    // read back after a fresh manifest/tile session.
+    await page.locator('.back-button').click();
+    await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: 'Профиль' }).first().click();
+    await expect(page.locator('.profile-created-section')).toBeVisible({ timeout: 10000 });
+    const createdWork = page.locator('.profile-created-section .profile-showcase-card');
+    await expect(createdWork).toHaveCount(1);
+    await createdWork.locator('.profile-showcase-open').click();
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect.poll(() => page.evaluate(() => window.__splintClient?.getSnapshot?.()?.status), { timeout: 15000 }).toBe('ready');
+    const reopenedProgress = await page.request.get(`/api/colorings/${id}/progress`, { headers: API_HEADERS });
+    expect(reopenedProgress.ok()).toBe(true);
+    const reopened = await reopenedProgress.json();
+    expect(reopened.revision).toBe(savedProgress.revision);
+    expect(reopened.completed_cells).toBe(savedProgress.completed_cells);
   });
 
   test('7. Reset crop restores defaults', async ({ page }) => {

@@ -1,7 +1,6 @@
 import { getCoreFeelDevSubject } from '../features/coreFeel/coreFeelExperiment.js';
 import { getSessionGameDevSubject } from '../features/sessionGame/sessionGameExperiment.js';
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+import { resolveApiUrl } from './apiBase.js';
 
 export const DEV_USER_ID = getCoreFeelDevSubject()
   || getSessionGameDevSubject()
@@ -22,7 +21,7 @@ function authHeaders(userId = DEV_USER_ID) {
 
 async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signal } = {}) {
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(resolveApiUrl(path), {
     method,
     signal,
     headers: {
@@ -42,7 +41,7 @@ async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signa
 }
 
 export async function downloadColoringResult(id, { userId = DEV_USER_ID, signal } = {}) {
-  const response = await fetch(`${API_BASE}/colorings/${encodeURIComponent(id)}/result`, {
+  const response = await fetch(resolveApiUrl(`/colorings/${encodeURIComponent(id)}/result`), {
     method: 'GET',
     signal,
     headers: {

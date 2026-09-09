@@ -71,6 +71,15 @@ function jsonResponse(payload, { ok = true, status = 200 } = {}) {
   return { ok, status, json: async () => payload };
 }
 
+function invalidJsonResponse(body = '<!doctype html><html><body>frontend shell</body></html>') {
+  return {
+    ok: true,
+    status: 200,
+    headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+    json: async () => { throw new SyntaxError(`Unexpected token in ${body.slice(0, 20)}`); },
+  };
+}
+
 function tileCoordinates(url) {
   const match = String(url).match(/\/tiles\/(\d+)\/(\d+)/);
   return match ? [Number(match[1]), Number(match[2])] : null;
@@ -434,6 +443,21 @@ test('offline and HTTP failures produce explicit recoverable client states', asy
   assert.equal(errorClient.getSnapshot().status, 'error');
   offlineClient.destroy();
   errorClient.destroy();
+});
+
+test('HTTP 200 HTML manifest response remains an invalid JSON error', async () => {
+  const client = createProgressiveGridClient({
+    templateId: 'custom-tiled-html',
+    fetchImpl: async () => invalidJsonResponse(),
+  });
+
+  await assert.rejects(client.loadManifest(), (error) => (
+    error.kind === 'invalid-response'
+      && error.code === 'INVALID_JSON'
+      && error.message === 'Manifest request returned invalid JSON'
+  ));
+  assert.equal(client.getSnapshot().status, 'error');
+  client.destroy();
 });
 
 test('tile payload conversion rejects full-size mismatches and keeps typed storage tile-bounded', () => {

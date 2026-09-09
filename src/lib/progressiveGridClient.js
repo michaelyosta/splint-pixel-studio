@@ -11,6 +11,7 @@ import {
   normalizeTilePayload,
 } from '../features/coloring/large-grid/tileCache.js';
 import { normalizeGuidancePayload } from '../features/coloring/large-grid/smartRoute.js';
+import { API_BASE, resolveApiUrl } from '../api/apiBase.js';
 
 export const PROGRESSIVE_GRID_STATUS = Object.freeze({
   IDLE: 'idle',
@@ -75,11 +76,7 @@ function asClientError(error, context = 'request') {
 }
 
 function joinApiUrl(baseUrl, path) {
-  const value = String(path || '');
-  if (/^[a-z][a-z\d+.-]*:/i.test(value)) return value;
-  const base = String(baseUrl || '').replace(/\/+$/, '');
-  const suffix = value.replace(/^\/+/, '');
-  return base ? `${base}/${suffix}` : (value || '/');
+  return resolveApiUrl(path, baseUrl);
 }
 
 function resolveHeaders(headers) {
@@ -401,7 +398,7 @@ export function createProgressiveGridClient({
   templateId,
   manifestUrl,
   manifestPath,
-  baseUrl = '/api',
+  baseUrl = API_BASE,
   fetchImpl = globalThis.fetch,
   headers,
   requestInit,
