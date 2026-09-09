@@ -84,7 +84,7 @@ export const SHOWCASE_PREMIUM_PACK = Object.freeze({
 });
 
 const KNOWN_STATES = new Set(Object.values(PREMIUM_PACK_STATES));
-const KNOWN_PAYMENT_MODES = new Set(['disabled', 'internal_credits', 'telegram_stars']);
+const KNOWN_PAYMENT_MODES = new Set(['disabled', 'internal_credits', 'telegram_stars', 'telegram_stars_controlled']);
 
 function safeText(value) {
   return typeof value === 'string' ? value.trim() : '';
