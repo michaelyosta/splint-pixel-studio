@@ -66,6 +66,10 @@ function App() {
     noticeTimerRef.current = window.setTimeout(() => setNotice(null), 3500);
   }, []);
 
+  const trackEvent = useCallback((event, payload) => {
+    metaApi.track(event, payload).catch(() => {});
+  }, []);
+
   const refreshUnlocks = useCallback(() => setUnlockRefreshKey((key) => key + 1), []);
 
   const product = useProductProfileData({ showNotice });
@@ -368,7 +372,7 @@ function App() {
         onShareResult={session.shareResult}
         onDownloadResult={session.downloadResult}
         onDismissOnboarding={session.dismissOnboarding}
-        onTrack={(event, payload) => metaApi.track(event, payload).catch(() => {})}
+        onTrack={trackEvent}
         formatDifficulty={formatDifficulty}
         completedPreview={session.completedPreview}
         zoneIndices={session.zoneIndicesRef.current}
