@@ -3,6 +3,14 @@ import { TelegramStarsError } from './telegram-stars.js';
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
 const MAX_TRANSACTIONS_PAGE = 100;
 
+function normalizeApiEnvironment(value) {
+  const environment = String(value || 'production').trim().toLowerCase();
+  if (!['production', 'test'].includes(environment)) {
+    throw providerFailure('Telegram Bot API environment is invalid');
+  }
+  return environment;
+}
+
 function providerFailure(message, details = undefined) {
   const error = new TelegramStarsError('PROVIDER_UNAVAILABLE', message, details);
   error.statusCode = 503;
@@ -56,17 +64,20 @@ export function createTelegramStarsBotApiAdapter({
   token,
   fetchImpl = globalThis.fetch,
   apiBase = TELEGRAM_API_BASE,
+  apiEnvironment = 'production',
   timeoutMs = 10_000,
 } = {}) {
   const botToken = cleanString(token, 'bot token', 512);
   if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl is required');
   const base = String(apiBase || TELEGRAM_API_BASE).replace(/\/$/, '');
+  const environment = normalizeApiEnvironment(apiEnvironment);
+  const environmentPath = environment === 'test' ? '/test' : '';
 
   async function call(method, payload = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), Math.max(1_000, Number(timeoutMs) || 10_000));
     try {
-      const response = await fetchImpl(`${base}/bot${botToken}/${method}`, {
+      const response = await fetchImpl(`${base}/bot${botToken}${environmentPath}/${method}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),

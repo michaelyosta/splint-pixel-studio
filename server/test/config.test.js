@@ -96,9 +96,25 @@ test('controlled Telegram Stars mode requires and returns an explicit release ga
   };
   const result = validateProductionConfiguration(env);
   assert.equal(result.paymentsMode, 'telegram_stars_controlled');
+  assert.equal(result.telegramStars.botApiEnvironment, 'production');
   assert.deepEqual(result.telegramStars.allowlistedUserIds, ['123', '456']);
   assert.deepEqual(result.telegramStars.allowlistedProductIds, ['col_premium-gallery']);
   assert.deepEqual(getTelegramStarsControlledConfiguration(env).allowlistedUserIds, ['123', '456']);
+});
+
+test('production controlled Stars rejects the Telegram test Bot API environment', () => {
+  const env = {
+    ...validProduction,
+    PAYMENTS_MODE: 'telegram_stars_controlled',
+    TELEGRAM_BOT_API_ENVIRONMENT: 'test',
+    TELEGRAM_PAYMENTS_WEBHOOK_URL: 'https://api.example.com/payments/telegram-stars/webhook',
+    TELEGRAM_PAYMENTS_WEBHOOK_SECRET: 'secret_123',
+    TELEGRAM_PAYMENT_SUPPORT: '@support',
+    TELEGRAM_PAYMENT_REFUND_CONTACT: '@refunds',
+    TELEGRAM_STARS_ALLOWLIST_USER_IDS: '123',
+    TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS: 'col_premium-gallery',
+  };
+  assert.throws(() => validateProductionConfiguration(env), /must use TELEGRAM_BOT_API_ENVIRONMENT=production/);
 });
 
 for (const [name, key, value, expected] of [

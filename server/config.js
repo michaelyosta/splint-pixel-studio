@@ -9,6 +9,8 @@ export const PAYMENT_MODES = Object.freeze([
   TELEGRAM_STARS_CONTROLLED_MODE,
 ]);
 
+export const TELEGRAM_BOT_API_ENVIRONMENTS = Object.freeze(['production', 'test']);
+
 const TELEGRAM_USER_ID_RE = /^\d{1,30}$/;
 const PRINTABLE_TOKEN_RE = /^[\x21-\x7E]+$/;
 
@@ -36,6 +38,14 @@ function parseProductAllowlist(raw) {
     }
   }
   return values;
+}
+
+export function getTelegramBotApiEnvironment(env = process.env) {
+  const value = String(env.TELEGRAM_BOT_API_ENVIRONMENT || 'production').trim().toLowerCase();
+  if (!TELEGRAM_BOT_API_ENVIRONMENTS.includes(value)) {
+    throw new Error(`TELEGRAM_BOT_API_ENVIRONMENT must be one of: ${TELEGRAM_BOT_API_ENVIRONMENTS.join('|')}`);
+  }
+  return value;
 }
 
 function parseWebhookUrl(raw) {
@@ -68,6 +78,7 @@ export function getTelegramStarsControlledConfiguration(env = process.env) {
   }
   return Object.freeze({
     enabled: true,
+    botApiEnvironment: getTelegramBotApiEnvironment(env),
     allowlistedUserIds: Object.freeze(parseTelegramStarsAllowlist(env.TELEGRAM_STARS_ALLOWLIST_USER_IDS)),
     allowlistedProductIds: Object.freeze(parseProductAllowlist(env.TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS)),
     webhookUrl: parseWebhookUrl(env.TELEGRAM_PAYMENTS_WEBHOOK_URL),
@@ -202,7 +213,10 @@ export function validateProductionConfiguration(env = process.env) {
     // Controlled activation is deliberately explicit. A production process
     // must not boot with a mode that can create invoices but lacks a complete
     // allowlist, webhook authentication, or support/refund contact.
-    getTelegramStarsControlledConfiguration(env);
+    const telegramStars = getTelegramStarsControlledConfiguration(env);
+    if (telegramStars.botApiEnvironment !== 'production') {
+      throw new Error('Production Telegram Stars must use TELEGRAM_BOT_API_ENVIRONMENT=production');
+    }
   }
 
   const required = ['DATABASE_URL', 'S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];

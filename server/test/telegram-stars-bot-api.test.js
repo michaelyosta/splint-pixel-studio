@@ -38,6 +38,21 @@ test('Bot API adapter creates XTR invoice links with one server-priced item', as
   });
 });
 
+test('Bot API adapter routes the isolated Telegram test environment under /test', async () => {
+  const calls = [];
+  const adapter = createTelegramStarsBotApiAdapter({
+    token: 'test-token-environment',
+    apiEnvironment: 'test',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return response(true);
+    },
+  });
+
+  await adapter.answerPreCheckoutQuery({ queryId: 'query-test-1', ok: true });
+  assert.equal(calls[0].url, 'https://api.telegram.org/bottest-token-environment/test/answerPreCheckoutQuery');
+});
+
 test('Bot API adapter answers pre-checkout and performs only full refunds', async () => {
   const calls = [];
   const adapter = createTelegramStarsBotApiAdapter({

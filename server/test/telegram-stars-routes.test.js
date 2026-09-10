@@ -31,6 +31,49 @@ test('controlled Bot API runtime is production-only', () => {
   assert.equal(runtime.enabled, false);
 });
 
+test('controlled production runtime rejects the Telegram test Bot API environment', () => {
+  assert.throws(() => createTelegramStarsRuntime({
+    env: {
+      NODE_ENV: 'production',
+      PAYMENTS_MODE: 'telegram_stars_controlled',
+      TELEGRAM_BOT_TOKEN: 'test-token',
+      TELEGRAM_BOT_API_ENVIRONMENT: 'test',
+      TELEGRAM_PAYMENTS_WEBHOOK_URL: 'https://production.example.com/payments/telegram-stars/webhook',
+      TELEGRAM_PAYMENTS_WEBHOOK_SECRET: 'production_webhook_secret',
+      TELEGRAM_PAYMENT_SUPPORT: '@support',
+      TELEGRAM_PAYMENT_REFUND_CONTACT: '@refunds',
+      TELEGRAM_STARS_ALLOWLIST_USER_IDS: '123',
+      TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS: 'col_premium-gallery',
+    },
+  }), /must use TELEGRAM_BOT_API_ENVIRONMENT=production/);
+});
+
+test('controlled Bot API runtime enables only an explicit staging test environment', async () => {
+  const calls = [];
+  const runtime = createTelegramStarsRuntime({
+    env: {
+      NODE_ENV: 'staging',
+      PAYMENTS_MODE: 'telegram_stars_controlled',
+      TELEGRAM_BOT_TOKEN: 'test-token',
+      TELEGRAM_BOT_API_ENVIRONMENT: 'test',
+      TELEGRAM_PAYMENTS_WEBHOOK_URL: 'https://staging.example.com/payments/telegram-stars/webhook',
+      TELEGRAM_PAYMENTS_WEBHOOK_SECRET: 'test_webhook_secret',
+      TELEGRAM_PAYMENT_SUPPORT: '@test_support',
+      TELEGRAM_PAYMENT_REFUND_CONTACT: '@test_refunds',
+      TELEGRAM_STARS_ALLOWLIST_USER_IDS: '123',
+      TELEGRAM_STARS_ALLOWLIST_PRODUCT_IDS: 'col_premium-gallery',
+    },
+    fetchImpl: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return { ok: true, status: 200, json: async () => ({ ok: true, result: true }) };
+    },
+  });
+  assert.equal(runtime.enabled, true);
+  assert.equal(runtime.config.botApiEnvironment, 'test');
+  await runtime.adapter.answerPreCheckoutQuery({ queryId: 'query-test-1', ok: true });
+  assert.equal(calls[0].url, 'https://api.telegram.org/bottest-token/test/answerPreCheckoutQuery');
+});
+
 test('controlled commerce route exposes checkout only to the Telegram allowlist and ignores client price', async () => {
   const calls = [];
   const runtime = {
