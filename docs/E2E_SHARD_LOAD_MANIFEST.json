@@ -15,8 +15,8 @@
     "shards": 24,
     "strategy": "weighted_24_minimum_30000ms",
     "selector": "file arguments plus escaped test-title grep alternatives",
-    "expected_logical_tests": 152,
-    "expected_project_cases": 456,
+    "expected_logical_tests": 153,
+    "expected_project_cases": 459,
     "minimum_group_weight_ms": 30000
   },
   "coverage": {
@@ -25,9 +25,9 @@
       "Mobile iPhone",
       "Mobile Pixel"
     ],
-    "expected_logical_tests": 152,
-    "expected_project_cases": 456,
-    "inventory_fingerprint": "42847225a322cd2c0a773d35650ddd221c7d52758135453d442367307bcfa3c9"
+    "expected_logical_tests": 153,
+    "expected_project_cases": 459,
+    "inventory_fingerprint": "e2def1443c4c5bcdb95380d111bc79e7d4b9cb6a81b252604086520ed98a2172"
   },
   "measurement_note": "Historical durations preserved from run 33396678958; intentional product-contract migrations and new visual/public-profile/navigation coverage use the 30000ms minimum logical-group load.",
   "topology_comparison": {
@@ -493,7 +493,7 @@
         "stabilization.spec.js:309:11. Auto transition remains focusing until camera animation completes"
       ],
       "historical_duration_minutes": 1.85,
-      "load_weight_minutes": 3.5,
+      "load_weight_minutes": 4,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -502,9 +502,9 @@
     {
       "shard": 20,
       "historical_duration_ms": 109581,
-      "load_weight_ms": 210000,
-      "logical_tests": 7,
-      "project_cases": 21,
+      "load_weight_ms": 240000,
+      "logical_tests": 8,
+      "project_cases": 24,
       "groups": [
         "accessibility.spec.js:218:forced-colors keeps selected state visible without color",
         "guided-player-migration.spec.js:471:persisted overview camera does not prevent smart guidance from becoming actionable",
@@ -512,7 +512,8 @@
         "special-bomb-artifact-reload.spec.js:42:Bomb offer reloads with the server-provided default center and applies without a resident tile",
         "special-glyph-parity.spec.js:689:tiled reveal claims exactly once and survives reload without duplicate",
         "stabilization.spec.js:347:13. Manual palette selection atomically activates a target of that color",
-        "tiled-reload-journal.spec.js:65:offline journal replay reconciles an already resident tile after reload"
+        "tiled-reload-journal.spec.js:65:offline journal replay reconciles an already resident tile after reload",
+        "unlocks-recommendations.spec.js:208:controlled showcase does not label the allowlisted checkout as disabled"
       ],
       "historical_duration_minutes": 1.83,
       "load_weight_minutes": 3.5,
@@ -3721,6 +3722,27 @@
       },
       "load_weight_ms": 30000,
       "shard": 23
+    },
+    {
+      "id": "unlocks-recommendations.spec.js:208:controlled showcase does not label the allowlisted checkout as disabled",
+      "file": "unlocks-recommendations.spec.js",
+      "line": 208,
+      "title": "controlled showcase does not label the allowlisted checkout as disabled",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile iPhone",
+        "Mobile Pixel"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "load_weight_ms": 30000,
+      "shard": 20
     },
     {
       "id": "unlocks-recommendations.spec.js:229:1200 in-progress history keeps recommendations and unlock state bounded",
