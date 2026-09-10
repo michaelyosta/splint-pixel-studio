@@ -125,6 +125,7 @@ Historical E2E investigations: [E2E_CI_PERFORMANCE.md](E2E_CI_PERFORMANCE.md),
 | --- | --- | --- | --- | --- |
 | [COMMERCE_CONTRACT.md](COMMERCE_CONTRACT.md) | Canonical XTR order, entitlement, marketplace, payout, and fail-closed rules | Canonical commerce overview | Any economic boundary task | Current activation without direct evidence |
 | [TELEGRAM_STARS_LAUNCH_GATE.md](TELEGRAM_STARS_LAUNCH_GATE.md) | Deferred controlled-production round-trip gate | Operational gate | Preparing a public Stars activation decision | Treating checkout/tests as a real production payment |
+| [TELEGRAM_STARS_ACCEPTANCE_MATRIX.md](TELEGRAM_STARS_ACCEPTANCE_MATRIX.md) | Dated requirement-by-requirement Stars evidence and pending criteria | Current verification record | Reviewing readiness and exact gaps | Claiming production round-trip completion |
 | [telegram-stars-xtr.md](telegram-stars-xtr.md) | Detailed provider-shaped order/refund/reconciliation lifecycle | Canonical implementation contract | Working on XTR service or webhook design | Claiming real Bot API or Stars activation |
 | [adr/ADR-001-payment-modes-and-telegram-stars.md](adr/ADR-001-payment-modes-and-telegram-stars.md) | Payment mode decision and activation checklist | Canonical decision record | Reviewing why production is disabled | Current production state |
 | [stars-transactions.md](stars-transactions.md) | Legacy internal-credit transaction design | Historical compatibility record | Working on legacy ledger compatibility | Telegram Stars, marketplace, or payout truth |
