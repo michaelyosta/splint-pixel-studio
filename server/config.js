@@ -160,6 +160,10 @@ export function validateProductionConfiguration(env = process.env) {
     return { isProduction: false, allowedOrigins: [], trustProxy: false };
   }
 
+  if (getTelegramBotApiEnvironment(env) === 'test') {
+    throw new Error('Production Telegram Stars must use TELEGRAM_BOT_API_ENVIRONMENT=production');
+  }
+
   const paymentsMode = getPaymentsMode(env);
 
   if (env.ALLOW_DEV_AUTH === 'true') throw new Error('ALLOW_DEV_AUTH cannot be enabled in production');

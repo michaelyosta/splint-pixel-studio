@@ -32,6 +32,13 @@ test('complete production configuration is accepted', () => {
   assert.deepStrictEqual(result.trustProxy, ['10.0.0.0/8', '192.168.10.4']);
 });
 
+test('production rejects the Telegram test Bot API environment even when payments are disabled', () => {
+  assert.throws(() => validateProductionConfiguration({
+    ...validProduction,
+    TELEGRAM_BOT_API_ENVIRONMENT: 'test',
+  }), /must use TELEGRAM_BOT_API_ENVIRONMENT=production/);
+});
+
 test('production browser OIDC configuration must be complete and exact', () => {
   assert.throws(() => validateProductionConfiguration({
     ...validProduction,
