@@ -29,14 +29,16 @@ function initialCheckoutState() {
   return reduceCheckoutState(undefined, { type: 'RESET' });
 }
 
-function packCopy(pack) {
+function packCopy(pack, checkoutEnabled = false) {
   if (pack.pack_state === PACK_STATES.OWNED) return 'Открыто в вашем профиле';
   if (pack.pack_state === PACK_STATES.FREE) return 'Бесплатный набор · можно начать сейчас';
-  if (pack.pack_state === PACK_STATES.PAID) return `${pack.price_in_stars} Stars · покупка пока отключена`;
+  if (pack.pack_state === PACK_STATES.PAID) return checkoutEnabled
+    ? `${pack.price_in_stars} Stars · купить в Telegram`
+    : `${pack.price_in_stars} Stars · покупка пока отключена`;
   return 'Этот набор сейчас недоступен';
 }
 
-function PackPreview({ pack, onSelect }) {
+function PackPreview({ pack, onSelect, checkoutEnabled = false }) {
   const progress = pack.total_count > 0 ? Math.round((pack.completed_count / pack.total_count) * 100) : 0;
   const metadata = formatContentMetadataDetail(pack);
   return (
@@ -58,7 +60,7 @@ function PackPreview({ pack, onSelect }) {
         <b>{pack.title}</b>
         <small>{pack.description || `${pack.total_count || 0} работ · ${pack.rarity}`}</small>
         <small data-content-metadata={metadata.assessed ? 'authoritative' : 'unassessed'}>{metadata.line}</small>
-        <span className="store-pack-meta">{packCopy(pack)}</span>
+        <span className="store-pack-meta">{packCopy(pack, checkoutEnabled)}</span>
         {pack.total_count > 0 && (
           <span className="store-pack-progress" aria-label={`${pack.completed_count} из ${pack.total_count} завершено`}>
             <i style={{ width: `${progress}%` }} />
@@ -108,6 +110,9 @@ export default function StoreView({
   const selected = packs.find((pack) => pack.id === selectedPackId) || null;
   const selectedMetadata = formatContentMetadataDetail(selected);
   const selectedProductAllowed = !allowedProductIds.length || allowedProductIds.includes(selected?.id);
+  const isPackCheckoutEnabled = (pack) => Boolean(
+    pack && (!allowedProductIds.length || allowedProductIds.includes(pack.id)) && canCheckout(pack, paymentsMode),
+  );
 
   useEffect(() => {
     dispatchCheckout({ type: 'RESET' });
@@ -214,7 +219,7 @@ export default function StoreView({
       ) : (
         <>
           <div className="store-pack-list" aria-label="Наборы">
-            {packs.map((pack) => <PackPreview key={pack.id} pack={pack} onSelect={selectPack} />)}
+            {packs.map((pack) => <PackPreview key={pack.id} pack={pack} onSelect={selectPack} checkoutEnabled={isPackCheckoutEnabled(pack)} />)}
           </div>
 
           {selected && <section className={`store-detail store-detail--${selected.pack_state}`} data-selected-pack={selected.id} data-pack-state={selected.pack_state}>

@@ -176,7 +176,7 @@ export default function PremiumPackView({
       <button type="button" className="primary-button" onClick={primaryAction.onClick} disabled={safeState === PREMIUM_PACK_STATES.OWNED && !pack.items.length} data-premium-primary-action="true">
         {primaryAction.label} <ArrowRight size={16} aria-hidden="true" />
       </button>
-      {safeState !== PREMIUM_PACK_STATES.OWNED && safeState !== PREMIUM_PACK_STATES.FREE && <button type="button" className="secondary-button premium-pack-wish-button" onClick={saveWish} aria-pressed={wishSaved} data-premium-wish="true"><Heart size={15} fill={wishSaved ? 'currentColor' : 'none'} aria-hidden="true" /> {wishSaved ? 'В списке желаний' : 'Сохранить в список желаний'}</button>}
+      {safeState !== PREMIUM_PACK_STATES.OWNED && safeState !== PREMIUM_PACK_STATES.FREE && safeState !== PREMIUM_PACK_STATES.UNAVAILABLE && <button type="button" className="secondary-button premium-pack-wish-button" onClick={saveWish} aria-pressed={wishSaved} data-premium-wish="true"><Heart size={15} fill={wishSaved ? 'currentColor' : 'none'} aria-hidden="true" /> {wishSaved ? 'В списке желаний' : 'Сохранить в список желаний'}</button>}
     </div>
 
     <div className="premium-pack-section-heading"><div><p className="eyebrow">ПРЕДПРОСМОТР</p><h2>Что внутри</h2></div><span>Quality gate {pack.quality_gate_version}</span></div>
