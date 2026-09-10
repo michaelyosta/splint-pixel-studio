@@ -1,5 +1,5 @@
 import { get, withDbTransaction } from '../db.js';
-import { getPaymentsMode, getTelegramStarsControlledConfiguration, TELEGRAM_STARS_CONTROLLED_MODE } from '../config.js';
+import { getPaymentsMode, getTelegramBotApiEnvironment, getTelegramStarsControlledConfiguration, TELEGRAM_STARS_CONTROLLED_MODE } from '../config.js';
 import { createTelegramStarsService } from './telegram-stars.js';
 import { createTelegramStarsBotApiAdapter } from './telegram-stars-bot-api.js';
 
@@ -15,12 +15,20 @@ function normalizeTelegramId(value) {
  */
 export function createTelegramStarsRuntime({ env = process.env, dbMode = 'postgres', dbGet = get, dbWithTransaction = withDbTransaction, fetchImpl } = {}) {
   const mode = getPaymentsMode(env);
-  const isProduction = String(env.NODE_ENV || '').trim().toLowerCase() === 'production';
-  if (mode !== TELEGRAM_STARS_CONTROLLED_MODE || !isProduction) {
+  const nodeEnv = String(env.NODE_ENV || '').trim().toLowerCase();
+  const isProduction = nodeEnv === 'production';
+  const botApiEnvironment = getTelegramBotApiEnvironment(env);
+  const isExplicitTestRuntime = !isProduction
+    && ['staging', 'test'].includes(nodeEnv)
+    && botApiEnvironment === 'test';
+  if (isProduction && botApiEnvironment !== 'production') {
+    throw new Error('Production Telegram Stars must use TELEGRAM_BOT_API_ENVIRONMENT=production');
+  }
+  if (mode !== TELEGRAM_STARS_CONTROLLED_MODE || (!isProduction && !isExplicitTestRuntime)) {
     return Object.freeze({
       enabled: false,
       mode,
-      config: Object.freeze({ allowlistedUserIds: Object.freeze([]), allowlistedProductIds: Object.freeze([]) }),
+      config: Object.freeze({ botApiEnvironment, allowlistedUserIds: Object.freeze([]), allowlistedProductIds: Object.freeze([]) }),
       service: null,
       isAllowlistedUser: () => false,
       isAllowlistedProduct: () => false,
@@ -30,7 +38,7 @@ export function createTelegramStarsRuntime({ env = process.env, dbMode = 'postgr
   const config = getTelegramStarsControlledConfiguration(env);
   const allowlistedUsers = new Set(config.allowlistedUserIds);
   const allowlistedProducts = new Set(config.allowlistedProductIds);
-  const adapter = createTelegramStarsBotApiAdapter({ token: env.TELEGRAM_BOT_TOKEN, fetchImpl });
+  const adapter = createTelegramStarsBotApiAdapter({ token: env.TELEGRAM_BOT_TOKEN, fetchImpl, apiEnvironment: config.botApiEnvironment });
 
   const productResolver = async ({ productId }) => {
     if (!allowlistedProducts.has(productId)) return null;
