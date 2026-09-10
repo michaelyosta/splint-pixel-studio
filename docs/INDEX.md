@@ -35,6 +35,7 @@ current merely because it is detailed.
 | [PRODUCT_CONTRACT_MIGRATION.md](PRODUCT_CONTRACT_MIGRATION.md) | Old-to-new IA migration and tested replacement contracts | Canonical | Changing primary IA, completion flow, Create, Profile, Catalog, or retired progression surfaces | Current release status |
 | [PHASE4_CONTENT_METADATA_UI.md](PHASE4_CONTENT_METADATA_UI.md) | Bounded server-owned content metadata presentation | Canonical UI contract | Changing metadata on Catalog, Profile, player, or premium previews | Editorial approval or payment activation |
 | [TELEGRAM_GAMEPLAY_QA.md](TELEGRAM_GAMEPLAY_QA.md) | Gameplay QA checklist and device boundaries | Canonical QA protocol | Manual Telegram/WebView gameplay validation | Claiming physical iOS proof from browser evidence |
+| [PRODUCT_MEASUREMENT_BASELINE.md](PRODUCT_MEASUREMENT_BASELINE.md) | Bounded measurement scope for the current three-tab product | Experimental | Reviewing product-flow instrumentation | Inferring human, device, or commercial outcomes |
 
 Historical product rationale and experiments: [GAME_EXPERIENCE_AUDIT.md](GAME_EXPERIENCE_AUDIT.md),
 [GAME_EXPERIENCE_ROADMAP.md](GAME_EXPERIENCE_ROADMAP.md),
@@ -123,6 +124,7 @@ Historical E2E investigations: [E2E_CI_PERFORMANCE.md](E2E_CI_PERFORMANCE.md),
 | Document | Purpose | Authority | Read when | Do not use for |
 | --- | --- | --- | --- | --- |
 | [COMMERCE_CONTRACT.md](COMMERCE_CONTRACT.md) | Canonical XTR order, entitlement, marketplace, payout, and fail-closed rules | Canonical commerce overview | Any economic boundary task | Current activation without direct evidence |
+| [TELEGRAM_STARS_LAUNCH_GATE.md](TELEGRAM_STARS_LAUNCH_GATE.md) | Deferred controlled-production round-trip gate | Operational gate | Preparing a public Stars activation decision | Treating checkout/tests as a real production payment |
 | [telegram-stars-xtr.md](telegram-stars-xtr.md) | Detailed provider-shaped order/refund/reconciliation lifecycle | Canonical implementation contract | Working on XTR service or webhook design | Claiming real Bot API or Stars activation |
 | [adr/ADR-001-payment-modes-and-telegram-stars.md](adr/ADR-001-payment-modes-and-telegram-stars.md) | Payment mode decision and activation checklist | Canonical decision record | Reviewing why production is disabled | Current production state |
 | [stars-transactions.md](stars-transactions.md) | Legacy internal-credit transaction design | Historical compatibility record | Working on legacy ledger compatibility | Telegram Stars, marketplace, or payout truth |
