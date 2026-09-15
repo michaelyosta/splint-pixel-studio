@@ -289,6 +289,8 @@ export function createTelegramStarsService(deps = {}) {
     // It is mandatory for every non-mock provider so an arbitrary product id
     // cannot be turned into a paid entitlement.
     productResolver = null,
+    onCritical = async () => {},
+    purchaseGuard = async () => true,
     supportContact = process.env.TELEGRAM_PAYMENT_SUPPORT || null,
     refundContact = process.env.TELEGRAM_PAYMENT_REFUND_CONTACT || null,
   } = deps;
@@ -297,6 +299,14 @@ export function createTelegramStarsService(deps = {}) {
 
   function assertEnabled() {
     if (!enabled) throw fail('PAYMENTS_DISABLED', 'Telegram Stars payments are disabled');
+  }
+
+  async function purchaseAllowed(userId, productId) {
+    try {
+      return await purchaseGuard({ userId, productId }) === true;
+    } catch {
+      return false;
+    }
   }
 
   function newId(prefix) {
@@ -481,6 +491,7 @@ export function createTelegramStarsService(deps = {}) {
     const lease = await withTransaction(async (tx) => {
       const existing = await readOrder(tx, orderId, mode === 'postgres');
       if (!existing) throw fail('ORDER_NOT_FOUND', 'Telegram Stars order not found');
+      if (!await purchaseAllowed(existing.user_id, existing.product_id)) throw fail('PAYMENTS_DISABLED', 'New purchases are stopped');
       if (existing.invoice_url) return { row: existing, active: false, complete: true };
       if (!['invoice_pending', 'invoice_issued'].includes(existing.status)) {
         return { row: existing, active: false, complete: true };
@@ -516,6 +527,13 @@ export function createTelegramStarsService(deps = {}) {
     }
 
     const existing = lease.row;
+    if (!await purchaseAllowed(existing.user_id, existing.product_id)) {
+      await withTransaction(tx => tx.run(
+        'UPDATE telegram_stars_orders SET invoice_lease_token=NULL,invoice_lease_until=NULL,updated_at=? WHERE id=? AND invoice_lease_token=?',
+        [timestamp(clock), orderId, lease.token],
+      ));
+      throw fail('PAYMENTS_DISABLED', 'New purchases are stopped');
+    }
     const invoice = await createInvoice({
       invoicePayload: existing.invoice_payload,
       productId: existing.product_id,
@@ -579,6 +597,7 @@ export function createTelegramStarsService(deps = {}) {
     assertEnabled();
     const userId = normalizeUserId(rawUserId, telegramUserId);
     const productId = asString(String(rawProductId || ''), 'productId', { max: MAX_PRODUCT_ID });
+    if (!await purchaseAllowed(userId, productId)) throw fail('PAYMENTS_DISABLED', 'New purchases are stopped');
     const product = await resolveServerProduct({ userId, productId });
     const amount = await resolveServerAmount({ userId, productId, amountXtr, priceXtr, product });
     const key = effectiveIdempotencyKey(idempotencyKey, userId, productId);
@@ -699,9 +718,19 @@ export function createTelegramStarsService(deps = {}) {
     let decision;
     try {
       decision = await withTransaction(async (tx) => {
+        if (mode === 'postgres') {
+          // Leave ample budget for answerPreCheckoutQuery inside Telegram's
+          // ten-second deadline; never wait indefinitely on a locked order.
+          await tx.run("SET LOCAL lock_timeout = '2000ms'");
+          await tx.run("SET LOCAL statement_timeout = '3000ms'");
+        }
         const previous = await loadEvent(tx, eventKey, true);
         if (previous) {
           assertSameFingerprint(previous, fingerprint);
+          const replayOrder = payload ? await getOrderByPayload(tx, payload) : null;
+          if (!replayOrder || !await purchaseAllowed(userId, replayOrder.product_id)) {
+            return { ok: false, code: 'PAYMENTS_DISABLED', errorMessage: 'New purchases are stopped', idempotent: true };
+          }
           return eventResult(previous) || { ok: false, code: 'EVENT_REPLAY_UNAVAILABLE', idempotent: true };
         }
 
@@ -709,6 +738,8 @@ export function createTelegramStarsService(deps = {}) {
         let result;
         if (!order) {
           result = { ok: false, code: 'ORDER_NOT_FOUND', errorMessage: 'Order not found' };
+        } else if (!await purchaseAllowed(userId, order.product_id)) {
+          result = { ok: false, code: 'PAYMENTS_DISABLED', errorMessage: 'New purchases are stopped' };
         } else if (order.user_id !== userId) {
           result = { ok: false, code: 'ORDER_USER_MISMATCH', errorMessage: 'Order does not belong to this user' };
         } else if (order.currency !== input.currency || Number(order.amount_xtr) !== shape.amount) {
@@ -739,9 +770,7 @@ export function createTelegramStarsService(deps = {}) {
           );
           if (update.changes !== 1) {
             order = await readOrder(tx, order.id, true);
-            result = order?.status === 'paid'
-              ? { ok: true, code: 'ALREADY_PAID', orderId: order.id }
-              : { ok: false, code: 'ORDER_NOT_PAYABLE', errorMessage: 'Order changed while checking out' };
+            result = { ok: false, code: 'ORDER_NOT_PAYABLE', errorMessage: 'Order changed while checking out' };
           } else {
             result = { ok: true, code: 'PRE_CHECKOUT_APPROVED', orderId: order.id };
           }
@@ -763,8 +792,14 @@ export function createTelegramStarsService(deps = {}) {
         return inserted ? (eventResult(inserted) || result) : result;
       });
     } catch (error) {
-      if (error instanceof TelegramStarsError) throw error;
-      throw error;
+      const errorMessage = 'Payment cannot be completed right now';
+      await adapterMethod(adapter, 'answerPreCheckoutQuery')({ queryId: String(queryId), ok: false, errorMessage });
+      return {
+        ok: false,
+        code: error instanceof TelegramStarsError ? error.code : 'PRE_CHECKOUT_FAILED',
+        errorMessage,
+        idempotent: false,
+      };
     }
 
     // Telegram requires an answer even for rejected validation.  A provider
@@ -778,6 +813,46 @@ export function createTelegramStarsService(deps = {}) {
   async function successfulPayment(input = {}) {
     assertEnabled();
     const userId = normalizeUserId(input.userId, input.telegramUserId);
+    const { payload, amount, chargeId } = validateProviderShape(input, { requireCharge: true });
+    const providerChargeId = optionalString(input.providerPaymentChargeId, 'providerPaymentChargeId', 256);
+    const fingerprint = hash({ userId, payload, amount, currency: input.currency, chargeId, providerChargeId });
+    const now = timestamp(clock);
+    // Commit evidence before projecting access. Permanent conflicts must not
+    // erase the only record of money received when the webhook is ACKed.
+    const inbox = await withTransaction(async tx => {
+      await tx.run(
+        'INSERT INTO telegram_stars_capture_inbox (telegram_payment_charge_id,request_fingerprint,payload_json,status,received_at,updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT DO NOTHING',
+        [chargeId, fingerprint, json({ ...safeProviderEvent(input), userId }), 'received', now, now],
+      );
+      const row = await tx.get('SELECT * FROM telegram_stars_capture_inbox WHERE telegram_payment_charge_id=?', [chargeId]);
+      if (row.request_fingerprint !== fingerprint) throw fail('CHARGE_ID_REUSED', 'Capture identity differs from durable evidence');
+      return row;
+    });
+    if (inbox.status === 'refunded') return { ok: true, idempotent: true, refundStatus: 'refunded' };
+    try {
+      const result = await applySuccessfulPayment(input);
+      const inboxStatus = result.refundStatus === 'refunded'
+        ? 'refunded'
+        : result.recoveryRequired ? 'recovery_required' : 'processed';
+      await withTransaction(tx => tx.run(
+        "UPDATE telegram_stars_capture_inbox SET status=?,error_code=?,updated_at=? WHERE telegram_payment_charge_id=? AND status NOT IN ('refunded','refund_submitted')",
+        [inboxStatus, result.recoveryRequired ? 'PRODUCT_ALREADY_OWNED' : null, timestamp(clock), chargeId],
+      ));
+      if (result.recoveryRequired) await onCritical('CAPTURE_RECOVERY_REQUIRED');
+      return result;
+    } catch (error) {
+      await withTransaction(tx => tx.run(
+        "UPDATE telegram_stars_capture_inbox SET status='recovery_required',error_code=?,updated_at=? WHERE telegram_payment_charge_id=? AND status NOT IN ('refunded','refund_submitted')",
+        [error instanceof TelegramStarsError ? error.code : 'PROCESSING_FAILED', timestamp(clock), chargeId],
+      ));
+      await onCritical('CAPTURE_RECOVERY_REQUIRED');
+      throw error;
+    }
+  }
+
+  async function applySuccessfulPayment(input = {}) {
+    assertEnabled();
+    const userId = normalizeUserId(input.userId, input.telegramUserId);
     const updateId = optionalProviderUpdateId(input.updateId ?? input.providerUpdateId);
     const { payload, amount, chargeId } = validateProviderShape(input, { requireCharge: true });
     const providerChargeId = optionalString(input.providerPaymentChargeId, 'providerPaymentChargeId', 256);
@@ -787,10 +862,18 @@ export function createTelegramStarsService(deps = {}) {
     const rawEventJson = json(safeProviderEvent(input));
 
     return withTransaction(async (tx) => {
+      // Serialize projection against the recovery-refund reservation. Checking
+      // the inbox before this transaction leaves a window for granting access
+      // while a provider refund is in flight.
+      const capture = await tx.get(lockSql('SELECT status FROM telegram_stars_capture_inbox WHERE telegram_payment_charge_id=?', mode), [chargeId]);
+      if (capture?.status === 'refunded') return { ok: true, idempotent: true, refundStatus: 'refunded' };
+      if (capture?.status === 'refund_submitted') {
+        return { ok: true, idempotent: true, recoveryRequired: true, refundStatus: 'refund_submitted' };
+      }
       const previous = await loadEvent(tx, eventKey, true);
       if (previous) {
         assertSameFingerprint(previous, fingerprint);
-        return eventResult(previous) || { ok: true, idempotent: true };
+        return { ...(eventResult(previous) || { ok: true }), idempotent: true };
       }
 
       const order = payload ? await getOrderByPayload(tx, payload, true) : null;
@@ -803,7 +886,8 @@ export function createTelegramStarsService(deps = {}) {
       const byOrder = await tx.get(lockSql('SELECT * FROM telegram_stars_payments WHERE order_id=?', mode), [order.id]);
       if (byOrder) {
         if (byOrder.telegram_payment_charge_id !== chargeId) throw fail('PAYMENT_ALREADY_CAPTURED', 'Order already has a different payment charge');
-        const result = { ok: true, idempotent: true, orderId: order.id, paymentId: byOrder.id, entitlementId: (await tx.get('SELECT id FROM telegram_stars_entitlements WHERE order_id=?', [order.id]))?.id || null };
+        const entitlementId = (await tx.get('SELECT id FROM telegram_stars_entitlements WHERE order_id=?', [order.id]))?.id || null;
+        const result = { ok: true, idempotent: true, orderId: order.id, paymentId: byOrder.id, entitlementId, recoveryRequired: !entitlementId && byOrder.status !== 'refunded' };
         await insertEvent(tx, {
           eventId: newId('xtr_event'), eventKey, eventType: 'successful_payment', providerUpdateId: updateId,
           requestFingerprint: fingerprint, orderId: order.id, chargeId, payloadJson: rawEventJson,
@@ -816,9 +900,7 @@ export function createTelegramStarsService(deps = {}) {
         lockSql("SELECT id,order_id FROM telegram_stars_entitlements WHERE user_id=? AND product_id=? AND status='active'", mode),
         [order.user_id, order.product_id],
       );
-      if (activeProduct && activeProduct.order_id !== order.id) {
-        throw fail('PRODUCT_ALREADY_OWNED', 'Telegram Stars product is already owned');
-      }
+      const excessCapture = activeProduct && activeProduct.order_id !== order.id;
 
       if (!CAPTURE_ACCEPTING_STATUSES.has(order.status)) throw fail('ORDER_NOT_PAYABLE', `Order status ${order.status} cannot be captured`);
       const paymentId = newId('xtr_payment');
@@ -853,6 +935,16 @@ export function createTelegramStarsService(deps = {}) {
       });
 
       const entitlementId = newId('xtr_entitlement');
+      if (excessCapture && pendingRefund.status !== 'refunded') {
+        // Record the second capture for normal refund, never a second grant.
+        const result = { ok: true, orderId: order.id, paymentId, entitlementId: null, recoveryRequired: true };
+        await insertEvent(tx, {
+          eventId: newId('xtr_event'), eventKey, eventType: 'successful_payment', providerUpdateId: updateId,
+          requestFingerprint: fingerprint, orderId: order.id, chargeId, payloadJson: rawEventJson,
+          status: 'processed', decisionJson: json(result), now,
+        });
+        return result;
+      }
       const entitlementStatus = pendingRefund.status === 'refunded' ? 'revoked' : 'active';
       const entitlementInsert = await tx.run(
         `INSERT INTO telegram_stars_entitlements
@@ -925,7 +1017,7 @@ export function createTelegramStarsService(deps = {}) {
     // refund_id is the provider's stable identity. Do not key this event by
     // update_id: Telegram may redeliver the same refund under a new update id.
     const eventKey = `refund:${refundId}`;
-    const fingerprint = hash({ event: 'refund', payload, currency: input.currency, amount, chargeId, refundId });
+    const fingerprint = hash({ event: 'refund', currency: input.currency, amount, chargeId, refundId });
     const rawEventJson = json(safeProviderEvent(input));
     const now = timestamp(clock);
 
@@ -936,7 +1028,7 @@ export function createTelegramStarsService(deps = {}) {
         return eventResult(previous) || { ok: true, idempotent: true };
       }
 
-      const payment = await tx.get(lockSql('SELECT p.*,o.user_id,o.id AS order_id,o.amount_xtr AS order_amount FROM telegram_stars_payments p JOIN telegram_stars_orders o ON o.id=p.order_id WHERE p.telegram_payment_charge_id=?', mode), [chargeId]);
+      const payment = await tx.get(lockSql('SELECT p.*,o.user_id,o.id AS order_id,o.amount_xtr AS order_amount,o.invoice_payload FROM telegram_stars_payments p JOIN telegram_stars_orders o ON o.id=p.order_id WHERE p.telegram_payment_charge_id=?', mode), [chargeId]);
       if (!payment) {
         // Telegram may deliver a refund/reversal before the successful
         // capture update. Keep a durable tombstone keyed by refund id and
@@ -948,9 +1040,19 @@ export function createTelegramStarsService(deps = {}) {
           requestFingerprint: fingerprint, orderId: null, chargeId, payloadJson: rawEventJson,
           status: 'received', decisionJson: json(pending), now,
         });
+        const inbox = await tx.get(lockSql('SELECT payload_json FROM telegram_stars_capture_inbox WHERE telegram_payment_charge_id=?', mode), [chargeId]);
+        const capture = parseJson(inbox?.payload_json, {});
+        if (inbox && capture.telegramPaymentChargeId === chargeId && capture.currency === input.currency
+          && Number(capture.totalAmount ?? capture.amountXtr) === amount) {
+          await tx.run(
+            "UPDATE telegram_stars_capture_inbox SET status='refunded',error_code=NULL,updated_at=? WHERE telegram_payment_charge_id=?",
+            [now, chargeId],
+          );
+        }
         return inserted ? (eventResult(inserted) || pending) : { ...pending, idempotent: false };
       }
       if (userId && payment.user_id !== userId) throw fail('INVALID_PROVIDER_DATA', 'Refund user does not own the payment');
+      if (payload && payload !== payment.invoice_payload) throw fail('INVALID_PROVIDER_DATA', 'Refund payload does not match the payment');
       if (payment.currency !== input.currency || payment.amount_xtr !== payment.order_amount) throw fail('INVALID_PROVIDER_DATA', 'Stored payment data is inconsistent');
       if (amount > Number(payment.amount_xtr) - Number(payment.refunded_amount_xtr)) throw fail('REFUND_EXCEEDS_CAPTURE', 'Refund amount exceeds the captured amount');
 
@@ -981,6 +1083,7 @@ export function createTelegramStarsService(deps = {}) {
       const paymentStatus = refundedTotal === Number(payment.amount_xtr) ? 'refunded' : 'partially_refunded';
       await tx.run('UPDATE telegram_stars_payments SET refunded_amount_xtr=?, status=?, updated_at=? WHERE id=?', [refundedTotal, paymentStatus, now, payment.id]);
       if (paymentStatus === 'refunded') {
+        await tx.run("UPDATE telegram_stars_capture_inbox SET status='refunded',error_code=NULL,updated_at=? WHERE telegram_payment_charge_id=?", [now, chargeId]);
         await tx.run(
           `UPDATE telegram_stars_orders SET status='refunded', updated_at=? WHERE id=? AND status IN ('paid','partially_refunded')`,
           [now, payment.order_id],
@@ -1053,7 +1156,7 @@ export function createTelegramStarsService(deps = {}) {
       const reservedRow = await tx.get(
         `SELECT COALESCE(SUM(amount_xtr),0) AS reserved_xtr
            FROM telegram_stars_refund_requests
-          WHERE payment_id=? AND status IN ('requested','submitted')${existing ? ' AND id<>?' : ''}`,
+          WHERE payment_id=? AND status IN ('requested','submitted','failed')${existing ? ' AND id<>?' : ''}`,
         existing ? [payment.id, existing.id] : [payment.id],
       );
       const remaining = Number(payment.amount_xtr) - Number(payment.refunded_amount_xtr) - Number(reservedRow?.reserved_xtr || 0);
@@ -1124,7 +1227,8 @@ export function createTelegramStarsService(deps = {}) {
       ));
       return { ...recovered, recovered: true };
     }
-    await withTransaction(async (tx) => tx.run(`UPDATE telegram_stars_refund_requests SET status='submitted', updated_at=? WHERE id=? AND status='requested'`, [timestamp(clock), reservation.requestId]));
+    const claim = await withTransaction(async (tx) => tx.run(`UPDATE telegram_stars_refund_requests SET status='submitted', updated_at=? WHERE id=? AND status='requested'`, [timestamp(clock), reservation.requestId]));
+    if (claim.changes !== 1) throw fail('REFUND_RECOVERY_REQUIRED', 'Refund already submitted; reconcile before retrying');
 
     let refund;
     try {
@@ -1154,6 +1258,75 @@ export function createTelegramStarsService(deps = {}) {
     return result;
   }
 
+  // Emergency recovery for a real provider capture that reached the durable
+  // inbox but could not be projected to a local order. Projected payments must
+  // use requestRefund so their ledger and entitlement are updated together.
+  async function refundRecoveryCapture(input = {}) {
+    assertEnabled();
+    const chargeId = asString(input.telegramPaymentChargeId, 'telegramPaymentChargeId', { max: 256 });
+    const refundStarPayment = adapterMethod(adapter, 'refundStarPayment');
+    const listCapturedPayments = adapterMethod(adapter, 'listCapturedPayments');
+
+    const reservation = await withTransaction(async (tx) => {
+      const inbox = await tx.get(lockSql('SELECT * FROM telegram_stars_capture_inbox WHERE telegram_payment_charge_id=?', mode), [chargeId]);
+      if (!inbox) throw fail('PAYMENT_NOT_FOUND', 'Recovery capture was not found');
+      if (await tx.get('SELECT id FROM telegram_stars_payments WHERE telegram_payment_charge_id=?', [chargeId])) {
+        throw fail('INVALID_INPUT', 'Use the normal refund flow for a projected payment');
+      }
+      if (inbox.status === 'refunded') return { status: 'refunded', idempotent: true };
+      if (!['received', 'recovery_required', 'refund_submitted'].includes(inbox.status)) {
+        throw fail('REFUND_CONFLICT', 'Capture is not eligible for recovery refund');
+      }
+      const payload = parseJson(inbox.payload_json, {});
+      const userId = normalizeUserId(payload.userId, payload.telegramUserId);
+      const amount = positiveInteger(Number(payload.totalAmount ?? payload.amountXtr), 'amountXtr');
+      if (payload.currency !== TELEGRAM_STARS_CURRENCY || payload.telegramPaymentChargeId !== chargeId) {
+        throw fail('INVALID_PROVIDER_DATA', 'Recovery capture evidence is inconsistent');
+      }
+      if (inbox.status === 'refund_submitted') return { status: 'refund_submitted', userId, amount };
+      const claimed = await tx.run(
+        "UPDATE telegram_stars_capture_inbox SET status='refund_submitted',error_code=?,updated_at=? WHERE telegram_payment_charge_id=? AND status IN ('received','recovery_required')",
+        ['OPERATOR_REFUND_SUBMITTED', timestamp(clock), chargeId],
+      );
+      if (claimed.changes !== 1) throw fail('REFUND_RECOVERY_REQUIRED', 'Recovery refund was already submitted');
+      return { status: 'claimed', userId, amount };
+    });
+
+    if (reservation.status === 'refunded') return { ok: true, status: 'refunded', idempotent: true };
+    if (reservation.status === 'refund_submitted') {
+      const captures = await listCapturedPayments();
+      const capture = captures.find((candidate) => candidate.telegramPaymentChargeId === chargeId);
+      if (capture && Number(capture.amountXtr) === reservation.amount && Number(capture.refundedAmountXtr) === reservation.amount) {
+        await withTransaction((tx) => tx.run(
+          "UPDATE telegram_stars_capture_inbox SET status='refunded',error_code=NULL,updated_at=? WHERE telegram_payment_charge_id=? AND status='refund_submitted'",
+          [timestamp(clock), chargeId],
+        ));
+        return { ok: true, status: 'refunded', recovered: true, idempotent: true };
+      }
+      throw fail('REFUND_RECOVERY_REQUIRED', 'Recovery refund outcome is ambiguous; reconcile before retrying');
+    }
+
+    try {
+      const refund = await refundStarPayment({
+        userId: reservation.userId,
+        telegramPaymentChargeId: chargeId,
+        amountXtr: reservation.amount,
+        currency: TELEGRAM_STARS_CURRENCY,
+        reason: input.reason || 'operator_capture_recovery',
+      });
+      if (refund?.telegramPaymentChargeId !== chargeId || Number(refund?.amountXtr) !== reservation.amount) {
+        throw new Error('Recovery refund result is invalid');
+      }
+      await withTransaction((tx) => tx.run(
+        "UPDATE telegram_stars_capture_inbox SET status='refunded',error_code=NULL,updated_at=? WHERE telegram_payment_charge_id=? AND status='refund_submitted'",
+        [timestamp(clock), chargeId],
+      ));
+      return { ok: true, status: 'refunded', idempotent: false };
+    } catch {
+      throw fail('PROVIDER_UNAVAILABLE', 'Telegram Stars recovery refund outcome is ambiguous');
+    }
+  }
+
   async function getEntitlement({ orderId, userId: rawUserId, telegramUserId }) {
     assertEnabled();
     const userId = normalizeUserId(rawUserId, telegramUserId);
@@ -1180,6 +1353,9 @@ export function createTelegramStarsService(deps = {}) {
       if (existing) {
         assertSameFingerprint(existing, fingerprint, 'idempotency');
         return { case: existing, idempotent: true };
+      }
+      if (!await tx.get('SELECT id FROM users WHERE id=?', [userId])) {
+        throw fail('INVALID_INPUT', 'Open the Mini App before submitting a payment support request');
       }
       if (orderId) {
         const order = await tx.get('SELECT id,user_id FROM telegram_stars_orders WHERE id=?', [orderId]);
@@ -1236,6 +1412,11 @@ export function createTelegramStarsService(deps = {}) {
            FROM telegram_stars_payments p JOIN telegram_stars_orders o ON o.id=p.order_id`,
       );
       const localByCharge = new Map(localRows.map((row) => [row.telegram_payment_charge_id, row]));
+      const captureInbox = await tx.all(
+        `SELECT telegram_payment_charge_id,request_fingerprint,payload_json,status,error_code,received_at,updated_at
+           FROM telegram_stars_capture_inbox`,
+      );
+      const inboxByCharge = new Map(captureInbox.map((row) => [row.telegram_payment_charge_id, row]));
       const providerByCharge = new Map();
       const issues = [];
       const addIssue = (issue) => {
@@ -1256,6 +1437,21 @@ export function createTelegramStarsService(deps = {}) {
         providerByCharge.set(charge, capture);
         const local = localByCharge.get(charge);
         if (!local) {
+          const inbox = inboxByCharge.get(charge);
+          const evidence = parseJson(inbox?.payload_json, {});
+          const evidenceMatches = inbox
+            && evidence.telegramPaymentChargeId === charge
+            && evidence.currency === capture.currency
+            && Number(evidence.totalAmount ?? evidence.amountXtr) === Number(capture.amountXtr ?? capture.totalAmount)
+            && String(evidence.userId || '').replace(/^tg_/, '') === String(capture.telegramUserId || '');
+          if (evidenceMatches && Number(capture.refundedAmountXtr || 0) === Number(capture.amountXtr ?? capture.totalAmount)) {
+            await tx.run(
+              "UPDATE telegram_stars_capture_inbox SET status='refunded',error_code=NULL,updated_at=? WHERE telegram_payment_charge_id=?",
+              [timestamp(clock), charge],
+            );
+            inbox.status = 'refunded';
+            continue;
+          }
           addIssue({ issue_type: 'provider_capture_missing_local_payment', severity: 'critical', charge, details: { amountXtr: capture.amountXtr ?? capture.totalAmount, currency: capture.currency, invoicePayload: capture.invoicePayload || null } });
           continue;
         }
@@ -1273,16 +1469,24 @@ export function createTelegramStarsService(deps = {}) {
       }
 
       for (const local of localRows) {
+        const entitlement = await tx.get('SELECT user_id,product_id,status FROM telegram_stars_entitlements WHERE order_id=?', [local.order_id]);
+        const fullyRefunded = Number(local.refunded_amount_xtr) === Number(local.amount_xtr);
+        if ((!fullyRefunded && (!entitlement || entitlement.status !== 'active'))
+          || (fullyRefunded && entitlement?.status === 'active')
+          || (entitlement && (entitlement.user_id !== local.user_id || entitlement.product_id !== local.product_id))) {
+          addIssue({ issue_type: 'payment_entitlement_mismatch', severity: 'critical', charge: local.telegram_payment_charge_id,
+            orderId: local.order_id, details: { paymentStatus: local.status, entitlementStatus: entitlement?.status || 'missing' } });
+        }
         if (!providerByCharge.has(local.telegram_payment_charge_id)) {
-          addIssue({ issue_type: 'local_payment_missing_provider_capture', severity: 'warning', charge: local.telegram_payment_charge_id, orderId: local.order_id, details: { localStatus: local.status } });
+          addIssue({ issue_type: 'local_payment_missing_provider_capture', severity: 'critical', charge: local.telegram_payment_charge_id, orderId: local.order_id, details: { localStatus: local.status } });
         }
       }
 
       // A process can die after the provider accepts a refund but before the
       // local `recordRefund` transaction marks the request applied. Keep this
       // recovery state visible to operators instead of silently treating it
-      // as success; retrying the same request key is safe because the adapter
-      // receives that durable key.
+      // as success. Retrying the same request reconciles provider state first;
+      // Telegram does not provide a refund request idempotency key.
       const refundRequests = await tx.all(
         `SELECT rr.id,rr.payment_id,rr.request_key,rr.status,rr.amount_xtr,
                 p.telegram_payment_charge_id
@@ -1301,6 +1505,26 @@ export function createTelegramStarsService(deps = {}) {
             requestKey: request.request_key,
             status: request.status,
             amountXtr: Number(request.amount_xtr),
+          },
+        });
+      }
+
+      // successful_payment is first written to a provider-independent inbox,
+      // then projected into the order/payment/entitlement tables. A row that
+      // remains non-terminal after the short projection grace period is money
+      // received without a proven local outcome and must stop new sales.
+      const reconciliationNow = new Date(clock()).getTime();
+      for (const capture of captureInbox) {
+        if (!['received', 'recovery_required', 'refund_submitted'].includes(capture.status)) continue;
+        const updatedAt = Date.parse(capture.updated_at || capture.received_at || '');
+        if (capture.status === 'received' && Number.isFinite(updatedAt) && reconciliationNow - updatedAt < 30_000) continue;
+        addIssue({
+          issue_type: 'capture_projection_recovery_required',
+          severity: 'critical',
+          charge: capture.telegram_payment_charge_id,
+          details: {
+            inboxStatus: capture.status,
+            errorCode: capture.error_code || null,
           },
         });
       }
@@ -1339,6 +1563,7 @@ export function createTelegramStarsService(deps = {}) {
     recordRefund,
     handleRefund: recordRefund,
     requestRefund,
+    refundRecoveryCapture,
     getEntitlement,
     openSupportCase,
     reconcile,

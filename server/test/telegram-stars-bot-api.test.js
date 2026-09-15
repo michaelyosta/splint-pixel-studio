@@ -32,7 +32,6 @@ test('Bot API adapter creates XTR invoice links with one server-priced item', as
     title: 'Премиум-галерея',
     description: 'Доступ к премиум-галерее',
     payload: 'splint:xtr:v1:order-1',
-    provider_token: '',
     currency: 'XTR',
     prices: [{ label: 'Премиум-галерея', amount: 120 }],
   });

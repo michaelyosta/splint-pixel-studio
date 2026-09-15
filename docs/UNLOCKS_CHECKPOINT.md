@@ -146,9 +146,9 @@ Verification on this workspace:
 
 - PostgreSQL unlock tests must run in CI/staging with `DATABASE_URL`; they
   self-skip locally by the repo convention.
-- Premium purchase of `col_premium-gallery` requires a non-disabled
-  `PAYMENTS_MODE`; production defaults to `disabled` until Telegram Stars is
-  configured.
+- Premium purchase of `col_premium-gallery` requires the validated production
+  `telegram_stars_controlled` runtime and an open database purchase gate. A
+  public gate still keeps this product allowlist and server catalog price.
 - Unlockable content is intentionally surfaced through `/unlocks` and
   `/colorings/recommendations` rather than the legacy editorial catalog to
   keep existing catalog clients byte-compatible; this is a product decision

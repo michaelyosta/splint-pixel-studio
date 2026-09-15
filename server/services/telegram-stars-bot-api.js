@@ -92,7 +92,6 @@ export function createTelegramStarsBotApiAdapter({
       title: label,
       description: detail,
       payload,
-      provider_token: '',
       currency: 'XTR',
       prices: [{ label, amount }],
     });

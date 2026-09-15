@@ -115,9 +115,10 @@ test('migration 024/025 preserve a 023 SQLite database and allow the six special
     persistFn: null,
     migrationsDir: legacyDir,
   });
-  // 001-023 plus the isolated future XTR migrations 026-028 are present in the
-  // copied directory while the 024/025 files are intentionally removed.
-  assert.equal(firstPass.applied, 27);
+  // 001-023 plus the isolated future XTR/browser-auth migrations 026-031 are
+  // present in the copied directory while the 024/025 files are intentionally
+  // removed.
+  assert.equal(firstPass.applied, 29);
   assert.equal(firstPass.skipped, 0);
 
   insertTemplateUser(db);
@@ -149,9 +150,9 @@ test('migration 024/025 preserve a 023 SQLite database and allow the six special
     migrationsDir: sqliteMigrationsDir,
   });
   assert.equal(secondPass.applied, 2);
-   // The future XTR and browser-auth migrations (026-029) were already applied
-   // in the first pass; after adding back 024/025, 27 migrations are skipped.
-  assert.equal(secondPass.skipped, 27);
+  // All migrations except 024/025 were already applied in the first pass;
+  // after adding those two files back, the existing 29 are skipped.
+  assert.equal(secondPass.skipped, 29);
 
   const preserved = all('SELECT * FROM coloring_special_cells WHERE template_id=?', ['template-special-kinds']);
   assert.equal(preserved.length, 1);

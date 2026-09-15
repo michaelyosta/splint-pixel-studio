@@ -80,7 +80,7 @@ function App() {
     let active = true;
     telegramStarsApi.config()
       .then((config) => {
-        if (!active || config?.mode !== 'telegram_stars_controlled') {
+        if (!active || !['telegram_stars_controlled', 'telegram_stars'].includes(config?.mode)) {
           if (active) {
             setPaymentsMode('disabled');
             setPaymentProductIds([]);

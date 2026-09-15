@@ -533,6 +533,18 @@ test('reconciliation detects provider refund totals that do not match the local 
   assert.equal((await svc.getEntitlement({ userId: 'tg_123', orderId: created.order.id })).status, 'active');
 });
 
+test('reconciliation treats a local payment missing from Telegram as critical', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const { svc } = service(db);
+  const created = await svc.createOrder({ userId: 'tg_123', productId: 'provider-missing', amountXtr: 8, idempotencyKey: 'provider-missing-order' });
+  await svc.successfulPayment({ userId: 'tg_123', invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 8, telegramPaymentChargeId: 'provider-missing-charge' });
+  const report = await svc.reconcile();
+  const issue = report.issues.find((candidate) => candidate.issue_type === 'local_payment_missing_provider_capture');
+  assert.ok(issue);
+  assert.equal(issue.severity, 'critical');
+});
+
 test('reconciliation surfaces durable refund requests that need provider recovery', async () => {
   const db = await createDb();
   await seedUser(db);
@@ -549,6 +561,21 @@ test('reconciliation surfaces durable refund requests that need provider recover
   adapter.seedCapture({ telegramPaymentChargeId: 'refund-recovery-charge', invoicePayload: created.order.invoice_payload, amountXtr: 8, currency: 'XTR' });
   const report = await svc.reconcile();
   assert.ok(report.issues.some((issue) => issue.issue_type === 'refund_request_failed'));
+});
+
+test('reconciliation surfaces a stalled successful-payment inbox projection', async () => {
+  const db = await createDb();
+  const { svc } = service(db);
+  await tx(db, (database) => database.run(
+    `INSERT INTO telegram_stars_capture_inbox
+      (telegram_payment_charge_id,request_fingerprint,payload_json,status,error_code,received_at,updated_at)
+     VALUES (?,?,?,?,?,?,?)`,
+    ['stalled-charge', 'fingerprint', '{}', 'recovery_required', 'ORDER_NOT_FOUND', '2020-01-01T00:00:00.000Z', '2020-01-01T00:00:00.000Z'],
+  ));
+  const report = await svc.reconcile();
+  const issue = report.issues.find((candidate) => candidate.issue_type === 'capture_projection_recovery_required');
+  assert.ok(issue);
+  assert.equal(issue.severity, 'critical');
 });
 
 test('refund retry reconciles an ambiguous Bot API outcome before any second provider call', async () => {
@@ -586,4 +613,147 @@ test('refund retry reconciles an ambiguous Bot API outcome before any second pro
   assert.equal(refundCalls, 1);
   assert.equal(listCalls, 1);
   assert.equal((await svc.getEntitlement({ userId: 'tg_123', orderId: created.order.id })).status, 'revoked');
+});
+
+test('kill switch rejects invoice and pre-checkout but still persists successful payment', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  let open = true;
+  const { svc } = service(db, undefined, { purchaseGuard: async () => open });
+  const created = await svc.createOrder({ userId: 'tg_123', productId: 'gated-product', amountXtr: 12, idempotencyKey: 'gated-order' });
+  open = false;
+  const rejected = await svc.preCheckout({ userId: 'tg_123', updateId: 'gated-pre', preCheckoutQueryId: 'gated-query', invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 12 });
+  assert.equal(rejected.code, 'PAYMENTS_DISABLED');
+  assert.equal(rejected.ok, false);
+  const captured = await svc.successfulPayment({ userId: 'tg_123', updateId: 'gated-success', invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 12, telegramPaymentChargeId: 'gated-charge' });
+  assert.ok(captured.entitlementId);
+  assert.equal((await svc.getEntitlement({ userId: 'tg_123', orderId: created.order.id })).status, 'active');
+  await assert.rejects(() => svc.createOrder({ userId: 'tg_123', productId: 'other', amountXtr: 12, idempotencyKey: 'gated-other' }), error => errorCode(error, 'PAYMENTS_DISABLED'));
+});
+
+test('late excess capture is durable, creates no duplicate entitlement, and remains refundable', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  let now = new Date('2026-09-14T00:00:00Z');
+  let critical = 0;
+  const { svc } = service(db, undefined, { clock: () => new Date(now), onCritical: async () => { critical += 1; } });
+  const oldOrder = (await svc.createOrder({ userId: 'tg_123', productId: 'premium', amountXtr: 120, idempotencyKey: 'late-old' })).order;
+  now = new Date('2026-09-14T00:16:00Z');
+  const newOrder = (await svc.createOrder({ userId: 'tg_123', productId: 'premium', amountXtr: 120, idempotencyKey: 'late-new' })).order;
+  await svc.successfulPayment({ userId: 'tg_123', updateId: 'late-new-event', invoicePayload: newOrder.invoice_payload, currency: 'XTR', totalAmount: 120, telegramPaymentChargeId: 'late-new-charge' });
+  const late = await svc.successfulPayment({ userId: 'tg_123', updateId: 'late-old-event', invoicePayload: oldOrder.invoice_payload, currency: 'XTR', totalAmount: 120, telegramPaymentChargeId: 'late-old-charge' });
+  assert.equal(late.recoveryRequired, true);
+  assert.equal(late.entitlementId, null);
+  assert.equal(critical, 1);
+  const counts = await tx(db, async database => ({
+    payments: await database.get("SELECT COUNT(*) AS c FROM telegram_stars_payments WHERE telegram_payment_charge_id IN ('late-new-charge','late-old-charge')"),
+    entitlements: await database.get("SELECT COUNT(*) AS c FROM telegram_stars_entitlements WHERE user_id='tg_123' AND product_id='premium' AND status='active'"),
+    inbox: await database.get("SELECT status FROM telegram_stars_capture_inbox WHERE telegram_payment_charge_id='late-old-charge'"),
+  }));
+  assert.equal(Number(counts.payments.c), 2);
+  assert.equal(Number(counts.entitlements.c), 1);
+  assert.equal(counts.inbox.status, 'recovery_required');
+  const refund = await svc.requestRefund({ userId: 'tg_123', telegramPaymentChargeId: 'late-old-charge', amountXtr: 120, idempotencyKey: 'late-old-refund' });
+  assert.equal(refund.status, 'refunded');
+  assert.equal((await svc.getEntitlement({ userId: 'tg_123', orderId: newOrder.id })).status, 'active');
+});
+
+test('concurrent same-key refund has exactly one provider caller', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const baseAdapter = createMockTelegramStarsAdapter();
+  let refundCalls = 0;
+  let reservations = 0;
+  let release;
+  const bothReserved = new Promise(resolve => { release = resolve; });
+  baseAdapter.refundStarPayment = async input => {
+    refundCalls += 1;
+    return { ...input, refundId: `one-provider-refund:${input.telegramPaymentChargeId}` };
+  };
+  const wrappedTransaction = async callback => {
+    const result = await tx(db, callback);
+    if (result?.status === 'requested') {
+      reservations += 1;
+      if (reservations === 2) release();
+      await bothReserved;
+    }
+    return result;
+  };
+  const svc = createTelegramStarsService({ enabled: true, adapter: baseAdapter, mode: 'sqlite', withTransaction: wrappedTransaction });
+  const order = (await svc.createOrder({ userId: 'tg_123', productId: 'refund-race', amountXtr: 10, idempotencyKey: 'refund-race-order' })).order;
+  await svc.successfulPayment({ userId: 'tg_123', invoicePayload: order.invoice_payload, currency: 'XTR', totalAmount: 10, telegramPaymentChargeId: 'refund-race-charge' });
+  const input = { userId: 'tg_123', telegramPaymentChargeId: 'refund-race-charge', amountXtr: 10, idempotencyKey: 'refund-race-same-key' };
+  const results = await Promise.allSettled([svc.requestRefund(input), svc.requestRefund(input)]);
+  assert.equal(refundCalls, 1);
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(results.filter(result => result.status === 'rejected' && errorCode(result.reason, 'REFUND_RECOVERY_REQUIRED')).length, 1);
+});
+
+test('capture replay cannot grant access while a recovery refund is in flight', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const { svc } = service(db);
+  const order = (await svc.createOrder({ userId: 'tg_123', productId: 'recovery-race', amountXtr: 8, idempotencyKey: 'recovery-race' })).order;
+  const input = { userId: 'tg_123', invoicePayload: order.invoice_payload, currency: 'XTR', totalAmount: 8, telegramPaymentChargeId: 'recovery-race-charge' };
+  // Simulate the durable reservation left by an in-flight recovery request,
+  // after inbox persistence but before any projection was committed.
+  db.run("CREATE TRIGGER fail_projection BEFORE INSERT ON telegram_stars_payments BEGIN SELECT RAISE(ABORT,'projection unavailable'); END");
+  await assert.rejects(() => svc.successfulPayment(input), /projection unavailable/);
+  db.run('DROP TRIGGER fail_projection');
+  db.run("UPDATE telegram_stars_capture_inbox SET status='refund_submitted' WHERE telegram_payment_charge_id='recovery-race-charge'");
+  const replay = await svc.successfulPayment(input);
+  assert.equal(replay.refundStatus, 'refund_submitted');
+  assert.equal(replay.recoveryRequired, true);
+  assert.equal(await svc.getEntitlement({ userId: 'tg_123', orderId: order.id }), null);
+  assert.equal(Number((await tx(db, database => database.get('SELECT COUNT(*) AS c FROM telegram_stars_payments'))).c), 0);
+});
+
+test('reconciliation detects a captured payment whose access was revoked unexpectedly', async () => {
+  const db = await createDb();
+  await seedUser(db);
+  const { svc } = service(db);
+  const order = (await svc.createOrder({ userId: 'tg_123', productId: 'entitlement-integrity', amountXtr: 8, idempotencyKey: 'entitlement-integrity' })).order;
+  await svc.successfulPayment({ userId: 'tg_123', invoicePayload: order.invoice_payload, currency: 'XTR', totalAmount: 8, telegramPaymentChargeId: 'entitlement-integrity-charge' });
+  db.run("UPDATE telegram_stars_entitlements SET status='revoked',revoked_at='2026-09-15T00:00:00Z',revoked_reason='unexpected' WHERE order_id=?", [order.id]);
+  const report = await svc.reconcile();
+  assert.ok(report.issues.some(issue => issue.issue_type === 'payment_entitlement_mismatch' && issue.severity === 'critical'));
+});
+
+test('unknown provider capture is durable, single-call refundable, and reconciles after recovery', async () => {
+  const db = await createDb();
+  let refunded = false;
+  let refundCalls = 0;
+  const adapter = {
+    providerName: 'telegram_stars_bot_api',
+    supportsPartialRefund: false,
+    async refundStarPayment({ telegramPaymentChargeId, amountXtr }) {
+      refundCalls += 1;
+      refunded = true;
+      return { refundId: `telegram_refund:${telegramPaymentChargeId}`, telegramPaymentChargeId, amountXtr };
+    },
+    async listCapturedPayments() {
+      return [{
+        telegramPaymentChargeId: 'orphan-charge', invoicePayload: 'unknown-order', telegramUserId: '123',
+        amountXtr: 8, refundedAmountXtr: refunded ? 8 : 0, currency: 'XTR',
+      }];
+    },
+  };
+  const { svc } = service(db, adapter);
+  await assert.rejects(
+    () => svc.successfulPayment({ telegramUserId: '123', invoicePayload: 'unknown-order', currency: 'XTR', totalAmount: 8, telegramPaymentChargeId: 'orphan-charge' }),
+    (error) => errorCode(error, 'ORDER_NOT_FOUND'),
+  );
+  const before = await tx(db, (database) => database.get("SELECT status FROM telegram_stars_capture_inbox WHERE telegram_payment_charge_id='orphan-charge'"));
+  assert.equal(before.status, 'recovery_required');
+  assert.throws(() => db.run("UPDATE telegram_stars_capture_inbox SET payload_json='{}' WHERE telegram_payment_charge_id='orphan-charge'"), /identity is immutable/);
+  assert.throws(() => db.run("DELETE FROM telegram_stars_capture_inbox WHERE telegram_payment_charge_id='orphan-charge'"), /is durable/);
+
+  const recovered = await svc.refundRecoveryCapture({ telegramPaymentChargeId: 'orphan-charge' });
+  assert.equal(recovered.status, 'refunded');
+  const replay = await svc.refundRecoveryCapture({ telegramPaymentChargeId: 'orphan-charge' });
+  assert.equal(replay.idempotent, true);
+  assert.equal(refundCalls, 1);
+
+  const report = await svc.reconcile();
+  assert.equal(report.issues.some((issue) => issue.severity === 'critical'), false);
 });

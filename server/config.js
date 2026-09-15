@@ -156,6 +156,9 @@ export function validateProductionConfiguration(env = process.env) {
   if (env.SPECIAL_CELLS_DIAGNOSTICS === 'true') throw new Error('SPECIAL_CELLS_DIAGNOSTICS cannot be enabled in production');
   if (env.SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE === 'true') throw new Error('SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE cannot be enabled in production');
   if (env.E2E_SEED_HOOKS === 'true') throw new Error('E2E_SEED_HOOKS cannot be enabled in production');
+  if (String(env.TELEGRAM_BOT_API_ENVIRONMENT || 'production').trim().toLowerCase() !== 'production') {
+    throw new Error('TELEGRAM_BOT_API_ENVIRONMENT must be production in production');
+  }
   if (!env.TELEGRAM_BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is required in production');
   if (env.SEED_DEMO_DATA === 'true') throw new Error('SEED_DEMO_DATA cannot be enabled in production');
 
@@ -192,16 +195,16 @@ export function validateProductionConfiguration(env = process.env) {
   }
 
   if (paymentsMode === 'telegram_stars') {
-    // The provider adapter/webhook is intentionally not mounted in this
-    // bounded slice. Refuse a production boot that could advertise an active
-    // Stars mode until a separate release wires the real Bot API path.
-    throw new Error('PAYMENTS_MODE=telegram_stars is not available in this release; keep production payments disabled');
+    // Public access is a database-gate state inside the fully validated
+    // controlled runtime. A broad environment switch would bypass that hot
+    // kill switch and is therefore never a valid production configuration.
+    throw new Error('PAYMENTS_MODE=telegram_stars is not available in production; use the controlled runtime and purchase gate');
   }
 
   if (paymentsMode === TELEGRAM_STARS_CONTROLLED_MODE) {
-    // Controlled activation is deliberately explicit. A production process
-    // must not boot with a mode that can create invoices but lacks a complete
-    // allowlist, webhook authentication, or support/refund contact.
+    // The controlled runtime is deliberately explicit even when its durable
+    // purchase gate is public. A production process must not boot without a
+    // recovery allowlist, webhook authentication, or support/refund contact.
     getTelegramStarsControlledConfiguration(env);
   }
 

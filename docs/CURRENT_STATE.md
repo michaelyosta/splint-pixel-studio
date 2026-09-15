@@ -2,7 +2,7 @@
 
 Status: CURRENT
 Authority: Current operational truth for this repository.
-Last verified: 2026-09-08
+Last verified: 2026-09-15
 Repository state: verify current HEAD and origin/main at task start per AGENTS.md.
 
 This document is intentionally short and bounded. It records what is
@@ -15,8 +15,10 @@ contracts, or direct production evidence.
 Origin migration status: `PIXEL_SUBDOMAIN_MIGRATED`. Direct provider and live
 smoke evidence verified on 2026-09-08 is recorded in
 [evidence/PIXEL_SUBDOMAIN_MIGRATION_2026-09-08.md](evidence/PIXEL_SUBDOMAIN_MIGRATION_2026-09-08.md).
-This confirms the primary public origin and Telegram launch path only; it does
-not promote physical-iOS, commerce, or editorial claims into verified state.
+This confirms the primary public origin and Telegram launch path. Current
+commerce status below also incorporates the controlled-production evidence
+recorded through 2026-09-15; it does not promote physical-iOS or editorial
+claims into verified state.
 
 ## Product
 
@@ -74,14 +76,24 @@ not promote physical-iOS, commerce, or editorial claims into verified state.
 
 ## Commerce
 
-- Production configuration policy: `DISABLED` / fail-closed. `server/config.js` rejects `internal_credits` and `telegram_stars` in production; live production activation remains `UNKNOWN` without environment evidence.
-- Real Telegram Stars are **not active**. The provider-shaped service and
-  webhook factory exist for contract tests, but the real adapter/webhook is not
-  mounted by `server/index.js`.
+- Production currently runs the real Telegram Bot API integration in
+  `PAYMENTS_MODE=telegram_stars_controlled`. The webhook is registered and the
+  only configured product is `col_premium-gallery` at its server-owned catalog
+  price of 120 XTR. Public access is not asserted until the hot database gate
+  is explicitly drilled and changed from `controlled` to `public` after a
+  green release.
+- The launch-hardening candidate adds a durable `disabled` / `controlled` /
+  `public` gate. Public mode removes only the user allowlist; it never removes
+  the product allowlist. Capture, refund and reconciliation remain available
+  while new purchases are disabled.
 - Local development may default to `internal_credits` when `NODE_ENV` is local
   or omitted. That is a test/development ledger and is not Telegram Stars.
-- Marketplace purchase activation: `UNKNOWN` and fail-closed. Payout
-  activation: `UNKNOWN` and fail-closed. They are separate economic decisions.
+- Marketplace payout remains off and outside this launch. Telegram Test API
+  is rejected in production. Browser OIDC is unchanged.
+- `TELEGRAM_STARS_PRODUCTION_ROUNDTRIP_PENDING` remains historical evidence and
+  is consciously waived only as a pre-launch requirement. A real production
+  `successful_payment` and refund have not been performed; the first live user
+  transaction is the canary once public access is deliberately activated.
 - The stable payment order, idempotency, replay, refund, reconciliation, and
   kill-switch boundary is [COMMERCE_CONTRACT.md](COMMERCE_CONTRACT.md).
 
@@ -154,8 +166,12 @@ deployment occurred. The checked-in workflow is `.github/workflows/ci.yml`.
 
 - `UNKNOWN` — physical Telegram iOS runtime result.
 - `UNKNOWN` — current editorial approval/publication and pixelization winner.
-- `FROZEN` — real Stars, marketplace purchases, and payouts until their
-  evidence and explicit activation decisions exist.
+- `PAYMENT GATE` — public Stars access remains closed until the launch-hardening
+  PR is green, deployed, and the production kill-switch drill succeeds.
+- `DEFERRED` — the owned production purchase/refund round-trip was consciously
+  waived before launch, not proven. After public activation it becomes
+  `TELEGRAM_STARS_FIRST_LIVE_TRANSACTION_MONITORING`.
+- `FROZEN` — marketplace payouts and additional monetization products.
 
 ## Non-blocking debt
 
