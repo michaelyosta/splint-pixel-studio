@@ -192,6 +192,18 @@ export const telegramStarsApi = {
   }),
 };
 
+export const telegramStarsOpsApi = {
+  status: () => request('/payments/telegram-stars/ops/gate'),
+  setGate: (mode, { confirmPublic = '', reason = '' } = {}) => request('/payments/telegram-stars/ops/gate', {
+    method: 'POST',
+    body: {
+      mode,
+      ...(confirmPublic ? { confirm_public: confirmPublic } : {}),
+      ...(reason ? { reason } : {}),
+    },
+  }),
+};
+
 export const directorApi = {
   next: ({ exclude = null } = {}) => {
     const query = new URLSearchParams();
