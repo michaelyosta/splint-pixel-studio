@@ -47,6 +47,37 @@ test('private paysupport persists a bounded case and returns a Telegram reply wi
   });
 });
 
+test('break-glass gate endpoint allows only the existing Telegram operator and never public mode', async () => {
+  const states = [{ mode: 'public', version: 4, failClosed: false }];
+  const runtime = {
+    enabled: true,
+    isAllowlistedUser: id => String(id) === '123',
+    purchaseGate: {
+      getState: async () => states[0],
+      setState: async input => { states[0] = { ...states[0], ...input, version: states[0].version + 1 }; return states[0]; },
+    },
+  };
+  const app = express();
+  app.use(express.json());
+  app.use('/payments/telegram-stars', createTelegramStarsCommerceRouter({ runtime, auth: authFor(999) }));
+  await withServer(app, async base => {
+    const headers = { 'content-type': 'application/json' };
+    const forbidden = await fetch(`${base}/payments/telegram-stars/ops/gate`, { method: 'POST', headers, body: JSON.stringify({ mode: 'disabled' }) });
+    assert.equal(forbidden.status, 403);
+  });
+  const app2 = express();
+  app2.use(express.json());
+  app2.use('/payments/telegram-stars', createTelegramStarsCommerceRouter({ runtime, auth: authFor(123) }));
+  // Rebind a Telegram operator auth with the same allowlisted identity.
+  await withServer(app2, async base => {
+    const response = await fetch(`${base}/payments/telegram-stars/ops/gate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'disabled', reason: 'canary_drill' }) });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).mode, 'disabled');
+    const publicMode = await fetch(`${base}/payments/telegram-stars/ops/gate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'public', reason: 'must_reject' }) });
+    assert.equal(publicMode.status, 400);
+  });
+});
+
 test('controlled Bot API runtime is production-only', () => {
   const runtime = createTelegramStarsRuntime({
     env: { NODE_ENV: 'test', PAYMENTS_MODE: 'telegram_stars_controlled' },

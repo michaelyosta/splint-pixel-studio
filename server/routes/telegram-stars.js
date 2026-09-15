@@ -213,6 +213,38 @@ function ensureRuntime(runtime, res) {
 export function createTelegramStarsCommerceRouter({ runtime, auth = authMiddleware } = {}) {
   const router = Router();
 
+  function operatorGuard(req, res) {
+    if (!runtime?.enabled || req.authMode !== 'telegram' || !runtime.isAllowlistedUser?.(req.user?.telegram_id)) {
+      res.status(403).json({ error: 'Telegram Stars operator access denied', code: 'PAYMENTS_OPERATOR_FORBIDDEN' });
+      return false;
+    }
+    return true;
+  }
+
+  // Break-glass control is deliberately limited to the pre-existing owner
+  // Telegram identity in the production allowlist. It avoids requiring a
+  // code deploy or an unavailable Render shell, while never accepting public
+  // mode through the HTTP surface.
+  router.post('/ops/gate', auth, asyncRoute(async (req, res) => {
+    if (!operatorGuard(req, res)) return undefined;
+    const mode = req.body?.mode;
+    if (!['disabled', 'controlled'].includes(mode)) return res.status(400).json({ error: 'Only disabled or controlled operator transitions are allowed', code: 'INVALID_GATE_MODE' });
+    try {
+      const current = await runtime.purchaseGate.getState();
+      if (current.failClosed) return res.status(503).json({ error: 'Purchase gate state is unavailable', code: 'PAYMENTS_GATE_UNAVAILABLE' });
+      const next = mode === current.mode ? current : await runtime.purchaseGate.setState({
+        mode,
+        expectedVersion: current.version,
+        reason: typeof req.body?.reason === 'string' ? req.body.reason : `operator_${mode}`,
+        actor: `telegram:${req.user.telegram_id}`,
+      });
+      return res.json({ mode: next.mode, version: next.version, reason: next.reason });
+    } catch (error) {
+      if (error?.message === 'TELEGRAM_STARS_GATE_VERSION_CONFLICT') return res.status(409).json({ error: 'Purchase gate changed concurrently; retry with fresh state', code: 'PAYMENTS_GATE_VERSION_CONFLICT' });
+      throw error;
+    }
+  }));
+
   router.get('/config', auth, asyncRoute(async (req, res) => {
     if (!telegramUser(runtime, req)) return res.json({ mode: 'disabled', product_ids: [] });
     return res.json(await runtime.getPurchaseConfig(req.user?.telegram_id));
