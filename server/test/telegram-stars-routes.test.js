@@ -56,6 +56,7 @@ test('break-glass gate endpoint allows only the existing Telegram operator and n
       getState: async () => states[0],
       setState: async input => { states[0] = { ...states[0], ...input, version: states[0].version + 1 }; return states[0]; },
     },
+    assertPublicActivationReady: async () => ({ productId: 'col_premium-gallery', amountXtr: 120 }),
   };
   const app = express();
   app.use(express.json());
@@ -75,6 +76,8 @@ test('break-glass gate endpoint allows only the existing Telegram operator and n
     assert.equal((await response.json()).mode, 'disabled');
     const publicMode = await fetch(`${base}/payments/telegram-stars/ops/gate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'public', reason: 'must_reject' }) });
     assert.equal(publicMode.status, 400);
+    const publicActivation = await fetch(`${base}/payments/telegram-stars/ops/gate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'public', confirm_public: 'TELEGRAM_STARS_PUBLIC', reason: 'launch' }) });
+    assert.equal(publicActivation.status, 200);
   });
 });
 

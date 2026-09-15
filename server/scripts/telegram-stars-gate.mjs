@@ -34,6 +34,19 @@ if (!['status', 'set'].includes(command) || command === 'set' && !TELEGRAM_STARS
     if (command === 'status') {
       console.log(JSON.stringify(current));
     } else {
+      if (requestedMode === 'public') {
+        const product = await get(
+          `SELECT id,pack_type,price_in_stars,status,visibility,owner_id
+             FROM collections WHERE id=?`,
+          ['col_premium-gallery'],
+        );
+        if (config.telegramStars.allowlistedProductIds.length !== 1
+          || config.telegramStars.allowlistedProductIds[0] !== 'col_premium-gallery'
+          || !product || product.pack_type !== 'premium' || Number(product.price_in_stars) !== 120
+          || product.status !== 'published' || product.visibility !== 'public' || product.owner_id !== null) {
+          throw new Error('Public Stars activation requires the single approved product col_premium-gallery at 120 Stars');
+        }
+      }
       const reason = reasonArg?.slice('--reason='.length);
       const actor = actorArg?.slice('--actor='.length) || 'render-shell-operator';
       const next = await gate.setState({ mode: requestedMode, expectedVersion: current.version, reason, actor });

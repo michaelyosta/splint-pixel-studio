@@ -228,10 +228,15 @@ export function createTelegramStarsCommerceRouter({ runtime, auth = authMiddlewa
   router.post('/ops/gate', auth, asyncRoute(async (req, res) => {
     if (!operatorGuard(req, res)) return undefined;
     const mode = req.body?.mode;
-    if (!['disabled', 'controlled'].includes(mode)) return res.status(400).json({ error: 'Only disabled or controlled operator transitions are allowed', code: 'INVALID_GATE_MODE' });
+    if (!['disabled', 'controlled', 'public'].includes(mode)) return res.status(400).json({ error: 'Unsupported operator gate transition', code: 'INVALID_GATE_MODE' });
+    if (mode === 'public' && req.body?.confirm_public !== 'TELEGRAM_STARS_PUBLIC') return res.status(400).json({ error: 'Public mode requires explicit confirmation', code: 'PUBLIC_CONFIRMATION_REQUIRED' });
     try {
       const current = await runtime.purchaseGate.getState();
       if (current.failClosed) return res.status(503).json({ error: 'Purchase gate state is unavailable', code: 'PAYMENTS_GATE_UNAVAILABLE' });
+      if (mode === 'public') {
+        if (process.env.TELEGRAM_STARS_RECONCILIATION_ENABLED === 'false') return res.status(400).json({ error: 'Public mode requires reconciliation', code: 'RECONCILIATION_REQUIRED' });
+        await runtime.assertPublicActivationReady();
+      }
       const next = mode === current.mode ? current : await runtime.purchaseGate.setState({
         mode,
         expectedVersion: current.version,

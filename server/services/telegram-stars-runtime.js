@@ -127,6 +127,21 @@ export function createTelegramStarsRuntime({ env = process.env, dbMode = 'postgr
         : state.mode === 'controlled' && controlledAllowed ? TELEGRAM_STARS_CONTROLLED_MODE : 'disabled';
       return { mode: clientMode, product_ids: clientMode === 'disabled' ? [] : config.allowlistedProductIds, gate_version: state.version };
     },
+    async assertPublicActivationReady() {
+      if (config.allowlistedProductIds.length !== 1 || config.allowlistedProductIds[0] !== 'col_premium-gallery') {
+        throw new Error('Public Stars activation requires the single approved product col_premium-gallery');
+      }
+      const product = await dbGet(
+        `SELECT id,pack_type,price_in_stars,status,visibility,owner_id
+           FROM collections WHERE id=?`,
+        ['col_premium-gallery'],
+      );
+      if (!product || product.pack_type !== 'premium' || Number(product.price_in_stars) !== 120
+        || product.status !== 'published' || product.visibility !== 'public' || product.owner_id !== null) {
+        throw new Error('Public Stars activation requires col_premium-gallery to be published, public, premium, and priced at 120 Stars');
+      }
+      return { productId: product.id, amountXtr: 120 };
+    },
     async isPurchaseAllowed(value, productId) {
       return (await purchaseGate.getAccess({ telegramUserId: value, productId })).allowed;
     },
