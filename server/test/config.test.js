@@ -73,9 +73,9 @@ test('production configuration is case-insensitive for the environment name', ()
   assert.equal(result.isProduction, true);
 });
 
-test('production Telegram Stars mode remains fail-closed until a release wires the provider', () => {
+test('production rejects a broad Stars environment switch in favor of the hot purchase gate', () => {
   const env = { ...validProduction, PAYMENTS_MODE: 'telegram_stars' };
-  assert.throws(() => validateProductionConfiguration(env), /not available in this release/);
+  assert.throws(() => validateProductionConfiguration(env), /not available in production; use the controlled runtime and purchase gate/);
 });
 
 test('production rejects internal credits instead of exposing a non-provider purchase path', () => {
@@ -162,6 +162,13 @@ test('production rejects QA diagnostics and cohort override flags', () => {
   assert.throws(
     () => validateProductionConfiguration({ ...validProduction, E2E_SEED_HOOKS: 'true' }),
     /E2E_SEED_HOOKS cannot be enabled in production/,
+  );
+});
+
+test('production rejects the Telegram Test API environment', () => {
+  assert.throws(
+    () => validateProductionConfiguration({ ...validProduction, TELEGRAM_BOT_API_ENVIRONMENT: 'test' }),
+    /must be production in production/,
   );
 });
 

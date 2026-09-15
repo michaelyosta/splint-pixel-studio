@@ -67,5 +67,5 @@ storage checks, and the critical/extended Playwright topology described in
 
 Production deployment, current blockers, content approval, and commerce
 activation are deliberately not asserted here. Read the documentation map and
-current-state document for those decisions. Real Telegram Stars, marketplace
-purchases, and payouts are fail-closed until separately verified and approved.
+current-state document for those decisions. Telegram Stars purchase access,
+marketplace settlement, and payouts remain separate operational decisions.

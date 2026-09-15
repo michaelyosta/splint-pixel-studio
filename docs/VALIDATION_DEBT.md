@@ -412,6 +412,10 @@ Continued local/agent testing, Store/entitlement UX work, or a disabled-by-defau
 Provisional decision:
 Keep the XTR route unmounted and `PAYMENTS_MODE=disabled`; do not accept `stars_balance` or client callbacks as payment authority. Provider-side refund polling, real webhook identity derivation, and crash recovery with a real Bot API adapter remain release debt.
 
+Superseded on 2026-09-15 by the launch-hardening candidate described below;
+this historical decision is retained as prior evidence, not current runtime
+truth.
+
 VD-PHASE5-FINAL-001
 
 Hypothesis:
@@ -516,3 +520,19 @@ Machine-executable release preparation was completed against the Alpha RC
 - Human core-feel and final Spark/Bomb preference (`spark_choice` remains the
   provisional baseline; no winner claimed).
 - Final artistic Pixelization verdict; broad 1024/1200 promotion.
+
+## Telegram Stars public-launch remediation (2026-09-15)
+
+The P1 findings recorded in `TELEGRAM_STARS_FINAL_LAUNCH_AUDIT.md` are closed
+in the launch-hardening candidate: documented Bot API transaction envelopes,
+a durable hot gate, capture inbox/recovery refund, native refund updates,
+atomic refund claims, a bounded reconciliation safety worker, safe payment
+telemetry, dedicated webhook ingress, public-user/product-allowlist separation,
+and real PostgreSQL race coverage are present.
+
+Remaining external evidence is deliberately narrow: the candidate still needs
+green CI, production deployment, a live kill-switch drill and configuration
+verification before public access can be opened. The absence of an owned
+production purchase/refund round-trip is accepted residual risk, not E2E proof;
+the first user transaction must be monitored as the production canary. Payout,
+additional products, Test API and Browser OIDC are outside this change.

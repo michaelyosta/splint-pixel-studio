@@ -7,23 +7,34 @@ Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_ST
 Overview: [COMMERCE_CONTRACT.md](COMMERCE_CONTRACT.md)
 
 The XTR path is isolated from the existing internal-credits ledger. The state machine lives in
-`server/services/telegram-stars.js`, the only shipped provider adapter is
-`server/services/telegram-stars-mock-adapter.js`, and migrations `026_telegram_stars_xtr.sql`,
-`027_telegram_stars_product_guards.sql`, and `028_telegram_stars_invoice_safety.sql` (plus SQLite
-counterparts) create the durable order, event, payment, entitlement, refund, reconciliation,
-support, active-product guard, invoice-lease, and refund-deduplication records.
+`server/services/telegram-stars.js`. Production uses
+`server/services/telegram-stars-bot-api.js`; the mock adapter remains test-only.
+Migrations 026–031 create the durable order, event, payment, entitlement,
+refund, reconciliation, support, purchase-gate, capture-inbox, uniqueness and
+invoice-lease records.
 
-`server/routes/telegram-stars.js` contains an unmounted webhook factory for
-`/pre-checkout`, `/successful-payment`, and `/refund`. It requires the Telegram secret-token
-header and delegates all decisions to the service; `server/index.js` deliberately does not mount it.
+`server/routes/telegram-stars.js` handles Telegram's root update shape,
+including `pre_checkout_query`, `successful_payment`, and
+`message.refunded_payment`. It requires the timing-safe Telegram secret-token
+header. Production mounts it in a dedicated, bounded ingress outside the
+general product rate-limit bucket. Authenticated Telegram updates bypass the
+unauthenticated abuse bucket so a legitimate capture cannot be rejected by a
+shared-IP limit.
 
 ## Activation boundary
 
-The service factory defaults to `enabled: false` and rejects every mutating operation with
-`PAYMENTS_DISABLED`. A caller must explicitly inject an adapter and pass `enabled: true`; the
-normal API bootstrap does neither. `PAYMENTS_MODE=disabled` remains the public-alpha default.
-There is no Bot API client, real invoice sender, real refund client, or production webhook mounted
-by this slice. The mock adapter records calls and can seed provider-shaped captures for tests.
+The service factory still defaults to `enabled: false`. Production constructs
+the real runtime only for `NODE_ENV=production` plus
+`PAYMENTS_MODE=telegram_stars_controlled` and complete Bot API, webhook,
+support and allowlist configuration. The environment remains controlled even
+when the independent database gate is `public`; `PAYMENTS_MODE=telegram_stars`
+and Test API environment values remain fail-closed.
+
+The gate is read from the database for every config/order/invoice/pre-checkout
+decision. `disabled` rejects all new purchases, `controlled` permits only the
+configured users and products, and `public` permits every authenticated
+Telegram user but still only configured products. Capture, refund, support,
+order reads and reconciliation continue while the gate is disabled.
 
 The product route that eventually creates an order must resolve the product and price on the server
 from a catalog. The non-mock service requires a server product resolver and a server price resolver
@@ -46,11 +57,13 @@ invoice_pending -> invoice_issued -> checkout_pending -> paid
 server amount. It records the decision and answers Telegram. A repeated query/update replays the
 same decision without a state change. A cancelled order rejects new pre-checkout approval.
 
-`successful_payment` is the capture authority. It verifies the same values and requires a non-empty
-`telegram_payment_charge_id`, which is unique and immutable. In one database transaction it records
-the payment, transitions the order to `paid`, and inserts exactly one active entitlement. Replayed
-updates, duplicate charge IDs, and retries cannot create a second payment or entitlement. Any
-amount/currency/payload/user mismatch is rejected.
+`successful_payment` is the capture authority. Before projection it commits a
+minimal immutable record keyed by `telegram_payment_charge_id` to the capture
+inbox. It then verifies the order values and, in one transaction, records the
+payment, moves the order to `paid`, and inserts exactly one entitlement.
+Replays cannot create a second payment or entitlement. A capture that cannot be
+projected disables new sales and remains recoverable/refundable rather than
+being acknowledged without evidence.
 
 Telegram numeric `update_id` values are normalized before they become durable event keys. A
 non-consumable product has one active entitlement per user, and the unlock service projects active
@@ -77,8 +90,12 @@ remainder, a reused refund ID with different data, or a refund for another user 
 `requestRefund` calls only the injected adapter and records the result; it cannot manufacture a
 local refund when the provider call fails.
 
-`requestRefund` forwards a stable durable idempotency key to the provider adapter, so a retry after
-a process crash can safely ask for the same refund instead of submitting a second one.
+The Bot API has no refund idempotency parameter. `requestRefund` therefore uses
+an atomic local claim: exactly one caller can invoke Telegram. An ambiguous
+result is reconciled through `getStarTransactions` before any retry. Orphaned
+captures use the explicit operator-only `refund-recovery` command, which has
+the same claim/reconcile discipline and never bypasses the normal ledger for a
+projected payment.
 
 `buildTelegramStarsSupportContract()` exposes the `/paysupport` command, configured support and
 refund contacts, and the accepted case fields. `openSupportCase` stores a bounded, idempotent case
@@ -86,27 +103,38 @@ without logging Telegram init data, bot tokens, or arbitrary raw update bodies.
 
 ## Reconciliation
 
-`reconcile()` compares the provider adapter's captured-charge list with local payments and stores a
-run plus immutable issue facts. It flags provider captures missing locally, local payments missing
-from the provider list, duplicate charge IDs, amount/currency mismatches, payload mismatches, and
-submitted/failed refund recovery facts. Reconciliation never auto-grants an entitlement and never
-silently changes an order; operators must resolve a critical issue through the payment/support
-runbook. Provider-side refund status polling remains a release-operations follow-up until a real
-adapter exists.
+`reconcile()` parses Telegram's documented `StarTransactions.transactions`
+envelope, compares provider captures/refunds with local payments and the
+capture inbox, and stores each run and issue. The production worker runs every
+minute by default. Provider failure or any critical issue disables the purchase
+gate automatically. Reconciliation never grants entitlement. Repeated runs are
+read-only except for resolving a fully refunded orphan inbox row.
+
+Operational commands (from the server directory):
+
+```text
+npm run telegram-stars:gate -- status
+npm run telegram-stars:gate -- set disabled --reason=<incident>
+npm run telegram-stars:gate -- set controlled --reason=<recovery>
+npm run telegram-stars:gate -- set public --reason=<release> --confirm-public=TELEGRAM_STARS_PUBLIC
+npm run telegram-stars:reconcile
+```
+
+Public activation is rejected if the reconciliation worker is explicitly
+disabled. Full charge IDs and secrets belong only in the secure operator shell,
+never routine logs or reports.
 
 ## Test coverage
 
-`server/test/telegram-stars.test.js` exercises disabled-by-default behavior, server pricing and
-product validation, numeric update ids, one-shot pre-checkout, duplicate and delayed captures,
-reordered refunds, active-product uniqueness, charge-ID reuse, partial/full refunds, support
-idempotency, invoice leases/TTL, open-order uniqueness, refund deduplication, repurchase after
-refund, and reconciliation anomalies (**22 tests**). These are mock/provider-contract tests only.
-They do not certify Telegram WebView, Telegram Bot API delivery, real Stars balances, refund SLA,
-production credentials, or payment activation.
+The focused suites exercise server pricing, provider envelopes, one-shot and
+deadline-bounded pre-checkout, duplicate/delayed/unknown captures, capture
+recovery, reordered/native refunds, active-product and charge uniqueness,
+invoice leases/TTL, refund races, gate CAS/kill-switch behavior, safe telemetry,
+and reconciliation. PostgreSQL CI additionally runs two-connection gate and
+refund races. These tests do not certify a real production charge/refund.
 
-The legacy internal-credit collection purchase route is explicitly disabled when
-`PAYMENTS_MODE=telegram_stars`; it cannot silently bypass the XTR flow. Production configuration
-also fails closed because this release does not mount a real Bot API adapter/webhook. Before real
-activation, add a verified provider adapter/update-id gate, sandbox evidence, duplicate/reorder/
-timeout drills, support ownership, refund policy, database/object restore evidence, reconciliation
-alerts, and a kill-switch drill back to `PAYMENTS_MODE=disabled`.
+The legacy internal-credit collection purchase route cannot bypass the XTR
+flow. Payout and marketplace settlement remain off. The historical pre-launch
+owned production round-trip is consciously waived, not proven; the first real
+user transaction is the production canary and must be observed through capture,
+one entitlement, reopen state and reconciliation.

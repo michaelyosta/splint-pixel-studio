@@ -2,6 +2,10 @@ import { TelegramStarsError } from './telegram-stars.js';
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
 const MAX_TRANSACTIONS_PAGE = 100;
+// Exhausting either bound is an unavailable scan, never a partial snapshot.
+const MAX_TRANSACTION_PAGES = 100;
+const TRANSACTION_SCAN_TIMEOUT_MS = 30_000;
+const PRECHECKOUT_TIMEOUT_MS = 5_000;
 
 function providerFailure(message, details = undefined) {
   const error = new TelegramStarsError('PROVIDER_UNAVAILABLE', message, details);
@@ -24,19 +28,11 @@ function normalizeTelegramUserId(value) {
   return numeric;
 }
 
-function transactionSource(transaction) {
-  return transaction?.source && typeof transaction.source === 'object'
-    ? transaction.source
-    : transaction?.receiver && typeof transaction.receiver === 'object'
-      ? transaction.receiver
-      : null;
-}
-
 function transactionUserId(source) {
-  const value = source?.user?.id ?? source?.user_id;
+  const value = source?.user?.id;
   if (value === undefined || value === null) return null;
   const raw = String(value).trim();
-  return /^\d{1,30}$/.test(raw) ? raw : null;
+  return /^\d+$/.test(raw) && Number.isSafeInteger(Number(raw)) && Number(raw) > 0 ? raw : null;
 }
 
 function transactionPayload(source) {
@@ -62,9 +58,11 @@ export function createTelegramStarsBotApiAdapter({
   if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl is required');
   const base = String(apiBase || TELEGRAM_API_BASE).replace(/\/$/, '');
 
-  async function call(method, payload = {}) {
+  async function call(method, payload = {}, budgetMs = Infinity) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), Math.max(1_000, Number(timeoutMs) || 10_000));
+    const configuredTimeout = Number(timeoutMs);
+    const requestTimeout = Math.min(budgetMs, Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 10_000);
+    const timer = setTimeout(() => controller.abort(), requestTimeout);
     try {
       const response = await fetchImpl(`${base}/bot${botToken}/${method}`, {
         method: 'POST',
@@ -73,7 +71,7 @@ export function createTelegramStarsBotApiAdapter({
         signal: controller.signal,
       });
       const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.ok) throw providerFailure(`Telegram Bot API ${method} failed`);
+      if (!response.ok || data?.ok !== true) throw providerFailure(`Telegram Bot API ${method} failed`);
       return data.result;
     } catch (error) {
       if (error instanceof TelegramStarsError) throw error;
@@ -94,7 +92,6 @@ export function createTelegramStarsBotApiAdapter({
       title: label,
       description: detail,
       payload,
-      provider_token: '',
       currency: 'XTR',
       prices: [{ label, amount }],
     });
@@ -106,7 +103,7 @@ export function createTelegramStarsBotApiAdapter({
       pre_checkout_query_id: cleanString(queryId, 'pre-checkout query id', 256),
       ok: Boolean(ok),
       ...(ok ? {} : { error_message: cleanString(errorMessage || 'Payment cannot be completed', 'pre-checkout error', 200) }),
-    });
+    }, PRECHECKOUT_TIMEOUT_MS);
     return { ok: result === true };
   }
 
@@ -115,12 +112,14 @@ export function createTelegramStarsBotApiAdapter({
     const chargeId = cleanString(telegramPaymentChargeId, 'payment charge id', 256);
     const amount = Number(amountXtr);
     if (!Number.isSafeInteger(amount) || amount <= 0) throw providerFailure('Telegram Stars refund amount is invalid');
-    await call('refundStarPayment', {
+    const result = await call('refundStarPayment', {
       user_id: normalizeTelegramUserId(telegramUserId ?? userId),
       telegram_payment_charge_id: chargeId,
     });
+    if (result !== true) throw providerFailure('Telegram Stars refund result is invalid');
     // refundStarPayment is a full-refund Bot API operation and returns only a
-    // boolean. A deterministic local id makes a crash/retry safe to replay.
+    // boolean. This local id deduplicates records, not provider requests;
+    // an ambiguous response must be reconciled before a retry.
     return {
       refundId: refundIdForCharge({ telegramPaymentChargeId: chargeId }),
       telegramPaymentChargeId: chargeId,
@@ -134,41 +133,63 @@ export function createTelegramStarsBotApiAdapter({
   }
 
   async function listCapturedPayments() {
+    // https://core.telegram.org/bots/api#startransaction
+    // Refunds reuse the capture id; source/receiver establishes direction.
     const byCharge = new Map();
+    const seen = new Map();
+    const deadline = performance.now() + TRANSACTION_SCAN_TIMEOUT_MS;
     let offset = 0;
-    while (true) {
-      const page = await call('getStarTransactions', { offset, limit: MAX_TRANSACTIONS_PAGE });
-      if (!Array.isArray(page)) throw providerFailure('Telegram Stars transaction list is invalid');
+    for (let pageNumber = 0; pageNumber < MAX_TRANSACTION_PAGES; pageNumber += 1) {
+      const remaining = deadline - performance.now();
+      if (remaining <= 0) throw providerFailure('Telegram Stars transaction scan timed out');
+      const result = await call('getStarTransactions', { offset, limit: MAX_TRANSACTIONS_PAGE }, remaining);
+      if (performance.now() >= deadline) throw providerFailure('Telegram Stars transaction scan timed out');
+      const page = result?.transactions;
+      if (!Array.isArray(page) || page.length > MAX_TRANSACTIONS_PAGE) throw providerFailure('Telegram Stars transaction list is invalid');
+      let added = 0;
       for (const transaction of page) {
-        const charge = typeof transaction?.id === 'string' && transaction.id.trim() ? transaction.id.trim() : null;
-        if (!charge) continue;
-        const source = transactionSource(transaction);
-        const payload = transactionPayload(source);
-        const transactionType = String(source?.transaction_type || transaction?.transaction_type || '').trim();
-        const amount = Number(transaction?.amount);
-        if (!Number.isSafeInteger(amount) || amount === 0) continue;
-
-        const current = byCharge.get(charge) || {
-          telegramPaymentChargeId: charge,
-          amountXtr: 0,
-          refundedAmountXtr: 0,
-          currency: 'XTR',
-          invoicePayload: payload,
-          telegramUserId: transactionUserId(source),
-        };
-        if (amount > 0 && (payload || transactionType === 'invoice_payment')) {
-          current.amountXtr += amount;
-          current.invoicePayload ||= payload;
-          current.telegramUserId ||= transactionUserId(source);
-        } else if (amount < 0 || transactionType === 'refund') {
-          current.refundedAmountXtr += Math.abs(amount);
+        const charge = cleanString(transaction?.id, 'transaction id', 256);
+        const incoming = transaction.source != null;
+        const outgoing = transaction.receiver != null;
+        const partner = incoming ? transaction.source : transaction.receiver;
+        if (incoming === outgoing || !partner || typeof partner !== 'object'
+          || !Number.isSafeInteger(transaction.amount) || transaction.amount <= 0
+          || (transaction.nanostar_amount !== undefined && (!Number.isInteger(transaction.nanostar_amount)
+            || transaction.nanostar_amount < 0 || transaction.nanostar_amount > 999_999_999))) {
+          throw providerFailure('Telegram Stars transaction is invalid');
         }
+        const record = { amount: transaction.amount, nano: transaction.nanostar_amount || 0,
+          type: partner.type, transactionType: partner.transaction_type,
+          user: transactionUserId(partner), payload: transactionPayload(partner) };
+        const key = JSON.stringify([charge, incoming]);
+        const fingerprint = JSON.stringify(record);
+        if (seen.has(key)) {
+          if (seen.get(key) !== fingerprint) throw providerFailure('Telegram Stars transaction duplicates conflict');
+          continue;
+        }
+        seen.set(key, fingerprint);
+        added += 1;
+        if (partner.type !== 'user' || partner.transaction_type !== 'invoice_payment') continue;
+        if (!record.user || record.nano !== 0) throw providerFailure('Telegram Stars invoice transaction is invalid');
+        const current = byCharge.get(charge) || {};
+        current[incoming ? 'capture' : 'refund'] = record;
         byCharge.set(charge, current);
       }
-      if (page.length < MAX_TRANSACTIONS_PAGE) break;
+      if (page.length < MAX_TRANSACTIONS_PAGE) {
+        return [...byCharge.entries()].map(([charge, { capture, refund }]) => {
+          if (!capture || (refund && (refund.amount !== capture.amount || refund.user !== capture.user
+            || (refund.payload && refund.payload !== capture.payload)))) {
+            throw providerFailure('Telegram Stars refund transaction is ambiguous');
+          }
+          return { telegramPaymentChargeId: charge, amountXtr: capture.amount,
+            refundedAmountXtr: refund?.amount || 0, currency: 'XTR',
+            invoicePayload: capture.payload, telegramUserId: capture.user };
+        });
+      }
+      if (!added) throw providerFailure('Telegram Stars transaction pagination made no progress');
       offset += page.length;
     }
-    return [...byCharge.values()].filter((capture) => capture.amountXtr > 0);
+    throw providerFailure('Telegram Stars transaction scan limit exceeded');
   }
 
   async function setWebhook({ url, secretToken }) {

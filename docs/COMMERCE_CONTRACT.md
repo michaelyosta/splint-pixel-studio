@@ -51,24 +51,26 @@ Any production provider implementation must preserve:
 - partial and full refund handling;
 - reconciliation that reports divergence without silently granting entitlement;
 - support ownership and bounded case data;
-- kill-switch return to `PAYMENTS_MODE=disabled` without deleting history.
+- a durable hot purchase gate that can return to `disabled` without a code
+  deploy, deleting history, or disabling capture/refund processing.
 
 The client can display an intent or a pending state, but it cannot be the
 source of entitlement truth.
 
-Cross-platform browser readiness does not change this boundary. Browser and
-Telegram hosts share verified account identity and future entitlements, but
-Stars checkout, marketplace purchase activation, and payout remain disabled
-and fail-closed in this release. No browser payment UI or frontend callback
-may grant an entitlement.
+Cross-platform browser readiness does not change this boundary. Stars checkout
+requires verified Telegram Mini App authentication. Browser and Telegram hosts
+may share entitlements, but no browser payment UI or frontend callback may
+grant one. Marketplace settlement and payout remain separate and fail-closed.
 
 ## Repository implementation boundary
 
-The provider-shaped lifecycle is implemented in
-`server/services/telegram-stars.js` and tested with a mock adapter. The webhook
-factory in `server/routes/telegram-stars.js` is deliberately not mounted by
-`server/index.js`. `server/config.js` rejects `PAYMENTS_MODE=telegram_stars`
-and `PAYMENTS_MODE=internal_credits` in production in this release.
+The provider lifecycle is implemented in `server/services/telegram-stars.js`.
+Production mounts the Bot API adapter and authenticated webhook only while the
+environment remains `PAYMENTS_MODE=telegram_stars_controlled`. The independent
+database gate selects `disabled`, `controlled`, or `public`; public removes
+only the user allowlist and never the product allowlist. `server/config.js`
+continues to reject `PAYMENTS_MODE=telegram_stars`, `internal_credits`, and any
+Telegram Test API environment in production.
 
 Local `internal_credits` is a development/test ledger only. The legacy ledger
 details in [stars-transactions.md](stars-transactions.md) are historical

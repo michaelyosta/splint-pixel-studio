@@ -2,7 +2,7 @@
 
 Status: CANONICAL
 Authority: Commerce activation decision record.
-Decision recorded: 2026-08-02
+Decision recorded: 2026-08-02; amended: 2026-09-15
 
 Navigation: [../INDEX.md](../INDEX.md) · Current state: [../CURRENT_STATE.md](../CURRENT_STATE.md)
 Detailed contract: [../COMMERCE_CONTRACT.md](../COMMERCE_CONTRACT.md)
@@ -15,9 +15,14 @@ The application exposes an explicit `PAYMENTS_MODE`:
   disabled response and do not grant entitlement.
 - `internal_credits` — development/test ledger only; its terminology is not
   Telegram Stars and it cannot boot in production.
-- `telegram_stars` — future production mode. This release rejects it during
-  production configuration because the real Bot API adapter/webhook is not
-  mounted.
+- `telegram_stars` — rejected as a production environment value.
+- `telegram_stars_controlled` — the only production Bot API runtime. A
+  versioned database gate independently selects `disabled`, `controlled`, or
+  `public`; `public` keeps the configured product allowlist and removes only
+  the user allowlist. This avoids an env change or deploy for emergency stop.
+
+Production must use the main Telegram Bot API environment. Test API mode is a
+separate non-production concern and is rejected during production validation.
 
 No endpoint, seed, demo credit, invoice, frontend callback, or provider-shaped
 test path may imply that a Telegram purchase succeeded while production
@@ -42,8 +47,8 @@ must attach all of the following:
    for payment-state divergence.
 5. Tests for duplicate, delayed, reordered, malformed, and unknown payment
    events.
-6. A kill-switch drill returning the system to `disabled` without deleting
-   ledger history.
+6. A database kill-switch drill returning the purchase gate to `disabled`
+   without deleting ledger history or disabling late capture/refund handling.
 
 All six are required. A passing local test or the presence of payment code is
 not activation evidence. Marketplace purchase and payout require separate

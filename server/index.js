@@ -27,7 +27,7 @@ import { metricsSnapshot, requestObservability, safeErrorClass } from './observa
 import { asyncRoute } from './middleware/asyncRoute.js';
 import { drainRenderJobs } from './services/render-outbox.js';
 import { createTelegramStarsRuntime } from './services/telegram-stars-runtime.js';
-import { createTelegramStarsCommerceRouter, createTelegramStarsWebhookRouter } from './routes/telegram-stars.js';
+import { createTelegramStarsCommerceRouter, createTelegramStarsWebhookRouter, isTelegramWebhookSecret } from './routes/telegram-stars.js';
 
 const PORT = process.env.PORT || 3001;
 const productionConfig = validateProductionConfiguration();
@@ -70,6 +70,44 @@ app.use(cors({
   credentials: isProduction,
 }));
 
+const shutdownGuard = (req, res, next) => {
+  if (!accepting && !['/health', '/ready', '/live'].includes(req.path)) return res.status(503).json({ error: 'Server is shutting down' });
+  return next();
+};
+
+// Telegram has a strict pre-checkout response deadline. Keep authenticated
+// payment updates outside the general product traffic bucket, while retaining
+// a dedicated abuse bound and a much smaller JSON body limit.
+const telegramWebhookLimiter = rateLimit({
+  windowMs: 60_000,
+  max: Math.max(30, Number(process.env.TELEGRAM_WEBHOOK_RATE_LIMIT_MAX) || 300),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Telegram Stars webhook rate limit exceeded' },
+  // A valid Telegram secret authenticates provider traffic. Never reject a
+  // real successful_payment because unrelated requests exhausted a bucket;
+  // only unauthenticated traffic needs this abuse limiter.
+  skip: (req) => telegramStarsRuntime.enabled && isTelegramWebhookSecret(
+    req.headers['x-telegram-bot-api-secret-token'],
+    telegramStarsRuntime.config.webhookSecret,
+  ),
+});
+const telegramWebhookRouter = telegramStarsRuntime.enabled
+  ? createTelegramStarsWebhookRouter({
+      service: telegramStarsRuntime.service,
+      webhookSecret: telegramStarsRuntime.config.webhookSecret,
+    })
+  : (_req, res) => res.status(503).json({ error: 'Telegram Stars webhook is not configured', code: 'PAYMENTS_DISABLED' });
+app.use(
+  '/payments/telegram-stars/webhook',
+  express.json({ limit: '256kb' }),
+  requestObservability,
+  shutdownGuard,
+  telegramWebhookLimiter,
+  telegramWebhookRouter,
+  (_req, res) => res.status(404).json({ error: 'Not found' }),
+);
+
 // ── Global Rate Limit (100 req/min per IP, configurable via RATE_LIMIT_MAX) ──
 app.use(rateLimit({
   windowMs: 60_000,
@@ -80,10 +118,7 @@ app.use(rateLimit({
 }));
 app.use(express.json({ limit: '15mb' }));
 app.use(requestObservability);
-app.use((req, res, next) => {
-  if (!accepting && !['/health', '/ready', '/live'].includes(req.path)) return res.status(503).json({ error: 'Server is shutting down' });
-  return next();
-});
+app.use(shutdownGuard);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/auth',        authRouter);
@@ -103,14 +138,6 @@ app.use('/unlocks',     unlocksRouter);
 app.use('/director',    directorRouter);
 app.use('/media',       mediaRouter);
 app.use('/payments/telegram-stars', createTelegramStarsCommerceRouter({ runtime: telegramStarsRuntime }));
-if (telegramStarsRuntime.enabled) {
-  app.use('/payments/telegram-stars/webhook', createTelegramStarsWebhookRouter({
-    service: telegramStarsRuntime.service,
-    webhookSecret: telegramStarsRuntime.config.webhookSecret,
-  }));
-} else {
-  app.use('/payments/telegram-stars/webhook', (_req, res) => res.status(503).json({ error: 'Telegram Stars webhook is not configured', code: 'PAYMENTS_DISABLED' }));
-}
 
 // ── Health and readiness ─────────────────────────────────────────────────────
 app.get('/live', (_req, res) => res.json({ status: 'alive' }));
@@ -227,12 +254,41 @@ if (renderOutboxEnabled) {
   console.log(`Render outbox worker enabled (poll ${renderOutboxPollMs}ms)`);
 }
 
+// Public activation depends on this worker: any provider/listing failure or
+// critical ledger divergence disables new purchases through the database gate.
+const starsReconciliationEnabled = telegramStarsRuntime.enabled
+  && process.env.TELEGRAM_STARS_RECONCILIATION_ENABLED !== 'false';
+const starsReconciliationPollMs = Math.min(
+  15 * 60_000,
+  Math.max(30_000, Number(process.env.TELEGRAM_STARS_RECONCILIATION_POLL_MS) || 60_000),
+);
+let starsReconciliationTimer = null;
+let starsReconciliationRunning = false;
+if (starsReconciliationEnabled) {
+  const starsReconciliationTick = async () => {
+    if (starsReconciliationRunning) return;
+    starsReconciliationRunning = true;
+    try {
+      await telegramStarsRuntime.reconcileAndProtect();
+    } catch {
+      // reconcileAndProtect already emitted a safe event and disabled the gate.
+    } finally {
+      starsReconciliationRunning = false;
+    }
+  };
+  starsReconciliationTimer = setInterval(starsReconciliationTick, starsReconciliationPollMs);
+  starsReconciliationTimer.unref?.();
+  setTimeout(starsReconciliationTick, 10_000).unref?.();
+  console.log(`Telegram Stars reconciliation worker enabled (poll ${starsReconciliationPollMs}ms)`);
+}
+
 async function gracefulShutdown(signal) {
   if (!accepting) return;
   accepting = false;
   readinessCache = { at: Date.now(), result: { ready: false, checks: { shutdown: 'in_progress' } } };
   clearInterval(cleanupTimer);
   if (renderOutboxTimer) clearInterval(renderOutboxTimer);
+  if (starsReconciliationTimer) clearInterval(starsReconciliationTimer);
   const timeout = setTimeout(() => process.exit(1), Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10_000);
   try {
     await new Promise((resolve) => server.close(resolve));
