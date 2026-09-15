@@ -1,136 +1,176 @@
-# Telegram Stars: финальный launch-аудит и remediation
+# Telegram Stars: финальный launch-аудит
 
-Дата: 2026-09-15. База аудита: `origin/main` merge commit
-`b029b40cee068ef4a3ff48e62b4f6bba4a4e6968`; исправления находятся в
-`codex/stars-provider-recovery-fixes`. Документ фиксирует состояние кандидата
-до production deploy. Итоговый GO требует зелёного CI, фактического deploy,
-production kill-switch drill и проверки конфигурации.
+Дата: 2026-09-15.
 
-Аудит выполнен по исходникам, официальному Bot API контракту, локальным SQLite
-тестам и прежнему неразрушающему production smoke. Двухсоединительные
-PostgreSQL race-тесты добавлены в CI gate, но для этого кандидата ещё не
-выполнены. Это не Telegram payment E2E и не доказательство реального списания
-либо возврата.
+Объём: production Bot API, payment service, webhook, durable ledger,
+entitlement/refund/reconciliation, release configuration и owner-only
+операционный контроль.
 
 ## 1. Audit verdict
 
-Текущий pre-deploy verdict: **NO-GO — CI И PRODUCTION DRILL НЕ ЗАВЕРШЕНЫ**.
+**GO — публичная активация выполнена с обязательным first-live canary
+monitoring.**
 
-Все воспроизведённые P1 дефекты предыдущего NO-GO исправлены. Публичный gate
-нельзя переводить в `public`, пока новая версия не прошла CI/deploy и оператор
-не подтвердил, что `disabled -> controlled` работает без code deploy. После
-этой проверки verdict может стать GO без изменения payment-кода.
+Аудит проведён отдельным проверочным проходом по исходникам и миграциям,
+локальным payment-тестам, PostgreSQL CI, полному CI PR #44, production deploy,
+production health и фактическому owner-only runtime UI. P0/P1-блокеров, которые
+известным образом приводят к списанию без recoverable evidence, двойной выдаче,
+обходу auth/payment guards или потере payment identifiers, не осталось.
 
-## 2. Риски и severity
+Отсутствие предварительной owned production-покупки и owned production refund
+зафиксировано как сознательно принятый residual risk. Это не является
+доказательством production payment E2E. Первая настоящая пользовательская
+покупка — production canary.
+
+## 2. Найденные риски и статус
 
 | ID | Severity | Вероятность / влияние | Можно запускать | Mitigation / статус |
 | --- | --- | --- | --- | --- |
-| A1 | P1 | Документированный `getStarTransactions` envelope раньше ломал reconciliation/refund recovery всегда. | Нет без исправления. | Исправлено: парсинг `result.transactions`, pagination/dedupe/direction/empty/malformed tests. |
-| A2 | P1 | Старый env-only switch требовал restart и отключал webhook, создавая риск позднего capture без обработки. | Нет без исправления. | Исправлено: durable hot gate, fresh DB read, capture/refund/reconcile продолжаются в `disabled`, CAS/audit и cross-runtime PG test. |
-| A3 | P1 | Поздний excess capture мог быть ACK без payment record и без штатного refund path. | Нет без исправления. | Исправлено: immutable capture inbox до projection, recovery state, automatic stop и operator recovery refund. |
-| A4 | P1 | Native `message.refunded_payment` игнорировался; entitlement мог остаться active. | Нет без исправления. | Исправлено: native mapping, stable refund identity, reorder/idempotency tests, full refund revokes entitlement. |
-| A5 | P1 | Конкурентный same-key refund мог вызвать provider дважды. | Нет без исправления. | Исправлено: atomic local claim; ambiguous result reconciles before retry; SQLite test утверждает один provider call, аналогичный two-connection PostgreSQL test ждёт CI. |
-| A6 | P1 launch | HTTP 200 business failures и reconciliation divergence были недостаточно наблюдаемы. | Нет без исправления. | Исправлено: safe payment-event metrics/logs, minute reconciliation worker, automatic gate stop on provider/critical failure, dedicated webhook observability. |
-| A7 | P2 | Broad env `telegram_stars` не был безопасным public switch. | Нет как механизм запуска. | Исправлено: production env остаётся controlled; DB `public` removes only user allowlist, product allowlist remains. |
-| A8 | P2 | Shared rate bucket/10s adapter timeout могли сорвать Telegram pre-checkout SLA. | Условно. | Исправлено: dedicated 256 KiB ingress; валидный secret не rate-limited, неаутентифицированный трафик bounded; 2s lock + 3s statement + 5s provider budgets. |
-| R1 | Residual | Owned production `successful_payment` и refund не выполнялись; вероятность неизвестна. Ошибка может затронуть первую live purchase. | Да, по явному risk acceptance владельца, только как monitored canary. | First-live monitoring, automatic reconciliation/stop, preserve evidence, grant or refund if delivery fails. |
-| R2 | P2 | `getStarTransactions` full scan ограничен 10,000 rows / 30 seconds. Низкая вероятность при первом запуске, растёт с объёмом. | Да на текущем масштабе. | Следить за scan failures; gate автоматически закрывается. До роста объёма добавить durable cursor/windowed reconciliation. |
-| R3 | P2 | Метрики процесса сбрасываются при restart и не являются биллинг-ledger. | Да. | Payments/events/inbox/reconciliation остаются durable в PostgreSQL; canary проверяется по DB + logs, метрики только оперативный сигнал. |
+| A1 | P1 | Неверный Bot API envelope раньше ломал reconciliation/refund recovery. | Нет до исправления. | Исправлено: `result.transactions`, bounded pagination, direction/dedupe/malformed tests. |
+| A2 | P1 | Env-only switch требовал restart и мог оставить поздний capture без обработки. | Нет до исправления. | Исправлено: durable DB gate, fresh reads, CAS/audit, capture/refund/reconcile продолжают работу в `disabled`. |
+| A3 | P1 | Late/excess capture мог быть подтверждён без payment record и recovery path. | Нет до исправления. | Исправлено: immutable capture inbox до projection, recovery state, automatic stop и recovery refund. |
+| A4 | P1 | Native Telegram refund event мог оставить entitlement активным. | Нет до исправления. | Исправлено: native refund mapping, stable identity, full-refund revocation и replay tests. |
+| A5 | P1 | Конкурентный refund мог вызвать provider дважды. | Нет до исправления. | Исправлено: atomic local claim, ambiguous-result reconciliation, PostgreSQL race test в CI. |
+| A6 | P1 | HTTP 200 business failures и reconciliation divergence были недостаточно видимы. | Нет до исправления. | Исправлено: safe metrics/logs, reconciliation worker, automatic gate stop on critical failure. |
+| A7 | P2 | Broad env `telegram_stars` был небезопасным public switch. | Да после исправления. | Production env остаётся controlled; public — только DB gate после серверных product/price checks. |
+| A8 | P2 | Общий rate bucket и слишком короткий pre-checkout budget могли сорвать SLA. | Да после исправления. | Dedicated webhook ingress/limiter, lock/statement/provider budgets и negative tests. |
+| R1 | Residual | Owned production `successful_payment`/refund не выполнены; риск первой live purchase неизвестен. | Да, только как canary под усиленным monitoring. | События и identifiers сохраняются durable; divergence останавливает новые покупки, evidence сохраняется. |
+| R2 | P2 | Full `getStarTransactions` scan ограничен 10 000 строк / 30 сек. | Да на текущем масштабе. | Ошибки видимы и закрывают gate; до роста объёма добавить cursor/window reconciliation. |
+| R3 | P2 | Process metrics сбрасываются при restart. | Да. | Биллинг-источник — durable PostgreSQL ledger/inbox; metrics только оперативный сигнал. |
 
-Нет открытого P0/P1 code blocker, способного известным образом привести к
-списанию без recoverable evidence, двойной выдаче, двойному provider refund,
-обходу auth/product guards или потере charge identifier.
+Все P0/P1 code blockers закрыты. R1 — единственное существенное launch-условие
+после активации: наблюдать первую live-транзакцию и не выдавать entitlement до
+настоящего Telegram `successful_payment`.
 
 ## 3. Исправления перед запуском
 
-- Bot API adapter приведён к текущему Telegram contract; `provider_token` для
-  XTR invoice не отправляется.
-- `successful_payment` сначала сохраняется в immutable capture inbox, затем
-  атомарно проецируется в payment/order/entitlement.
-- Любой projection conflict или critical reconciliation автоматически ставит
-  purchase gate в `disabled`, сохраняя completed transactions.
-- Добавлены native refund, one-owner refund claim, ambiguous recovery и
-  отдельный recovery-refund для orphan capture.
-- Повторная capture projection блокирует inbox и не выдаёт доступ во время
-  recovery refund. Reconciliation проверяет payment/entitlement consistency.
-- `/paysupport <описание>` сохраняет идемпотентное обращение зарегистрированного
-  пользователя; bare command возвращает инструкцию. `telegram-stars-ops.mjs
-  monitor` показывает counts, open support cases и последнюю покупку без PII.
-- Public user access отделён от production env mode; единственный продукт и
-  серверная цена остаются ограничены каталогом/allowlist.
-- Webhook остаётся secret-authenticated, имеет отдельный rate/deadline budget;
-  Test API environment явно запрещён production validator.
-- Добавлены безопасные события и метрики без token, webhook secret, initData,
-  raw payload, полного charge ID и лишнего PII.
+- Invoice создаётся только для серверного allowlisted продукта и цены.
+- `pre_checkout_query` проверяется с lock/statement/provider budgets; ошибка
+  отвечает отказом и не выдаёт доступ.
+- `successful_payment` сначала записывается в immutable capture inbox, затем
+  атомарно проецируется в order/payment/entitlement.
+- Projection conflict, orphan/late capture и критическая reconciliation
+  divergence переводят gate в `disabled`; завершённые транзакции не удаляются.
+- Повторный capture/replay не создаёт второй payment record или entitlement.
+- Refund имеет one-owner reservation, stable local identity и recovery перед
+  повтором неоднозначного provider результата.
+- Native `refunded_payment` и полный refund отзывают entitlement согласно текущей
+  бизнес-логике; reconciliation проверяет payment↔entitlement invariant.
+- Webhook защищён timing-safe secret check и отдельным bounded ingress budget.
+- Test API environment запрещён production validator; payout и Browser OIDC не
+  менялись.
 
-## 4. Kill switch
+## 4. Проверка kill switch
 
-Команды из secure production shell:
+Проверка выполнена в production через authenticated owner-only Telegram UI,
+без deploy и без оплаты:
 
-```text
-npm run telegram-stars:gate -- status
-npm run telegram-stars:gate -- set disabled --reason=<incident>
-npm run telegram-stars:gate -- set controlled --reason=<recovery>
-npm run telegram-stars:gate -- set public --reason=<release> --confirm-public=TELEGRAM_STARS_PUBLIC
-```
+1. `controlled`, gate version 1 — исходное состояние.
+2. Нажато «Остановить покупки»: UI показал `disabled`, version 2,
+   `operator_disabled`; новые покупки закрыты.
+3. Нажато «Вернуть controlled»: UI показал `controlled`, version 3,
+   `operator_controlled`.
+4. После drill публичная активация прошла отдельным подтверждённым owner-only
+   действием: UI показал `public`, version 4, `public_stars_activation`.
 
-Gate читается из БД для config/order/invoice/pre-checkout. `disabled` закрывает
-только новые покупки; webhook capture, refund, order/support reads и
-reconciliation остаются активны. Все изменения используют version CAS и
-append-only audit. Production drill до deploy ещё не выполнен.
+Kill switch не требует code deploy: `disabled` блокирует новые invoice/order и
+pre-checkout, но не удаляет и не изменяет уже завершённые payment records,
+capture inbox, entitlements или refund evidence. Webhook capture, refund и
+reconciliation остаются доступны для восстановления.
 
-## 5. Monitoring plan
+## 5. Monitoring plan для first-live canary
 
-Оперативно наблюдаются: invoice created/failed, pre-checkout
-accepted/rejected, successful payment, entitlement created, replay,
-refund applied, reconciliation completed/failed, webhook/recovery errors и
-unexpected HTTP 4xx/5xx. Durable источники — orders/events/payments,
-capture inbox, entitlements, refund requests/refunds и reconciliation runs.
+Наблюдать следующие события и счётчики:
 
-Worker запускает reconciliation через 10 секунд после старта и затем каждую
-минуту (настраиваемо, 30 секунд–15 минут), не допускает overlap и автоматически
-закрывает gate при provider failure либо critical mismatch.
+- invoice created/failed;
+- pre-checkout received/accepted/rejected;
+- `successful_payment`;
+- entitlement created;
+- duplicate/replay result;
+- refund applied/provider error;
+- reconciliation completed/failed;
+- webhook, capture, recovery и outbox errors;
+- неожиданные HTTP 4xx/5xx.
 
-Для первой live-транзакции оператор проверяет: настоящий capture, сохранённые
-provider identifiers, один entitlement, reopen, отсутствие дублей и чистый
-reconciliation. При divergence: немедленно `disabled`, evidence не удалять,
-положенный доступ восстановить либо выполнить обоснованный refund, затем RCA.
+Безопасный лог-контракт не пишет bot token, webhook secret, Telegram init data,
+raw payload, полный charge identifier или лишний PII. Полные identifiers
+остаются в защищённом durable ledger и в отчёт не выносятся.
 
-## 6. Production configuration
+При первом live capture проверить: настоящий `successful_payment`, сохранённые
+`telegram_payment_charge_id` и связанные ids, ровно один entitlement, reopen,
+отсутствие duplicate/replay side effects и чистый reconciliation. При
+расхождении немедленно включить `disabled`, сохранить evidence, восстановить
+положенный доступ либо выполнить обоснованный refund после RCA.
 
-До merge/deploy точное изменение отсутствует. Целевой безопасный инвариант:
+## 6. Точное production configuration change
 
-- `PAYMENTS_MODE=telegram_stars_controlled`;
-- `TELEGRAM_BOT_API_ENVIRONMENT=production` (явно либо production default);
-- product allowlist содержит только `col_premium-gallery`;
-- цена читается из опубликованного server catalog и остаётся 120 XTR;
-- reconciliation worker включён;
-- payout, Test API, Browser OIDC и secrets не изменяются.
+Изменения environment variables и production secrets не выполнялись.
+Production deploy выполнен из merged PR #44, commit
+`2b285ed4e9430542615664c4a14cac6d10f6e6a7`; Render показал `Deploy succeeded`,
+`0 applied, 31 skipped`, зарегистрированный controlled webhook, outbox worker,
+reconciliation worker и `Your service is live`. `/ready` вернул HTTP 200.
 
-Public activation выполняется изменением только durable gate
-`controlled -> public`, а не env allowlist wildcard и не новым payment mode.
+Фактическая конфигурационная граница после активации:
+
+- env `PAYMENTS_MODE` остаётся `telegram_stars_controlled`;
+- production использует production Bot API environment (test environment не
+  подключался);
+- durable purchase gate: `controlled -> public`, version 4;
+- product allowlist по-прежнему содержит только `col_premium-gallery`;
+- серверная цена остаётся 120 XTR/Stars;
+- reconciliation, outbox и webhook включены;
+- global Stars, payout, Browser OIDC и production secrets не изменялись.
+
+`public` снимает только user restriction для разрешённого продукта. Он не
+превращает каталог в wildcard и не выдаёт доступ до `successful_payment`.
 
 ## 7. Статус публичной активации
 
-До production drill: **NOT YET ACTIVATED**. Исторический
-`TELEGRAM_STARS_PRODUCTION_ROUNDTRIP_PENDING` сознательно waived только как
-pre-launch requirement; он не переписывается как пройденный E2E.
+**АКТИВИРОВАНО.** Production UI после перехода в Store показал:
 
-После GO и `public` gate активным launch status становится
-`TELEGRAM_STARS_FIRST_LIVE_TRANSACTION_MONITORING`.
+- «Платный набор — Премиум-галерея»;
+- `120 Stars · купить в Telegram`;
+- «Покупка проходит через подтверждённый Telegram-поток»;
+- enabled кнопки «Купить за 120 Stars» и «Восстановить покупку».
 
-## 8. Первая live-транзакция
+Оплата в рамках этой проверки не запускалась.
 
-На момент pre-deploy отчёта не проверялась и не инициировалась. В ходе работ
-реальные Stars не расходуются и owned refund не выполняется.
+Исторический gate
+`TELEGRAM_STARS_PRODUCTION_ROUNDTRIP_PENDING` не удалён: он отмечен как
+consciously waived pre-launch requirement, а не как пройденный E2E.
 
-## 9. Открытые риски после запуска
+Текущий operational status:
 
-- residual risk R1 отсутствия предварительного owned production round-trip;
-- first-live canary требует ручной проверки reopen и durable DB evidence;
-- reconciliation full-scan R2 потребует cursor/window design до большого
-  transaction volume;
-- success не разрешает payout, новые продукты, Test API либо Browser OIDC.
+`TELEGRAM_STARS_FIRST_LIVE_TRANSACTION_MONITORING`
+
+## 8. Результат первой live-транзакции
+
+Первая настоящая пользовательская production-транзакция на момент отчёта ещё
+не произошла. Поэтому production `successful_payment`, production refund,
+реальные charge identifiers и canary reopen не заявляются как проверенные.
+Owned production Stars намеренно не покупались; реальные деньги не расходовали.
+
+## 9. Evidence и тесты
+
+- PR #43 merged: [Harden Stars public launch safety and live monitoring](https://github.com/michaelyosta/splint-pixel-studio/pull/43).
+- PR #44 merged: [Add owner-only Stars gate controls](https://github.com/michaelyosta/splint-pixel-studio/pull/44).
+- PR #44 CI run: [34980002860](https://github.com/michaelyosta/splint-pixel-studio/actions/runs/34980002860) — все 24 E2E shards, 4 critical jobs, PostgreSQL, storage contract, verify и Pages pass.
+- Локальные проверки: client `473/473`, server `451 pass / 70 skipped / 0 fail`, targeted Stars suites pass, lint pass, build pass, `git diff --check` pass.
+- Production evidence: Render deploy `2b285ed4…` live, migration log, webhook/worker startup logs и `/ready=200`.
+- Runtime evidence: owner-only UI transitions `controlled → disabled → controlled → public`, gate versions 1→4; Store показывает enabled purchase boundary для одного товара.
+- Код и тесты: `server/services/telegram-stars-purchase-gate.js`,
+  `server/services/telegram-stars.js`, `server/services/telegram-stars-runtime.js`,
+  `server/routes/telegram-stars.js`, `server/observability.js` и соответствующие
+  `server/test/telegram-stars*.test.js`.
+
+## 10. Открытые риски после запуска
+
+- R1: отсутствие предварительного owned production round-trip; первая live
+  покупка требует canary monitoring.
+- R2: bounded full-scan reconciliation до 10 000 transactions / 30 секунд.
+- R3: operational metrics не заменяют durable ledger.
+- Public activation не расширяет товары, не включает payout и не меняет
+  Browser OIDC.
 
 Официальные контракты: [Telegram Stars payment flow](https://core.telegram.org/bots/payments-stars)
 и [Telegram Bot API](https://core.telegram.org/bots/api).
