@@ -221,6 +221,13 @@ export function createTelegramStarsCommerceRouter({ runtime, auth = authMiddlewa
     return true;
   }
 
+  router.get('/ops/gate', auth, asyncRoute(async (req, res) => {
+    if (!operatorGuard(req, res)) return undefined;
+    const state = await runtime.purchaseGate.getState();
+    if (state.failClosed) return res.status(503).json({ error: 'Purchase gate state is unavailable', code: 'PAYMENTS_GATE_UNAVAILABLE' });
+    return res.json({ mode: state.mode, version: state.version, reason: state.reason });
+  }));
+
   // Break-glass control is deliberately limited to the pre-existing owner
   // Telegram identity in the production allowlist. It avoids requiring a
   // code deploy or an unavailable Render shell, while never accepting public

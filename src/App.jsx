@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { metaApi, telegramStarsApi, unlocksApi } from './api/client';
+import { metaApi, telegramStarsApi, telegramStarsOpsApi, unlocksApi } from './api/client';
 import PlayerView from './views/PlayerView';
 import CatalogView from './views/CatalogView';
 import FeedView from './views/FeedView';
@@ -58,6 +58,9 @@ function App() {
   const [unlockRefreshKey, setUnlockRefreshKey] = useState(0);
   const [paymentsMode, setPaymentsMode] = useState('disabled');
   const [paymentProductIds, setPaymentProductIds] = useState([]);
+  const [starsOpsState, setStarsOpsState] = useState(null);
+  const [starsOpsLoading, setStarsOpsLoading] = useState(false);
+  const [starsOpsBusy, setStarsOpsBusy] = useState(false);
   const noticeTimerRef = useRef(null);
   const resumeHandledRef = useRef(false);
   const coreFeelHandledRef = useRef(false);
@@ -98,6 +101,40 @@ function App() {
       });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!canUseApp || view !== 'profile' || !browserAuth.platform.isTelegram) {
+      setStarsOpsState(null);
+      setStarsOpsLoading(false);
+      return undefined;
+    }
+    let active = true;
+    setStarsOpsLoading(true);
+    telegramStarsOpsApi.status()
+      .then((state) => { if (active) setStarsOpsState(state); })
+      .catch((error) => {
+        if (!active || error?.status === 403) return;
+        showNotice(error.message || 'Не удалось проверить состояние Stars', 'error');
+      })
+      .finally(() => { if (active) setStarsOpsLoading(false); });
+    return () => { active = false; };
+  }, [browserAuth.platform.isTelegram, canUseApp, showNotice, view]);
+
+  const changeStarsOpsGate = useCallback(async (mode, confirmPublic = '') => {
+    setStarsOpsBusy(true);
+    try {
+      const state = await telegramStarsOpsApi.setGate(mode, {
+        confirmPublic,
+        reason: mode === 'public' ? 'public_stars_activation' : `operator_${mode}`,
+      });
+      setStarsOpsState(state);
+      showNotice(mode === 'public' ? 'Публичные покупки Stars открыты' : `Новые покупки: ${mode}`, 'info');
+    } catch (error) {
+      showNotice(error.message || 'Не удалось изменить режим Stars', 'error');
+    } finally {
+      setStarsOpsBusy(false);
+    }
+  }, [showNotice]);
 
   const purchaseTelegramStars = useCallback(async (pack) => {
     const openInvoice = window.Telegram?.WebApp?.openInvoice;
@@ -546,6 +583,10 @@ function App() {
       publishingTemplateId={catalog.publishingTemplateId}
       onToggleVisibility={catalog.setColoringVisibility}
       onDelete={catalog.deleteColoring}
+      starsOpsState={starsOpsState}
+      starsOpsLoading={starsOpsLoading}
+      starsOpsBusy={starsOpsBusy}
+      onStarsOpsChange={changeStarsOpsGate}
     />;
   } else if (view === 'collections') {
     content = <CollectionsView collections={home.collections} mine={catalog.mine} onOpenCollection={catalog.openCatalogCollection} onNavigate={navigatePrimary} />;

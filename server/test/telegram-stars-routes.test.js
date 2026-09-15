@@ -63,6 +63,8 @@ test('break-glass gate endpoint allows only the existing Telegram operator and n
   app.use('/payments/telegram-stars', createTelegramStarsCommerceRouter({ runtime, auth: authFor(999) }));
   await withServer(app, async base => {
     const headers = { 'content-type': 'application/json' };
+    const status = await fetch(`${base}/payments/telegram-stars/ops/gate`);
+    assert.equal(status.status, 403);
     const forbidden = await fetch(`${base}/payments/telegram-stars/ops/gate`, { method: 'POST', headers, body: JSON.stringify({ mode: 'disabled' }) });
     assert.equal(forbidden.status, 403);
   });
@@ -71,6 +73,9 @@ test('break-glass gate endpoint allows only the existing Telegram operator and n
   app2.use('/payments/telegram-stars', createTelegramStarsCommerceRouter({ runtime, auth: authFor(123) }));
   // Rebind a Telegram operator auth with the same allowlisted identity.
   await withServer(app2, async base => {
+    const status = await fetch(`${base}/payments/telegram-stars/ops/gate`);
+    assert.equal(status.status, 200);
+    assert.equal((await status.json()).mode, 'public');
     const response = await fetch(`${base}/payments/telegram-stars/ops/gate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'disabled', reason: 'canary_drill' }) });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).mode, 'disabled');

@@ -1,7 +1,31 @@
+import { useState } from 'react';
 import { BookOpen, Eye, EyeOff, Grid3X3, Heart, Trash2 } from 'lucide-react';
 
 const artworkImage = (work) => work?.preview_url || work?.thumbnail_url || work?.image_url || '';
 const isRare = (work) => ['rare', 'epic', 'limited', 'legendary'].includes(String(work?.rarity || '').toLowerCase());
+
+function StarsOperations({ state, loading, busy, onChange }) {
+  const [confirmation, setConfirmation] = useState('');
+  if (loading || !state) return null;
+  const publicReady = confirmation === 'TELEGRAM_STARS_PUBLIC';
+  return <section className="profile-section stars-operations" aria-labelledby="stars-operations-title">
+    <div className="section-heading">
+      <div><p className="eyebrow">ОПЕРАЦИОННЫЙ КОНТРОЛЬ</p><h2 id="stars-operations-title">Telegram Stars</h2></div>
+      <span className={`stars-operations-status stars-operations-status--${state.mode}`}>{state.mode}</span>
+    </div>
+    <p className="stars-operations-copy">Только allowlisted Telegram-оператор. Остановка новых платежей не меняет уже завершённые транзакции.</p>
+    <div className="stars-operations-actions">
+      <button type="button" disabled={busy || state.mode === 'disabled'} onClick={() => onChange('disabled')}>Остановить покупки</button>
+      <button type="button" disabled={busy || state.mode === 'controlled'} onClick={() => onChange('controlled')}>Вернуть controlled</button>
+    </div>
+    {state.mode !== 'public' && <div className="stars-operations-public">
+      <label htmlFor="stars-public-confirm">Для public введите TELEGRAM_STARS_PUBLIC</label>
+      <input id="stars-public-confirm" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" spellCheck="false" />
+      <button type="button" disabled={busy || !publicReady} onClick={() => { setConfirmation(''); onChange('public', 'TELEGRAM_STARS_PUBLIC'); }}>Открыть покупки всем</button>
+    </div>}
+    <p className="stars-operations-note" aria-live="polite">Версия gate: {state.version}. {state.reason || ''}</p>
+  </section>;
+}
 
 function ArtworkCard({ work, onOpen, featured = false, children = null }) {
   const source = artworkImage(work);
@@ -29,6 +53,10 @@ export default function ProfileView({
   publishingTemplateId,
   onToggleVisibility,
   onDelete,
+  starsOpsState = null,
+  starsOpsLoading = false,
+  starsOpsBusy = false,
+  onStarsOpsChange,
 }) {
   if (!profile) return <section className="page profile-page"><div className="skeleton-block skeleton-profile" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></section>;
 
@@ -96,6 +124,8 @@ export default function ProfileView({
         </div>
       </ArtworkCard>)}</div> : <div className="profile-empty profile-empty--compact"><Heart size={22} /><p>Созданные вами работы появятся здесь.</p><button className="primary-button" type="button" onClick={() => onNavigate('create')}>Загрузить изображение</button></div>}
     </section>}
+
+    {isOwnProfile && <StarsOperations state={starsOpsState} loading={starsOpsLoading} busy={starsOpsBusy} onChange={onStarsOpsChange} />}
 
     {!showcase.length && !completedWorks.length && !createdWorks.length && <div className="profile-empty"><span>✦</span><p>Коллекция начнётся с первой завершённой картины.</p><button className="primary-button" type="button" onClick={() => onNavigate('catalog')}>Открыть каталог</button></div>}
   </section>;
