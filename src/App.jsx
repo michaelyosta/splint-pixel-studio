@@ -344,7 +344,13 @@ function App() {
       setRequestedPackId(null);
       catalog.resetCatalogScope();
     }
-    if (nextView === 'profile') setViewedProfileId(null);
+    if (nextView === 'profile') {
+      setViewedProfileId(null);
+      // Start the authoritative own-profile request immediately. The profile
+      // view effect repeats it after the route state settles, while the
+      // request guard prevents an older public-profile response from winning.
+      profile.loadProfile(null);
+    }
     setView(nextView);
   }
 
