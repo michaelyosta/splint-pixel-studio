@@ -290,10 +290,13 @@ export async function grantTemplateUnlock(db, userId, templateId, { now = new Da
   const template = await db.get('SELECT id, collection_id FROM coloring_templates WHERE id=?', [templateId]);
   if (!template) return { granted: false, reason: 'NOT_FOUND' };
 
-  if (template.collection_id) {
+  if (template.access_type === 'premium' || template.collection_id) {
+    const facts = await collectProgressionFacts(db, userId);
+    if (template.access_type === 'premium' && !facts.owned_collections.has('col_premium-gallery')) {
+      return { granted: false, reason: REASON_CODES.PREMIUM_REQUIRED };
+    }
     const collection = await db.get('SELECT id, pack_type FROM collections WHERE id=?', [template.collection_id]);
     if (collection?.pack_type === 'premium') {
-      const facts = await collectProgressionFacts(db, userId);
       if (!facts.owned_collections.has(template.collection_id)) {
         return { granted: false, reason: REASON_CODES.PREMIUM_REQUIRED };
       }
@@ -341,6 +344,36 @@ function evaluateTemplateState({
       locked: false,
       reason_code: REASON_CODES.OWNED,
       requirements: [],
+      grant_required: false,
+      grant_target: null,
+    };
+  }
+
+  // The merchandising catalog can contain free and premium entries in the
+  // same collection. `access_type` is authoritative for catalog rows; the
+  // collection-level fallback preserves legacy fixtures and unlockables.
+  const premiumTemplate = template.access_type === 'premium'
+    || (template.access_type !== 'free' && collection?.pack_type === 'premium');
+  const premiumOwned = premiumTemplate && (
+    facts.owned_collections.has('col_premium-gallery')
+      || (collection?.pack_type === 'premium' && collectionOwned)
+  );
+  if (premiumTemplate && !premiumOwned) {
+    return {
+      state: STATE_PREMIUM_LOCKED,
+      owned: false,
+      locked: true,
+      reason_code: REASON_CODES.PREMIUM_REQUIRED,
+      requirements: [{
+        rule_type: 'premium',
+        target_value: collection?.pack_type === 'premium' ? collection.id : 'col_premium-gallery',
+        label: 'Premium Gallery',
+        reason_code: REASON_CODES.PREMIUM_REQUIRED,
+        target: collection?.price_in_stars || 120,
+        current: 0,
+        satisfied: false,
+        progress: 0,
+      }],
       grant_required: false,
       grant_target: null,
     };
@@ -418,7 +451,7 @@ function evaluateTemplateState({
     }
   }
 
-  if (collectionOwned) {
+  if (collectionOwned || premiumOwned) {
     return {
       state: STATE_OWNED,
       owned: true,

@@ -1,0 +1,4485 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "id": "coloring_autumn-cozy_coffee-rain_01",
+      "semantic_signature": "autumn-cozy|coffee-rain|тихое окно с чашкой|window|coffee|rain",
+      "title": "Тихое окно с чашкой",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-coffee-rain",
+      "tags": [
+        "window",
+        "coffee",
+        "rain",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_coffee-rain_02",
+      "semantic_signature": "autumn-cozy|coffee-rain|блокнот у дождливого окна|journaling|tea|window",
+      "title": "Блокнот у дождливого окна",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-coffee-rain",
+      "tags": [
+        "journaling",
+        "tea",
+        "window",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_coffee-rain_03",
+      "semantic_signature": "autumn-cozy|coffee-rain|котёнок и плед на подоконнике|kitten|blanket|rain",
+      "title": "Котёнок и плед на подоконнике",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-coffee-rain",
+      "tags": [
+        "kitten",
+        "blanket",
+        "rain",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_coffee-rain_04",
+      "semantic_signature": "autumn-cozy|coffee-rain|кофейная тележка под навесом|cart|awning|puddles",
+      "title": "Кофейная тележка под навесом",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-coffee-rain",
+      "tags": [
+        "cart",
+        "awning",
+        "puddles",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_coffee-rain_05",
+      "semantic_signature": "autumn-cozy|coffee-rain|осенний стол для письма|desk|letters|acorns",
+      "title": "Осенний стол для письма",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-coffee-rain",
+      "tags": [
+        "desk",
+        "letters",
+        "acorns",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_coffee-rain_06",
+      "semantic_signature": "autumn-cozy|coffee-rain|дождевой сад за стеклом|conservatory|ferns|garden",
+      "title": "Дождевой сад за стеклом",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-coffee-rain",
+      "tags": [
+        "conservatory",
+        "ferns",
+        "garden",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_coffee-rain_07",
+      "semantic_signature": "autumn-cozy|coffee-rain|сапоги у крыльца|boots|porch|umbrella",
+      "title": "Сапоги у крыльца",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-coffee-rain",
+      "tags": [
+        "boots",
+        "porch",
+        "umbrella",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_coffee-rain_08",
+      "semantic_signature": "autumn-cozy|coffee-rain|ночной кофе в оранжерее|night|greenhouse|café",
+      "title": "Ночной кофе в оранжерее",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-coffee-rain",
+      "tags": [
+        "night",
+        "greenhouse",
+        "café",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_coffee-rain_09",
+      "semantic_signature": "autumn-cozy|coffee-rain|трамвайная остановка с термосом|tram|shelter|traveler",
+      "title": "Трамвайная остановка с термосом",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-coffee-rain",
+      "tags": [
+        "tram",
+        "shelter",
+        "traveler",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_coffee-rain_10",
+      "semantic_signature": "autumn-cozy|coffee-rain|чернильная карта дождливого города|map|compass|city",
+      "title": "Чернильная карта дождливого города",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-coffee-rain",
+      "tags": [
+        "map",
+        "compass",
+        "city",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_warm-evenings_01",
+      "semantic_signature": "autumn-cozy|warm-evenings|фонарики на балконе|balcony|lanterns|tea",
+      "title": "Фонарики на балконе",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-warm-evenings",
+      "tags": [
+        "balcony",
+        "lanterns",
+        "tea",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_warm-evenings_02",
+      "semantic_signature": "autumn-cozy|warm-evenings|плед и каштаны у камина|fireplace|chestnuts|blanket",
+      "title": "Плед и каштаны у камина",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-warm-evenings",
+      "tags": [
+        "fireplace",
+        "chestnuts",
+        "blanket",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_warm-evenings_03",
+      "semantic_signature": "autumn-cozy|warm-evenings|тыквенная полка без праздника|pumpkins|shelf|vase",
+      "title": "Тыквенная полка без праздника",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-warm-evenings",
+      "tags": [
+        "pumpkins",
+        "shelf",
+        "vase",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_warm-evenings_04",
+      "semantic_signature": "autumn-cozy|warm-evenings|вечерняя мастерская свечей|candles|workbench|flowers",
+      "title": "Вечерняя мастерская свечей",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-warm-evenings",
+      "tags": [
+        "candles",
+        "workbench",
+        "flowers",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_warm-evenings_05",
+      "semantic_signature": "autumn-cozy|warm-evenings|домик на холме в сумерках|house|hill|path",
+      "title": "Домик на холме в сумерках",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-warm-evenings",
+      "tags": [
+        "house",
+        "hill",
+        "path",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_warm-evenings_06",
+      "semantic_signature": "autumn-cozy|warm-evenings|книжный угол с горячим какао|reading|cocoa|chair",
+      "title": "Книжный угол с горячим какао",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-warm-evenings",
+      "tags": [
+        "reading",
+        "cocoa",
+        "chair",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_warm-evenings_07",
+      "semantic_signature": "autumn-cozy|warm-evenings|сбор яблок после заката|orchard|apples|lantern",
+      "title": "Сбор яблок после заката",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-warm-evenings",
+      "tags": [
+        "orchard",
+        "apples",
+        "lantern",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_warm-evenings_08",
+      "semantic_signature": "autumn-cozy|warm-evenings|музыка в мансарде|attic|piano|plants",
+      "title": "Музыка в мансарде",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-warm-evenings",
+      "tags": [
+        "attic",
+        "piano",
+        "plants",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_warm-evenings_09",
+      "semantic_signature": "autumn-cozy|warm-evenings|велосипед у светлой лавки|bicycle|market|streetlamp",
+      "title": "Велосипед у светлой лавки",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-warm-evenings",
+      "tags": [
+        "bicycle",
+        "market",
+        "streetlamp",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_autumn-cozy_warm-evenings_10",
+      "semantic_signature": "autumn-cozy|warm-evenings|пикник под медной луной|picnic|moon|hillside",
+      "title": "Пикник под медной луной",
+      "collection_id": "col_autumn-cozy",
+      "album_id": "alb_autumn-cozy-warm-evenings",
+      "tags": [
+        "picnic",
+        "moon",
+        "hillside",
+        "cozy",
+        "autumn-cozy"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_fox-hedgehog-hare_01",
+      "semantic_signature": "forest-friends|fox-hedgehog-hare|лиса с корзинкой ягод|fox|berries|ferns",
+      "title": "Лиса с корзинкой ягод",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_fox-hedgehog-hare",
+      "tags": [
+        "fox",
+        "berries",
+        "ferns",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_fox-hedgehog-hare_02",
+      "semantic_signature": "forest-friends|fox-hedgehog-hare|ёжик у чайного пня|hedgehog|stump|tea",
+      "title": "Ёжик у чайного пня",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_fox-hedgehog-hare",
+      "tags": [
+        "hedgehog",
+        "stump",
+        "tea",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_fox-hedgehog-hare_03",
+      "semantic_signature": "forest-friends|fox-hedgehog-hare|заяц среди папоротников|hare|ferns|clearing",
+      "title": "Заяц среди папоротников",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_fox-hedgehog-hare",
+      "tags": [
+        "hare",
+        "ferns",
+        "clearing",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_fox-hedgehog-hare_04",
+      "semantic_signature": "forest-friends|fox-hedgehog-hare|лесной почтальон-лис|fox|satchel|bridge",
+      "title": "Лесной почтальон-лис",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_fox-hedgehog-hare",
+      "tags": [
+        "fox",
+        "satchel",
+        "bridge",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_fox-hedgehog-hare_05",
+      "semantic_signature": "forest-friends|fox-hedgehog-hare|ежевичный привал|hedgehog|blackberries|picnic",
+      "title": "Ежевичный привал",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_fox-hedgehog-hare",
+      "tags": [
+        "hedgehog",
+        "blackberries",
+        "picnic",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_fox-hedgehog-hare_06",
+      "semantic_signature": "forest-friends|fox-hedgehog-hare|заяц и карта тропинок|rabbit|map|paths",
+      "title": "Заяц и карта тропинок",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_fox-hedgehog-hare",
+      "tags": [
+        "rabbit",
+        "map",
+        "paths",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_fox-hedgehog-hare_07",
+      "semantic_signature": "forest-friends|fox-hedgehog-hare|лисий дом под корнями|fox|root-house|mushrooms",
+      "title": "Лисий дом под корнями",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_fox-hedgehog-hare",
+      "tags": [
+        "fox",
+        "root-house",
+        "mushrooms",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_fox-hedgehog-hare_08",
+      "semantic_signature": "forest-friends|fox-hedgehog-hare|три друга у водопада|friends|waterfall|stones",
+      "title": "Три друга у водопада",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_fox-hedgehog-hare",
+      "tags": [
+        "friends",
+        "waterfall",
+        "stones",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_fox-hedgehog-hare_09",
+      "semantic_signature": "forest-friends|fox-hedgehog-hare|заячья лодка на лесном пруду|rabbit|boat|pond",
+      "title": "Заячья лодка на лесном пруду",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_fox-hedgehog-hare",
+      "tags": [
+        "rabbit",
+        "boat",
+        "pond",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_fox-hedgehog-hare_10",
+      "semantic_signature": "forest-friends|fox-hedgehog-hare|лисёнок в грибном круге|fox|mushrooms|seed-pods",
+      "title": "Лисёнок в грибном круге",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_fox-hedgehog-hare",
+      "tags": [
+        "fox",
+        "mushrooms",
+        "seed-pods",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_mushroom-homes_01",
+      "semantic_signature": "forest-friends|mushroom-homes|домик под большим грибом|mushroom|home|path",
+      "title": "Домик под большим грибом",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_mushroom-homes",
+      "tags": [
+        "mushroom",
+        "home",
+        "path",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_mushroom-homes_02",
+      "semantic_signature": "forest-friends|mushroom-homes|почтовый ящик у мха|cottage|mailbox|snail",
+      "title": "Почтовый ящик у мха",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_mushroom-homes",
+      "tags": [
+        "cottage",
+        "mailbox",
+        "snail",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_mushroom-homes_03",
+      "semantic_signature": "forest-friends|mushroom-homes|мостик между грибными домиками|homes|bridge|stream",
+      "title": "Мостик между грибными домиками",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_mushroom-homes",
+      "tags": [
+        "homes",
+        "bridge",
+        "stream",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_mushroom-homes_04",
+      "semantic_signature": "forest-friends|mushroom-homes|лесная пекарня под шляпкой|bakery|oven|herbs",
+      "title": "Лесная пекарня под шляпкой",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_mushroom-homes",
+      "tags": [
+        "bakery",
+        "oven",
+        "herbs",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_mushroom-homes_05",
+      "semantic_signature": "forest-friends|mushroom-homes|домик хранителя семян|cabin|seeds|bird-feeder",
+      "title": "Домик хранителя семян",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_mushroom-homes",
+      "tags": [
+        "cabin",
+        "seeds",
+        "bird-feeder",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_mushroom-homes_06",
+      "semantic_signature": "forest-friends|mushroom-homes|грибная библиотека|library|books|lantern",
+      "title": "Грибная библиотека",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_mushroom-homes",
+      "tags": [
+        "library",
+        "books",
+        "lantern",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_mushroom-homes_07",
+      "semantic_signature": "forest-friends|mushroom-homes|дождь на грибной улице|lane|umbrellas|puddles",
+      "title": "Дождь на грибной улице",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_mushroom-homes",
+      "tags": [
+        "lane",
+        "umbrellas",
+        "puddles",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_mushroom-homes_08",
+      "semantic_signature": "forest-friends|mushroom-homes|праздник светящихся шляпок|festival|creatures|mushrooms",
+      "title": "Праздник светящихся шляпок",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_mushroom-homes",
+      "tags": [
+        "festival",
+        "creatures",
+        "mushrooms",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_mushroom-homes_09",
+      "semantic_signature": "forest-friends|mushroom-homes|мастерская деревянных ключей|workshop|keys|owl",
+      "title": "Мастерская деревянных ключей",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_mushroom-homes",
+      "tags": [
+        "workshop",
+        "keys",
+        "owl",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_forest-friends_mushroom-homes_10",
+      "semantic_signature": "forest-friends|mushroom-homes|тайный двор под корнями|courtyard|fountain|garden",
+      "title": "Тайный двор под корнями",
+      "collection_id": "col_forest-friends",
+      "album_id": "alb_forest-friends_mushroom-homes",
+      "tags": [
+        "courtyard",
+        "fountain",
+        "garden",
+        "forest",
+        "forest-friends"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_bakes-coffee_01",
+      "semantic_signature": "sweet-cafe|bakes-coffee|круассан на утренней стойке|croissant|coffee|bakery",
+      "title": "Круассан на утренней стойке",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_bakes-coffee",
+      "tags": [
+        "croissant",
+        "coffee",
+        "bakery",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_bakes-coffee_02",
+      "semantic_signature": "sweet-cafe|bakes-coffee|булочка с корицей и открытка|bun|postcard|window",
+      "title": "Булочка с корицей и открытка",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_bakes-coffee",
+      "tags": [
+        "bun",
+        "postcard",
+        "window",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_bakes-coffee_03",
+      "semantic_signature": "sweet-cafe|bakes-coffee|мини-пекарня в фургончике|van|bakery|bicycle",
+      "title": "Мини-пекарня в фургончике",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_bakes-coffee",
+      "tags": [
+        "van",
+        "bakery",
+        "bicycle",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_bakes-coffee_04",
+      "semantic_signature": "sweet-cafe|bakes-coffee|кафе на книжной полке|miniature|books|café",
+      "title": "Кафе на книжной полке",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_bakes-coffee",
+      "tags": [
+        "miniature",
+        "books",
+        "café",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_bakes-coffee_05",
+      "semantic_signature": "sweet-cafe|bakes-coffee|завтрак на круглой террасе|breakfast|terrace|rooftops",
+      "title": "Завтрак на круглой террасе",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_bakes-coffee",
+      "tags": [
+        "breakfast",
+        "terrace",
+        "rooftops",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_bakes-coffee_06",
+      "semantic_signature": "sweet-cafe|bakes-coffee|бариста и витрина пирогов|barista|pies|counter",
+      "title": "Бариста и витрина пирогов",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_bakes-coffee",
+      "tags": [
+        "barista",
+        "pies",
+        "counter",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_bakes-coffee_07",
+      "semantic_signature": "sweet-cafe|bakes-coffee|серванты с чашками|cups|pantry|moka-pot",
+      "title": "Серванты с чашками",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_bakes-coffee",
+      "tags": [
+        "cups",
+        "pantry",
+        "moka-pot",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_bakes-coffee_08",
+      "semantic_signature": "sweet-cafe|bakes-coffee|кофейная лодка на канале|boat|canal|coffee",
+      "title": "Кофейная лодка на канале",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_bakes-coffee",
+      "tags": [
+        "boat",
+        "canal",
+        "coffee",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_bakes-coffee_09",
+      "semantic_signature": "sweet-cafe|bakes-coffee|пекарня в старом трамвае|tram|bakery|interior",
+      "title": "Пекарня в старом трамвае",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_bakes-coffee",
+      "tags": [
+        "tram",
+        "bakery",
+        "interior",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_bakes-coffee_10",
+      "semantic_signature": "sweet-cafe|bakes-coffee|полдник в зимнем саду|conservatory|pastries|vines",
+      "title": "Полдник в зимнем саду",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_bakes-coffee",
+      "tags": [
+        "conservatory",
+        "pastries",
+        "vines",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_cute-desserts_01",
+      "semantic_signature": "sweet-cafe|cute-desserts|торт с ягодным венком|cake|berries|pedestal",
+      "title": "Торт с ягодным венком",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_cute-desserts",
+      "tags": [
+        "cake",
+        "berries",
+        "pedestal",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_cute-desserts_02",
+      "semantic_signature": "sweet-cafe|cute-desserts|мороженое в лодочке|ice-cream|fruit|flowers",
+      "title": "Мороженое в лодочке",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_cute-desserts",
+      "tags": [
+        "ice-cream",
+        "fruit",
+        "flowers",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_cute-desserts_03",
+      "semantic_signature": "sweet-cafe|cute-desserts|печенье-звёздочки|cookies|rolling-pin|baking",
+      "title": "Печенье-звёздочки",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_cute-desserts",
+      "tags": [
+        "cookies",
+        "rolling-pin",
+        "baking",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_cute-desserts_04",
+      "semantic_signature": "sweet-cafe|cute-desserts|пирожные на витрине|pastries|display|café",
+      "title": "Пирожные на витрине",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_cute-desserts",
+      "tags": [
+        "pastries",
+        "display",
+        "café",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_cute-desserts_05",
+      "semantic_signature": "sweet-cafe|cute-desserts|желейный сад|jelly|garden|fruit",
+      "title": "Желейный сад",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_cute-desserts",
+      "tags": [
+        "jelly",
+        "garden",
+        "fruit",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_cute-desserts_06",
+      "semantic_signature": "sweet-cafe|cute-desserts|чайная башня макарунов|macarons|tea|stand",
+      "title": "Чайная башня макарунов",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_cute-desserts",
+      "tags": [
+        "macarons",
+        "tea",
+        "stand",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_cute-desserts_07",
+      "semantic_signature": "sweet-cafe|cute-desserts|пончики на колёсах|donuts|cart|plaza",
+      "title": "Пончики на колёсах",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_cute-desserts",
+      "tags": [
+        "donuts",
+        "cart",
+        "plaza",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_cute-desserts_08",
+      "semantic_signature": "sweet-cafe|cute-desserts|леденцовая оранжерея|greenhouse|candy|plants",
+      "title": "Леденцовая оранжерея",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_cute-desserts",
+      "tags": [
+        "greenhouse",
+        "candy",
+        "plants",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_cute-desserts_09",
+      "semantic_signature": "sweet-cafe|cute-desserts|медовый замок|castle|honeycomb|tea",
+      "title": "Медовый замок",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_cute-desserts",
+      "tags": [
+        "castle",
+        "honeycomb",
+        "tea",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_sweet-cafe_cute-desserts_10",
+      "semantic_signature": "sweet-cafe|cute-desserts|ночной столик с десертом|parfait|moonlight|table",
+      "title": "Ночной столик с десертом",
+      "collection_id": "col_sweet-cafe",
+      "album_id": "alb_sweet-cafe_cute-desserts",
+      "tags": [
+        "parfait",
+        "moonlight",
+        "table",
+        "cozy",
+        "sweet-cafe"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_dream-rooms_01",
+      "semantic_signature": "cozy-home|dream-rooms|солнечная кухня с травами|kitchen|herbs|window",
+      "title": "Солнечная кухня с травами",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_dream-rooms",
+      "tags": [
+        "kitchen",
+        "herbs",
+        "window",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_dream-rooms_02",
+      "semantic_signature": "cozy-home|dream-rooms|гостиная с круглым ковром|living-room|rug|sofa",
+      "title": "Гостиная с круглым ковром",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_dream-rooms",
+      "tags": [
+        "living-room",
+        "rug",
+        "sofa",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_dream-rooms_03",
+      "semantic_signature": "cozy-home|dream-rooms|мансардная спальня|bedroom|skylight|plants",
+      "title": "Мансардная спальня",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_dream-rooms",
+      "tags": [
+        "bedroom",
+        "skylight",
+        "plants",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_dream-rooms_04",
+      "semantic_signature": "cozy-home|dream-rooms|мастерская у большого окна|craft-room|spools|window",
+      "title": "Мастерская у большого окна",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_dream-rooms",
+      "tags": [
+        "craft-room",
+        "spools",
+        "window",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_dream-rooms_05",
+      "semantic_signature": "cozy-home|dream-rooms|зимний сад внутри дома|conservatory|bench|watering-can",
+      "title": "Зимний сад внутри дома",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_dream-rooms",
+      "tags": [
+        "conservatory",
+        "bench",
+        "watering-can",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_dream-rooms_06",
+      "semantic_signature": "cozy-home|dream-rooms|лестница с галереей рам|staircase|frames|plants",
+      "title": "Лестница с галереей рам",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_dream-rooms",
+      "tags": [
+        "staircase",
+        "frames",
+        "plants",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_dream-rooms_07",
+      "semantic_signature": "cozy-home|dream-rooms|домашняя кухня для друзей|dining|kitchen|table",
+      "title": "Домашняя кухня для друзей",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_dream-rooms",
+      "tags": [
+        "dining",
+        "kitchen",
+        "table",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_dream-rooms_08",
+      "semantic_signature": "cozy-home|dream-rooms|музыкальная гостиная|music-room|piano|window",
+      "title": "Музыкальная гостиная",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_dream-rooms",
+      "tags": [
+        "music-room",
+        "piano",
+        "window",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_dream-rooms_09",
+      "semantic_signature": "cozy-home|dream-rooms|домик на колёсах|tiny-home|loft|kitchen",
+      "title": "Домик на колёсах",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_dream-rooms",
+      "tags": [
+        "tiny-home",
+        "loft",
+        "kitchen",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_dream-rooms_10",
+      "semantic_signature": "cozy-home|dream-rooms|уютная комната под стеклянной крышей|glass-roof|daybed|fireplace",
+      "title": "Уютная комната под стеклянной крышей",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_dream-rooms",
+      "tags": [
+        "glass-roof",
+        "daybed",
+        "fireplace",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_reading-nooks_01",
+      "semantic_signature": "cozy-home|reading-nooks|кресло у книжной стены|reading|books|chair",
+      "title": "Кресло у книжной стены",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_reading-nooks",
+      "tags": [
+        "reading",
+        "books",
+        "chair",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_reading-nooks_02",
+      "semantic_signature": "cozy-home|reading-nooks|чтение на подоконнике|window-seat|book|vine",
+      "title": "Чтение на подоконнике",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_reading-nooks",
+      "tags": [
+        "window-seat",
+        "book",
+        "vine",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_reading-nooks_03",
+      "semantic_signature": "cozy-home|reading-nooks|палатка для чтения|tent|lantern|books",
+      "title": "Палатка для чтения",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_reading-nooks",
+      "tags": [
+        "tent",
+        "lantern",
+        "books",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_reading-nooks_04",
+      "semantic_signature": "cozy-home|reading-nooks|библиотечный балкон|balcony|library|ladder",
+      "title": "Библиотечный балкон",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_reading-nooks",
+      "tags": [
+        "balcony",
+        "library",
+        "ladder",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_reading-nooks_05",
+      "semantic_signature": "cozy-home|reading-nooks|книжный угол под лестницей|under-stairs|bench|lamp",
+      "title": "Книжный угол под лестницей",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_reading-nooks",
+      "tags": [
+        "under-stairs",
+        "bench",
+        "lamp",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_reading-nooks_06",
+      "semantic_signature": "cozy-home|reading-nooks|садовая библиотека|garden-library|desk|ferns",
+      "title": "Садовая библиотека",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_reading-nooks",
+      "tags": [
+        "garden-library",
+        "desk",
+        "ferns",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_reading-nooks_07",
+      "semantic_signature": "cozy-home|reading-nooks|кресло в ночном свете|night|chair|lamp",
+      "title": "Кресло в ночном свете",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_reading-nooks",
+      "tags": [
+        "night",
+        "chair",
+        "lamp",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_reading-nooks_08",
+      "semantic_signature": "cozy-home|reading-nooks|плавучая библиотека|boat|library|river",
+      "title": "Плавучая библиотека",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_reading-nooks",
+      "tags": [
+        "boat",
+        "library",
+        "river",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_reading-nooks_09",
+      "semantic_signature": "cozy-home|reading-nooks|читальный зал в башне|tower|reading-room|ladder",
+      "title": "Читальный зал в башне",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_reading-nooks",
+      "tags": [
+        "tower",
+        "reading-room",
+        "ladder",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_cozy-home_reading-nooks_10",
+      "semantic_signature": "cozy-home|reading-nooks|поезд-библиотека|train|library|hills",
+      "title": "Поезд-библиотека",
+      "collection_id": "col_cozy-home",
+      "album_id": "alb_cozy-home_reading-nooks",
+      "tags": [
+        "train",
+        "library",
+        "hills",
+        "cozy",
+        "cozy-home"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_wildflowers_01",
+      "semantic_signature": "flower-day|wildflowers|венок из луговых трав|wreath|wildflowers|butterflies",
+      "title": "Венок из луговых трав",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_wildflowers",
+      "tags": [
+        "wreath",
+        "wildflowers",
+        "butterflies",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_wildflowers_02",
+      "semantic_signature": "flower-day|wildflowers|ваза с ромашками|daisies|vase|window",
+      "title": "Ваза с ромашками",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_wildflowers",
+      "tags": [
+        "daisies",
+        "vase",
+        "window",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_wildflowers_03",
+      "semantic_signature": "flower-day|wildflowers|луговая тропинка|meadow|path|bench",
+      "title": "Луговая тропинка",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_wildflowers",
+      "tags": [
+        "meadow",
+        "path",
+        "bench",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_wildflowers_04",
+      "semantic_signature": "flower-day|wildflowers|шмель над клевером|bumblebee|clover|meadow",
+      "title": "Шмель над клевером",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_wildflowers",
+      "tags": [
+        "bumblebee",
+        "clover",
+        "meadow",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_wildflowers_05",
+      "semantic_signature": "flower-day|wildflowers|полевой букет в кувшине|bouquet|pitcher|basket",
+      "title": "Полевой букет в кувшине",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_wildflowers",
+      "tags": [
+        "bouquet",
+        "pitcher",
+        "basket",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_wildflowers_06",
+      "semantic_signature": "flower-day|wildflowers|домик среди цветов|cottage|flowers|bicycle",
+      "title": "Домик среди цветов",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_wildflowers",
+      "tags": [
+        "cottage",
+        "flowers",
+        "bicycle",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_wildflowers_07",
+      "semantic_signature": "flower-day|wildflowers|сбор семян на лугу|gardener|seeds|wildflowers",
+      "title": "Сбор семян на лугу",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_wildflowers",
+      "tags": [
+        "gardener",
+        "seeds",
+        "wildflowers",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_wildflowers_08",
+      "semantic_signature": "flower-day|wildflowers|мостик через цветочный ручей|bridge|stream|flowers",
+      "title": "Мостик через цветочный ручей",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_wildflowers",
+      "tags": [
+        "bridge",
+        "stream",
+        "flowers",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_wildflowers_09",
+      "semantic_signature": "flower-day|wildflowers|фея-почтальон среди трав|fairy|envelope|grasses",
+      "title": "Фея-почтальон среди трав",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_wildflowers",
+      "tags": [
+        "fairy",
+        "envelope",
+        "grasses",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_wildflowers_10",
+      "semantic_signature": "flower-day|wildflowers|ночной луг с закрывающимися цветами|night|meadow|fox",
+      "title": "Ночной луг с закрывающимися цветами",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_wildflowers",
+      "tags": [
+        "night",
+        "meadow",
+        "fox",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_gardens-bouquets_01",
+      "semantic_signature": "flower-day|gardens-bouquets|розовый сад у стены|rose-garden|wall|bench",
+      "title": "Розовый сад у стены",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_gardens-bouquets",
+      "tags": [
+        "rose-garden",
+        "wall",
+        "bench",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_gardens-bouquets_02",
+      "semantic_signature": "flower-day|gardens-bouquets|букет в мастерской флориста|florist|bouquet|worktable",
+      "title": "Букет в мастерской флориста",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_gardens-bouquets",
+      "tags": [
+        "florist",
+        "bouquet",
+        "worktable",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_gardens-bouquets_03",
+      "semantic_signature": "flower-day|gardens-bouquets|теплица с горшками|greenhouse|pots|tools",
+      "title": "Теплица с горшками",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_gardens-bouquets",
+      "tags": [
+        "greenhouse",
+        "pots",
+        "tools",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_gardens-bouquets_04",
+      "semantic_signature": "flower-day|gardens-bouquets|садовая арка|arch|path|birdbath",
+      "title": "Садовая арка",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_gardens-bouquets",
+      "tags": [
+        "arch",
+        "path",
+        "birdbath",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_gardens-bouquets_05",
+      "semantic_signature": "flower-day|gardens-bouquets|букет полевых пионов|peonies|jug|paper",
+      "title": "Букет полевых пионов",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_gardens-bouquets",
+      "tags": [
+        "peonies",
+        "jug",
+        "paper",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_gardens-bouquets_06",
+      "semantic_signature": "flower-day|gardens-bouquets|садовый чайный стол|tea|garden|parasol",
+      "title": "Садовый чайный стол",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_gardens-bouquets",
+      "tags": [
+        "tea",
+        "garden",
+        "parasol",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_gardens-bouquets_07",
+      "semantic_signature": "flower-day|gardens-bouquets|оранжерея с водяными лилиями|lilies|pond|conservatory",
+      "title": "Оранжерея с водяными лилиями",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_gardens-bouquets",
+      "tags": [
+        "lilies",
+        "pond",
+        "conservatory",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_gardens-bouquets_08",
+      "semantic_signature": "flower-day|gardens-bouquets|лунный сад трав|moon-garden|herbs|trellis",
+      "title": "Лунный сад трав",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_gardens-bouquets",
+      "tags": [
+        "moon-garden",
+        "herbs",
+        "trellis",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_gardens-bouquets_09",
+      "semantic_signature": "flower-day|gardens-bouquets|парад садовых скульптур|sculptures|garden|fountain",
+      "title": "Парад садовых скульптур",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_gardens-bouquets",
+      "tags": [
+        "sculptures",
+        "garden",
+        "fountain",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_flower-day_gardens-bouquets_10",
+      "semantic_signature": "flower-day|gardens-bouquets|цветочный рынок на площади|market|flowers|square",
+      "title": "Цветочный рынок на площади",
+      "collection_id": "col_flower-day",
+      "album_id": "alb_flower-day_gardens-bouquets",
+      "tags": [
+        "market",
+        "flowers",
+        "square",
+        "botanical",
+        "flower-day"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_simple-mandalas_01",
+      "semantic_signature": "easy-calm|simple-mandalas|мандала из листьев|mandala|leaves|radial",
+      "title": "Мандала из листьев",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_simple-mandalas",
+      "tags": [
+        "mandala",
+        "leaves",
+        "radial",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_simple-mandalas_02",
+      "semantic_signature": "easy-calm|simple-mandalas|мандала солнечных дуг|mandala|sun|geometry",
+      "title": "Мандала солнечных дуг",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_simple-mandalas",
+      "tags": [
+        "mandala",
+        "sun",
+        "geometry",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_simple-mandalas_03",
+      "semantic_signature": "easy-calm|simple-mandalas|мандала морских раковин|mandala|shells|waves",
+      "title": "Мандала морских раковин",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_simple-mandalas",
+      "tags": [
+        "mandala",
+        "shells",
+        "waves",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_simple-mandalas_04",
+      "semantic_signature": "easy-calm|simple-mandalas|мандала из домиков|mandala|homes|trees",
+      "title": "Мандала из домиков",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_simple-mandalas",
+      "tags": [
+        "mandala",
+        "homes",
+        "trees",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_simple-mandalas_05",
+      "semantic_signature": "easy-calm|simple-mandalas|мандала ягод и трав|mandala|berries|botanical",
+      "title": "Мандала ягод и трав",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_simple-mandalas",
+      "tags": [
+        "mandala",
+        "berries",
+        "botanical",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_simple-mandalas_06",
+      "semantic_signature": "easy-calm|simple-mandalas|мандала воздушных шаров|mandala|balloons|clouds",
+      "title": "Мандала воздушных шаров",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_simple-mandalas",
+      "tags": [
+        "mandala",
+        "balloons",
+        "clouds",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_simple-mandalas_07",
+      "semantic_signature": "easy-calm|simple-mandalas|мандала камней и волн|mandala|stones|water",
+      "title": "Мандала камней и волн",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_simple-mandalas",
+      "tags": [
+        "mandala",
+        "stones",
+        "water",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_simple-mandalas_08",
+      "semantic_signature": "easy-calm|simple-mandalas|мандала ночного сада|mandala|moon|moths",
+      "title": "Мандала ночного сада",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_simple-mandalas",
+      "tags": [
+        "mandala",
+        "moon",
+        "moths",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_simple-mandalas_09",
+      "semantic_signature": "easy-calm|simple-mandalas|мандала маленьких путешествий|mandala|travel|compass",
+      "title": "Мандала маленьких путешествий",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_simple-mandalas",
+      "tags": [
+        "mandala",
+        "travel",
+        "compass",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_simple-mandalas_10",
+      "semantic_signature": "easy-calm|simple-mandalas|мандала уютных предметов|mandala|cozy|objects",
+      "title": "Мандала уютных предметов",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_simple-mandalas",
+      "tags": [
+        "mandala",
+        "cozy",
+        "objects",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_bold-easy-patterns_01",
+      "semantic_signature": "easy-calm|bold-easy-patterns|крупные волны|pattern|waves|bold",
+      "title": "Крупные волны",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_bold-easy-patterns",
+      "tags": [
+        "pattern",
+        "waves",
+        "bold",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_bold-easy-patterns_02",
+      "semantic_signature": "easy-calm|bold-easy-patterns|солнечная клетка|pattern|sun|grid",
+      "title": "Солнечная клетка",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_bold-easy-patterns",
+      "tags": [
+        "pattern",
+        "sun",
+        "grid",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_bold-easy-patterns_03",
+      "semantic_signature": "easy-calm|bold-easy-patterns|листья в ритме|pattern|leaves|rhythm",
+      "title": "Листья в ритме",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_bold-easy-patterns",
+      "tags": [
+        "pattern",
+        "leaves",
+        "rhythm",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_bold-easy-patterns_04",
+      "semantic_signature": "easy-calm|bold-easy-patterns|городские арки|pattern|city|arches",
+      "title": "Городские арки",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_bold-easy-patterns",
+      "tags": [
+        "pattern",
+        "city",
+        "arches",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_bold-easy-patterns_05",
+      "semantic_signature": "easy-calm|bold-easy-patterns|крупные цветы|pattern|flowers|bold",
+      "title": "Крупные цветы",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_bold-easy-patterns",
+      "tags": [
+        "pattern",
+        "flowers",
+        "bold",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_bold-easy-patterns_06",
+      "semantic_signature": "easy-calm|bold-easy-patterns|мягкие горы|pattern|mountains|clouds",
+      "title": "Мягкие горы",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_bold-easy-patterns",
+      "tags": [
+        "pattern",
+        "mountains",
+        "clouds",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_bold-easy-patterns_07",
+      "semantic_signature": "easy-calm|bold-easy-patterns|чайные формы|pattern|tea|objects",
+      "title": "Чайные формы",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_bold-easy-patterns",
+      "tags": [
+        "pattern",
+        "tea",
+        "objects",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_bold-easy-patterns_08",
+      "semantic_signature": "easy-calm|bold-easy-patterns|детальный садовый орнамент|pattern|garden|ornament",
+      "title": "Детальный садовый орнамент",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_bold-easy-patterns",
+      "tags": [
+        "pattern",
+        "garden",
+        "ornament",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_bold-easy-patterns_09",
+      "semantic_signature": "easy-calm|bold-easy-patterns|ночной городской ритм|pattern|night-city|rooftops",
+      "title": "Ночной городской ритм",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_bold-easy-patterns",
+      "tags": [
+        "pattern",
+        "night-city",
+        "rooftops",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_easy-calm_bold-easy-patterns_10",
+      "semantic_signature": "easy-calm|bold-easy-patterns|фантазийная мозаика|pattern|mosaic|fantasy",
+      "title": "Фантазийная мозаика",
+      "collection_id": "col_easy-calm",
+      "album_id": "alb_easy-calm_bold-easy-patterns",
+      "tags": [
+        "pattern",
+        "mosaic",
+        "fantasy",
+        "geometric",
+        "easy-calm"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_forest-hike_01",
+      "semantic_signature": "tiny-adventures|forest-hike|рюкзак у тропы|hiking|pack|path",
+      "title": "Рюкзак у тропы",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_forest-hike",
+      "tags": [
+        "hiking",
+        "pack",
+        "path",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_forest-hike_02",
+      "semantic_signature": "tiny-adventures|forest-hike|перекус на пне|hiker|snack|log",
+      "title": "Перекус на пне",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_forest-hike",
+      "tags": [
+        "hiker",
+        "snack",
+        "log",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_forest-hike_03",
+      "semantic_signature": "tiny-adventures|forest-hike|мост через ручей|bridge|stream|pines",
+      "title": "Мост через ручей",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_forest-hike",
+      "tags": [
+        "bridge",
+        "stream",
+        "pines",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_forest-hike_04",
+      "semantic_signature": "tiny-adventures|forest-hike|палатка среди сосен|tent|camp|pines",
+      "title": "Палатка среди сосен",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_forest-hike",
+      "tags": [
+        "tent",
+        "camp",
+        "pines",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_forest-hike_05",
+      "semantic_signature": "tiny-adventures|forest-hike|наблюдение за птицами|birdwatching|binoculars|notebook",
+      "title": "Наблюдение за птицами",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_forest-hike",
+      "tags": [
+        "birdwatching",
+        "binoculars",
+        "notebook",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_forest-hike_06",
+      "semantic_signature": "tiny-adventures|forest-hike|лесной компас|compass|map|trail",
+      "title": "Лесной компас",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_forest-hike",
+      "tags": [
+        "compass",
+        "map",
+        "trail",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_forest-hike_07",
+      "semantic_signature": "tiny-adventures|forest-hike|пикник на смотровой площадке|overlook|picnic|hills",
+      "title": "Пикник на смотровой площадке",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_forest-hike",
+      "tags": [
+        "overlook",
+        "picnic",
+        "hills",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_forest-hike_08",
+      "semantic_signature": "tiny-adventures|forest-hike|ночной лагерь светлячков|camp|fireflies|night",
+      "title": "Ночной лагерь светлячков",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_forest-hike",
+      "tags": [
+        "camp",
+        "fireflies",
+        "night",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_forest-hike_09",
+      "semantic_signature": "tiny-adventures|forest-hike|канатная тропа в кронах|treetop|walkway|ropes",
+      "title": "Канатная тропа в кронах",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_forest-hike",
+      "tags": [
+        "treetop",
+        "walkway",
+        "ropes",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_forest-hike_10",
+      "semantic_signature": "tiny-adventures|forest-hike|секретная пещера за водопадом|cave|waterfall|crystals",
+      "title": "Секретная пещера за водопадом",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_forest-hike",
+      "tags": [
+        "cave",
+        "waterfall",
+        "crystals",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_little-town_01",
+      "semantic_signature": "tiny-adventures|little-town|пекарня на углу|town|bakery|bicycle",
+      "title": "Пекарня на углу",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_little-town",
+      "tags": [
+        "town",
+        "bakery",
+        "bicycle",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_little-town_02",
+      "semantic_signature": "tiny-adventures|little-town|трамвайный круг|tram|square|fountain",
+      "title": "Трамвайный круг",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_little-town",
+      "tags": [
+        "tram",
+        "square",
+        "fountain",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_little-town_03",
+      "semantic_signature": "tiny-adventures|little-town|мостик у канала|canal|bridge|bicycles",
+      "title": "Мостик у канала",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_little-town",
+      "tags": [
+        "canal",
+        "bridge",
+        "bicycles",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_little-town_04",
+      "semantic_signature": "tiny-adventures|little-town|рынок выходного дня|market|plaza|clock",
+      "title": "Рынок выходного дня",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_little-town",
+      "tags": [
+        "market",
+        "plaza",
+        "clock",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_little-town_05",
+      "semantic_signature": "tiny-adventures|little-town|почтовая тележка|cart|houses|mailbox",
+      "title": "Почтовая тележка",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_little-town",
+      "tags": [
+        "cart",
+        "houses",
+        "mailbox",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_little-town_06",
+      "semantic_signature": "tiny-adventures|little-town|мастерская у переулка|workshop|lane|tools",
+      "title": "Мастерская у переулка",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_little-town",
+      "tags": [
+        "workshop",
+        "lane",
+        "tools",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_little-town_07",
+      "semantic_signature": "tiny-adventures|little-town|городская крыша-сад|rooftop|garden|city",
+      "title": "Городская крыша-сад",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_little-town",
+      "tags": [
+        "rooftop",
+        "garden",
+        "city",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_little-town_08",
+      "semantic_signature": "tiny-adventures|little-town|вечерняя площадь фонарей|town|lanterns|square",
+      "title": "Вечерняя площадь фонарей",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_little-town",
+      "tags": [
+        "town",
+        "lanterns",
+        "square",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_little-town_09",
+      "semantic_signature": "tiny-adventures|little-town|миниатюрный вокзал|station|train|platform",
+      "title": "Миниатюрный вокзал",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_little-town",
+      "tags": [
+        "station",
+        "train",
+        "platform",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_tiny-adventures_little-town_10",
+      "semantic_signature": "tiny-adventures|little-town|городской фестиваль бумажных фонариков|festival|lanterns|street",
+      "title": "Городской фестиваль бумажных фонариков",
+      "collection_id": "col_tiny-adventures",
+      "album_id": "alb_tiny-adventures_little-town",
+      "tags": [
+        "festival",
+        "lanterns",
+        "street",
+        "travel",
+        "tiny-adventures"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_letters-postcards_01",
+      "semantic_signature": "pen-pals|letters-postcards|письменный стол с конвертами|letters|desk|flowers",
+      "title": "Письменный стол с конвертами",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_letters-postcards",
+      "tags": [
+        "letters",
+        "desk",
+        "flowers",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_letters-postcards_02",
+      "semantic_signature": "pen-pals|letters-postcards|открытка с видом на море|postcard|sea|shell",
+      "title": "Открытка с видом на море",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_letters-postcards",
+      "tags": [
+        "postcard",
+        "sea",
+        "shell",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_letters-postcards_03",
+      "semantic_signature": "pen-pals|letters-postcards|почтовый ящик в саду|mailbox|garden|bicycle",
+      "title": "Почтовый ящик в саду",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_letters-postcards",
+      "tags": [
+        "mailbox",
+        "garden",
+        "bicycle",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_letters-postcards_04",
+      "semantic_signature": "pen-pals|letters-postcards|письмо в поезде|train|letter|landscape",
+      "title": "Письмо в поезде",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_letters-postcards",
+      "tags": [
+        "train",
+        "letter",
+        "landscape",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_letters-postcards_05",
+      "semantic_signature": "pen-pals|letters-postcards|стопка открыток с горами|postcards|mountains|compass",
+      "title": "Стопка открыток с горами",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_letters-postcards",
+      "tags": [
+        "postcards",
+        "mountains",
+        "compass",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_letters-postcards_06",
+      "semantic_signature": "pen-pals|letters-postcards|письмо из оранжереи|greenhouse|letter|pressed-leaves",
+      "title": "Письмо из оранжереи",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_letters-postcards",
+      "tags": [
+        "greenhouse",
+        "letter",
+        "pressed-leaves",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_letters-postcards_07",
+      "semantic_signature": "pen-pals|letters-postcards|почтальон на велосипеде|courier|bicycle|mail",
+      "title": "Почтальон на велосипеде",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_letters-postcards",
+      "tags": [
+        "courier",
+        "bicycle",
+        "mail",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_letters-postcards_08",
+      "semantic_signature": "pen-pals|letters-postcards|карта дружеских маршрутов|maps|postcards|travel",
+      "title": "Карта дружеских маршрутов",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_letters-postcards",
+      "tags": [
+        "maps",
+        "postcards",
+        "travel",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_letters-postcards_09",
+      "semantic_signature": "pen-pals|letters-postcards|ночной обмен письмами|night|mailboxes|balcony",
+      "title": "Ночной обмен письмами",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_letters-postcards",
+      "tags": [
+        "night",
+        "mailboxes",
+        "balcony",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_letters-postcards_10",
+      "semantic_signature": "pen-pals|letters-postcards|почтовый кораблик|boat|mail|river-town",
+      "title": "Почтовый кораблик",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_letters-postcards",
+      "tags": [
+        "boat",
+        "mail",
+        "river-town",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_journals-stationery_01",
+      "semantic_signature": "pen-pals|journals-stationery|открытый дневник и карандаши|journal|pencils|desk",
+      "title": "Открытый дневник и карандаши",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_journals-stationery",
+      "tags": [
+        "journal",
+        "pencils",
+        "desk",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_journals-stationery_02",
+      "semantic_signature": "pen-pals|journals-stationery|наклейки без букв|stationery|stickers|notebook",
+      "title": "Наклейки без букв",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_journals-stationery",
+      "tags": [
+        "stationery",
+        "stickers",
+        "notebook",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_journals-stationery_03",
+      "semantic_signature": "pen-pals|journals-stationery|папка с рисунками|folder|art-tools|plant",
+      "title": "Папка с рисунками",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_journals-stationery",
+      "tags": [
+        "folder",
+        "art-tools",
+        "plant",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_journals-stationery_04",
+      "semantic_signature": "pen-pals|journals-stationery|календарь без дат|calendar|markers|plant",
+      "title": "Календарь без дат",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_journals-stationery",
+      "tags": [
+        "calendar",
+        "markers",
+        "plant",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_journals-stationery_05",
+      "semantic_signature": "pen-pals|journals-stationery|письменный угол путешественника|travel|journal|camera",
+      "title": "Письменный угол путешественника",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_journals-stationery",
+      "tags": [
+        "travel",
+        "journal",
+        "camera",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_journals-stationery_06",
+      "semantic_signature": "pen-pals|journals-stationery|коробка с лентами|ribbons|craft|envelopes",
+      "title": "Коробка с лентами",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_journals-stationery",
+      "tags": [
+        "ribbons",
+        "craft",
+        "envelopes",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_journals-stationery_07",
+      "semantic_signature": "pen-pals|journals-stationery|книжная закладка мастерской|bookmark|flowers|thread",
+      "title": "Книжная закладка мастерской",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_journals-stationery",
+      "tags": [
+        "bookmark",
+        "flowers",
+        "thread",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_journals-stationery_08",
+      "semantic_signature": "pen-pals|journals-stationery|большой стол скрапбукинга|scrapbook|table|botanical",
+      "title": "Большой стол скрапбукинга",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_journals-stationery",
+      "tags": [
+        "scrapbook",
+        "table",
+        "botanical",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_journals-stationery_09",
+      "semantic_signature": "pen-pals|journals-stationery|архив писем в шкафу|archive|letters|shelves",
+      "title": "Архив писем в шкафу",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_journals-stationery",
+      "tags": [
+        "archive",
+        "letters",
+        "shelves",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_pen-pals_journals-stationery_10",
+      "semantic_signature": "pen-pals|journals-stationery|канцелярская лавка ночью|shop|stationery|night",
+      "title": "Канцелярская лавка ночью",
+      "collection_id": "col_pen-pals",
+      "album_id": "alb_pen-pals_journals-stationery",
+      "tags": [
+        "shop",
+        "stationery",
+        "night",
+        "journaling",
+        "pen-pals"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_kind-ghosts_01",
+      "semantic_signature": "spooky-cute|kind-ghosts|привидение с тыквенным фонариком|ghost|pumpkin|garden",
+      "title": "Привидение с тыквенным фонариком",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_kind-ghosts",
+      "tags": [
+        "ghost",
+        "pumpkin",
+        "garden",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_kind-ghosts_02",
+      "semantic_signature": "spooky-cute|kind-ghosts|призрачный чайник|ghost|tea|cookies",
+      "title": "Призрачный чайник",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_kind-ghosts",
+      "tags": [
+        "ghost",
+        "tea",
+        "cookies",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_kind-ghosts_03",
+      "semantic_signature": "spooky-cute|kind-ghosts|домик для привидений|ghost-house|lanterns|bats",
+      "title": "Домик для привидений",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_kind-ghosts",
+      "tags": [
+        "ghost-house",
+        "lanterns",
+        "bats",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_kind-ghosts_04",
+      "semantic_signature": "spooky-cute|kind-ghosts|привидение в библиотеке|ghost|library|moon",
+      "title": "Привидение в библиотеке",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_kind-ghosts",
+      "tags": [
+        "ghost",
+        "library",
+        "moon",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_kind-ghosts_05",
+      "semantic_signature": "spooky-cute|kind-ghosts|ночная прогулка с фонарями|ghosts|lanterns|path",
+      "title": "Ночная прогулка с фонарями",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_kind-ghosts",
+      "tags": [
+        "ghosts",
+        "lanterns",
+        "path",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_kind-ghosts_06",
+      "semantic_signature": "spooky-cute|kind-ghosts|призрачный садовник|ghost|gardening|moonflowers",
+      "title": "Призрачный садовник",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_kind-ghosts",
+      "tags": [
+        "ghost",
+        "gardening",
+        "moonflowers",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_kind-ghosts_07",
+      "semantic_signature": "spooky-cute|kind-ghosts|бал призраков на чердаке|ghosts|attic|ball",
+      "title": "Бал призраков на чердаке",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_kind-ghosts",
+      "tags": [
+        "ghosts",
+        "attic",
+        "ball",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_kind-ghosts_08",
+      "semantic_signature": "spooky-cute|kind-ghosts|привидения и лунный карнавал|ghosts|carnival|moon",
+      "title": "Привидения и лунный карнавал",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_kind-ghosts",
+      "tags": [
+        "ghosts",
+        "carnival",
+        "moon",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_kind-ghosts_09",
+      "semantic_signature": "spooky-cute|kind-ghosts|большой призрачный поезд|ghost-train|hills|bats",
+      "title": "Большой призрачный поезд",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_kind-ghosts",
+      "tags": [
+        "ghost-train",
+        "hills",
+        "bats",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_kind-ghosts_10",
+      "semantic_signature": "spooky-cute|kind-ghosts|тихий отель для привидений|hotel|ghosts|lobby",
+      "title": "Тихий отель для привидений",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_kind-ghosts",
+      "tags": [
+        "hotel",
+        "ghosts",
+        "lobby",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_witches-cafe_01",
+      "semantic_signature": "spooky-cute|witches-cafe|котёл какао|witch|cocoa|café",
+      "title": "Котёл какао",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_witches-cafe",
+      "tags": [
+        "witch",
+        "cocoa",
+        "café",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_witches-cafe_02",
+      "semantic_signature": "spooky-cute|witches-cafe|кот на барной стойке|cat|witch|counter",
+      "title": "Кот на барной стойке",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_witches-cafe",
+      "tags": [
+        "cat",
+        "witch",
+        "counter",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_witches-cafe_03",
+      "semantic_signature": "spooky-cute|witches-cafe|пекарня лунных булочек|witch|bakery|moon",
+      "title": "Пекарня лунных булочек",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_witches-cafe",
+      "tags": [
+        "witch",
+        "bakery",
+        "moon",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_witches-cafe_04",
+      "semantic_signature": "spooky-cute|witches-cafe|столик под летучими мышами|café|bats|cake",
+      "title": "Столик под летучими мышами",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_witches-cafe",
+      "tags": [
+        "café",
+        "bats",
+        "cake",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_witches-cafe_05",
+      "semantic_signature": "spooky-cute|witches-cafe|терраса на крыше|rooftop|witch|herbs",
+      "title": "Терраса на крыше",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_witches-cafe",
+      "tags": [
+        "rooftop",
+        "witch",
+        "herbs",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_witches-cafe_06",
+      "semantic_signature": "spooky-cute|witches-cafe|бариста с совой|witch|owl|barista",
+      "title": "Бариста с совой",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_witches-cafe",
+      "tags": [
+        "witch",
+        "owl",
+        "barista",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_witches-cafe_07",
+      "semantic_signature": "spooky-cute|witches-cafe|кафе в старом трамвае|tram|café|magic",
+      "title": "Кафе в старом трамвае",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_witches-cafe",
+      "tags": [
+        "tram",
+        "café",
+        "magic",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_witches-cafe_08",
+      "semantic_signature": "spooky-cute|witches-cafe|лаборатория сиропов|kitchen|syrups|herbs",
+      "title": "Лаборатория сиропов",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_witches-cafe",
+      "tags": [
+        "kitchen",
+        "syrups",
+        "herbs",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_witches-cafe_09",
+      "semantic_signature": "spooky-cute|witches-cafe|осенний фестиваль пирогов|festival|pies|courtyard",
+      "title": "Осенний фестиваль пирогов",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_witches-cafe",
+      "tags": [
+        "festival",
+        "pies",
+        "courtyard",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_spooky-cute_witches-cafe_10",
+      "semantic_signature": "spooky-cute|witches-cafe|ночная кофейня на облаке|cloud-café|moon|lanterns",
+      "title": "Ночная кофейня на облаке",
+      "collection_id": "col_spooky-cute",
+      "album_id": "alb_spooky-cute_witches-cafe",
+      "tags": [
+        "cloud-café",
+        "moon",
+        "lanterns",
+        "spooky",
+        "spooky-cute"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_magical-creatures_01",
+      "semantic_signature": "enchanted-forest|magical-creatures|оленёнок с цветочной короной|deer|flowers|stream",
+      "title": "Оленёнок с цветочной короной",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_magical-creatures",
+      "tags": [
+        "deer",
+        "flowers",
+        "stream",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_magical-creatures_02",
+      "semantic_signature": "enchanted-forest|magical-creatures|сонная сова-хранитель|owl|lantern|crystals",
+      "title": "Сонная сова-хранитель",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_magical-creatures",
+      "tags": [
+        "owl",
+        "lantern",
+        "crystals",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_magical-creatures_03",
+      "semantic_signature": "enchanted-forest|magical-creatures|дракончик и чайный сад|dragon|tea|garden",
+      "title": "Дракончик и чайный сад",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_magical-creatures",
+      "tags": [
+        "dragon",
+        "tea",
+        "garden",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_magical-creatures_04",
+      "semantic_signature": "enchanted-forest|magical-creatures|лягушка-музыкант|frog|music|moss",
+      "title": "Лягушка-музыкант",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_magical-creatures",
+      "tags": [
+        "frog",
+        "music",
+        "moss",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_magical-creatures_05",
+      "semantic_signature": "enchanted-forest|magical-creatures|белка-архивариус|squirrel|archive|tree",
+      "title": "Белка-архивариус",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_magical-creatures",
+      "tags": [
+        "squirrel",
+        "archive",
+        "tree",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_magical-creatures_06",
+      "semantic_signature": "enchanted-forest|magical-creatures|крылатая лисица у ручья|fox|wings|stream",
+      "title": "Крылатая лисица у ручья",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_magical-creatures",
+      "tags": [
+        "fox",
+        "wings",
+        "stream",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_magical-creatures_07",
+      "semantic_signature": "enchanted-forest|magical-creatures|садовый единорог без символов|unicorn|garden|moon",
+      "title": "Садовый единорог без символов",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_magical-creatures",
+      "tags": [
+        "unicorn",
+        "garden",
+        "moon",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_magical-creatures_08",
+      "semantic_signature": "enchanted-forest|magical-creatures|лесной оркестр существ|creatures|orchestra|stage",
+      "title": "Лесной оркестр существ",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_magical-creatures",
+      "tags": [
+        "creatures",
+        "orchestra",
+        "stage",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_magical-creatures_09",
+      "semantic_signature": "enchanted-forest|magical-creatures|корабельный дракон в кронах|dragon|treetops|river",
+      "title": "Корабельный дракон в кронах",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_magical-creatures",
+      "tags": [
+        "dragon",
+        "treetops",
+        "river",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_magical-creatures_10",
+      "semantic_signature": "enchanted-forest|magical-creatures|дворец бабочек и оленей|deer|butterflies|sanctuary",
+      "title": "Дворец бабочек и оленей",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_magical-creatures",
+      "tags": [
+        "deer",
+        "butterflies",
+        "sanctuary",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_secret-trails_01",
+      "semantic_signature": "enchanted-forest|secret-trails|дверь в корнях|root-door|path|lantern",
+      "title": "Дверь в корнях",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_secret-trails",
+      "tags": [
+        "root-door",
+        "path",
+        "lantern",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_secret-trails_02",
+      "semantic_signature": "enchanted-forest|secret-trails|мост из ветвей|bridge|branches|vines",
+      "title": "Мост из ветвей",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_secret-trails",
+      "tags": [
+        "bridge",
+        "branches",
+        "vines",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_secret-trails_03",
+      "semantic_signature": "enchanted-forest|secret-trails|карта светящихся троп|map|paths|moss",
+      "title": "Карта светящихся троп",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_secret-trails",
+      "tags": [
+        "map",
+        "paths",
+        "moss",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_secret-trails_04",
+      "semantic_signature": "enchanted-forest|secret-trails|лесная лестница|stairs|forest|overlook",
+      "title": "Лесная лестница",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_secret-trails",
+      "tags": [
+        "stairs",
+        "forest",
+        "overlook",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_secret-trails_05",
+      "semantic_signature": "enchanted-forest|secret-trails|секретный сад за живой изгородью|garden|gate|fountain",
+      "title": "Секретный сад за живой изгородью",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_secret-trails",
+      "tags": [
+        "garden",
+        "gate",
+        "fountain",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_secret-trails_06",
+      "semantic_signature": "enchanted-forest|secret-trails|тропа над водопадом|waterfall|walkway|cliff",
+      "title": "Тропа над водопадом",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_secret-trails",
+      "tags": [
+        "waterfall",
+        "walkway",
+        "cliff",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_secret-trails_07",
+      "semantic_signature": "enchanted-forest|secret-trails|ночной круг камней|stone-circle|night|lanterns",
+      "title": "Ночной круг камней",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_secret-trails",
+      "tags": [
+        "stone-circle",
+        "night",
+        "lanterns",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_secret-trails_08",
+      "semantic_signature": "enchanted-forest|secret-trails|дворец в полом дереве|tree-palace|interior|stairs",
+      "title": "Дворец в полом дереве",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_secret-trails",
+      "tags": [
+        "tree-palace",
+        "interior",
+        "stairs",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_secret-trails_09",
+      "semantic_signature": "enchanted-forest|secret-trails|плавучие острова тропы|floating-islands|bridges|waterfalls",
+      "title": "Плавучие острова тропы",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_secret-trails",
+      "tags": [
+        "floating-islands",
+        "bridges",
+        "waterfalls",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_enchanted-forest_secret-trails_10",
+      "semantic_signature": "enchanted-forest|secret-trails|хрустальная станция леса|station|crystal|forest",
+      "title": "Хрустальная станция леса",
+      "collection_id": "col_enchanted-forest",
+      "album_id": "alb_enchanted-forest_secret-trails",
+      "tags": [
+        "station",
+        "crystal",
+        "forest",
+        "fantasy",
+        "enchanted-forest"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_fairy-lands_01",
+      "semantic_signature": "mystic-outlands|fairy-lands|долина воздушных мостов|valley|bridges|tower",
+      "title": "Долина воздушных мостов",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_fairy-lands",
+      "tags": [
+        "valley",
+        "bridges",
+        "tower",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_fairy-lands_02",
+      "semantic_signature": "mystic-outlands|fairy-lands|город на спине гиганта|giant|village|windmills",
+      "title": "Город на спине гиганта",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_fairy-lands",
+      "tags": [
+        "giant",
+        "village",
+        "windmills",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_fairy-lands_03",
+      "semantic_signature": "mystic-outlands|fairy-lands|пустынный сад колодцев|desert|garden|well",
+      "title": "Пустынный сад колодцев",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_fairy-lands",
+      "tags": [
+        "desert",
+        "garden",
+        "well",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_fairy-lands_04",
+      "semantic_signature": "mystic-outlands|fairy-lands|облачные пастбища|clouds|sheep|meadow",
+      "title": "Облачные пастбища",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_fairy-lands",
+      "tags": [
+        "clouds",
+        "sheep",
+        "meadow",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_fairy-lands_05",
+      "semantic_signature": "mystic-outlands|fairy-lands|река под стеклянным небом|river|boats|mountains",
+      "title": "Река под стеклянным небом",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_fairy-lands",
+      "tags": [
+        "river",
+        "boats",
+        "mountains",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_fairy-lands_06",
+      "semantic_signature": "mystic-outlands|fairy-lands|лесная ярмарка странников|market|wagons|travelers",
+      "title": "Лесная ярмарка странников",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_fairy-lands",
+      "tags": [
+        "market",
+        "wagons",
+        "travelers",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_fairy-lands_07",
+      "semantic_signature": "mystic-outlands|fairy-lands|домик на краю мира|cliff-house|telescope|clouds",
+      "title": "Домик на краю мира",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_fairy-lands",
+      "tags": [
+        "cliff-house",
+        "telescope",
+        "clouds",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_fairy-lands_08",
+      "semantic_signature": "mystic-outlands|fairy-lands|долина зеркальных озёр|lakes|bridges|landscape",
+      "title": "Долина зеркальных озёр",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_fairy-lands",
+      "tags": [
+        "lakes",
+        "bridges",
+        "landscape",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_fairy-lands_09",
+      "semantic_signature": "mystic-outlands|fairy-lands|город семи башен|city|towers|gardens",
+      "title": "Город семи башен",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_fairy-lands",
+      "tags": [
+        "city",
+        "towers",
+        "gardens",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_fairy-lands_10",
+      "semantic_signature": "mystic-outlands|fairy-lands|праздник воздушных кораблей|airships|port|clouds",
+      "title": "Праздник воздушных кораблей",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_fairy-lands",
+      "tags": [
+        "airships",
+        "port",
+        "clouds",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_lost-temples_01",
+      "semantic_signature": "mystic-outlands|lost-temples|ступени к древнему саду|temple|stairs|garden",
+      "title": "Ступени к древнему саду",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_lost-temples",
+      "tags": [
+        "temple",
+        "stairs",
+        "garden",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_lost-temples_02",
+      "semantic_signature": "mystic-outlands|lost-temples|храм у водопада|temple|waterfall|pool",
+      "title": "Храм у водопада",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_lost-temples",
+      "tags": [
+        "temple",
+        "waterfall",
+        "pool",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_lost-temples_03",
+      "semantic_signature": "mystic-outlands|lost-temples|пустынные колонны|ruins|desert|columns",
+      "title": "Пустынные колонны",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_lost-temples",
+      "tags": [
+        "ruins",
+        "desert",
+        "columns",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_lost-temples_04",
+      "semantic_signature": "mystic-outlands|lost-temples|храм в лесном круге|temple|forest|moss",
+      "title": "Храм в лесном круге",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_lost-temples",
+      "tags": [
+        "temple",
+        "forest",
+        "moss",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_lost-temples_05",
+      "semantic_signature": "mystic-outlands|lost-temples|обсерватория на руинах|observatory|ruins|mountains",
+      "title": "Обсерватория на руинах",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_lost-temples",
+      "tags": [
+        "observatory",
+        "ruins",
+        "mountains",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_lost-temples_06",
+      "semantic_signature": "mystic-outlands|lost-temples|сад каменных птиц|courtyard|sculptures|flowers",
+      "title": "Сад каменных птиц",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_lost-temples",
+      "tags": [
+        "courtyard",
+        "sculptures",
+        "flowers",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_lost-temples_07",
+      "semantic_signature": "mystic-outlands|lost-temples|подземная библиотека храма|library|underground|temple",
+      "title": "Подземная библиотека храма",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_lost-temples",
+      "tags": [
+        "library",
+        "underground",
+        "temple",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_lost-temples_08",
+      "semantic_signature": "mystic-outlands|lost-temples|храм над облаками|temple|clouds|terraces",
+      "title": "Храм над облаками",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_lost-temples",
+      "tags": [
+        "temple",
+        "clouds",
+        "terraces",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_lost-temples_09",
+      "semantic_signature": "mystic-outlands|lost-temples|затопленные залы|ruins|lagoon|columns",
+      "title": "Затопленные залы",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_lost-temples",
+      "tags": [
+        "ruins",
+        "lagoon",
+        "columns",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_mystic-outlands_lost-temples_10",
+      "semantic_signature": "mystic-outlands|lost-temples|лабиринт храма солнца|maze|temple|desert",
+      "title": "Лабиринт храма солнца",
+      "collection_id": "col_mystic-outlands",
+      "album_id": "alb_mystic-outlands_lost-temples",
+      "tags": [
+        "maze",
+        "temple",
+        "desert",
+        "fantasy",
+        "mystic-outlands"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_moon-gardens_01",
+      "semantic_signature": "moon-stars|moon-gardens|лунный пруд с кувшинками|moon|pond|lilies",
+      "title": "Лунный пруд с кувшинками",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_moon-gardens",
+      "tags": [
+        "moon",
+        "pond",
+        "lilies",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_moon-gardens_02",
+      "semantic_signature": "moon-stars|moon-gardens|ночной сад на крыше|rooftop|moon|garden",
+      "title": "Ночной сад на крыше",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_moon-gardens",
+      "tags": [
+        "rooftop",
+        "moon",
+        "garden",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_moon-gardens_03",
+      "semantic_signature": "moon-stars|moon-gardens|сад серебряных деревьев|trees|gate|fountain",
+      "title": "Сад серебряных деревьев",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_moon-gardens",
+      "tags": [
+        "trees",
+        "gate",
+        "fountain",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_moon-gardens_04",
+      "semantic_signature": "moon-stars|moon-gardens|теплица под полной луной|greenhouse|moon|flowers",
+      "title": "Теплица под полной луной",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_moon-gardens",
+      "tags": [
+        "greenhouse",
+        "moon",
+        "flowers",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_moon-gardens_05",
+      "semantic_signature": "moon-stars|moon-gardens|лунный сад с совой|owl|garden|moon",
+      "title": "Лунный сад с совой",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_moon-gardens",
+      "tags": [
+        "owl",
+        "garden",
+        "moon",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_moon-gardens_06",
+      "semantic_signature": "moon-stars|moon-gardens|садовый мостик в тумане без тумана|bridge|water|flowers",
+      "title": "Садовый мостик в тумане без тумана",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_moon-gardens",
+      "tags": [
+        "bridge",
+        "water",
+        "flowers",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_moon-gardens_07",
+      "semantic_signature": "moon-stars|moon-gardens|купол ночных растений|dome|botanical|night",
+      "title": "Купол ночных растений",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_moon-gardens",
+      "tags": [
+        "dome",
+        "botanical",
+        "night",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_moon-gardens_08",
+      "semantic_signature": "moon-stars|moon-gardens|лунный дворец-оранжерея|palace|greenhouse|moon",
+      "title": "Лунный дворец-оранжерея",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_moon-gardens",
+      "tags": [
+        "palace",
+        "greenhouse",
+        "moon",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_moon-gardens_09",
+      "semantic_signature": "moon-stars|moon-gardens|сад на летающем острове|floating-island|garden|waterfall",
+      "title": "Сад на летающем острове",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_moon-gardens",
+      "tags": [
+        "floating-island",
+        "garden",
+        "waterfall",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_moon-gardens_10",
+      "semantic_signature": "moon-stars|moon-gardens|ночная оранжерея бабочек|moths|greenhouse|flowers",
+      "title": "Ночная оранжерея бабочек",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_moon-gardens",
+      "tags": [
+        "moths",
+        "greenhouse",
+        "flowers",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_cosmic-dreams_01",
+      "semantic_signature": "moon-stars|cosmic-dreams|космический кемпинг|space|camp|telescope",
+      "title": "Космический кемпинг",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_cosmic-dreams",
+      "tags": [
+        "space",
+        "camp",
+        "telescope",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_cosmic-dreams_02",
+      "semantic_signature": "moon-stars|cosmic-dreams|котёнок на луне|kitten|moon|space",
+      "title": "Котёнок на луне",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_cosmic-dreams",
+      "tags": [
+        "kitten",
+        "moon",
+        "space",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_cosmic-dreams_03",
+      "semantic_signature": "moon-stars|cosmic-dreams|космический садовник|gardener|greenhouse|space",
+      "title": "Космический садовник",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_cosmic-dreams",
+      "tags": [
+        "gardener",
+        "greenhouse",
+        "space",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_cosmic-dreams_04",
+      "semantic_signature": "moon-stars|cosmic-dreams|маяк на астероиде|asteroid|lighthouse|rings",
+      "title": "Маяк на астероиде",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_cosmic-dreams",
+      "tags": [
+        "asteroid",
+        "lighthouse",
+        "rings",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_cosmic-dreams_05",
+      "semantic_signature": "moon-stars|cosmic-dreams|чайная станция на орбите|space-station|tea|plants",
+      "title": "Чайная станция на орбите",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_cosmic-dreams",
+      "tags": [
+        "space-station",
+        "tea",
+        "plants",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_cosmic-dreams_06",
+      "semantic_signature": "moon-stars|cosmic-dreams|летающая библиотека|library|spaceship|books",
+      "title": "Летающая библиотека",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_cosmic-dreams",
+      "tags": [
+        "library",
+        "spaceship",
+        "books",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_cosmic-dreams_07",
+      "semantic_signature": "moon-stars|cosmic-dreams|космический рынок|market|orbit|domes",
+      "title": "Космический рынок",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_cosmic-dreams",
+      "tags": [
+        "market",
+        "orbit",
+        "domes",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_cosmic-dreams_08",
+      "semantic_signature": "moon-stars|cosmic-dreams|обсерватория на комете|comet|observatory|satellites",
+      "title": "Обсерватория на комете",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_cosmic-dreams",
+      "tags": [
+        "comet",
+        "observatory",
+        "satellites",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_cosmic-dreams_09",
+      "semantic_signature": "moon-stars|cosmic-dreams|город среди колец планеты|city|planet-rings|airships",
+      "title": "Город среди колец планеты",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_cosmic-dreams",
+      "tags": [
+        "city",
+        "planet-rings",
+        "airships",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_moon-stars_cosmic-dreams_10",
+      "semantic_signature": "moon-stars|cosmic-dreams|космический сон в баллоне|sleep-pod|stars|planets",
+      "title": "Космический сон в баллоне",
+      "collection_id": "col_moon-stars",
+      "album_id": "alb_moon-stars_cosmic-dreams",
+      "tags": [
+        "sleep-pod",
+        "stars",
+        "planets",
+        "celestial",
+        "moon-stars"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_night-mansion_01",
+      "semantic_signature": "vamp-romantic|night-mansion|ворота ночного особняка|mansion|gate|roses",
+      "title": "Ворота ночного особняка",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_night-mansion",
+      "tags": [
+        "mansion",
+        "gate",
+        "roses",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_night-mansion_02",
+      "semantic_signature": "vamp-romantic|night-mansion|каминная библиотека|library|fireplace|books",
+      "title": "Каминная библиотека",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_night-mansion",
+      "tags": [
+        "library",
+        "fireplace",
+        "books",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_night-mansion_03",
+      "semantic_signature": "vamp-romantic|night-mansion|музыкальная лестница|stairs|piano|hall",
+      "title": "Музыкальная лестница",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_night-mansion",
+      "tags": [
+        "stairs",
+        "piano",
+        "hall",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_night-mansion_04",
+      "semantic_signature": "vamp-romantic|night-mansion|розовая оранжерея|conservatory|roses|fountain",
+      "title": "Розовая оранжерея",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_night-mansion",
+      "tags": [
+        "conservatory",
+        "roses",
+        "fountain",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_night-mansion_05",
+      "semantic_signature": "vamp-romantic|night-mansion|чайный стол в башне|tower|tea|window",
+      "title": "Чайный стол в башне",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_night-mansion",
+      "tags": [
+        "tower",
+        "tea",
+        "window",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_night-mansion_06",
+      "semantic_signature": "vamp-romantic|night-mansion|двор с фонтаном|courtyard|fountain|hedges",
+      "title": "Двор с фонтаном",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_night-mansion",
+      "tags": [
+        "courtyard",
+        "fountain",
+        "hedges",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_night-mansion_07",
+      "semantic_signature": "vamp-romantic|night-mansion|чердачный зимний сад|attic|garden|roses",
+      "title": "Чердачный зимний сад",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_night-mansion",
+      "tags": [
+        "attic",
+        "garden",
+        "roses",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_night-mansion_08",
+      "semantic_signature": "vamp-romantic|night-mansion|ночной балкон над городом|balcony|night-city|roses",
+      "title": "Ночной балкон над городом",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_night-mansion",
+      "tags": [
+        "balcony",
+        "night-city",
+        "roses",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_night-mansion_09",
+      "semantic_signature": "vamp-romantic|night-mansion|тайный зал портретов|gallery|frames|stairs",
+      "title": "Тайный зал портретов",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_night-mansion",
+      "tags": [
+        "gallery",
+        "frames",
+        "stairs",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_night-mansion_10",
+      "semantic_signature": "vamp-romantic|night-mansion|особняк на скале|mansion|cliff|sea",
+      "title": "Особняк на скале",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_night-mansion",
+      "tags": [
+        "mansion",
+        "cliff",
+        "sea",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_roses-stained-glass_01",
+      "semantic_signature": "vamp-romantic|roses-stained-glass|роза в высокой вазе|rose|vase|window",
+      "title": "Роза в высокой вазе",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_roses-stained-glass",
+      "tags": [
+        "rose",
+        "vase",
+        "window",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_roses-stained-glass_02",
+      "semantic_signature": "vamp-romantic|roses-stained-glass|витражная лавка цветов|flower-shop|glass|vines",
+      "title": "Витражная лавка цветов",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_roses-stained-glass",
+      "tags": [
+        "flower-shop",
+        "glass",
+        "vines",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_roses-stained-glass_03",
+      "semantic_signature": "vamp-romantic|roses-stained-glass|розовая беседка|gazebo|roses|garden",
+      "title": "Розовая беседка",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_roses-stained-glass",
+      "tags": [
+        "gazebo",
+        "roses",
+        "garden",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_roses-stained-glass_04",
+      "semantic_signature": "vamp-romantic|roses-stained-glass|окно с лунными узорами|window|moon|table",
+      "title": "Окно с лунными узорами",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_roses-stained-glass",
+      "tags": [
+        "window",
+        "moon",
+        "table",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_roses-stained-glass_05",
+      "semantic_signature": "vamp-romantic|roses-stained-glass|витражный коридор|corridor|glass|roses",
+      "title": "Витражный коридор",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_roses-stained-glass",
+      "tags": [
+        "corridor",
+        "glass",
+        "roses",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_roses-stained-glass_06",
+      "semantic_signature": "vamp-romantic|roses-stained-glass|розовый фонтан|fountain|roses|courtyard",
+      "title": "Розовый фонтан",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_roses-stained-glass",
+      "tags": [
+        "fountain",
+        "roses",
+        "courtyard",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_roses-stained-glass_07",
+      "semantic_signature": "vamp-romantic|roses-stained-glass|бал в зимнем саду|ballroom|conservatory|roses",
+      "title": "Бал в зимнем саду",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_roses-stained-glass",
+      "tags": [
+        "ballroom",
+        "conservatory",
+        "roses",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_roses-stained-glass_08",
+      "semantic_signature": "vamp-romantic|roses-stained-glass|витражный поезд ночью|train|glass|roses",
+      "title": "Витражный поезд ночью",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_roses-stained-glass",
+      "tags": [
+        "train",
+        "glass",
+        "roses",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_roses-stained-glass_09",
+      "semantic_signature": "vamp-romantic|roses-stained-glass|розовый лабиринт|maze|roses|pavilion",
+      "title": "Розовый лабиринт",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_roses-stained-glass",
+      "tags": [
+        "maze",
+        "roses",
+        "pavilion",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_vamp-romantic_roses-stained-glass_10",
+      "semantic_signature": "vamp-romantic|roses-stained-glass|собор цветов без символов|floral-hall|windows|roses",
+      "title": "Собор цветов без символов",
+      "collection_id": "col_vamp-romantic",
+      "album_id": "alb_vamp-romantic_roses-stained-glass",
+      "tags": [
+        "floral-hall",
+        "windows",
+        "roses",
+        "gothic-romantic",
+        "vamp-romantic"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_dark-cottage_01",
+      "semantic_signature": "dream-interiors|dark-cottage|коттеджная кухня в сумерках|cottage|kitchen|herbs",
+      "title": "Коттеджная кухня в сумерках",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_dark-cottage",
+      "tags": [
+        "cottage",
+        "kitchen",
+        "herbs",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_dark-cottage_02",
+      "semantic_signature": "dream-interiors|dark-cottage|каминный угол с креслом|cottage|fireplace|chair",
+      "title": "Каминный угол с креслом",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_dark-cottage",
+      "tags": [
+        "cottage",
+        "fireplace",
+        "chair",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_dark-cottage_03",
+      "semantic_signature": "dream-interiors|dark-cottage|спальня с балдахином|bedroom|canopy|lantern",
+      "title": "Спальня с балдахином",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_dark-cottage",
+      "tags": [
+        "bedroom",
+        "canopy",
+        "lantern",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_dark-cottage_04",
+      "semantic_signature": "dream-interiors|dark-cottage|тёмная оранжерея|greenhouse|plants|bench",
+      "title": "Тёмная оранжерея",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_dark-cottage",
+      "tags": [
+        "greenhouse",
+        "plants",
+        "bench",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_dark-cottage_05",
+      "semantic_signature": "dream-interiors|dark-cottage|лестница к мансарде|stairs|attic|baskets",
+      "title": "Лестница к мансарде",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_dark-cottage",
+      "tags": [
+        "stairs",
+        "attic",
+        "baskets",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_dark-cottage_06",
+      "semantic_signature": "dream-interiors|dark-cottage|рабочий стол у камня|desk|stone|writing",
+      "title": "Рабочий стол у камня",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_dark-cottage",
+      "tags": [
+        "desk",
+        "stone",
+        "writing",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_dark-cottage_07",
+      "semantic_signature": "dream-interiors|dark-cottage|гостиная с зимним садом|living-room|winter-garden|sofa",
+      "title": "Гостиная с зимним садом",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_dark-cottage",
+      "tags": [
+        "living-room",
+        "winter-garden",
+        "sofa",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_dark-cottage_08",
+      "semantic_signature": "dream-interiors|dark-cottage|подземная винтажная кухня|kitchen|pantry|arches",
+      "title": "Подземная винтажная кухня",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_dark-cottage",
+      "tags": [
+        "kitchen",
+        "pantry",
+        "arches",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_dark-cottage_09",
+      "semantic_signature": "dream-interiors|dark-cottage|чердак ремесленника|attic|craft|loom",
+      "title": "Чердак ремесленника",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_dark-cottage",
+      "tags": [
+        "attic",
+        "craft",
+        "loom",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_dark-cottage_10",
+      "semantic_signature": "dream-interiors|dark-cottage|домик у тёмного озера|cottage|lake|interior",
+      "title": "Домик у тёмного озера",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_dark-cottage",
+      "tags": [
+        "cottage",
+        "lake",
+        "interior",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_neo-deco-rooms_01",
+      "semantic_signature": "dream-interiors|neo-deco-rooms|геометрическая гостиная|interior|geometry|sofa",
+      "title": "Геометрическая гостиная",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_neo-deco-rooms",
+      "tags": [
+        "interior",
+        "geometry",
+        "sofa",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_neo-deco-rooms_02",
+      "semantic_signature": "dream-interiors|neo-deco-rooms|деко-бар без брендов|bar|arches|interior",
+      "title": "Деко-бар без брендов",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_neo-deco-rooms",
+      "tags": [
+        "bar",
+        "arches",
+        "interior",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_neo-deco-rooms_03",
+      "semantic_signature": "dream-interiors|neo-deco-rooms|круглая спальня|bedroom|round|geometry",
+      "title": "Круглая спальня",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_neo-deco-rooms",
+      "tags": [
+        "bedroom",
+        "round",
+        "geometry",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_neo-deco-rooms_04",
+      "semantic_signature": "dream-interiors|neo-deco-rooms|музыкальный салон|salon|piano|chairs",
+      "title": "Музыкальный салон",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_neo-deco-rooms",
+      "tags": [
+        "salon",
+        "piano",
+        "chairs",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_neo-deco-rooms_05",
+      "semantic_signature": "dream-interiors|neo-deco-rooms|деко-оранжерея|conservatory|geometry|plants",
+      "title": "Деко-оранжерея",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_neo-deco-rooms",
+      "tags": [
+        "conservatory",
+        "geometry",
+        "plants",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_neo-deco-rooms_06",
+      "semantic_signature": "dream-interiors|neo-deco-rooms|кабинет с веерным окном|study|window|desk",
+      "title": "Кабинет с веерным окном",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_neo-deco-rooms",
+      "tags": [
+        "study",
+        "window",
+        "desk",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_neo-deco-rooms_07",
+      "semantic_signature": "dream-interiors|neo-deco-rooms|галерея круглых дверей|corridor|doors|geometry",
+      "title": "Галерея круглых дверей",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_neo-deco-rooms",
+      "tags": [
+        "corridor",
+        "doors",
+        "geometry",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_neo-deco-rooms_08",
+      "semantic_signature": "dream-interiors|neo-deco-rooms|плавучий деко-театр|theater|balconies|stage",
+      "title": "Плавучий деко-театр",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_neo-deco-rooms",
+      "tags": [
+        "theater",
+        "balconies",
+        "stage",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_neo-deco-rooms_09",
+      "semantic_signature": "dream-interiors|neo-deco-rooms|ночной отельный холл|hotel|lobby|stairs",
+      "title": "Ночной отельный холл",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_neo-deco-rooms",
+      "tags": [
+        "hotel",
+        "lobby",
+        "stairs",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_dream-interiors_neo-deco-rooms_10",
+      "semantic_signature": "dream-interiors|neo-deco-rooms|комната с панорамным окном|room|city|panorama",
+      "title": "Комната с панорамным окном",
+      "collection_id": "col_dream-interiors",
+      "album_id": "alb_dream-interiors_neo-deco-rooms",
+      "tags": [
+        "room",
+        "city",
+        "panorama",
+        "interiors",
+        "dream-interiors"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_vintage-glam_01",
+      "semantic_signature": "glamour-fashion|vintage-glam|платье на манекене|fashion|dress|studio",
+      "title": "Платье на манекене",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_vintage-glam",
+      "tags": [
+        "fashion",
+        "dress",
+        "studio",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_vintage-glam_02",
+      "semantic_signature": "glamour-fashion|vintage-glam|туфли у туалетного столика|shoes|vanity|bouquet",
+      "title": "Туфли у туалетного столика",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_vintage-glam",
+      "tags": [
+        "shoes",
+        "vanity",
+        "bouquet",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_vintage-glam_03",
+      "semantic_signature": "glamour-fashion|vintage-glam|шляпная мастерская|hats|studio|ribbons",
+      "title": "Шляпная мастерская",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_vintage-glam",
+      "tags": [
+        "hats",
+        "studio",
+        "ribbons",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_vintage-glam_04",
+      "semantic_signature": "glamour-fashion|vintage-glam|пальто на вешалке|coat|rack|trunk",
+      "title": "Пальто на вешалке",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_vintage-glam",
+      "tags": [
+        "coat",
+        "rack",
+        "trunk",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_vintage-glam_05",
+      "semantic_signature": "glamour-fashion|vintage-glam|показ в маленьком театре|runway|theater|fashion",
+      "title": "Показ в маленьком театре",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_vintage-glam",
+      "tags": [
+        "runway",
+        "theater",
+        "fashion",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_vintage-glam_06",
+      "semantic_signature": "glamour-fashion|vintage-glam|сумочки на витрине|handbags|boutique|window",
+      "title": "Сумочки на витрине",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_vintage-glam",
+      "tags": [
+        "handbags",
+        "boutique",
+        "window",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_vintage-glam_07",
+      "semantic_signature": "glamour-fashion|vintage-glam|утренний гардероб|dressing-room|mirror|wardrobe",
+      "title": "Утренний гардероб",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_vintage-glam",
+      "tags": [
+        "dressing-room",
+        "mirror",
+        "wardrobe",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_vintage-glam_08",
+      "semantic_signature": "glamour-fashion|vintage-glam|вечерний показ на крыше|rooftop|runway|city",
+      "title": "Вечерний показ на крыше",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_vintage-glam",
+      "tags": [
+        "rooftop",
+        "runway",
+        "city",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_vintage-glam_09",
+      "semantic_signature": "glamour-fashion|vintage-glam|костюмерная большого театра|costumes|theater|studio",
+      "title": "Костюмерная большого театра",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_vintage-glam",
+      "tags": [
+        "costumes",
+        "theater",
+        "studio",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_vintage-glam_10",
+      "semantic_signature": "glamour-fashion|vintage-glam|винтажный поезд моды|train|fashion|travel",
+      "title": "Винтажный поезд моды",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_vintage-glam",
+      "tags": [
+        "train",
+        "fashion",
+        "travel",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_jewelry-accessories_01",
+      "semantic_signature": "glamour-fashion|jewelry-accessories|браслеты на подушке|bracelets|jewelry|display",
+      "title": "Браслеты на подушке",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_jewelry-accessories",
+      "tags": [
+        "bracelets",
+        "jewelry",
+        "display",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_jewelry-accessories_02",
+      "semantic_signature": "glamour-fashion|jewelry-accessories|шкатулка с серьгами|jewelry-box|earrings|vanity",
+      "title": "Шкатулка с серьгами",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_jewelry-accessories",
+      "tags": [
+        "jewelry-box",
+        "earrings",
+        "vanity",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_jewelry-accessories_03",
+      "semantic_signature": "glamour-fashion|jewelry-accessories|мастерская бус|beads|workshop|tools",
+      "title": "Мастерская бус",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_jewelry-accessories",
+      "tags": [
+        "beads",
+        "workshop",
+        "tools",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_jewelry-accessories_04",
+      "semantic_signature": "glamour-fashion|jewelry-accessories|очки и шёлковый шарф|glasses|scarf|table",
+      "title": "Очки и шёлковый шарф",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_jewelry-accessories",
+      "tags": [
+        "glasses",
+        "scarf",
+        "table",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_jewelry-accessories_05",
+      "semantic_signature": "glamour-fashion|jewelry-accessories|брошь в форме листа|brooch|leaf|fabric",
+      "title": "Брошь в форме листа",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_jewelry-accessories",
+      "tags": [
+        "brooch",
+        "leaf",
+        "fabric",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_jewelry-accessories_06",
+      "semantic_signature": "glamour-fashion|jewelry-accessories|пояса и перчатки|belts|gloves|boutique",
+      "title": "Пояса и перчатки",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_jewelry-accessories",
+      "tags": [
+        "belts",
+        "gloves",
+        "boutique",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_jewelry-accessories_07",
+      "semantic_signature": "glamour-fashion|jewelry-accessories|витрина украшений в арке|boutique|necklaces|rings",
+      "title": "Витрина украшений в арке",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_jewelry-accessories",
+      "tags": [
+        "boutique",
+        "necklaces",
+        "rings",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_jewelry-accessories_08",
+      "semantic_signature": "glamour-fashion|jewelry-accessories|карнавал масок без символов|masks|feathers|studio",
+      "title": "Карнавал масок без символов",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_jewelry-accessories",
+      "tags": [
+        "masks",
+        "feathers",
+        "studio",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_jewelry-accessories_09",
+      "semantic_signature": "glamour-fashion|jewelry-accessories|сад драгоценных форм|fantasy|gems|garden",
+      "title": "Сад драгоценных форм",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_jewelry-accessories",
+      "tags": [
+        "fantasy",
+        "gems",
+        "garden",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_glamour-fashion_jewelry-accessories_10",
+      "semantic_signature": "glamour-fashion|jewelry-accessories|ночная мастерская ювелира|jeweler|workbench|tools",
+      "title": "Ночная мастерская ювелира",
+      "collection_id": "col_glamour-fashion",
+      "album_id": "alb_glamour-fashion_jewelry-accessories",
+      "tags": [
+        "jeweler",
+        "workbench",
+        "tools",
+        "fashion",
+        "glamour-fashion"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_first-snow_01",
+      "semantic_signature": "winter-wishes|first-snow|первый снег у фонаря|snow|streetlamp|bench",
+      "title": "Первый снег у фонаря",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_first-snow",
+      "tags": [
+        "snow",
+        "streetlamp",
+        "bench",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_first-snow_02",
+      "semantic_signature": "winter-wishes|first-snow|снежный дворик|courtyard|snow|sled",
+      "title": "Снежный дворик",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_first-snow",
+      "tags": [
+        "courtyard",
+        "snow",
+        "sled",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_first-snow_03",
+      "semantic_signature": "winter-wishes|first-snow|следы на свежем снегу|footprints|cabin|snow",
+      "title": "Следы на свежем снегу",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_first-snow",
+      "tags": [
+        "footprints",
+        "cabin",
+        "snow",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_first-snow_04",
+      "semantic_signature": "winter-wishes|first-snow|окно с зимними ветками|window|mug|winter",
+      "title": "Окно с зимними ветками",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_first-snow",
+      "tags": [
+        "window",
+        "mug",
+        "winter",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_first-snow_05",
+      "semantic_signature": "winter-wishes|first-snow|снег в городском саду|city-garden|snow|bicycle",
+      "title": "Снег в городском саду",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_first-snow",
+      "tags": [
+        "city-garden",
+        "snow",
+        "bicycle",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_first-snow_06",
+      "semantic_signature": "winter-wishes|first-snow|каток у старой башни|skating|tower|rink",
+      "title": "Каток у старой башни",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_first-snow",
+      "tags": [
+        "skating",
+        "tower",
+        "rink",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_first-snow_07",
+      "semantic_signature": "winter-wishes|first-snow|снежная остановка|shelter|snow|transit",
+      "title": "Снежная остановка",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_first-snow",
+      "tags": [
+        "shelter",
+        "snow",
+        "transit",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_first-snow_08",
+      "semantic_signature": "winter-wishes|first-snow|ночной снегопад над площадью|square|snow|lanterns",
+      "title": "Ночной снегопад над площадью",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_first-snow",
+      "tags": [
+        "square",
+        "snow",
+        "lanterns",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_first-snow_09",
+      "semantic_signature": "winter-wishes|first-snow|ледяная оранжерея|greenhouse|winter|plants",
+      "title": "Ледяная оранжерея",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_first-snow",
+      "tags": [
+        "greenhouse",
+        "winter",
+        "plants",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_first-snow_10",
+      "semantic_signature": "winter-wishes|first-snow|снежный поезд в горах|train|mountains|snow",
+      "title": "Снежный поезд в горах",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_first-snow",
+      "tags": [
+        "train",
+        "mountains",
+        "snow",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_winter-city-lights_01",
+      "semantic_signature": "winter-wishes|winter-city-lights|окна в снегу|city|windows|snow",
+      "title": "Окна в снегу",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_winter-city-lights",
+      "tags": [
+        "city",
+        "windows",
+        "snow",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_winter-city-lights_02",
+      "semantic_signature": "winter-wishes|winter-city-lights|ночной трамвай|tram|snow|city",
+      "title": "Ночной трамвай",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_winter-city-lights",
+      "tags": [
+        "tram",
+        "snow",
+        "city",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_winter-city-lights_03",
+      "semantic_signature": "winter-wishes|winter-city-lights|площадь с горячим напитком|market|drink|square",
+      "title": "Площадь с горячим напитком",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_winter-city-lights",
+      "tags": [
+        "market",
+        "drink",
+        "square",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_winter-city-lights_04",
+      "semantic_signature": "winter-wishes|winter-city-lights|зимний мост|bridge|river|winter",
+      "title": "Зимний мост",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_winter-city-lights",
+      "tags": [
+        "bridge",
+        "river",
+        "winter",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_winter-city-lights_05",
+      "semantic_signature": "winter-wishes|winter-city-lights|книжный магазин без вывески|bookshop|window|snow",
+      "title": "Книжный магазин без вывески",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_winter-city-lights",
+      "tags": [
+        "bookshop",
+        "window",
+        "snow",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_winter-city-lights_06",
+      "semantic_signature": "winter-wishes|winter-city-lights|кафе на углу|café|street|snow",
+      "title": "Кафе на углу",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_winter-city-lights",
+      "tags": [
+        "café",
+        "street",
+        "snow",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_winter-city-lights_07",
+      "semantic_signature": "winter-wishes|winter-city-lights|почтовая площадь|mail|plaza|snow",
+      "title": "Почтовая площадь",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_winter-city-lights",
+      "tags": [
+        "mail",
+        "plaza",
+        "snow",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_winter-city-lights_08",
+      "semantic_signature": "winter-wishes|winter-city-lights|фонарный переулок|alley|lanterns|city",
+      "title": "Фонарный переулок",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_winter-city-lights",
+      "tags": [
+        "alley",
+        "lanterns",
+        "city",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_winter-city-lights_09",
+      "semantic_signature": "winter-wishes|winter-city-lights|зимний вокзал ночью|station|train|night",
+      "title": "Зимний вокзал ночью",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_winter-city-lights",
+      "tags": [
+        "station",
+        "train",
+        "night",
+        "winter",
+        "winter-wishes"
+      ]
+    },
+    {
+      "id": "coloring_winter-wishes_winter-city-lights_10",
+      "semantic_signature": "winter-wishes|winter-city-lights|городской праздник света|boulevard|lights|city",
+      "title": "Городской праздник света",
+      "collection_id": "col_winter-wishes",
+      "album_id": "alb_winter-wishes_winter-city-lights",
+      "tags": [
+        "boulevard",
+        "lights",
+        "city",
+        "winter",
+        "winter-wishes"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1826 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-09-16T11:51:09.808Z",
+  "run_status": "catalog-complete",
+  "pause_reason": null,
+  "source_manifest": "content/catalog-manifest.json",
+  "current_progress": {
+    "pass_colorings": 320,
+    "remaining_colorings": 0,
+    "processed_colorings": 320,
+    "runtime_catalog_count": 320,
+    "covers_pass": 48
+  },
+  "phase2_progress": {
+    "manifest": "content/phase-2-manifest.json",
+    "planned": 155,
+    "generated": 155,
+    "qa_pass": 155,
+    "next_entry_index": 155,
+    "next_entry_id": null,
+    "generation_resumed": true
+  },
+  "imagegen_history": [
+    {
+      "stage": "full-color frame-free run",
+      "downloaded": 165,
+      "qa_pass": 165,
+      "note": "Existing PASS assets retained as the calm/cozy assortment layer."
+    },
+    {
+      "stage": "last in-flight batch",
+      "requested": 32,
+      "downloaded": 29,
+      "qa_pass_pending_ingest": 29,
+      "blocked_by_usage_limit": 3,
+      "note": "HTTP 429 usage limit; no retry was started after the owner correction."
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_kind-ghosts_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 59,
+      "runtime_catalog_count": 166
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_kind-ghosts_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 167
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_kind-ghosts_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 168
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_kind-ghosts_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 169
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_kind-ghosts_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 170
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_witches-cafe_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 171
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_witches-cafe_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 172
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_witches-cafe_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 173
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_witches-cafe_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 174
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_witches-cafe_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 175
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_witches-cafe_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 176
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_witches-cafe_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 177
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_witches-cafe_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 178
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_witches-cafe_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 179
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_spooky-cute_witches-cafe_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 79,
+      "runtime_catalog_count": 180
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_voxel-dawn_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 181
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_voxel-dawn_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 182
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_voxel-dawn_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 183
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_voxel-dawn_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 184
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_voxel-dawn_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 185
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_voxel-dawn_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 186
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_voxel-dawn_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 187
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_voxel-dawn_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 188
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_voxel-dawn_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 189
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_voxel-dawn_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 79,
+      "runtime_catalog_count": 190
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_craft-survive_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 191
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_craft-survive_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 33,
+      "runtime_catalog_count": 192
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_craft-survive_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 193
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_craft-survive_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 194
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_craft-survive_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 195
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_craft-survive_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 196
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_craft-survive_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 197
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_craft-survive_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 198
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_craft-survive_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 199
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_blockbound-worlds_craft-survive_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 200
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_obstacle-arcade_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 201
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_obstacle-arcade_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 202
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_obstacle-arcade_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 203
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_obstacle-arcade_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 204
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_obstacle-arcade_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 59,
+      "runtime_catalog_count": 205
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_obstacle-arcade_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 206
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_obstacle-arcade_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 207
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_obstacle-arcade_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 208
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_obstacle-arcade_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 79,
+      "runtime_catalog_count": 209
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_obstacle-arcade_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 210
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_ranked-arena_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 211
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_ranked-arena_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_tappable_region_heuristics_passed",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 212
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_ranked-arena_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 213
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_ranked-arena_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 214
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_ranked-arena_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 215
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_ranked-arena_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 216
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_ranked-arena_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 217
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_ranked-arena_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 218
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_ranked-arena_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 219
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_minigame-mayhem_ranked-arena_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 220
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_pocket-beasts_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 221
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_pocket-beasts_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 222
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_pocket-beasts_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 223
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_pocket-beasts_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 224
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_pocket-beasts_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 59,
+      "runtime_catalog_count": 225
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_pocket-beasts_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 226
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_pocket-beasts_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 227
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_pocket-beasts_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 228
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_pocket-beasts_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 229
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_pocket-beasts_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 230
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_mythic-expeditions_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 231
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_mythic-expeditions_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 232
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_mythic-expeditions_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 233
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_mythic-expeditions_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 59,
+      "runtime_catalog_count": 234
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_mythic-expeditions_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 235
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_mythic-expeditions_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 236
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_mythic-expeditions_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 237
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_mythic-expeditions_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 238
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_mythic-expeditions_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 239
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_creature-collectors_mythic-expeditions_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 240
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_midnight-district_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 241
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_midnight-district_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 242
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_midnight-district_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 243
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_midnight-district_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 244
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_midnight-district_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 245
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_midnight-district_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 246
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_midnight-district_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 247
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_midnight-district_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 248
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_midnight-district_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 249
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_midnight-district_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 250
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_tuner-nights_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 251
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_tuner-nights_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 34,
+      "runtime_catalog_count": 252
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_tuner-nights_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 253
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_tuner-nights_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 59,
+      "runtime_catalog_count": 254
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_tuner-nights_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 255
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_tuner-nights_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 256
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_tuner-nights_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 257
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_tuner-nights_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 258
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_tuner-nights_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 259
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_neon-city-rush_tuner-nights_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 260
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_circuit-champions_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 261
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_circuit-champions_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 262
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_circuit-champions_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 263
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_circuit-champions_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 264
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_circuit-champions_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 265
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_circuit-champions_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 266
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_circuit-champions_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 267
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_circuit-champions_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 268
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_circuit-champions_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 269
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_circuit-champions_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 270
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_battle-protocol_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 271
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_battle-protocol_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 272
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_battle-protocol_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 34,
+      "runtime_catalog_count": 273
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_battle-protocol_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 274
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_battle-protocol_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 275
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_battle-protocol_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 276
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_battle-protocol_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 277
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_battle-protocol_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 79,
+      "runtime_catalog_count": 278
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_battle-protocol_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 279
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_cyber-arena_battle-protocol_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 280
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_live-loop_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 281
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_live-loop_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 282
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_live-loop_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 283
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_live-loop_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 59,
+      "runtime_catalog_count": 284
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_live-loop_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 285
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_live-loop_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 286
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_live-loop_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 287
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_live-loop_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 288
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_live-loop_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 289
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_live-loop_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 290
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_sticker-chaos_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 291
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_sticker-chaos_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 292
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_sticker-chaos_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 293
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_sticker-chaos_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 294
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_sticker-chaos_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 295
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_sticker-chaos_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 296
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_sticker-chaos_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 297
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_sticker-chaos_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 298
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_sticker-chaos_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 299
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_streamer-stickerverse_sticker-chaos_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 300
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_digital-debut_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 301
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_digital-debut_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 302
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_digital-debut_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 303
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_digital-debut_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 304
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_digital-debut_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 59,
+      "runtime_catalog_count": 305
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_digital-debut_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 306
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_digital-debut_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 307
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_digital-debut_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 308
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_digital-debut_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 309
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_digital-debut_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 310
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_surreal-pop_01",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 311
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_surreal-pop_02",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 312
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_surreal-pop_03",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 35,
+      "runtime_catalog_count": 313
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_surreal-pop_04",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 314
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_surreal-pop_05",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 315
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_surreal-pop_06",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 316
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_surreal-pop_07",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 60,
+      "runtime_catalog_count": 317
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_surreal-pop_08",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 318
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_surreal-pop_09",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 319
+    },
+    {
+      "stage": "phase2 asset ingestion",
+      "id": "coloring_phase2_dreamcore-idols_surreal-pop_10",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_full_bleed_and_runtime_grid_built",
+      "qa_region_count": 80,
+      "runtime_catalog_count": 320
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_collection_phase2_blockbound-worlds",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 1
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_voxel-dawn",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 2
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_craft-survive",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 3
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_collection_phase2_minigame-mayhem",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 4
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_obstacle-arcade",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 5
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_ranked-arena",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 6
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_collection_phase2_creature-collectors",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 7
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_pocket-beasts",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 8
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_mythic-expeditions",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 9
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_collection_phase2_neon-city-rush",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 10
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_midnight-district",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 11
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_tuner-nights",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 12
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_collection_phase2_cyber-arena",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 13
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_circuit-champions",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 14
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_battle-protocol",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 15
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_collection_phase2_streamer-stickerverse",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 16
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_live-loop",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 17
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_sticker-chaos",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 18
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_collection_phase2_dreamcore-idols",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 19
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_digital-debut",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 20
+    },
+    {
+      "stage": "catalog cover ingestion",
+      "id": "cover_album_phase2_surreal-pop",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 21
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_collection_autumn-cozy",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 22
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_collection_forest-friends",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 23
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_collection_sweet-cafe",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 24
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_collection_cozy-home",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 25
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_collection_flower-day",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 26
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_collection_easy-calm",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 27
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_collection_tiny-adventures",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 28
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_collection_pen-pals",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 29
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_collection_spooky-cute",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 30
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_coffee-rain",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 31
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_warm-evenings",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 32
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_fox-hedgehog-hare",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 33
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_mushroom-homes",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 34
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_bakes-coffee",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 35
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_cute-desserts",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 36
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_dream-rooms",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 37
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_reading-nooks",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 38
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_wildflowers",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 39
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_gardens-bouquets",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 40
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_simple-mandalas",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 41
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_bold-easy-patterns",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 42
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_forest-hike",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 43
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_little-town",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 44
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_letters-postcards",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 45
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_journals-stationery",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 46
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_kind-ghosts",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 47
+    },
+    {
+      "stage": "retained catalog cover ingestion",
+      "id": "cover_album_witches-cafe",
+      "generated": 1,
+      "qa_status": "PASS",
+      "qa_notes": "normalized_full_color_cover_full_bleed_heuristics_passed",
+      "cover_pass": 48
+    }
+  ],
+  "storage": {
+    "masters": "content/generated/masters/",
+    "optimized_runtime": "public/assets/catalog/generated/",
+    "manifest": "content/catalog-manifest.json",
+    "phase2_manifest": "content/phase-2-manifest.json",
+    "phase2_draft": "content/catalog-manifest-phase-2-draft.json",
+    "deletion_performed": false
+  }
+}

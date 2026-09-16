@@ -4,6 +4,7 @@ import { asyncRoute } from './asyncRoute.js';
 import { isDevelopmentAuthEnabled } from '../config.js';
 import { ensureTelegramUser } from '../services/identity.js';
 import { getBrowserSession, verifySessionCsrf } from '../services/auth-session.js';
+import { ensureConfiguredAdminOwner } from '../services/admin-acl.js';
 
 export function validateTelegramInitData(initData, token) {
   const params = new URLSearchParams(initData);
@@ -43,6 +44,7 @@ export const authMiddleware = asyncRoute(
       const telegramUser = validateTelegramInitData(initData, process.env.TELEGRAM_BOT_TOKEN);
       if (!telegramUser?.id) return res.status(401).json({ error: 'Invalid Telegram authorization data' });
       req.userId = await ensureTelegramUser(telegramUser);
+      await ensureConfiguredAdminOwner({ userId: req.userId, telegramId: telegramUser.id });
       req.authMode = 'telegram';
       return requireActiveUser(req, res, next);
     }
@@ -73,6 +75,8 @@ export const authMiddleware = asyncRoute(
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [req.userId, null, req.userId, null, '', 0, 0, 0, 0, 0, 10, 0, 'user', now, now]);
       }
+      const developmentUser = await get('SELECT telegram_id FROM users WHERE id=?', [req.userId]);
+      await ensureConfiguredAdminOwner({ userId: req.userId, telegramId: developmentUser?.telegram_id });
       return requireActiveUser(req, res, next);
     }
     return res.status(401).json({ error: 'Telegram Mini Apps authorization required' });

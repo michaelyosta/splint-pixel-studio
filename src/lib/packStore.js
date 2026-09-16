@@ -146,6 +146,11 @@ export function normalizeStorePacks(collections, snapshot = null, {
   for (const collection of Array.isArray(collections) ? collections : []) {
     const id = safeString(collection?.id);
     if (!id || seen.has(id)) continue;
+    // Merchandising collections are browsed in the catalog hierarchy. The
+    // store contains only actual product rows, notably the single Premium
+    // Gallery offer, so mixed catalog shelves cannot become misleading
+    // purchase cards.
+    if (collection?.is_store_product === false) continue;
     seen.add(id);
     const pack = normalizePack(collection, {
       unlock: byId.get(id),

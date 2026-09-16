@@ -40,7 +40,8 @@ test('app header and default shell expose only primary navigation routes', () =>
   const header = app.match(/<header\b[\s\S]*?<\/header>/)?.[0];
 
   assert.ok(header, 'App must keep a header navigation surface');
-  assert.deepEqual(staticRoutes(header), ['catalog', 'profile']);
+  assert.deepEqual(staticRoutes(header).filter((route) => route !== 'admin'), ['catalog', 'profile']);
+  assert.match(header, /adminAccess\s*&&[\s\S]*navigatePrimary\('admin'\)/, 'admin route must remain conditional on server ACL');
   assert.match(header, /className="brand-button"[\s\S]*navigatePrimary\('catalog'\)/);
   assert.match(header, /className="header-profile-button"[\s\S]*navigatePrimary\('profile'\)/);
   assert.match(app, /view !== 'play' && !coreFeelExperiment\.enabled && <BottomNavigation activeView=\{view\} onNavigate=\{navigatePrimary\}/);

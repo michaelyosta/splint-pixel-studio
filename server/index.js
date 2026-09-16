@@ -20,6 +20,7 @@ import creatorCollectionsRouter from './routes/creator-collections.js';
 import unlocksRouter from './routes/unlocks.js';
 import directorRouter from './routes/director.js';
 import authRouter from './routes/auth.js';
+import adminRouter from './routes/admin.js';
 import { validateProductionConfiguration } from './config.js';
 import { checkMediaStorage } from './services/media-storage.js';
 import { cleanupExpiredPaymentRequests } from './services/message-cleanup.js';
@@ -137,6 +138,7 @@ app.use('/meta',        metaRouter);
 app.use('/unlocks',     unlocksRouter);
 app.use('/director',    directorRouter);
 app.use('/media',       mediaRouter);
+app.use('/admin',       adminRouter);
 app.use('/payments/telegram-stars', createTelegramStarsCommerceRouter({ runtime: telegramStarsRuntime }));
 
 // ── Health and readiness ─────────────────────────────────────────────────────

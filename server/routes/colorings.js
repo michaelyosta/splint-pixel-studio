@@ -97,6 +97,7 @@ import {
   generateLegacyHazardCells,
   persistHazardCells,
 } from '../services/tiled-hazard.js';
+import { buildCatalogShelves, catalogRowMatchesSearch } from '../services/catalog-merchandising.js';
 
 const router = Router();
 
@@ -247,7 +248,16 @@ function withSparkCohort(payload, userId, template) {
 
 function parseTemplate(row) {
   if (!row) return null;
-  const access = row.collection_pack_type === 'premium' ? 'premium' : 'free';
+  const parseArray = (value) => {
+    if (Array.isArray(value)) return value;
+    try {
+      const parsed = JSON.parse(value || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+  const access = row.access_type || (row.collection_pack_type === 'premium' ? 'premium' : 'free');
   const storageMode = row.storage_mode || 'legacy';
   return {
     ...row,
@@ -262,6 +272,18 @@ function parseTemplate(row) {
     completion_count: Number(row.completion_count || 0),
     is_favorite: Boolean(Number(row.is_favorite || 0)),
     access,
+    access_type: access,
+    album_id: row.album_id || null,
+    album_title: row.album_title || null,
+    collection_title: row.collection_title || null,
+    tags: parseArray(row.tags_json),
+    season: parseArray(row.season_json),
+    audience: parseArray(row.audience_json),
+    tags_json: undefined,
+    season_json: undefined,
+    audience_json: undefined,
+    featured_rank: Number(row.featured_rank || 1000),
+    is_new: Boolean(Number(row.is_new || 0)),
     purchasing_available: false,
     collection_pack_type: row.collection_pack_type || 'free',
     collection_price_in_stars: Number(row.collection_price_in_stars || 0),
@@ -465,10 +487,10 @@ router.get('/', authMiddleware, asyncRoute(async (req, res) => {
   const sort = req.query.sort === undefined ? 'new' : req.query.sort;
   const access = req.query.access ?? req.query.pack_type;
   const rawQuery = req.query.q === undefined ? '' : req.query.q;
-  const limit = parseNonNegativeInteger(req.query.limit, { fallback: 100, max: 100 });
+  const limit = parseNonNegativeInteger(req.query.limit, { fallback: 100, max: 500 });
   const offset = parseNonNegativeInteger(req.query.offset, { fallback: 0, max: 10_000 });
 
-  if (!['new', 'popular', 'rating'].includes(sort)) {
+  if (!['new', 'popular', 'rating', 'featured'].includes(sort)) {
     return res.status(400).json({ error: 'Некорректная сортировка каталога', code: 'INVALID_CATALOG_SORT' });
   }
   if (access !== undefined && !['free', 'premium'].includes(access)) {
@@ -490,11 +512,14 @@ router.get('/', authMiddleware, asyncRoute(async (req, res) => {
   if (typeof theme === 'string' && theme) { clauses.push('t.theme=?'); params.push(theme.slice(0, 80)); }
   if (max_minutes !== undefined) { clauses.push('t.est_minutes<=?'); params.push(Number(max_minutes)); }
   if (featured === '1') { clauses.push('t.daily_featured=1'); }
-  if (access) { clauses.push("COALESCE(c.pack_type,'free')=?"); params.push(access); }
+  if (access) { clauses.push("COALESCE(t.access_type, CASE WHEN c.pack_type='premium' THEN 'premium' ELSE 'free' END)=?"); params.push(access); }
+  if (req.query.collection_id) { clauses.push('t.collection_id=?'); params.push(String(req.query.collection_id).slice(0, 120)); }
+  if (req.query.album_id) { clauses.push('t.album_id=?'); params.push(String(req.query.album_id).slice(0, 120)); }
   const where = clauses.join(' AND ');
   const rows = await all(`SELECT t.*,
       c.pack_type AS collection_pack_type,
       c.price_in_stars AS collection_price_in_stars,
+      c.title AS collection_title,
       owner.nickname AS owner_nickname
     FROM coloring_templates t
     LEFT JOIN collections c ON c.id=t.collection_id
@@ -506,8 +531,7 @@ router.get('/', authMiddleware, asyncRoute(async (req, res) => {
   // without ICU, while the database query stays fully parameterized.
   const normalizedQuery = rawQuery.trim().toLocaleLowerCase();
   const matchedRows = normalizedQuery
-    ? rows.filter((row) => [row.title, row.description, row.owner_nickname]
-      .some((value) => String(value || '').toLocaleLowerCase().includes(normalizedQuery)))
+    ? rows.filter((row) => catalogRowMatchesSearch(row, normalizedQuery))
     : rows;
   const decorated = await attachViewerCatalogData(matchedRows, req.userId, { popularity: sort === 'popular' });
   const sorted = [...decorated].sort((a, b) => {
@@ -522,11 +546,36 @@ router.get('/', authMiddleware, asyncRoute(async (req, res) => {
         || Number(b.rating_average) - Number(a.rating_average)
         || String(b.added_at || b.created_at || '').localeCompare(String(a.added_at || a.created_at || ''));
     }
+    if (sort === 'featured') {
+      return Number(a.featured_rank || 1000) - Number(b.featured_rank || 1000)
+        || Number(b.is_new || 0) - Number(a.is_new || 0)
+        || String(a.title).localeCompare(String(b.title));
+    }
     return String(b.added_at || b.created_at || '').localeCompare(String(a.added_at || a.created_at || ''))
       || String(a.title).localeCompare(String(b.title));
   });
 
   res.json(sorted.slice(offset, offset + limit).map(catalogSummary));
+}));
+
+// GET /colorings/shelves — metadata-driven merchandising shelves. This is a
+// summary-only endpoint; cell maps remain behind the player/chunk endpoints.
+router.get('/shelves', authMiddleware, asyncRoute(async (req, res) => {
+  const rows = await all(`SELECT t.*,
+      c.pack_type AS collection_pack_type,
+      c.price_in_stars AS collection_price_in_stars,
+      c.title AS collection_title,
+      owner.nickname AS owner_nickname
+    FROM coloring_templates t
+    LEFT JOIN collections c ON c.id=t.collection_id
+    LEFT JOIN users owner ON owner.id=t.owner_id
+    WHERE t.status='active' AND t.visibility='public' AND t.source_type <> 'unlockable'
+    ORDER BY t.featured_rank ASC, t.added_at DESC, t.title ASC
+    LIMIT 500`);
+  const decorated = await attachViewerCatalogData(rows, req.userId, { popularity: true });
+  const items = decorated.map(catalogSummary);
+  const shelfRows = await all("SELECT * FROM catalog_shelves WHERE status='active' ORDER BY sort_rank ASC, title ASC");
+  res.json({ total_count: items.length, shelves: buildCatalogShelves(items, { shelfRows }) });
 }));
 
 // GET /colorings/today — editorial "for you today" + quick picks

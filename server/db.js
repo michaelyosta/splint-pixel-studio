@@ -8,6 +8,7 @@ import { withTransaction } from './database/transaction.js';
 import { getTransactionContext } from './database/runtime-context.js';
 import { scheduleSqliteOperation } from './database/sqlite-scheduler.js';
 import { toPostgres } from './database/sql.js';
+import { CATALOG_COLLECTIONS, CATALOG_SHELF_DEFINITIONS, catalogTemplateSeedMetadata } from './services/catalog-merchandising.js';
 
 const { Pool } = pg;
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -330,6 +331,24 @@ const UNLOCKABLE_TEMPLATES = [
     width: 32,
     height: 32,
   },
+  // Compatibility fixture retained for the tiled API contract tests. It is
+  // deliberately source_type='unlockable', so it never inflates the 320-item
+  // merchandising catalog or appears in public shelves.
+  {
+    id: 'color_neon-cat',
+    title: 'Неоновый кот',
+    description: 'Совместимый tiled-fixture для серверного контракта.',
+    category: 'animals',
+    difficulty: 'medium',
+    theme: 'night-city',
+    mood: 'focus',
+    est_minutes: 4,
+    collection_id: null,
+    width: 32,
+    height: 32,
+    storage_mode: 'tiled',
+    tile_size: 32,
+  },
 ];
 
 const UNLOCKABLE_TEMPLATE_RULES = [
@@ -338,14 +357,70 @@ const UNLOCKABLE_TEMPLATE_RULES = [
 
 export async function bootstrapSystemData() {
   if (!mode) throw new Error('Database not initialized. Call initDb() first.');
-  const now = new Date().toISOString();
+  return withDbTransaction(async () => {
+    const now = new Date().toISOString();
 
   const templates = JSON.parse(readFileSync(catalogPath, 'utf8'));
 
   for (const collection of COLLECTIONS) {
     await run(`INSERT INTO collections (id,title,pack_type,rarity,total_artworks,image_url) VALUES (?,?,?,?,?,?)
-      ON CONFLICT(id) DO UPDATE SET title=excluded.title, pack_type=excluded.pack_type, rarity=excluded.rarity, total_artworks=excluded.total_artworks, image_url=excluded.image_url`,
+      ON CONFLICT(id) DO UPDATE SET
+        title=CASE WHEN collections.catalog_managed THEN collections.title ELSE excluded.title END,
+        pack_type=CASE WHEN collections.catalog_managed THEN collections.pack_type ELSE excluded.pack_type END,
+        rarity=CASE WHEN collections.catalog_managed THEN collections.rarity ELSE excluded.rarity END,
+        total_artworks=CASE WHEN collections.catalog_managed THEN collections.total_artworks ELSE excluded.total_artworks END,
+        price_in_stars=CASE WHEN collections.catalog_managed THEN collections.price_in_stars ELSE collections.price_in_stars END,
+        image_url=CASE WHEN collections.catalog_managed THEN collections.image_url ELSE excluded.image_url END`,
     [collection.id, collection.title, collection.pack_type, collection.rarity, collection.total_artworks, collection.image_url]);
+  }
+
+  // The merchandising catalog is manifest-driven. Keep the legacy system
+  // collections above for progression compatibility, while exposing the
+  // 16 real catalog collections with their album/cover metadata below.
+  for (const collection of CATALOG_COLLECTIONS) {
+    await run(`INSERT INTO collections
+      (id,title,pack_type,rarity,total_artworks,price_in_stars,image_url,
+       catalog_scope,catalog_slug,catalog_theme,catalog_mood,catalog_tags_json,
+       catalog_rank,catalog_cover_url)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET
+        title=CASE WHEN collections.catalog_managed THEN collections.title ELSE excluded.title END,
+        pack_type=CASE WHEN collections.catalog_managed THEN collections.pack_type ELSE excluded.pack_type END,
+        rarity=CASE WHEN collections.catalog_managed THEN collections.rarity ELSE excluded.rarity END,
+        total_artworks=CASE WHEN collections.catalog_managed THEN collections.total_artworks ELSE excluded.total_artworks END,
+        price_in_stars=CASE WHEN collections.catalog_managed THEN collections.price_in_stars ELSE excluded.price_in_stars END,
+        image_url=CASE WHEN collections.catalog_managed THEN collections.image_url ELSE excluded.image_url END,
+        catalog_scope=CASE WHEN collections.catalog_managed THEN collections.catalog_scope ELSE excluded.catalog_scope END,
+        catalog_slug=CASE WHEN collections.catalog_managed THEN collections.catalog_slug ELSE excluded.catalog_slug END,
+        catalog_theme=CASE WHEN collections.catalog_managed THEN collections.catalog_theme ELSE excluded.catalog_theme END,
+        catalog_mood=CASE WHEN collections.catalog_managed THEN collections.catalog_mood ELSE excluded.catalog_mood END,
+        catalog_tags_json=CASE WHEN collections.catalog_managed THEN collections.catalog_tags_json ELSE excluded.catalog_tags_json END,
+        catalog_rank=CASE WHEN collections.catalog_managed THEN collections.catalog_rank ELSE excluded.catalog_rank END,
+        catalog_cover_url=CASE WHEN collections.catalog_managed THEN collections.catalog_cover_url ELSE excluded.catalog_cover_url END`,
+    [collection.id, collection.title, collection.pack_type, collection.rarity,
+      collection.total_artworks, collection.price_in_stars, collection.image_url,
+      collection.catalog_scope, collection.slug, collection.theme, collection.mood,
+      JSON.stringify(collection.tags || []), collection.catalog_rank, collection.image_url]);
+  }
+
+  // Albums and shelves are durable merchandising entities. Their seed is
+  // insert-only so an editor's published changes survive a later bootstrap.
+  for (const collection of CATALOG_COLLECTIONS) {
+    for (const [albumIndex, album] of (collection.albums || []).entries()) {
+      await run(`INSERT INTO catalog_albums
+        (id,collection_id,slug,title,description,visibility,status,cover_url,sort_rank,featured,is_new,tags_json,created_at,updated_at)
+        VALUES (?,?,?,?,?,'public','active',?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO NOTHING`,
+      [album.id, collection.id, album.slug || album.id, album.title || album.id, album.description || '',
+        album.cover_url || null, albumIndex * 10, album.featured ? 1 : 0, album.is_new ? 1 : 0,
+        JSON.stringify(album.tags || []), now, now]);
+    }
+  }
+  for (const [shelfIndex, shelf] of CATALOG_SHELF_DEFINITIONS.entries()) {
+    await run(`INSERT INTO catalog_shelves
+      (id,title,description,filter_json,status,sort_rank,cover_url,created_at,updated_at)
+      VALUES (?,?,?,?,'active',?,?,?,?) ON CONFLICT(id) DO NOTHING`,
+    [shelf.id, shelf.label, shelf.description || '', JSON.stringify({ definition_id: shelf.id }), shelfIndex, null, now, now]);
   }
 
   for (const achievement of ACHIEVEMENTS) {
@@ -359,28 +434,70 @@ export async function bootstrapSystemData() {
   await run("UPDATE coloring_templates SET status='hidden' WHERE source_type='catalog'");
 
   const sql = `INSERT INTO coloring_templates
-    (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,mood,theme,est_minutes,collection_id,daily_featured,added_at,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,mood,theme,est_minutes,collection_id,daily_featured,added_at,created_at,updated_at,
+     album_id,album_title,access_type,tags_json,season_json,audience_json,featured_rank,is_new)
+    VALUES (${Array.from({ length: 31 }, () => '?').join(',')})
     ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description, category=excluded.category,
-      difficulty=excluded.difficulty, width=excluded.width, height=excluded.height, palette_json=excluded.palette_json,
-      cells_json=excluded.cells_json, preview_url=excluded.preview_url, visibility='public', status='active',
-      mood=excluded.mood, theme=excluded.theme, est_minutes=excluded.est_minutes, collection_id=excluded.collection_id,
-      daily_featured=excluded.daily_featured, added_at=excluded.added_at, updated_at=excluded.updated_at`;
+      difficulty=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.difficulty ELSE excluded.difficulty END,
+      width=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.width ELSE excluded.width END,
+      height=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.height ELSE excluded.height END,
+      palette_json=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.palette_json ELSE excluded.palette_json END,
+      cells_json=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.cells_json ELSE excluded.cells_json END,
+      preview_url=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.preview_url ELSE excluded.preview_url END,
+      visibility=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.visibility ELSE 'public' END,
+      status=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.status ELSE 'active' END,
+      mood=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.mood ELSE excluded.mood END,
+      theme=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.theme ELSE excluded.theme END,
+      est_minutes=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.est_minutes ELSE excluded.est_minutes END,
+      collection_id=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.collection_id ELSE excluded.collection_id END,
+      daily_featured=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.daily_featured ELSE excluded.daily_featured END,
+      added_at=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.added_at ELSE excluded.added_at END,
+      updated_at=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.updated_at ELSE excluded.updated_at END,
+      album_id=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.album_id ELSE excluded.album_id END,
+      album_title=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.album_title ELSE excluded.album_title END,
+      access_type=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.access_type ELSE excluded.access_type END,
+      tags_json=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.tags_json ELSE excluded.tags_json END,
+      season_json=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.season_json ELSE excluded.season_json END,
+      audience_json=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.audience_json ELSE excluded.audience_json END,
+      featured_rank=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.featured_rank ELSE excluded.featured_rank END,
+      is_new=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.is_new ELSE excluded.is_new END`;
+
+  // One read for the whole catalog keeps cold SQLite/demo boot comfortably
+  // below the local health-test deadline. Zone rows themselves remain
+  // durable and are only inserted for templates that have none.
+  const existingZoneCounts = new Map((await all('SELECT template_id, COUNT(*) AS c FROM coloring_zones GROUP BY template_id')).map((row) => [row.template_id, Number(row.c || 0)]));
 
   for (const template of templates) {
-    await run(sql, [template.id, null, template.title, template.description, template.category, template.difficulty, template.width, template.height, JSON.stringify(template.palette), JSON.stringify(template.cells), template.preview, null, 'catalog', 'public', 'active', template.mood || 'calm', template.theme || 'featured', template.est_minutes || 3, template.collection_id || null, template.daily_featured || 0, template.added_at || now, now, now]);
+    const merchandising = catalogTemplateSeedMetadata(template);
+    await run(sql, [template.id, null, template.title, template.description, template.category, template.difficulty, template.width, template.height, JSON.stringify(template.palette), JSON.stringify(template.cells), template.preview, null, 'catalog', 'public', 'active', template.mood || 'calm', template.theme || 'featured', template.est_minutes || 3, merchandising.collection_id, merchandising.daily_featured, template.added_at || now, now, now, merchandising.album_id, merchandising.album_title, merchandising.access_type, merchandising.tags_json, merchandising.season_json, merchandising.audience_json, merchandising.featured_rank, merchandising.is_new]);
 
-    const existingZones = await all('SELECT id FROM coloring_zones WHERE template_id=?', [template.id]);
-    if (existingZones.length > 0) continue;
-
-    const zones = buildZones(template);
-    for (let zoneIndex = 0; zoneIndex < zones.length; zoneIndex += 1) {
-      const zone = zones[zoneIndex];
-      await run('INSERT INTO coloring_zones (id,template_id,title,cell_indices_json,created_at) VALUES (?,?,?,?,?)',
-      [`zone_${template.id}_${zoneIndex}`, template.id, zone.title, JSON.stringify(zone.indices), now]);
+    const existingZoneCount = existingZoneCounts.get(template.id) || 0;
+    if (existingZoneCount === 0) {
+      const zones = buildZones(template);
+      for (let zoneIndex = 0; zoneIndex < zones.length; zoneIndex += 1) {
+        const zone = zones[zoneIndex];
+        await run('INSERT INTO coloring_zones (id,template_id,title,cell_indices_json,created_at) VALUES (?,?,?,?,?)',
+        [`zone_${template.id}_${zoneIndex}`, template.id, zone.title, JSON.stringify(zone.indices), now]);
+      }
     }
-    await run('UPDATE coloring_templates SET zone_count=?, collection_id=?, theme=?, mood=?, est_minutes=?, daily_featured=?, added_at=? WHERE id=?',
-    [zones.length, template.collection_id || null, template.theme || 'featured', template.mood || 'calm', template.est_minutes || 3, template.daily_featured || 0, template.added_at || now, template.id]);
+    const zoneCount = existingZoneCount || 6;
+    await run(`UPDATE coloring_templates SET
+      zone_count=?, collection_id=CASE WHEN catalog_managed THEN collection_id ELSE ? END,
+      theme=CASE WHEN catalog_managed THEN theme ELSE ? END,
+      mood=CASE WHEN catalog_managed THEN mood ELSE ? END,
+      est_minutes=CASE WHEN catalog_managed THEN est_minutes ELSE ? END,
+      daily_featured=CASE WHEN catalog_managed THEN daily_featured ELSE ? END,
+      added_at=CASE WHEN catalog_managed THEN added_at ELSE ? END,
+      album_id=CASE WHEN catalog_managed THEN album_id ELSE ? END,
+      album_title=CASE WHEN catalog_managed THEN album_title ELSE ? END,
+      access_type=CASE WHEN catalog_managed THEN access_type ELSE ? END,
+      tags_json=CASE WHEN catalog_managed THEN tags_json ELSE ? END,
+      season_json=CASE WHEN catalog_managed THEN season_json ELSE ? END,
+      audience_json=CASE WHEN catalog_managed THEN audience_json ELSE ? END,
+      featured_rank=CASE WHEN catalog_managed THEN featured_rank ELSE ? END,
+      is_new=CASE WHEN catalog_managed THEN is_new ELSE ? END
+      WHERE id=?`,
+    [zoneCount, merchandising.collection_id, template.theme || 'featured', template.mood || 'calm', template.est_minutes || 3, merchandising.daily_featured, template.added_at || now, merchandising.album_id, merchandising.album_title, merchandising.access_type, merchandising.tags_json, merchandising.season_json, merchandising.audience_json, merchandising.featured_rank, merchandising.is_new, template.id]);
   }
 
   await seedUnlockableContent(now);
@@ -394,6 +511,7 @@ export async function bootstrapSystemData() {
       await run("UPDATE posts SET status='deleted', updated_at=? WHERE artwork_id=?", [now, artwork.id]);
     }
   }
+  });
 }
 
 async function seedUnlockableContent(now) {
@@ -424,19 +542,30 @@ async function seedUnlockableContent(now) {
   for (const template of UNLOCKABLE_TEMPLATES) {
     const cells = JSON.stringify(Array(template.width * template.height).fill(0));
     await run(`INSERT INTO coloring_templates
-      (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,mood,theme,est_minutes,collection_id,daily_featured,added_at,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,'unlockable','public','active',?,?,?,?,0,?,?,?)
+      (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,mood,theme,est_minutes,collection_id,daily_featured,added_at,created_at,updated_at,storage_mode,tile_size)
+      VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,'unlockable','public','active',?,?,?,?,0,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET
         title=excluded.title, description=excluded.description, category=excluded.category,
         difficulty=excluded.difficulty, width=excluded.width, height=excluded.height,
         palette_json=excluded.palette_json, cells_json=excluded.cells_json,
         visibility='public', status='active', mood=excluded.mood, theme=excluded.theme,
-        est_minutes=excluded.est_minutes, collection_id=excluded.collection_id,
-        daily_featured=0, added_at=excluded.added_at, updated_at=excluded.updated_at`,
+      est_minutes=excluded.est_minutes, collection_id=excluded.collection_id,
+        daily_featured=0, added_at=excluded.added_at, updated_at=excluded.updated_at,
+        storage_mode=excluded.storage_mode, tile_size=excluded.tile_size`,
     [template.id, null, template.title, template.description, template.category,
       template.difficulty, template.width, template.height, palette, cells,
       template.mood, template.theme, template.est_minutes, template.collection_id,
-      unlockAddedAt, now, now]);
+      unlockAddedAt, now, now, template.storage_mode || 'legacy', template.tile_size || 32]);
+    if (template.storage_mode === 'tiled') {
+      await run(`INSERT INTO coloring_template_tiles
+        (template_id,tile_x,tile_y,width,height,cells_json,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(template_id,tile_x,tile_y) DO UPDATE SET
+          width=excluded.width, height=excluded.height, cells_json=excluded.cells_json,
+          updated_at=excluded.updated_at`,
+      [template.id, 0, 0, template.width, template.height,
+        JSON.stringify(Array(template.width * template.height).fill(0)), now, now]);
+    }
   }
 
   for (const rule of UNLOCKABLE_TEMPLATE_RULES) {

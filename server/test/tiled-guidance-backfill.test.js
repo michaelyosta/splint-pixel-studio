@@ -11,7 +11,6 @@ import {
 import {
   backfillGuidanceIndex,
   countTemplatesMissingGuidanceIndex,
-  findTemplatesMissingGuidanceIndex,
 } from '../services/tiled-guidance-backfill.js';
 
 const PALETTE = ['#000000', '#ffffff', '#ff00aa', '#00ffff'];
@@ -217,7 +216,6 @@ test('backfill repairs a partial index (interrupted pre-021 lazy build)', async 
 
 test('planner returns an explicit diagnostic when the index cannot be built (no tiles)', async () => {
   const db = await createBackfillDb();
-  const now = '2026-08-07T00:00:00.000Z';
   await insertPre021Template(db, { id: 'tpl_bf_5' });
   await db.run('DELETE FROM coloring_template_tiles WHERE template_id=?', ['tpl_bf_5']);
   const adapter = wrapSqlite(db);

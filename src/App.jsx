@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { metaApi, telegramStarsApi, telegramStarsOpsApi, unlocksApi } from './api/client';
+import { adminApi, metaApi, telegramStarsApi, telegramStarsOpsApi, unlocksApi } from './api/client';
 import PlayerView from './views/PlayerView';
 import CatalogView from './views/CatalogView';
 import FeedView from './views/FeedView';
@@ -8,6 +8,7 @@ import CreatorView from './views/CreatorView';
 import GalleryView from './views/GalleryView';
 import CollectionsView from './views/CollectionsView';
 import AchievementsView from './views/AchievementsView';
+import AdminView from './views/AdminView';
 import StoreView from './views/StoreView';
 import BottomNavigation from './components/BottomNavigation';
 import BrowserAuthPage from './components/BrowserAuthPage';
@@ -61,6 +62,7 @@ function App() {
   const [starsOpsState, setStarsOpsState] = useState(null);
   const [starsOpsLoading, setStarsOpsLoading] = useState(false);
   const [starsOpsBusy, setStarsOpsBusy] = useState(false);
+  const [adminAccess, setAdminAccess] = useState(null);
   const noticeTimerRef = useRef(null);
   const resumeHandledRef = useRef(false);
   const coreFeelHandledRef = useRef(false);
@@ -101,6 +103,17 @@ function App() {
       });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!canUseApp) { setAdminAccess(null); return undefined; }
+    let active = true;
+    adminApi.me().then((value) => { if (active) setAdminAccess(value); }).catch(() => { if (active) setAdminAccess(null); });
+    return () => { active = false; };
+  }, [canUseApp]);
+
+  useEffect(() => {
+    if (view === 'admin' && !adminAccess && canUseApp) setView('catalog');
+  }, [adminAccess, canUseApp, view]);
 
   useEffect(() => {
     if (!canUseApp || view !== 'profile' || !browserAuth.platform.isTelegram) {
@@ -235,12 +248,13 @@ function App() {
   useEffect(() => {
     if (coreFeelExperiment.enabled || !canUseApp) return;
     catalog.loadCatalog();
+    catalog.loadShelves();
     home.loadCollections();
     profile.loadCurrentUser();
     catalog.loadMine();
     product.loadProductProfile();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canUseApp, catalog.loadCatalog, catalog.loadMine, coreFeelExperiment.enabled, home.loadCollections, product.loadProductProfile, profile.loadCurrentUser]);
+  }, [canUseApp, catalog.loadCatalog, catalog.loadMine, catalog.loadShelves, coreFeelExperiment.enabled, home.loadCollections, product.loadProductProfile, profile.loadCurrentUser]);
 
   useEffect(() => {
     if (!coreFeelExperiment.enabled && canUseApp) metaApi.track('app_open').catch(() => {});
@@ -317,6 +331,7 @@ function App() {
   useEffect(() => () => window.clearTimeout(noticeTimerRef.current), []);
 
   function navigatePrimary(nextView) {
+    if (nextView === 'admin' && !adminAccess) return;
     hapticSelection();
     session.setLockedUnlock(null);
     if (nextView === 'catalog') {
@@ -588,8 +603,10 @@ function App() {
       starsOpsBusy={starsOpsBusy}
       onStarsOpsChange={changeStarsOpsGate}
     />;
+  } else if (view === 'admin') {
+    content = <AdminView access={adminAccess} onBack={() => navigatePrimary('catalog')} onNotice={showNotice} />;
   } else if (view === 'collections') {
-    content = <CollectionsView collections={home.collections} mine={catalog.mine} onOpenCollection={catalog.openCatalogCollection} onNavigate={navigatePrimary} />;
+    content = <CollectionsView collections={home.collections} mine={catalog.mine} onOpenCollection={catalog.openCatalogCollection} onNavigate={navigatePrimary} onTrack={trackEvent} />;
   } else if (view === 'store') {
     content = <StoreView
       collections={home.collections}
@@ -612,6 +629,7 @@ function App() {
   } else {
     content = <CatalogView
       templates={catalog.templates}
+      shelves={catalog.shelves}
       loading={catalog.loading}
       catalogError={catalog.catalogError}
       mine={catalog.mine}
@@ -643,6 +661,7 @@ function App() {
       onPremiumWish={() => showNotice('Желание сохранено — сообщим, когда витрина откроется', 'success')}
       paymentsMode={paymentsMode}
       onOpenStore={openStore}
+      onTrack={trackEvent}
     />;
   }
 
@@ -656,7 +675,7 @@ function App() {
 
   // The primary-navigation contract is intentionally explicit: view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />
   const showChrome = view !== 'play' && !coreFeelExperiment.enabled;
-  return <main className="telegram-frame" data-platform={browserAuth.platform.isTelegram ? 'telegram' : 'browser'} data-auth-mode={browserAuth.platform.authMode}><div className="app-container">{showChrome && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><div className="header-actions">{browserAuth.status === 'authenticated' && browserAuth.platform.isBrowser && <button className="header-logout-button" type="button" onClick={() => browserAuth.logout().catch(() => showNotice('Не удалось завершить сессию', 'error'))}>Выйти</button>}<button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></div></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{showChrome && canUseApp && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
+  return <main className="telegram-frame" data-platform={browserAuth.platform.isTelegram ? 'telegram' : 'browser'} data-auth-mode={browserAuth.platform.authMode}><div className="app-container">{showChrome && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><div className="header-actions">{adminAccess && <button className="header-admin-button" type="button" onClick={() => navigatePrimary('admin')}>Admin</button>}{browserAuth.status === 'authenticated' && browserAuth.platform.isBrowser && <button className="header-logout-button" type="button" onClick={() => browserAuth.logout().catch(() => showNotice('Не удалось завершить сессию', 'error'))}>Выйти</button>}<button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></div></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{showChrome && canUseApp && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
 }
 
 export default App;

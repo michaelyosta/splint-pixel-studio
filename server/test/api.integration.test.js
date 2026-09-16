@@ -57,9 +57,9 @@ test('coloring progress can become a social post', async (t) => {
     server.once('error', reject);
   });
 
-  const catalog = await request('/colorings');
+  const catalog = await request('/colorings?limit=500&sort=featured');
   assert.equal(catalog.response.status, 200);
-  assert.equal(catalog.json.length, 6);
+  assert.equal(catalog.json.length, 320);
   assert.ok(catalog.json.every((item) => item.preview_url.includes('/assets/catalog/')));
   assert.ok(catalog.json.every((item) => item.content_metadata?.schema_version === 'content-metadata.v1'));
   assert.ok(catalog.json.every((item) => item.content_metadata?.duration?.label && item.content_metadata?.complexity?.label));
@@ -230,19 +230,23 @@ test('coloring progress can become a social post', async (t) => {
   const privateFromOtherUser = await request(`/colorings/${custom.json.id}`, { userId: 'user_lenaart' });
   assert.equal(privateFromOtherUser.response.status, 404);
 
-  const template = await request(`/colorings/${catalog.json[0].id}`);
+  // The editorial catalog now contains production-sized 64×64+ grids. Use
+  // the already-created 8×8 private fixture for the action loop so this API
+  // test remains focused and does not trip the request-rate guard.
+  const gameplayTemplateId = custom.json.id;
+  const template = await request(`/colorings/${gameplayTemplateId}`);
   assert.equal(template.response.status, 200);
   assert.equal(template.json.content_metadata?.schema_version, 'content-metadata.v1');
-  const progress = await request(`/colorings/${catalog.json[0].id}/progress`);
+  const progress = await request(`/colorings/${gameplayTemplateId}/progress`);
   assert.equal(progress.json.percent, 0);
 
-  const forgedMap = await request(`/colorings/${catalog.json[0].id}/progress`, {
+  const forgedMap = await request(`/colorings/${gameplayTemplateId}/progress`, {
     method: 'PUT',
     body: { filled: template.json.cells, revision: progress.json.revision },
   });
   assert.equal(forgedMap.response.status, 405, 'whole client map must not be accepted');
 
-  const forgedColor = await request(`/colorings/${catalog.json[0].id}/progress/actions`, {
+  const forgedColor = await request(`/colorings/${gameplayTemplateId}/progress/actions`, {
     method: 'POST',
     body: { changes: [{ index: 0, color: (template.json.cells[0] + 1) % template.json.palette.length }], revision: progress.json.revision },
   });
@@ -251,7 +255,7 @@ test('coloring progress can become a social post', async (t) => {
   let completed;
   let revision = progress.json.revision;
   for (let offset = 0; offset < template.json.cells.length; offset += 64) {
-    completed = await request(`/colorings/${catalog.json[0].id}/progress/actions`, {
+    completed = await request(`/colorings/${gameplayTemplateId}/progress/actions`, {
       method: 'POST',
       body: {
         changes: template.json.cells.slice(offset, offset + 64).map((color, index) => ({ index: index + offset, color })),
@@ -266,7 +270,7 @@ test('coloring progress can become a social post', async (t) => {
   assert.ok(completed.json.artwork_id);
 
   const finalChanges = template.json.cells.slice(-64).map((color, index) => ({ index: template.json.cells.length - 64 + index, color }));
-  const replay = await request(`/colorings/${catalog.json[0].id}/progress/actions`, {
+  const replay = await request(`/colorings/${gameplayTemplateId}/progress/actions`, {
     method: 'POST',
     body: { changes: finalChanges, revision: revision - 1, resultDataUrl: validPng },
   });

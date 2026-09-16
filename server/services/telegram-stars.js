@@ -175,6 +175,8 @@ function publicOrder(row) {
     product_id: row.product_id,
     currency: row.currency,
     amount_xtr: Number(row.amount_xtr),
+    price_xtr: Number(row.price_xtr ?? row.amount_xtr),
+    price_version: Number(row.price_version || 1),
     invoice_payload: row.invoice_payload,
     invoice_url: row.invoice_url || null,
     provider_invoice_id: row.provider_invoice_id || null,
@@ -185,6 +187,7 @@ function publicOrder(row) {
     cancelled_at: row.cancelled_at || null,
     paid_after_cancelled: row.paid_after_cancelled === true || Number(row.paid_after_cancelled) === 1,
     invoice_expires_at: row.invoice_expires_at || null,
+    invoice_created_at: row.invoice_created_at || row.created_at,
     catalog_snapshot: parseJson(row.catalog_snapshot_json, null),
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -605,12 +608,17 @@ export function createTelegramStarsService(deps = {}) {
     const now = timestamp(clock);
     const nowMs = Date.parse(now);
     const invoiceExpiresAt = new Date(nowMs + TELEGRAM_STARS_INVOICE_TTL_MS).toISOString();
+    const priceVersion = Number(product?.priceVersion ?? product?.price_version ?? 1);
+    if (!Number.isSafeInteger(priceVersion) || priceVersion < 1) throw fail('INVALID_INPUT', 'Server price version is invalid');
     const catalogSnapshot = json({
       id: product?.id ?? product?.productId ?? productId,
       pack_type: product?.packType ?? product?.pack_type ?? null,
       visibility: product?.visibility ?? null,
       published: product?.published === true || product?.status === 'published',
       amount_xtr: amount,
+      price_xtr: amount,
+      price_version: priceVersion,
+      invoice_created_at: now,
       title: product?.title ?? null,
       description: product?.description ?? null,
     }, 'catalogSnapshot');
@@ -648,10 +656,10 @@ export function createTelegramStarsService(deps = {}) {
       const inserted = await tx.run(
         `INSERT INTO telegram_stars_orders
           (id,user_id,product_id,currency,amount_xtr,idempotency_key,request_fingerprint,invoice_payload,
-           invoice_expires_at,catalog_snapshot_json,status,created_at,updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`,
+           invoice_expires_at,catalog_snapshot_json,price_xtr,price_version,invoice_created_at,status,created_at,updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`,
         [orderId, userId, productId, TELEGRAM_STARS_CURRENCY, amount, key, fingerprint, invoicePayload,
-          invoiceExpiresAt, catalogSnapshot, 'invoice_pending', now, now],
+          invoiceExpiresAt, catalogSnapshot, amount, priceVersion, now, 'invoice_pending', now, now],
       );
       if (inserted.changes === 1) return { row: await tx.get('SELECT * FROM telegram_stars_orders WHERE id=?', [orderId]), idempotent: false };
 

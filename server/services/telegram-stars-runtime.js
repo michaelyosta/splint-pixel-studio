@@ -44,15 +44,17 @@ export function createTelegramStarsRuntime({ env = process.env, dbMode = 'postgr
   const productResolver = async ({ productId }) => {
     if (!allowlistedProducts.has(productId)) return null;
     return dbGet(
-      `SELECT id,title,description,pack_type,price_in_stars,status,visibility,owner_id
-         FROM collections
+      `SELECT c.id,c.title,c.description,c.pack_type,c.price_in_stars,c.status,c.visibility,c.owner_id,
+              p.price_xtr,p.price_version
+         FROM collections c LEFT JOIN catalog_product_prices p ON p.product_id=c.id
         WHERE id=? AND owner_id IS NULL AND pack_type='premium'
-          AND price_in_stars>0 AND status='published' AND visibility='public'`,
+          AND COALESCE(p.price_xtr,c.price_in_stars)>0 AND status='published' AND visibility='public'`,
       [productId],
     ).then((product) => product ? {
       ...product,
       packType: product.pack_type,
-      amountXtr: Number(product.price_in_stars),
+      amountXtr: Number(product.price_xtr || product.price_in_stars),
+      priceVersion: Number(product.price_version || 1),
       published: product.status === 'published',
       purchasable: true,
     } : null);
