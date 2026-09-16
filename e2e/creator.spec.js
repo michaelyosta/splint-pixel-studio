@@ -764,7 +764,10 @@ test.describe('Creator 2.0 — full E2E', () => {
     );
     await page.keyboard.press('Enter');
     await savePromise;
-    await expect(page.locator('.milestone.zone')).toContainText(`Фрагмент «${zone.title}» раскрыт`, { timeout: 15000 });
-    await expect(page.locator('.milestone.zone')).not.toContainText('XP');
+    const zoneMilestone = page.locator('.milestone.zone');
+    await expect.poll(async () => {
+      const text = await zoneMilestone.textContent();
+      return Boolean(text?.includes(`Фрагмент «${zone.title}» раскрыт`) && !text.includes('XP'));
+    }, { timeout: 15000 }).toBe(true);
   });
 });

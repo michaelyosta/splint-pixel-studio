@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { api } from '../api/client';
 
 export function useProfileData({ showNotice, onNavigate }) {
@@ -6,6 +6,7 @@ export function useProfileData({ showNotice, onNavigate }) {
   const [profileArtworks, setProfileArtworks] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [profileShelf, setProfileShelf] = useState('works');
+  const profileRequestRef = useRef(0);
 
   const loadCurrentUser = useCallback(async () => {
     try {
@@ -19,19 +20,27 @@ export function useProfileData({ showNotice, onNavigate }) {
   }, [showNotice]);
 
   const loadProfile = useCallback(async (userId = null) => {
+    const requestId = profileRequestRef.current + 1;
+    profileRequestRef.current = requestId;
     try {
       const nextProfile = await api(userId ? `/users/${userId}/profile` : '/users/me');
+      if (requestId !== profileRequestRef.current) return null;
       setProfile(nextProfile);
       if (!userId) setCurrentUser(nextProfile);
       try {
         const artworks = await api(`/users/${nextProfile.id}/artworks`);
+        if (requestId !== profileRequestRef.current) return null;
         setProfileArtworks(artworks.filter((artwork) => artwork.is_completed));
       } catch (error) {
+        if (requestId !== profileRequestRef.current) return null;
         setProfileArtworks([]);
         showNotice(error.message, 'error');
       }
+      return nextProfile;
     } catch (error) {
+      if (requestId !== profileRequestRef.current) return null;
       showNotice(error.message, 'error');
+      return null;
     }
   }, [showNotice]);
 
