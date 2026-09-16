@@ -59,7 +59,7 @@ test('public-alpha security boundaries', async (t) => {
 
   t.after(async () => {
     server.kill();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
 
   await new Promise((resolve, reject) => {

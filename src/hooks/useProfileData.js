@@ -21,10 +21,15 @@ export function useProfileData({ showNotice, onNavigate }) {
   const loadProfile = useCallback(async (userId = null) => {
     try {
       const nextProfile = await api(userId ? `/users/${userId}/profile` : '/users/me');
-      const artworks = await api(`/users/${nextProfile.id}/artworks`);
       setProfile(nextProfile);
-      setProfileArtworks(artworks.filter((artwork) => artwork.is_completed));
       if (!userId) setCurrentUser(nextProfile);
+      try {
+        const artworks = await api(`/users/${nextProfile.id}/artworks`);
+        setProfileArtworks(artworks.filter((artwork) => artwork.is_completed));
+      } catch (error) {
+        setProfileArtworks([]);
+        showNotice(error.message, 'error');
+      }
     } catch (error) {
       showNotice(error.message, 'error');
     }

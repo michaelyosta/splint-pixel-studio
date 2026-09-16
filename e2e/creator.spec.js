@@ -34,6 +34,23 @@ async function openFirstCatalogColoring(page) {
   await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
 }
 
+async function getFirstFreeCatalogColoring(page) {
+  const response = await page.request.get('/api/colorings?sort=featured&limit=500', { headers: API_HEADERS });
+  expect(response.ok()).toBe(true);
+  const catalog = await response.json();
+  const free = catalog.find((item) => item.access !== 'premium');
+  expect(free?.id).toBeTruthy();
+  return free;
+}
+
+async function openCatalogColoring(page, template) {
+  await gotoCatalog(page);
+  const card = page.locator('.catalog-art-card').filter({ hasText: template.title }).first();
+  await expect(card).toBeVisible({ timeout: 15000 });
+  await card.locator('.catalog-art-open').click();
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+}
+
 const API_HEADERS = { 'Content-Type': 'application/json' };
 
 function normalizeHexColor(value) {
@@ -96,7 +113,7 @@ async function applyProgressChanges(page, id, changes, revision, resultDataUrl =
   return saved;
 }
 
-async function clickActiveWorkCell(page) {
+async function clickActiveWorkCell(page, targetIndex = null) {
   const canvas = page.locator('canvas.coloring-canvas');
   await expect(canvas).toBeVisible({ timeout: 10000 });
   await expect(canvas).not.toHaveAttribute('data-active-work-cells', '');
@@ -108,7 +125,19 @@ async function clickActiveWorkCell(page) {
     y: Number(await viewport.getAttribute('data-camera-y')),
     zoom: Number(await viewport.getAttribute('data-camera-zoom')),
   };
-  const index = activeCells[0];
+  const index = targetIndex == null ? activeCells[0] : targetIndex;
+  expect(activeCells).toContain(index);
+  const viewportBox = await viewport.boundingBox();
+  if (targetIndex != null && viewportBox) {
+    await expect.poll(async () => {
+      const currentX = Number(await viewport.getAttribute('data-camera-x'));
+      const currentY = Number(await viewport.getAttribute('data-camera-y'));
+      const zoom = Number(await viewport.getAttribute('data-camera-zoom'));
+      const x = currentX + ((index % templateWidth) + 0.5) * 32 * zoom;
+      const y = currentY + (Math.floor(index / templateWidth) + 0.5) * 32 * zoom;
+      return x >= 0 && x <= viewportBox.width && y >= 0 && y <= viewportBox.height;
+    }, { timeout: 10000 }).toBe(true);
+  }
   await canvas.click({
     force: true,
     position: {
@@ -661,10 +690,8 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('18. Reveal mode paints without selecting a palette color first', async ({ page }) => {
-    const catalog = await (await page.request.get('/api/colorings', { headers: API_HEADERS })).json();
-    const openedTemplate = catalog[0];
-    await gotoCatalog(page);
-    await page.locator('.catalog-art-card').first().locator('.catalog-art-open').click();
+    const openedTemplate = await getFirstFreeCatalogColoring(page);
+    await openCatalogColoring(page, openedTemplate);
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await page.locator('.player-menu-btn').click();
     await page.locator('.bottom-sheet-actions button:has-text("Режим раскрытия")').click();
@@ -677,10 +704,7 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('19. Completing a zone celebrates the revealed fragment without XP copy', async ({ page }) => {
-    const catalogResponse = await page.request.get('/api/colorings', { headers: API_HEADERS });
-    expect(catalogResponse.ok()).toBe(true);
-    const [catalogTemplate] = await catalogResponse.json();
-    expect(catalogTemplate?.id).toBeTruthy();
+    const catalogTemplate = await getFirstFreeCatalogColoring(page);
 
     const templateResponse = await page.request.get(`/api/colorings/${catalogTemplate.id}`, { headers: API_HEADERS });
     expect(templateResponse.ok()).toBe(true);
@@ -708,10 +732,25 @@ test.describe('Creator 2.0 — full E2E', () => {
       openedTemplate.cells.flatMap((color, index) => omitted.has(index) ? [] : [{ index, color }]),
       progress.revision);
 
-    await gotoCatalog(page);
-    await page.locator('.catalog-art-card').filter({ hasText: openedTemplate.title }).locator('.catalog-art-open').first().click();
+    await openCatalogColoring(page, openedTemplate);
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
-    await clickActiveWorkCell(page);
+    await page.locator(`.color-swatch[title="Цвет ${openedTemplate.cells[finalIndex] + 1}"]`).click();
+    await expect.poll(async () => {
+      const session = page.locator('.coloring-session');
+      const canvas = page.locator('canvas.coloring-canvas');
+      const targetColor = await session.getAttribute('data-target-color');
+      const activeCells = (await canvas.getAttribute('data-active-work-cells')) || '';
+      return targetColor === String(openedTemplate.cells[finalIndex])
+        && activeCells.split(',').map(Number).includes(finalIndex);
+    }, { timeout: 10000 }).toBe(true);
+    const canvas = page.locator('canvas.coloring-canvas');
+    await canvas.focus();
+    await expect(canvas).toHaveAttribute('data-keyboard-cell', String(finalIndex));
+    const savePromise = page.waitForResponse((response) =>
+      response.request().method() === 'POST' && response.url().includes(`/colorings/${openedTemplate.id}/progress/actions`),
+    );
+    await page.keyboard.press('Enter');
+    await savePromise;
     await expect(page.locator('.milestone.zone')).toContainText(`Фрагмент «${zone.title}» раскрыт`);
     await expect(page.locator('.milestone.zone')).not.toContainText('XP');
   });

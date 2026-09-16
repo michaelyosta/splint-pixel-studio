@@ -221,9 +221,11 @@ function App() {
     openCatalogCollection,
     setCatalogChip,
     setCatalogCollection,
+    loadMine,
   } = catalog;
   const feed = useFeedData({ showNotice });
   const profile = useProfileData({ showNotice, onNavigate: setView });
+  const { loadProfile } = profile;
   const creator = useCreatorData({
     showNotice,
     onLoadMine: catalog.loadMine,
@@ -299,7 +301,11 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (canUseApp && view === 'feed') feed.loadFeed(feed.feedMode); }, [canUseApp, view, feed.feedMode, feed.loadFeed]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (canUseApp && view === 'profile') profile.loadProfile(viewedProfileId || null); }, [canUseApp, view, viewedProfileId, profile.loadProfile]);
+  useEffect(() => {
+    if (!canUseApp || view !== 'profile') return;
+    loadProfile(viewedProfileId || null);
+    if (!viewedProfileId) loadMine();
+  }, [canUseApp, loadMine, loadProfile, view, viewedProfileId]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (canUseApp && (view === 'profile' || view === 'home')) product.loadProductProfile(); }, [canUseApp, view, product.loadProductProfile]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
