@@ -252,7 +252,43 @@ const UNLOCKABLE_COLLECTIONS = [
   },
 ];
 
+// Core-feel is an experiment fixture rather than a merchandising asset. Keep
+// its authored 28x28 coordinates available to the dev/E2E route even though
+// the production catalog is now manifest-driven and contains 320 items.
+const CORE_FEEL_CELLS = (() => {
+  const cells = Array(28 * 28).fill(0);
+  const paint = (color, indices) => indices.forEach((index) => { cells[index] = color; });
+  paint(2, [
+    148, 149, 150, 177, 178, 179, 180, 204, 205, 206, 207, 208, 209,
+    231, 232, 234, 235, 236, 237, 238, 265, 266, 294, 295, 323, 351,
+  ]);
+  paint(3, [
+    233, 258, 259, 260, 261, 262, 263, 264, 285, 286, 287, 288, 289,
+    290, 291, 292, 293, 313, 314, 315, 316, 317, 318, 319, 320, 321,
+    322, 340, 341, 342, 343, 344, 345, 346, 347, 348, 349, 350, 369,
+    370, 371, 372, 373, 375, 376, 377, 378, 401, 402, 403, 404, 405,
+    430, 431, 432,
+  ]);
+  paint(8, [397, 398, 426, 427, 428, 429, 455, 456, 457]);
+  return cells;
+})();
+
 const UNLOCKABLE_TEMPLATES = [
+  {
+    id: 'color_astro-whale',
+    title: 'Космический кит',
+    description: 'Экспериментальный fixture для core-feel E2E, не часть merchandising-каталога.',
+    category: 'space',
+    difficulty: 'easy',
+    theme: 'space',
+    mood: 'calm',
+    est_minutes: 3,
+    collection_id: null,
+    width: 28,
+    height: 28,
+    palette: ['#010643', '#6e3b5d', '#256086', '#0677fc', '#b25b6d', '#15bfd5', '#8f879c', '#60b2bd', '#b5f7fb'],
+    cells: CORE_FEEL_CELLS,
+  },
   {
     id: 'color_starter_night',
     title: 'Ночной огонь',
@@ -540,7 +576,8 @@ async function seedUnlockableContent(now) {
 
   const palette = JSON.stringify(['#102030', '#00b5d8']);
   for (const template of UNLOCKABLE_TEMPLATES) {
-    const cells = JSON.stringify(Array(template.width * template.height).fill(0));
+    const templatePalette = JSON.stringify(Array.isArray(template.palette) ? template.palette : JSON.parse(palette));
+    const cells = JSON.stringify(Array.isArray(template.cells) ? template.cells : Array(template.width * template.height).fill(0));
     await run(`INSERT INTO coloring_templates
       (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,mood,theme,est_minutes,collection_id,daily_featured,added_at,created_at,updated_at,storage_mode,tile_size)
       VALUES (?,?,?,?,?,?,?,?,?,?,NULL,NULL,'unlockable','public','active',?,?,?,?,0,?,?,?,?,?)
@@ -553,7 +590,7 @@ async function seedUnlockableContent(now) {
         daily_featured=0, added_at=excluded.added_at, updated_at=excluded.updated_at,
         storage_mode=excluded.storage_mode, tile_size=excluded.tile_size`,
     [template.id, null, template.title, template.description, template.category,
-      template.difficulty, template.width, template.height, palette, cells,
+      template.difficulty, template.width, template.height, templatePalette, cells,
       template.mood, template.theme, template.est_minutes, template.collection_id,
       unlockAddedAt, now, now, template.storage_mode || 'legacy', template.tile_size || 32]);
     if (template.storage_mode === 'tiled') {

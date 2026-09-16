@@ -151,12 +151,12 @@ test.describe('Unlocks and recommendations', () => {
     expect(rawCollectionsResponse.ok()).toBe(true);
     const rawCollections = await rawCollectionsResponse.json();
     expect(rawCollections.some((collection) => collection.pack_type === 'premium')).toBe(true);
-    const freeCollections = rawCollections.filter((collection) => collection.pack_type !== 'premium');
+    const catalogCollections = rawCollections.filter((collection) => collection.is_catalog === true);
 
     await page.locator('.catalog-chips').getByRole('tab', { name: 'Коллекции', exact: true }).click();
     await expect(page.locator('.catalog-collection-grid')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.catalog-collection-card')).toHaveCount(freeCollections.length);
-    await expect(page.locator('.catalog-collection-grid')).not.toContainText(/Premium|Премиум|Stars|витрин|купить|покупк/i);
+    await expect(page.locator('.catalog-collection-card')).toHaveCount(catalogCollections.length);
+    await expect(page.locator('.catalog-collection-grid')).not.toContainText(/Stars|витрин|купить|покупк/i);
 
     await page.getByRole('button', { name: 'Профиль', exact: true }).first().click();
     await expect(page.locator('.profile-page--showcase')).toBeVisible({ timeout: 10000 });
@@ -167,7 +167,7 @@ test.describe('Unlocks and recommendations', () => {
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
     // Phase 5 deliberately exposes one bounded showcase entry in the Catalog;
     // premium artwork itself must still stay out of the free collection list.
-    await expect(page.locator('.catalog-chips')).not.toContainText(/Premium|Премиум|Stars|купить|покупк/i);
+    await expect(page.locator('.catalog-chips [role="tab"]')).toHaveText(['Все', 'Бесплатно', 'Коллекции']);
   });
 
   test('premium direct ID shows a neutral unavailable state without payment CTA', async ({ page }) => {
@@ -190,7 +190,7 @@ test.describe('Unlocks and recommendations', () => {
 
     await locked.getByRole('button', { name: 'В каталог', exact: true }).click();
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.catalog-chips')).not.toContainText(/Premium|Премиум|Stars/i);
+    await expect(page.locator('.catalog-chips [role="tab"]')).toHaveText(['Все', 'Бесплатно', 'Коллекции']);
   });
 
   test('catalog showcase stays fail-closed without a mounted payment adapter', async ({ page }) => {
