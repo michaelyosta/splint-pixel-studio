@@ -259,6 +259,10 @@ export default function CatalogView({
           <div><p className="eyebrow">SPLINT · DIGITAL COLORING STUDIO</p><h2>Выбери свой следующий мир</h2><p>320 сцен — от voxel-приключений и неона до спокойных историй. Начни бесплатно, сохрани любимые темы и собери Premium Gallery.</p></div>
           <div className="catalog-hero-stats"><span><b>{templates.length}</b><small>работ</small></span><span><b>{catalogCollections.length}</b><small>коллекций</small></span><span><b>{premiumPack.total_count || premiumPack.items.length}</b><small>Premium</small></span></div>
         </section>
+        <section className="catalog-featured-grid">
+          <div className="catalog-section-heading"><div><p className="eyebrow">БЫСТРЫЙ СТАРТ</p><h2>Открой любую сцену</h2><small>Несколько работ для мгновенного входа в раскрашивание.</small></div></div>
+          {renderArtworkGrid(searchedTemplates.slice(0, 12), 'Рекомендованные картины')}
+        </section>
         {shelves.filter((shelf) => ['new', 'free', 'premium'].includes(shelf.id)).map(renderShelf)}
         <PremiumPackTeaser pack={premiumPack} state={premiumState} onOpen={() => onChangeChip('premium')} />
         {shelves.filter((shelf) => !['new', 'free', 'premium'].includes(shelf.id)).slice(0, 6).map(renderShelf)}

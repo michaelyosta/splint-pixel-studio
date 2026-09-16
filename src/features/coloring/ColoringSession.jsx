@@ -592,7 +592,11 @@ export default function ColoringSession({
     const target = current?.target;
     if (!target?.workCells?.length) return { ok: false, reason: 'no_active_target' };
     const candidate = candidateForCells(target.workCells, template.width);
-    const cameraTransition = prepareFocusOnWindow(candidate, false);
+    // A geometry change can happen while the HUD is measuring its safe area.
+    // Applying the recalculated camera atomically avoids finishing a smooth
+    // transition against stale insets and falsely failing the target's
+    // visibility check.
+    const cameraTransition = prepareFocusOnWindow(candidate, reason === 'geometry_changed');
     if (!cameraTransition) return { ok: false, reason: 'invalid_camera_plan' };
     const plannedReadiness = ensureActionableViewport({
       activeTarget: target,
@@ -986,6 +990,23 @@ export default function ColoringSession({
     }
 
     if (['ready', 'focusingTarget'].includes(current.status)) {
+      const currentCells = new Set(current.target?.workCells || []);
+      const refreshedCandidate = workingWindows.find((candidate) => (
+        (candidate.cells || candidate.workCells || []).some((cell) => currentCells.has(cell))
+      )) || workingWindows[0];
+      if (refreshedCandidate) {
+        // Rebuild the target from the windows calculated for the current
+        // insets. This also applies the existing single-cell fallback when a
+        // tile no longer fits after the HUD changes the usable viewport.
+        const refreshed = activateTarget(refreshedCandidate, {
+          immediate: true,
+          force: true,
+          reason: 'geometry_changed',
+          markVisited: false,
+          targetColor: current.target?.color,
+        });
+        if (refreshed.ok) return;
+      }
       refocusExistingTarget(current, 'geometry_changed');
     }
   });

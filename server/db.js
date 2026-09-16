@@ -614,9 +614,13 @@ export async function seedDemoData() {
 
     const templateId = `color_${item.id === 'fox' ? 'lantern-fox' : item.id === 'whale' ? 'astro-whale' : 'tea-dragon'}`;
     const template = await get('SELECT collection_id FROM coloring_templates WHERE id=?', [templateId]);
+    // The demo showcase is valid even when a legacy fixture template has been
+    // retired from the catalog. Keep the artwork/post seed idempotent without
+    // violating the PostgreSQL template foreign key.
+    const linkedTemplateId = template ? templateId : null;
     await run(`INSERT INTO artworks (id,owner_id,source_type,image_url,title,template_id,collection_id,collection_title,rarity,is_completed,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET image_url=excluded.image_url, title=excluded.title, template_id=excluded.template_id, collection_id=excluded.collection_id, updated_at=excluded.updated_at`,
-    [artworkId, item.owner, 'showcase', item.image, item.title, templateId, template?.collection_id || null, item.title, 'featured', 1, now, now]);
+    [artworkId, item.owner, 'showcase', item.image, item.title, linkedTemplateId, template?.collection_id || null, item.title, 'featured', 1, now, now]);
 
     await run(`INSERT INTO posts (id,author_id,artwork_id,achievement_id,post_type,title,caption,comments_enabled,visibility,status,like_count,comment_count,published_at,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)

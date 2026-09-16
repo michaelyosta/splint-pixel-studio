@@ -15,8 +15,8 @@
     "shards": 24,
     "strategy": "weighted_24_minimum_30000ms",
     "selector": "file arguments plus escaped test-title grep alternatives",
-    "expected_logical_tests": 153,
-    "expected_project_cases": 459,
+    "expected_logical_tests": 155,
+    "expected_project_cases": 465,
     "minimum_group_weight_ms": 30000
   },
   "coverage": {
@@ -25,16 +25,16 @@
       "Mobile iPhone",
       "Mobile Pixel"
     ],
-    "expected_logical_tests": 153,
-    "expected_project_cases": 459,
-    "inventory_fingerprint": "e2def1443c4c5bcdb95380d111bc79e7d4b9cb6a81b252604086520ed98a2172"
+    "expected_logical_tests": 155,
+    "expected_project_cases": 465,
+    "inventory_fingerprint": "ba2b74fce93e34add7376c9b3d4b24e978d6057fdb4bf521b114d6897b000a76"
   },
   "measurement_note": "Historical durations preserved from run 33396678958; intentional product-contract migrations and new visual/public-profile/navigation coverage use the 30000ms minimum logical-group load.",
   "topology_comparison": {
     "builtin_16": {
       "shards": 16,
       "strategy": "playwright --shard=N/16",
-      "total_project_cases": 459,
+      "total_project_cases": 465,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 1354083,
       "projected_slowest_duration_minutes": 22.57
@@ -42,7 +42,7 @@
     "builtin_24": {
       "shards": 24,
       "strategy": "playwright --shard=N/24",
-      "total_project_cases": 459,
+      "total_project_cases": 465,
       "empty_shards": 3,
       "projected_slowest_duration_ms": 1190064,
       "projected_slowest_duration_minutes": 19.83
@@ -50,7 +50,7 @@
     "builtin_32": {
       "shards": 32,
       "strategy": "playwright --shard=N/32",
-      "total_project_cases": 459,
+      "total_project_cases": 465,
       "empty_shards": 4,
       "projected_slowest_duration_ms": 1052217,
       "projected_slowest_duration_minutes": 17.54
@@ -58,7 +58,7 @@
     "weighted_16": {
       "shards": 16,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 459,
+      "total_project_cases": 465,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 343020,
       "projected_slowest_duration_minutes": 5.72,
@@ -68,7 +68,7 @@
     "weighted_24": {
       "shards": 24,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 459,
+      "total_project_cases": 465,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 240000,
       "projected_slowest_duration_minutes": 4,
@@ -78,7 +78,7 @@
     "weighted_32": {
       "shards": 32,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 459,
+      "total_project_cases": 465,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 187105,
       "projected_slowest_duration_minutes": 3.12,
@@ -88,7 +88,7 @@
     "selected": {
       "shards": 24,
       "strategy": "deterministic greedy bin-pack with 30000ms minimum logical-group load",
-      "total_project_cases": 459,
+      "total_project_cases": 465,
       "empty_shards": 0,
       "projected_slowest_duration_ms": 240000,
       "projected_slowest_duration_minutes": 4,
@@ -593,9 +593,9 @@
     {
       "shard": 24,
       "historical_duration_ms": 100509,
-      "load_weight_ms": 240000,
-      "logical_tests": 8,
-      "project_cases": 24,
+      "load_weight_ms": 270000,
+      "logical_tests": 9,
+      "project_cases": 27,
       "groups": [
         "accessibility.spec.js:239:mobile widths stay within viewport without text overflow",
         "creator.spec.js:602:17. Player dock switches between reveal and classic coloring",
@@ -604,10 +604,12 @@
         "guided-path.spec.js:205:real Telegram Android keeps the existing bottom primary navigation",
         "special-cells-responsive-evidence.spec.js:76:tiled special offer stays usable at mobile widths and honors reduced motion",
         "special-cells.spec.js:157:legacy 28x28 treatment discovers Spark in the real canvas and continues",
-        "stabilization.spec.js:266:9. Free exploration requires an explicit return to the same target"
+        "stabilization.spec.js:266:9. Free exploration requires an explicit return to the same target",
+        "catalog-merchandising.spec.js:15:merchandising catalog exposes shelves and the Collection > Album hierarchy",
+        "catalog-merchandising.spec.js:39:Premium Gallery presents the complete value proposition and stops at payment boundary"
       ],
       "historical_duration_minutes": 1.68,
-      "load_weight_minutes": 4,
+      "load_weight_minutes": 4.5,
       "request_count": null,
       "tile_request_count": null,
       "p95_api_latency_ms": null,
@@ -3827,6 +3829,48 @@
       },
       "load_weight_ms": 30000,
       "shard": 22
+    },
+    {
+      "id": "catalog-merchandising.spec.js:15:merchandising catalog exposes shelves and the Collection > Album hierarchy",
+      "file": "catalog-merchandising.spec.js",
+      "line": 15,
+      "title": "merchandising catalog exposes shelves and the Collection > Album hierarchy",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile iPhone",
+        "Mobile Pixel"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "load_weight_ms": 30000,
+      "shard": 24
+    },
+    {
+      "id": "catalog-merchandising.spec.js:39:Premium Gallery presents the complete value proposition and stops at payment boundary",
+      "file": "catalog-merchandising.spec.js",
+      "line": 39,
+      "title": "Premium Gallery presents the complete value proposition and stops at payment boundary",
+      "historical_duration_ms": 0,
+      "project_cases": 3,
+      "projects": [
+        "chromium",
+        "Mobile iPhone",
+        "Mobile Pixel"
+      ],
+      "flags": {
+        "heavy_tiled": false,
+        "visual": false,
+        "creator": false,
+        "lifecycle": false
+      },
+      "load_weight_ms": 30000,
+      "shard": 24
     }
   ]
 }
