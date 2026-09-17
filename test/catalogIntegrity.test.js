@@ -75,4 +75,24 @@ test('catalog manifest has a complete normalized hierarchy and valid local asset
     assertPngAsset(cover.source_asset, cover.width, cover.height),
     assertPngAsset(cover.optimized_asset),
   ]));
+
+  // Delivery budgets: card and player surfaces serve the lightweight pixel
+  // preview, never the full-resolution master. A regression here directly
+  // inflates every catalog page view on mobile WebViews.
+  const MAX_PREVIEW_BYTES = 256 * 1024;
+  const MAX_COVER_BYTES = 1024 * 1024;
+  await Promise.all(manifest.entries.map(async (entry) => {
+    const bytes = await readFile(localAssetPath(entry.preview_asset));
+    assert.ok(
+      bytes.length <= MAX_PREVIEW_BYTES,
+      `preview exceeds delivery budget (${bytes.length} > ${MAX_PREVIEW_BYTES}): ${entry.preview_asset}`,
+    );
+  }));
+  await Promise.all(manifest.covers.map(async (cover) => {
+    const bytes = await readFile(localAssetPath(cover.optimized_asset));
+    assert.ok(
+      bytes.length <= MAX_COVER_BYTES,
+      `cover exceeds delivery budget (${bytes.length} > ${MAX_COVER_BYTES}): ${cover.optimized_asset}`,
+    );
+  }));
 });
