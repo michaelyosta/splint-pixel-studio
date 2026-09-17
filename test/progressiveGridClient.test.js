@@ -163,6 +163,8 @@ test('overview zoom uses the preview contract and does not request detail tiles'
   assert.equal(result.errors.length, 0);
   assert.equal(result.cache.tiles, 0, 'overview does not populate the detail cache');
   assert.equal(client.getNetworkStats().overviewPlans, 1);
+  assert.equal(client.getNetworkStats().overviewPlanTileFetches, 0, 'overview plans attribute zero fetches');
+  assert.equal(client.getNetworkStats().workPlanTileFetches, 0);
 });
 
 test('LOD hysteresis keeps pinch near the renderer boundary in one mode', () => {
@@ -205,6 +207,9 @@ test('synthetic 1200x1200 viewport loads visible and overscan tiles into typed b
   assert.ok(result.cache.tiles <= 12, 'cache remains bounded');
   assert.equal(calls.filter((url) => url.endsWith('/manifest')).length, 1);
   assert.equal(calls.filter((url) => url.includes('/tiles/')).length, 9);
+  assert.equal(client.getNetworkStats().workPlans, 1);
+  assert.equal(client.getNetworkStats().workPlanTileFetches, 9, 'work plans attribute their own fetch attempts');
+  assert.equal(client.getNetworkStats().overviewPlanTileFetches, 0);
 
   const loadedCell = client.getCell(20, 10);
   assert.equal(loadedCell.loaded, true);

@@ -419,6 +419,13 @@ export function createProgressiveGridClient({
     viewportPlans: 0,
     overviewPlans: 0,
     workPlans: 0,
+    // Tile fetch attempts attributed to the plan mode that issued them. A
+    // WORK plan scheduled before an overview transition may still settle
+    // inside the overview measurement window; attributing attempts by plan
+    // mode (rather than wall-clock time) keeps the overview contract
+    // deterministic under that race.
+    workPlanTileFetches: 0,
+    overviewPlanTileFetches: 0,
     tileFetches: 0,
     tileFetchSuccesses: 0,
     tileFetchFailures: 0,
@@ -728,6 +735,10 @@ export function createProgressiveGridClient({
     const lodMode = mode === GRID_LOD_MODE.OVERVIEW ? GRID_LOD_MODE.OVERVIEW : GRID_LOD_MODE.WORK;
     networkMetrics.viewportPlans += 1;
     networkMetrics[`${lodMode}Plans`] += 1;
+    // Captured synchronously with the plan counters above so concurrent
+    // plans cannot pollute each other's attribution: the overview branch
+    // below performs no fetch between these two reads.
+    const tileFetchesBefore = networkMetrics.tileFetches;
     const plan = selectViewportTiles({
       grid: activeManifest.grid,
       camera,
@@ -744,6 +755,7 @@ export function createProgressiveGridClient({
       // low-zoom camera must never fetch or pin a logical full-map tile set.
       tileCache.setPinnedKeys([]);
       if (!destroyed) setStatus(PROGRESSIVE_GRID_STATUS.READY);
+      networkMetrics.overviewPlanTileFetches += networkMetrics.tileFetches - tileFetchesBefore;
       return {
         mode: lodMode,
         plan: { ...plan, mode: lodMode, visible: [], prefetch: [], all: [] },
@@ -766,10 +778,19 @@ export function createProgressiveGridClient({
     );
     tileCache.setPinnedKeys(visible.map((tile) => tile.key));
     const prefetch = plan.prefetch.slice(0, Math.max(0, Math.floor(Number(maxPrefetchTiles) || 0)));
-    const [visibleResults, prefetchResults] = await Promise.all([
-      loadGroup(visible, signal),
-      loadGroup(prefetch, signal),
-    ]);
+    let visibleResults;
+    let prefetchResults;
+    try {
+      [visibleResults, prefetchResults] = await Promise.all([
+        loadGroup(visible, signal),
+        loadGroup(prefetch, signal),
+      ]);
+    } finally {
+      // Attribute every attempt this WORK plan started, including attempts
+      // aborted by a later overview transition. The finally keeps the
+      // attribution exact on the abort path without changing it.
+      networkMetrics.workPlanTileFetches += networkMetrics.tileFetches - tileFetchesBefore;
+    }
     const loadedVisible = visibleResults.filter((result) => result.value).map((result) => result.value);
     const loadedPrefetched = prefetchResults.filter((result) => result.value).map((result) => result.value);
     const errors = [...visibleResults, ...prefetchResults]
