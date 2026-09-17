@@ -7,13 +7,22 @@ export function useProfileData({ showNotice, onNavigate }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [profileShelf, setProfileShelf] = useState('works');
   const profileRequestRef = useRef(0);
+  const currentUserRef = useRef(null);
 
   const loadCurrentUser = useCallback(async () => {
+    const requestId = profileRequestRef.current + 1;
+    profileRequestRef.current = requestId;
     try {
       const user = await api('/users/me');
+      currentUserRef.current = user;
       setCurrentUser(user);
+      // The own-profile response is also a safe render cache. Keep it behind
+      // the same generation guard so a slower bootstrap response cannot
+      // overwrite a public profile opened in the meantime.
+      if (requestId === profileRequestRef.current) setProfile(user);
       return user;
     } catch (error) {
+      if (requestId !== profileRequestRef.current) return null;
       showNotice(error.message, 'error');
       return null;
     }
@@ -22,6 +31,7 @@ export function useProfileData({ showNotice, onNavigate }) {
   const loadProfile = useCallback(async (userId = null) => {
     const requestId = profileRequestRef.current + 1;
     profileRequestRef.current = requestId;
+    if (!userId && currentUserRef.current) setProfile(currentUserRef.current);
     try {
       const nextProfile = await api(userId ? `/users/${userId}/profile` : '/users/me');
       if (requestId !== profileRequestRef.current) return null;
