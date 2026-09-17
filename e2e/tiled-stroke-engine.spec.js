@@ -525,8 +525,20 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
     // probe the cell just past the boundary mid-drag.
     const paintY = (await findPaintedRow(page, line.boundary, paintStart.y)) ?? paintStart.y;
     console.log('DIAG cross paintY=', paintY, 'boundary=', line.boundary);
+    const boundaryState = await page.evaluate(({ x, y }) => {
+      const cell = window.__splintClient?.getCell(x, y);
+      return { loaded: cell?.loaded, filled: cell?.filled };
+    }, { x: line.boundary, y: paintY });
+    expect(boundaryState, 'exact palette index is applied before touchEnd').toEqual({ loaded: true, filled: activeColor });
     const boundaryProbe = await canvasPixelAt(page, line.boundary, paintY);
-    expect(boundaryProbe, 'cell across the tile boundary painted mid-drag').toEqual(expectedRgb);
+    // CI run 35209716453 observed [46,124,49] for CSS [46,125,50].
+    // Allow canvas rasterization rounding of one 8-bit step; ownership of
+    // the exact palette index is asserted above and persisted cells below.
+    expect(boundaryProbe, 'canvas probe has three color channels').toHaveLength(3);
+    for (let channel = 0; channel < 3; channel += 1) {
+      expect(Math.abs(boundaryProbe[channel] - expectedRgb[channel]),
+        `cell across the tile boundary painted mid-drag, channel ${channel}`).toBeLessThanOrEqual(1);
+    }
     await page.screenshot({ path: resolve(evidenceDir, 'tiled-stroke-cross-tile-mid-drag.png') });
     await endTouchStroke(page, touchSession);
 
