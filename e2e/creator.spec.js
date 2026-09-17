@@ -763,11 +763,17 @@ test.describe('Creator 2.0 — full E2E', () => {
       response.request().method() === 'POST' && response.url().includes(`/colorings/${openedTemplate.id}/progress/actions`),
     );
     await page.keyboard.press('Enter');
-    await savePromise;
+    // Observe the celebration from the completing action, not from the save
+    // confirmation: the zone toast is raised optimistically at commit time
+    // with a fixed 2200ms lifetime (see celebrateCompletedZone), while the
+    // save round-trip is unbounded. CI run 35240288519 proved the failure
+    // mode — save took 2112ms, the toast expired 88ms after the save
+    // resolved, and a post-save poll missed a correctly shown celebration.
     const zoneMilestone = page.locator('.milestone.zone');
     await expect.poll(async () => {
       const text = await zoneMilestone.textContent();
       return Boolean(text?.includes(`Фрагмент «${zone.title}» раскрыт`) && !text.includes('XP'));
     }, { timeout: 15000 }).toBe(true);
+    await savePromise;
   });
 });
