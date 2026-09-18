@@ -143,7 +143,7 @@ export const metaApi = {
   weeklyChallenge: () => request('/meta/weekly-challenge'),
   achievements: () => request('/meta/achievements'),
   collections: () => request('/meta/collections'),
-  collectionTemplates: (id) => request(`/meta/collections/${id}/templates`),
+  collectionTemplates: (id, { albumId } = {}) => request(`/meta/collections/${id}/templates${albumId ? `?album_id=${encodeURIComponent(albumId)}` : ''}`),
   track: (event, payload = {}) => request('/meta/analytics', { method: 'POST', body: { event, payload } }),
   analyticsSummary: () => request('/meta/analytics/summary'),
 };
@@ -158,12 +158,15 @@ export const catalogApi = {
     if (params.q) query.set('q', params.q);
     if (params.sort) query.set('sort', params.sort);
     if (params.access) query.set('access', params.access);
+    if (params.collection_id) query.set('collection_id', String(params.collection_id));
+    if (params.album_id) query.set('album_id', String(params.album_id));
     if (params.limit !== undefined) query.set('limit', String(params.limit));
     if (params.offset !== undefined) query.set('offset', String(params.offset));
     const qs = query.toString();
     return request(`/colorings${qs ? `?${qs}` : ''}`);
   },
   today: () => request('/colorings/today'),
+  shelves: () => request('/colorings/shelves'),
   zones: (id) => request(`/colorings/${id}/zones`),
   favorites: () => request('/colorings/favorites'),
   history: (limit = 20) => request(`/colorings/history?limit=${encodeURIComponent(limit)}`),
@@ -202,6 +205,20 @@ export const telegramStarsOpsApi = {
       ...(reason ? { reason } : {}),
     },
   }),
+};
+
+export const adminApi = {
+  me: () => request('/admin/me'),
+  catalog: () => request('/admin/catalog'),
+  audit: (limit = 50) => request(`/admin/audit?limit=${encodeURIComponent(limit)}`),
+  acl: () => request('/admin/acl'),
+  users: (q = '') => request(`/admin/users?q=${encodeURIComponent(q)}`),
+  createDraft: (entityType, entityId, changes) => request('/admin/drafts', { method: 'POST', body: { entity_type: entityType, entity_id: entityId, changes } }),
+  updateDraft: (draftId, changes) => request(`/admin/drafts/${encodeURIComponent(draftId)}`, { method: 'PATCH', body: { changes } }),
+  previewDraft: (draftId) => request(`/admin/drafts/${encodeURIComponent(draftId)}/preview`, { method: 'POST', body: {} }),
+  publishDraft: (draftId) => request(`/admin/drafts/${encodeURIComponent(draftId)}/publish`, { method: 'POST', body: { confirm: true, confirm_impact: true } }),
+  upsertAcl: (userId, role, permissions) => request(`/admin/acl/${encodeURIComponent(userId)}`, { method: 'PUT', body: { role, permissions, confirm: true } }),
+  removeAcl: (userId) => request(`/admin/acl/${encodeURIComponent(userId)}`, { method: 'DELETE', body: { confirm: true } }),
 };
 
 export const directorApi = {

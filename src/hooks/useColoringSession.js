@@ -567,7 +567,12 @@ export function useColoringSession({
       comboRef.current = 0;
       setCombo(0);
       milestoneRef.current = new Set([25, 50, 75, 100].filter((value) => nextProgress.percent >= value));
-      zoneMilestoneRef.current = new Set((nextZones.zones || []).filter((z) => z.percent >= 100).map((z) => z.id));
+      // A rounded 100% must not suppress the first completion cue when one
+      // cell is still pending in a large zone. Use the exact counters for
+      // milestone initialization and keep `percent` purely presentational.
+      zoneMilestoneRef.current = new Set((nextZones.zones || [])
+        .filter((z) => Number(z.done) >= Number(z.total) && Number(z.total) > 0)
+        .map((z) => z.id));
       paintedRef.current = false;
       const coreFeelActive = isCoreFeelReference(coreFeelExperiment, nextTemplate);
       const firstCoreFeelFragment = coreFeelActive

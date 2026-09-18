@@ -31,10 +31,50 @@ async function openFirstCatalogColoring(page) {
   const firstCard = page.locator('.catalog-art-card').first();
   await expect(firstCard).toBeVisible({ timeout: 15000 });
   await firstCard.locator('.catalog-art-open').click();
-  await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
+}
+
+async function getFirstFreeCatalogColoring(page) {
+  const response = await page.request.get('/api/colorings?sort=featured&limit=500', { headers: API_HEADERS });
+  expect(response.ok()).toBe(true);
+  const catalog = await response.json();
+  const free = catalog.find((item) => item.access !== 'premium');
+  expect(free?.id).toBeTruthy();
+  return free;
+}
+
+async function openCatalogColoring(page, template) {
+  await gotoCatalog(page);
+  const card = page.locator('.catalog-art-card').filter({ hasText: template.title }).first();
+  await expect(card).toBeVisible({ timeout: 15000 });
+  await card.locator('.catalog-art-open').click();
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
+}
+
+async function waitForOwnCreatedWork(page, { id, title = null } = {}) {
+  await expect.poll(async () => {
+    const response = await page.request.get('/api/colorings/mine', { headers: API_HEADERS });
+    if (!response.ok()) return false;
+    const mine = await response.json();
+    return mine.some((item) => String(item.id) === String(id));
+  }, { timeout: 30000, intervals: [100, 250, 500, 1000] }).toBe(true);
+  await expect(page.locator('.profile-page')).toBeVisible({ timeout: 30000 });
+  await expect(page.locator('.profile-created-section')).toBeVisible({ timeout: 30000 });
+  const works = page.locator('.profile-created-section .profile-showcase-card');
+  const work = title ? works.filter({ hasText: title }) : works;
+  await expect(work).toHaveCount(1, { timeout: 30000 });
+  return work;
 }
 
 const API_HEADERS = { 'Content-Type': 'application/json' };
+
+// Cold player opens fan out to ~10 API calls plus a ~17-request
+// fire-and-forget analytics burst that saturates the browser's per-origin
+// connection pool on loaded CI runners (CI run 35258999917: browser-observed
+// up to 9.6s per request while every server handler stayed healthy). The 60s
+// budget matches the cold-start asserts in session-goals.spec.js; expects
+// resolve early, so green paths pay nothing.
+const PLAYER_OPEN_TIMEOUT = 60000;
 
 function normalizeHexColor(value) {
   const match = /^#([0-9a-f]{6})$/i.exec(value || '');
@@ -96,7 +136,7 @@ async function applyProgressChanges(page, id, changes, revision, resultDataUrl =
   return saved;
 }
 
-async function clickActiveWorkCell(page) {
+async function clickActiveWorkCell(page, targetIndex = null) {
   const canvas = page.locator('canvas.coloring-canvas');
   await expect(canvas).toBeVisible({ timeout: 10000 });
   await expect(canvas).not.toHaveAttribute('data-active-work-cells', '');
@@ -108,7 +148,19 @@ async function clickActiveWorkCell(page) {
     y: Number(await viewport.getAttribute('data-camera-y')),
     zoom: Number(await viewport.getAttribute('data-camera-zoom')),
   };
-  const index = activeCells[0];
+  const index = targetIndex == null ? activeCells[0] : targetIndex;
+  expect(activeCells).toContain(index);
+  const viewportBox = await viewport.boundingBox();
+  if (targetIndex != null && viewportBox) {
+    await expect.poll(async () => {
+      const currentX = Number(await viewport.getAttribute('data-camera-x'));
+      const currentY = Number(await viewport.getAttribute('data-camera-y'));
+      const zoom = Number(await viewport.getAttribute('data-camera-zoom'));
+      const x = currentX + ((index % templateWidth) + 0.5) * 32 * zoom;
+      const y = currentY + (Math.floor(index / templateWidth) + 0.5) * 32 * zoom;
+      return x >= 0 && x <= viewportBox.width && y >= 0 && y <= viewportBox.height;
+    }, { timeout: 10000 }).toBe(true);
+  }
   await canvas.click({
     force: true,
     position: {
@@ -143,7 +195,7 @@ async function saveColoring(page) {
   await expect(page.locator('.creator-success-page')).toBeVisible({ timeout: 15000 });
   await expect(page.locator('.creator-success-page')).toContainText('Раскраска готова');
   await page.locator('.creator-success-page button:has-text("Начать раскрашивать")').click();
-  await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
   return created.id;
 }
 
@@ -427,11 +479,9 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.locator('.back-button').click();
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 5000 });
     await page.getByRole('button', { name: 'Профиль' }).first().click();
-    await expect(page.locator('.profile-created-section')).toBeVisible({ timeout: 10000 });
-    const createdWork = page.locator('.profile-created-section .profile-showcase-card');
-    await expect(createdWork).toHaveCount(1);
+    const createdWork = await waitForOwnCreatedWork(page, { id });
     await createdWork.locator('.profile-showcase-open').click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 30000 });
     await expect.poll(() => page.evaluate(() => window.__splintClient?.getSnapshot?.()?.status), { timeout: 15000 }).toBe('ready');
     const reopenedProgress = await page.request.get(`/api/colorings/${id}/progress`, { headers: API_HEADERS });
     expect(reopenedProgress.ok()).toBe(true);
@@ -478,8 +528,9 @@ test.describe('Creator 2.0 — full E2E', () => {
     const id = (await createResponse.json()).id;
     await page.goto('/');
     await page.getByRole('button', { name: 'Профиль', exact: true }).click();
-    await page.locator('.profile-created-section .profile-showcase-card').filter({ hasText: 'Completion flow fixture' }).locator('.profile-showcase-open').click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    const initialCreatedWork = await waitForOwnCreatedWork(page, { id, title: 'Completion flow fixture' });
+    await initialCreatedWork.locator('.profile-showcase-open').click();
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 30000 });
 
     const tplResp = await page.request.get(`/api/colorings/${id}`, { headers: API_HEADERS });
     expect(tplResp.ok()).toBe(true);
@@ -500,9 +551,9 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.locator('.back-button').click();
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 5000 });
     await page.getByRole('button', { name: 'Профиль', exact: true }).click();
-    await expect(page.locator('.profile-created-section')).toBeVisible({ timeout: 10000 });
-    await page.locator('.profile-created-section .profile-showcase-card').filter({ hasText: 'Completion flow fixture' }).locator('.profile-showcase-open').click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    const reopenedCreatedWork = await waitForOwnCreatedWork(page, { id, title: 'Completion flow fixture' });
+    await reopenedCreatedWork.locator('.profile-showcase-open').click();
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: 30000 });
 
     // Completion overlay should appear with all buttons
     await expect(page.locator('.completion-overlay')).toBeVisible({ timeout: 15000 });
@@ -530,13 +581,14 @@ test.describe('Creator 2.0 — full E2E', () => {
     const firstCard = page.locator('.catalog-art-card').first();
     await expect(firstCard).toBeVisible({ timeout: 15000 });
     await firstCard.locator('.catalog-art-open').click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
     await expect(page.locator('canvas.coloring-canvas')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.player-topbar')).toBeVisible();
     await expect(page.locator('.palette')).toBeVisible();
   });
 
   test('11. Delete a user-created coloring from profile', async ({ page }) => {
+    test.setTimeout(120_000);
     await page.goto('/');
     await openImageCreator(page);
     await page.locator('.file-field input[type="file"]').setInputFiles(['e2e/fixtures/test-image.png']);
@@ -553,14 +605,12 @@ test.describe('Creator 2.0 — full E2E', () => {
     expect(created.title).toBeTruthy();
     await expect(page.locator('.creator-success-page')).toBeVisible({ timeout: 15000 });
     await page.locator('.creator-success-page button:has-text("Начать раскрашивать")').click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await page.locator('.back-button').click();
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 5000 });
     await page.getByRole('button', { name: 'Профиль' }).first().click();
-    await expect(page.locator('.profile-created-section')).toBeVisible({ timeout: 10000 });
-    const createdRow = page.locator('.profile-created-section .profile-showcase-card').filter({ hasText: created.title });
-    await expect(createdRow).toHaveCount(1);
+    const createdRow = await waitForOwnCreatedWork(page, { id: created.id, title: created.title });
     const deleteBtn = createdRow.getByRole('button', { name: `Удалить ${created.title}` });
     await expect(deleteBtn).toBeVisible();
     page.once('dialog', (dialog) => dialog.accept());
@@ -607,7 +657,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 15000 });
     await page.locator('.catalog-art-card .catalog-art-open').first().click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
     await expect(page.locator('canvas.coloring-canvas')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.player-topbar')).toBeVisible();
     await expect(page.locator('.palette')).toBeVisible();
@@ -649,7 +699,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     await gotoCatalog(page);
     await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 15000 });
     await page.locator('.catalog-art-card').first().locator('.catalog-art-open').click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await expect(page.locator('.palette')).toBeVisible();
     await page.locator('.player-menu-btn').click();
@@ -661,10 +711,8 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('18. Reveal mode paints without selecting a palette color first', async ({ page }) => {
-    const catalog = await (await page.request.get('/api/colorings', { headers: API_HEADERS })).json();
-    const openedTemplate = catalog[0];
-    await gotoCatalog(page);
-    await page.locator('.catalog-art-card').first().locator('.catalog-art-open').click();
+    const openedTemplate = await getFirstFreeCatalogColoring(page);
+    await openCatalogColoring(page, openedTemplate);
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await page.locator('.player-menu-btn').click();
     await page.locator('.bottom-sheet-actions button:has-text("Режим раскрытия")').click();
@@ -677,10 +725,7 @@ test.describe('Creator 2.0 — full E2E', () => {
   });
 
   test('19. Completing a zone celebrates the revealed fragment without XP copy', async ({ page }) => {
-    const catalogResponse = await page.request.get('/api/colorings', { headers: API_HEADERS });
-    expect(catalogResponse.ok()).toBe(true);
-    const [catalogTemplate] = await catalogResponse.json();
-    expect(catalogTemplate?.id).toBeTruthy();
+    const catalogTemplate = await getFirstFreeCatalogColoring(page);
 
     const templateResponse = await page.request.get(`/api/colorings/${catalogTemplate.id}`, { headers: API_HEADERS });
     expect(templateResponse.ok()).toBe(true);
@@ -708,11 +753,35 @@ test.describe('Creator 2.0 — full E2E', () => {
       openedTemplate.cells.flatMap((color, index) => omitted.has(index) ? [] : [{ index, color }]),
       progress.revision);
 
-    await gotoCatalog(page);
-    await page.locator('.catalog-art-card').filter({ hasText: openedTemplate.title }).locator('.catalog-art-open').first().click();
+    await openCatalogColoring(page, openedTemplate);
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
-    await clickActiveWorkCell(page);
-    await expect(page.locator('.milestone.zone')).toContainText(`Фрагмент «${zone.title}» раскрыт`);
-    await expect(page.locator('.milestone.zone')).not.toContainText('XP');
+    await page.locator(`.color-swatch[title="Цвет ${openedTemplate.cells[finalIndex] + 1}"]`).click();
+    await expect.poll(async () => {
+      const session = page.locator('.coloring-session');
+      const canvas = page.locator('canvas.coloring-canvas');
+      const targetColor = await session.getAttribute('data-target-color');
+      const activeCells = (await canvas.getAttribute('data-active-work-cells')) || '';
+      return targetColor === String(openedTemplate.cells[finalIndex])
+        && activeCells.split(',').map(Number).includes(finalIndex);
+    }, { timeout: 10000 }).toBe(true);
+    const canvas = page.locator('canvas.coloring-canvas');
+    await canvas.focus();
+    await expect(canvas).toHaveAttribute('data-keyboard-cell', String(finalIndex));
+    const savePromise = page.waitForResponse((response) =>
+      response.request().method() === 'POST' && response.url().includes(`/colorings/${openedTemplate.id}/progress/actions`),
+    );
+    await page.keyboard.press('Enter');
+    // Observe the celebration from the completing action, not from the save
+    // confirmation: the zone toast is raised optimistically at commit time
+    // with a fixed 2200ms lifetime (see celebrateCompletedZone), while the
+    // save round-trip is unbounded. CI run 35240288519 proved the failure
+    // mode — save took 2112ms, the toast expired 88ms after the save
+    // resolved, and a post-save poll missed a correctly shown celebration.
+    const zoneMilestone = page.locator('.milestone.zone');
+    await expect.poll(async () => {
+      const text = await zoneMilestone.textContent();
+      return Boolean(text?.includes(`Фрагмент «${zone.title}» раскрыт`) && !text.includes('XP'));
+    }, { timeout: 15000 }).toBe(true);
+    await savePromise;
   });
 });

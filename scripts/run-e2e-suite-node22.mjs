@@ -11,6 +11,8 @@ const critical = [
   { file: 'e2e/auth-contract.spec.js', title: 'missing or invalid Telegram initData is rejected' },
   { file: 'e2e/bfcache-lifecycle.spec.js', title: 'legacy queue keeps painting after persisted pagehide/pageshow' },
   { file: 'e2e/coloring-surface-gesture-guard.spec.js', title: 'classic pointer capture stays on the canvas and paint commits progress' },
+  { file: 'e2e/catalog-merchandising.spec.js', title: 'merchandising catalog exposes shelves and the Collection > Album hierarchy' },
+  { file: 'e2e/catalog-merchandising.spec.js', title: 'Premium Gallery presents the complete value proposition and stops at payment boundary' },
   { file: 'e2e/creator.spec.js', title: '3. File upload shows grid, crop, and color controls' },
   { file: 'e2e/creator.spec.js', title: '6. Compute shows previews and quality indicator' },
   { file: 'e2e/creator.spec.js', title: '6c. 1200x1200 creator path uploads tiled storage and opens bounded player' },
@@ -50,14 +52,15 @@ const criticalPixelPartitionA = new Set([
   'legacy progression-locked direct ID stays fail-closed without progression UX',
   'classic keyboard paint commits server progress',
   'classic pointer capture stays on the canvas and paint commits progress',
+  'merchandising catalog exposes shelves and the Collection > Album hierarchy',
   'catalog is the default and primary navigation has exactly three product tabs',
   'missing or invalid Telegram initData is rejected',
 ]);
 const criticalPixelA = critical.filter(({ title }) => criticalPixelPartitionA.has(title));
 const criticalPixelB = critical.filter(({ title }) => !criticalPixelPartitionA.has(title));
-if (criticalPixelA.length !== 13 || criticalPixelB.length !== 13
+  if (criticalPixelA.length !== 14 || criticalPixelB.length !== 14
   || new Set([...criticalPixelA, ...criticalPixelB].map(({ file, title }) => `${file}:${title}`)).size !== critical.length) {
-  throw new Error('Critical Pixel partitions must cover each critical title exactly once (13 + 13).');
+  throw new Error('Critical Pixel partitions must cover each critical title exactly once (14 + 14).');
 }
 
 // WebKit emulation cannot execute the 1200x1200 creator/touch scenarios in

@@ -5,6 +5,7 @@ import { hapticSelection } from '../lib/telegram';
 
 export function useCatalogData({ showNotice, setFavoriteTemplates, onNavigate }) {
   const [templates, setTemplates] = useState([]);
+  const [shelves, setShelves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState(false);
   const [mine, setMine] = useState([]);
@@ -21,7 +22,7 @@ export function useCatalogData({ showNotice, setFavoriteTemplates, onNavigate })
   const loadCatalog = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await catalogApi.list(filters);
+      const data = await catalogApi.list({ ...filters, limit: 500, sort: 'featured' });
       setTemplates(data);
       setCatalogError(false);
     } catch (error) {
@@ -31,6 +32,15 @@ export function useCatalogData({ showNotice, setFavoriteTemplates, onNavigate })
       setLoading(false);
     }
   }, [filters, showNotice]);
+
+  const loadShelves = useCallback(async () => {
+    try {
+      const data = await catalogApi.shelves();
+      setShelves(Array.isArray(data?.shelves) ? data.shelves : []);
+    } catch (error) {
+      showNotice(error.message || 'Не удалось загрузить витрину', 'error');
+    }
+  }, [showNotice]);
 
   const loadMine = useCallback(async () => {
     try {
@@ -44,7 +54,7 @@ export function useCatalogData({ showNotice, setFavoriteTemplates, onNavigate })
 
   const openCatalogCollection = useCallback(async (collection) => {
     try {
-      const items = await metaApi.collectionTemplates(collection.id);
+      const items = await metaApi.collectionTemplates(collection.id, { albumId: collection.album_id });
       setTemplates(items);
       setCatalogCollection(collection);
       setCatalogChip('collections');
@@ -136,6 +146,7 @@ export function useCatalogData({ showNotice, setFavoriteTemplates, onNavigate })
 
   return {
     templates,
+    shelves,
     loading,
     setLoading,
     catalogError,
@@ -155,6 +166,7 @@ export function useCatalogData({ showNotice, setFavoriteTemplates, onNavigate })
     ratingTemplateId,
     publishingTemplateId,
     loadCatalog,
+    loadShelves,
     loadMine,
     openCatalogCollection,
     resetCatalogScope,

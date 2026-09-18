@@ -7,6 +7,7 @@ import { asyncRoute } from '../middleware/asyncRoute.js';
 import { getDailyChallengeStatus, getUserProgression, getWeeklyChallengeStatus } from '../services/progression.js';
 import { assertCollectionAccessible } from '../services/unlock-service.js';
 import { buildCollectionContentMetadata, buildContentMetadata } from '../services/content-quality.js';
+import { CATALOG_COLLECTION_BY_ID, CATALOG_COLLECTION_IDS } from '../services/catalog-merchandising.js';
 
 const router = Router();
 // Only events actually emitted by the client are accepted here. Keep this in
@@ -17,6 +18,9 @@ const ANALYTICS_EVENTS = new Set([
   'coloring_stroke_commit', 'coloring_color_complete',
   'publish', 'share_native', 'share_telegram',
   'pack_preview_opened', 'pack_opened', 'pack_purchase_confirmed', 'pack_purchase_restored',
+  'shelf_view', 'shelf_open', 'collection_open', 'album_open', 'coloring_open', 'coloring_start',
+  'coloring_complete', 'premium_preview_open', 'premium_content_open', 'premium_cta_click',
+  'store_open_from_content', 'search_used', 'search_result_open',
   'download_result', 'create_coloring', 'create_manual_coloring', 'like', 'comment',
   'app_open', 'primary_action_seen', 'primary_action_started',
   'first_success', 'goal_completed',
@@ -96,10 +100,11 @@ router.post('/achievements/:id/unlock', authMiddleware, (_req, res) => {
 // GET /meta/collections — collection catalog with completion per user
 router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
   const cols = await all(`SELECT * FROM collections
-    WHERE owner_id IS NULL
+    WHERE (owner_id IS NULL AND status <> 'archived')
       OR owner_id=?
       OR (status='published' AND visibility='public')
-    ORDER BY title`, [req.userId]);
+    ORDER BY CASE WHEN catalog_scope='merchandising' THEN 0 ELSE 1 END,
+      COALESCE(catalog_rank, 1000), title`, [req.userId]);
   const rows = await Promise.all(cols.map(async (col) => {
     const completed = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.collection_id=? AND a.is_completed=1", [req.userId, col.id]);
     const total = await all('SELECT COUNT(*) as c FROM coloring_templates WHERE collection_id=?', [col.id]);
@@ -107,10 +112,43 @@ router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
     // cells here; tiled rows must remain metadata-only at this endpoint.
     const templates = await all(`SELECT width,height,difficulty,est_minutes,storage_mode
       FROM coloring_templates WHERE collection_id=? AND status='active' ORDER BY title LIMIT 48`, [col.id]);
+    const catalogDefinition = CATALOG_COLLECTION_BY_ID.get(col.id);
+    const accessCounts = col.catalog_scope === 'merchandising'
+      ? await all(`SELECT access_type, COUNT(*) AS c FROM coloring_templates
+        WHERE collection_id=? AND status='active' GROUP BY access_type`, [col.id])
+      : [];
+    const freeCount = Number(accessCounts.find((row) => row.access_type === 'free')?.c || 0);
+    const premiumCount = Number(accessCounts.find((row) => row.access_type === 'premium')?.c || 0);
+    const persistedAlbums = col.catalog_scope === 'merchandising'
+      ? await all(`SELECT * FROM catalog_albums WHERE collection_id=? AND status <> 'archived' ORDER BY sort_rank ASC, title ASC`, [col.id])
+      : [];
+    const albumDefinitions = persistedAlbums.length ? persistedAlbums : (catalogDefinition?.albums || []);
+    const albums = albumDefinitions.length
+      ? await Promise.all(albumDefinitions.map(async (album) => ({
+        ...album,
+        title: album.title || album.album_title,
+        total_count: Number((await all(`SELECT COUNT(*) AS c FROM coloring_templates WHERE collection_id=? AND album_id=? AND status='active'`, [col.id, album.id]))[0]?.c || 0),
+      })))
+      : [];
+    const isShowcase = col.id === 'col_premium-gallery';
+    const premiumGalleryTotal = isShowcase
+      ? Number((await get("SELECT COUNT(*) AS c FROM coloring_templates WHERE access_type='premium' AND status='active' AND visibility='public'", []))?.c || 0)
+      : null;
+    const catalogCoverUrl = col.catalog_cover_url || col.image_url || catalogDefinition?.image_url || (isShowcase ? '/assets/catalog/astro-whale-pixel.png' : null);
     return {
       ...col,
+      image_url: catalogCoverUrl,
       completed_count: completed[0]?.c || 0,
-      total_count: total[0]?.c || 0,
+      total_count: isShowcase ? premiumGalleryTotal : total[0]?.c || 0,
+      access: col.catalog_scope === 'merchandising'
+        ? (premiumCount === 0 ? 'free' : freeCount === 0 ? 'premium' : 'mixed')
+        : (col.pack_type === 'premium' ? 'premium' : 'free'),
+      free_count: col.catalog_scope === 'merchandising' ? freeCount : 0,
+      premium_count: col.catalog_scope === 'merchandising' ? premiumCount : premiumGalleryTotal || 0,
+      is_catalog: CATALOG_COLLECTION_IDS.has(col.id),
+      is_store_product: isShowcase,
+      albums,
+      catalog_cover_url: catalogCoverUrl,
       content_metadata: buildCollectionContentMetadata(templates),
     };
   }));
@@ -119,25 +157,35 @@ router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
 
 // GET /meta/collections/:id/templates — templates belonging to a collection
 router.get('/collections/:id/templates', authMiddleware, asyncRoute(async (req, res) => {
-  const collection = await get('SELECT id, owner_id, status, visibility, pack_type, price_in_stars FROM collections WHERE id=?', [req.params.id]);
+  const albumId = req.query.album_id === undefined ? null : String(req.query.album_id || '').trim();
+  if (albumId && (albumId.length > 120 || !/^[\x21-\x7e_-]+$/.test(albumId))) {
+    return res.status(400).json({ error: 'Некорректный альбом', code: 'INVALID_ALBUM_ID' });
+  }
+  const collection = await get('SELECT id, owner_id, status, visibility, pack_type, price_in_stars, catalog_scope FROM collections WHERE id=?', [req.params.id]);
   const isOwner = collection?.owner_id === req.userId;
   const isPublic = collection && (collection.owner_id === null || (collection.status === 'published' && collection.visibility === 'public'));
   if (!collection || (!isOwner && !isPublic)) {
     return res.status(404).json({ error: 'Коллекция не найдена' });
   }
-  const collectionAccess = await withDbTransaction((tx) => assertCollectionAccessible(tx, req.userId, collection, { grant: true }));
-  if (collectionAccess.locked) {
-    return res.status(403).json({
-      error: collectionAccess.state === 'premium_locked'
-        ? 'Контент доступен после покупки премиум-коллекции'
-        : 'Контент ещё не открыт',
-      code: collectionAccess.reason_code,
-      unlock: collectionAccess,
-    });
+  // Merchandising collections can be browsed as a hierarchy even when some
+  // individual entries are premium. The template start endpoint remains the
+  // authoritative per-item gate.
+  if (collection.catalog_scope !== 'merchandising') {
+    const collectionAccess = await withDbTransaction((tx) => assertCollectionAccessible(tx, req.userId, collection, { grant: true }));
+    if (collectionAccess.locked) {
+      return res.status(403).json({
+        error: collectionAccess.state === 'premium_locked'
+          ? 'Контент доступен после покупки премиум-коллекции'
+          : 'Контент ещё не открыт',
+        code: collectionAccess.reason_code,
+        unlock: collectionAccess,
+      });
+    }
   }
   const rows = await all(`SELECT * FROM coloring_templates WHERE collection_id=? AND status='active'
     ${isOwner ? '' : "AND visibility='public'"}
-    ORDER BY title`, [req.params.id]);
+    ${albumId ? 'AND album_id=?' : ''}
+    ORDER BY featured_rank ASC, title`, albumId ? [req.params.id, albumId] : [req.params.id]);
   res.json(rows.map(publicTemplateSummary));
 }));
 
@@ -157,14 +205,29 @@ function publicTemplateSummary(row) {
 
 function parseSafeTemplate(row) {
   if (!row) return null;
+  const parseArray = (value) => {
+    if (Array.isArray(value)) return value;
+    try {
+      const parsed = JSON.parse(value || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
   return {
     ...row,
     width: Number(row.width),
     height: Number(row.height),
     est_minutes: Number(row.est_minutes || 3),
     zone_count: Number(row.zone_count || 1),
-    palette: Array.isArray(row.palette_json) ? row.palette_json : JSON.parse(row.palette_json),
-    cells: Array.isArray(row.cells_json) ? row.cells_json : JSON.parse(row.cells_json),
+    palette: parseArray(row.palette_json),
+    cells: parseArray(row.cells_json),
+    tags: parseArray(row.tags_json),
+    season: parseArray(row.season_json),
+    audience: parseArray(row.audience_json),
+    tags_json: undefined,
+    season_json: undefined,
+    audience_json: undefined,
   };
 }
 

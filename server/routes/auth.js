@@ -16,6 +16,7 @@ import {
   verifySessionCsrf,
 } from '../services/auth-session.js';
 import { ensureTelegramUser } from '../services/identity.js';
+import { ensureConfiguredAdminOwner } from '../services/admin-acl.js';
 import { completeOidcLogin, consumeOidcLoginTransaction, createOidcLoginTransaction, getBrowserAuthConfig } from '../services/telegram-oidc.js';
 
 const router = Router();
@@ -76,6 +77,7 @@ router.get('/telegram/callback', asyncRoute(async (req, res) => {
       name: claims.name,
       picture: claims.picture,
     });
+    await ensureConfiguredAdminOwner({ userId, telegramId: claims.id });
     const session = await createBrowserSession(userId);
     setSessionCookie(res, session.token);
     setCsrfCookie(res, session.csrfToken);

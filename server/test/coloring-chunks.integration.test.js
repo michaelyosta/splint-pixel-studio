@@ -101,6 +101,7 @@ test('manifest and tile API projects legacy arrays without exposing an unsafe pu
     tiles_x: 1,
     tiles_y: 1,
     encoding: 'row-major-palette-index',
+    storage_mode: 'tiled',
   });
   assert.equal(manifest.json.progress.revision, 0);
   assert.equal(manifest.json.write_contract.max_changes, 64);

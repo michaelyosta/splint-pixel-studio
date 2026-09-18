@@ -189,7 +189,13 @@ test.describe('Session goals', () => {
     await page.goto('/?coreFeel=b&coreSubject=corefeel_goals_override&sessionGoals=control');
 
     const player = page.locator('.player-page');
-    await expect(player).toBeVisible({ timeout: 10000 });
+    // Cold start fans out to ~10 API calls (config, shelves, subject
+    // coloring, progress, zones) before the player renders. CI run
+    // 35240288519 showed healthy-but-slow responses (progress 1.5s
+    // server-side, ~10s browser-observed queueing) trip a 10s budget while
+    // the app was still correctly loading. The 60s budget matches every
+    // other .player-page cold-start assert in this file.
+    await expect(player).toBeVisible({ timeout: 60000 });
     await waitForColoringSessionReady(page, { 'data-core-feel-variant': 'b' }, 'core feel goal override');
     await expect(player).toHaveAttribute('data-session-goals-mode', 'control');
     await expect(player).toHaveAttribute('data-session-goals-visible', 'false');

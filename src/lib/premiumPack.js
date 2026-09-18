@@ -27,7 +27,7 @@ export const SHOWCASE_PREMIUM_PACK = Object.freeze({
   id: 'col_premium-gallery',
   title: 'Ночная орбита',
   eyebrow: 'ВИТРИНА · CURATED PACK',
-  description: 'Две спокойные космические сцены о свете, который находится в темноте.',
+  description: 'Доступ ко всей Premium Gallery Splint: яркие миры, необычные существа и атмосферные сцены.',
   creator: 'Splint Studio',
   pack_type: 'premium',
   price_in_stars: 120,
@@ -178,6 +178,10 @@ export function mergeShowcasePackServerProjection(pack = SHOWCASE_PREMIUM_PACK, 
     ...pack,
     ...(Number.isFinite(serverPrice) && serverPrice >= 0 ? { price_in_stars: serverPrice } : {}),
     ...(serverMetadata ? { content_metadata: serverMetadata } : {}),
+    ...(Number.isSafeInteger(Number(collection.total_count)) && Number(collection.total_count) >= 0
+      ? { total_count: Number(collection.total_count) } : {}),
+    ...(Number.isSafeInteger(Number(collection.premium_count)) && Number(collection.premium_count) >= 0
+      ? { premium_count: Number(collection.premium_count) } : {}),
     image_url: safeText(collection.image_url) || pack.image_url,
   };
 }
