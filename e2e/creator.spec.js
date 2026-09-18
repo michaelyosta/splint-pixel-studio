@@ -31,7 +31,7 @@ async function openFirstCatalogColoring(page) {
   const firstCard = page.locator('.catalog-art-card').first();
   await expect(firstCard).toBeVisible({ timeout: 15000 });
   await firstCard.locator('.catalog-art-open').click();
-  await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
 }
 
 async function getFirstFreeCatalogColoring(page) {
@@ -48,7 +48,7 @@ async function openCatalogColoring(page, template) {
   const card = page.locator('.catalog-art-card').filter({ hasText: template.title }).first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.locator('.catalog-art-open').click();
-  await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
 }
 
 async function waitForOwnCreatedWork(page, { id, title = null } = {}) {
@@ -67,6 +67,14 @@ async function waitForOwnCreatedWork(page, { id, title = null } = {}) {
 }
 
 const API_HEADERS = { 'Content-Type': 'application/json' };
+
+// Cold player opens fan out to ~10 API calls plus a ~17-request
+// fire-and-forget analytics burst that saturates the browser's per-origin
+// connection pool on loaded CI runners (CI run 35258999917: browser-observed
+// up to 9.6s per request while every server handler stayed healthy). The 60s
+// budget matches the cold-start asserts in session-goals.spec.js; expects
+// resolve early, so green paths pay nothing.
+const PLAYER_OPEN_TIMEOUT = 60000;
 
 function normalizeHexColor(value) {
   const match = /^#([0-9a-f]{6})$/i.exec(value || '');
@@ -187,7 +195,7 @@ async function saveColoring(page) {
   await expect(page.locator('.creator-success-page')).toBeVisible({ timeout: 15000 });
   await expect(page.locator('.creator-success-page')).toContainText('Раскраска готова');
   await page.locator('.creator-success-page button:has-text("Начать раскрашивать")').click();
-  await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
   return created.id;
 }
 
@@ -573,7 +581,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     const firstCard = page.locator('.catalog-art-card').first();
     await expect(firstCard).toBeVisible({ timeout: 15000 });
     await firstCard.locator('.catalog-art-open').click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
     await expect(page.locator('canvas.coloring-canvas')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.player-topbar')).toBeVisible();
     await expect(page.locator('.palette')).toBeVisible();
@@ -597,7 +605,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     expect(created.title).toBeTruthy();
     await expect(page.locator('.creator-success-page')).toBeVisible({ timeout: 15000 });
     await page.locator('.creator-success-page button:has-text("Начать раскрашивать")').click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await page.locator('.back-button').click();
     await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 5000 });
@@ -649,7 +657,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     await page.goto('/');
     await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 15000 });
     await page.locator('.catalog-art-card .catalog-art-open').first().click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
     await expect(page.locator('canvas.coloring-canvas')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.player-topbar')).toBeVisible();
     await expect(page.locator('.palette')).toBeVisible();
@@ -691,7 +699,7 @@ test.describe('Creator 2.0 — full E2E', () => {
     await gotoCatalog(page);
     await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 15000 });
     await page.locator('.catalog-art-card').first().locator('.catalog-art-open').click();
-    await expect(page.locator('.player-page')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
     await page.locator('.onboarding-card .secondary-button').click().catch(() => {});
     await expect(page.locator('.palette')).toBeVisible();
     await page.locator('.player-menu-btn').click();
