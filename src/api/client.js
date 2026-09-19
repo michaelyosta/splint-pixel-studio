@@ -1,6 +1,6 @@
 import { getCoreFeelDevSubject } from '../features/coreFeel/coreFeelExperiment.js';
 import { getSessionGameDevSubject } from '../features/sessionGame/sessionGameExperiment.js';
-import { resolveApiUrl } from './apiBase.js';
+import { resolveClientApiUrl } from './apiBase.js';
 import { getPlatform } from '../lib/platform.js';
 import { getTelegramWebApp } from '../lib/telegram.js';
 
@@ -9,7 +9,7 @@ export const DEV_USER_ID = getCoreFeelDevSubject()
   || import.meta.env.VITE_DEV_USER_ID
   || 'user_pixelhunter';
 
-let browserSessionState = Object.freeze({ status: 'unknown', user: null, csrfToken: null, expiresAt: null });
+let browserSessionState = Object.freeze({ status: 'unknown', user: null, csrfToken: null, expiresAt: null, browserAuthEnabled: null });
 let browserSessionPromise = null;
 
 function notifyBrowserSession() {
@@ -40,19 +40,20 @@ export async function bootstrapBrowserSession({ force = false } = {}) {
   }
   if (!force && browserSessionState.status !== 'unknown') return browserSessionState;
   if (browserSessionPromise && !force) return browserSessionPromise;
-  browserSessionPromise = fetch(resolveApiUrl('/auth/session'), {
+  browserSessionPromise = fetch(resolveClientApiUrl('/auth/session'), {
     credentials: 'include',
     cache: 'no-store',
     headers: { Accept: 'application/json' },
   })
     .then(async (response) => {
       const data = await response.json().catch(() => ({}));
+      const browserAuthEnabled = typeof data.browserAuthEnabled === 'boolean' ? data.browserAuthEnabled : null;
       if (response.ok && data.authenticated && data.user && data.csrfToken) {
-        return setBrowserSessionState({ status: 'authenticated', user: data.user, csrfToken: data.csrfToken, expiresAt: data.expiresAt || null });
+        return setBrowserSessionState({ status: 'authenticated', user: data.user, csrfToken: data.csrfToken, expiresAt: data.expiresAt || null, browserAuthEnabled });
       }
-      return setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null });
+      return setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null, browserAuthEnabled });
     })
-    .catch(() => setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null }))
+    .catch(() => setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null, browserAuthEnabled: null }))
     .finally(() => { browserSessionPromise = null; });
   return browserSessionPromise;
 }
@@ -75,7 +76,7 @@ async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signa
     ? { 'X-CSRF-Token': browserSessionState.csrfToken }
     : {};
 
-  const response = await fetch(resolveApiUrl(path), {
+  const response = await fetch(resolveClientApiUrl(path), {
     method,
     signal,
     credentials: 'include',
@@ -102,7 +103,7 @@ async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signa
 
 export async function downloadColoringResult(id, { userId = DEV_USER_ID, signal } = {}) {
   await bootstrapBrowserSession();
-  const response = await fetch(resolveApiUrl(`/colorings/${encodeURIComponent(id)}/result`), {
+  const response = await fetch(resolveClientApiUrl(`/colorings/${encodeURIComponent(id)}/result`), {
     method: 'GET',
     signal,
     credentials: 'include',
@@ -126,9 +127,9 @@ export const api = request;
 
 export const authApi = {
   session: () => bootstrapBrowserSession({ force: true }),
-  loginUrl: () => resolveApiUrl('/auth/telegram/start'),
+  loginUrl: () => resolveClientApiUrl('/auth/telegram/start'),
   login: () => {
-    if (typeof window !== 'undefined') window.location.assign(resolveApiUrl('/auth/telegram/start'));
+    if (typeof window !== 'undefined') window.location.assign(resolveClientApiUrl('/auth/telegram/start'));
   },
   logout: async () => {
     await request('/auth/logout', { method: 'POST' });

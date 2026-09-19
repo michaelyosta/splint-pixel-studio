@@ -47,6 +47,13 @@ GET /auth/telegram/start
 → opaque Secure HttpOnly SameSite=Lax session + CSRF token
 ```
 
+Standalone browsers reach the API through the same-origin `/api` gateway (a
+Cloudflare Pages Function in the existing `splint-pixel-studio` project). The
+OIDC callback and the session cookie therefore live on the exact application
+origin, and the session is sent with every request under `SameSite=Lax`. The
+Telegram Mini App keeps calling the configured API origin directly with signed
+`initData`; the gateway is not in that path.
+
 The verifier checks the exact configured issuer, audience, expiry, issued-at,
 nonce, signature, and signed numeric Telegram profile `id`. It never links an
 account using a username, display name, photo, `sub`, localStorage value, or a

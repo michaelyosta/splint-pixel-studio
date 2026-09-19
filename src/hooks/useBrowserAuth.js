@@ -40,6 +40,7 @@ export function useBrowserAuth() {
     user: session.user,
     csrfToken: session.csrfToken,
     expiresAt: session.expiresAt,
+    browserAuthEnabled: session.browserAuthEnabled,
     isAuthenticated: platform.isTelegram || session.status === 'authenticated' || session.status === 'development',
     login,
     logout,

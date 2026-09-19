@@ -129,6 +129,8 @@ test('browser Telegram OIDC session and Mini App identity are continuous', async
 
   const missing = await fetch(`${apiBase}/auth/session`);
   assert.equal(missing.status, 401);
+  const missingJson = await missing.json();
+  assert.equal(missingJson.browserAuthEnabled, true);
 
   const invalidState = await fetch(`${apiBase}/auth/telegram/callback?state=invalid-state&code=unused`);
   assert.equal(invalidState.status, 400);
@@ -163,6 +165,7 @@ test('browser Telegram OIDC session and Mini App identity are continuous', async
   const sessionJson = await session.json();
   assert.equal(sessionJson.authenticated, true);
   assert.equal(sessionJson.user.id, 'tg_777001');
+  assert.equal(sessionJson.browserAuthEnabled, true);
 
   const browserMe = await fetch(`${apiBase}/users/me`, { headers: { Cookie: cookie } });
   assert.equal(browserMe.status, 200);
@@ -183,4 +186,42 @@ test('browser Telegram OIDC session and Mini App identity are continuous', async
   assert.equal(logout.status, 204);
   const afterLogout = await fetch(`${apiBase}/auth/session`, { headers: { Cookie: cookie } });
   assert.equal(afterLogout.status, 401);
+});
+
+test('browser Telegram OIDC fails closed with a product error when unconfigured', async (t) => {
+  const port = 31943;
+  const base = `http://127.0.0.1:${port}`;
+  const directory = await mkdtemp(join(tmpdir(), 'splint-browser-auth-off-'));
+  const env = {
+    ...process.env,
+    NODE_ENV: 'test',
+    PORT: String(port),
+    SQLITE_DB_PATH: join(directory, 'test.db.bin'),
+    MEDIA_STORAGE_ROOT: join(directory, 'uploads'),
+    TELEGRAM_BOT_TOKEN: botToken,
+  };
+  delete env.DATABASE_URL;
+  delete env.TELEGRAM_OIDC_CLIENT_ID;
+  delete env.TELEGRAM_OIDC_CLIENT_SECRET;
+  delete env.TELEGRAM_OIDC_REDIRECT_URI;
+  delete env.BROWSER_AUTH_ORIGIN;
+  const api = spawn('node', ['index.js'], { cwd: join(import.meta.dirname, '..'), env, stdio: ['ignore', 'pipe', 'pipe'] });
+  t.after(async () => {
+    api.kill();
+    await rm(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  });
+  await waitForApi(api);
+
+  const session = await fetch(`${base}/auth/session`, { headers: { Accept: 'application/json' } });
+  assert.equal(session.status, 401);
+  assert.equal((await session.json()).browserAuthEnabled, false);
+
+  const apiStart = await fetch(`${base}/auth/telegram/start`, { headers: { Accept: 'application/json' } });
+  assert.equal(apiStart.status, 503);
+  assert.equal((await apiStart.json()).code, 'BROWSER_AUTH_NOT_CONFIGURED');
+
+  const browserStart = await fetch(`${base}/auth/telegram/start`, { headers: { Accept: 'text/html,application/xhtml+xml' } });
+  assert.equal(browserStart.status, 503);
+  assert.match(browserStart.headers.get('content-type'), /text\/html/);
+  assert.match(await browserStart.text(), /недоступен/);
 });

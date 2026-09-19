@@ -11,7 +11,7 @@ import {
   normalizeTilePayload,
 } from '../features/coloring/large-grid/tileCache.js';
 import { normalizeGuidancePayload } from '../features/coloring/large-grid/smartRoute.js';
-import { API_BASE, resolveApiUrl } from '../api/apiBase.js';
+import { resolveApiUrl, resolveClientApiBase } from '../api/apiBase.js';
 
 export const PROGRESSIVE_GRID_STATUS = Object.freeze({
   IDLE: 'idle',
@@ -398,7 +398,7 @@ export function createProgressiveGridClient({
   templateId,
   manifestUrl,
   manifestPath,
-  baseUrl = API_BASE,
+  baseUrl = resolveClientApiBase(),
   fetchImpl = globalThis.fetch,
   headers,
   requestInit,

@@ -681,6 +681,7 @@ function App() {
     content = <BrowserAuthPage
       status={browserAuth.status}
       error={authError === 'telegram_denied' ? 'Вход отменён.' : authError ? 'Не удалось подтвердить вход через Telegram.' : null}
+      browserAuthEnabled={browserAuth.browserAuthEnabled}
       onLogin={browserAuth.login}
     />;
   }
