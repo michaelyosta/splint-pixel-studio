@@ -89,6 +89,20 @@ ALTER TABLE telegram_stars_orders ADD COLUMN price_xtr INTEGER;
 ALTER TABLE telegram_stars_orders ADD COLUMN price_version INTEGER;
 ALTER TABLE telegram_stars_orders ADD COLUMN invoice_created_at TEXT;
 
+-- Backfill the immutable price snapshot before the extended identity guard is
+-- installed. The guard rejects changes to these columns, so the one-time
+-- backfill must run under the previous guard.
+INSERT OR IGNORE INTO catalog_product_prices (product_id, price_xtr, price_version, updated_at)
+SELECT id, price_in_stars, 1, CURRENT_TIMESTAMP
+  FROM collections
+ WHERE id = 'col_premium-gallery' AND price_in_stars > 0;
+
+UPDATE telegram_stars_orders
+   SET price_xtr = amount_xtr,
+       price_version = COALESCE(price_version, 1),
+       invoice_created_at = COALESCE(invoice_created_at, created_at)
+ WHERE price_xtr IS NULL OR price_version IS NULL OR invoice_created_at IS NULL;
+
 DROP TRIGGER IF EXISTS trg_telegram_stars_orders_identity;
 CREATE TRIGGER trg_telegram_stars_orders_identity
 BEFORE UPDATE ON telegram_stars_orders
@@ -106,17 +120,6 @@ WHEN NEW.id IS NOT OLD.id
 BEGIN
   SELECT RAISE(ABORT, 'telegram_stars_orders identity is immutable');
 END;
-
-INSERT OR IGNORE INTO catalog_product_prices (product_id, price_xtr, price_version, updated_at)
-SELECT id, price_in_stars, 1, CURRENT_TIMESTAMP
-  FROM collections
- WHERE id = 'col_premium-gallery' AND price_in_stars > 0;
-
-UPDATE telegram_stars_orders
-   SET price_xtr = amount_xtr,
-       price_version = COALESCE(price_version, 1),
-       invoice_created_at = COALESCE(invoice_created_at, created_at)
- WHERE price_xtr IS NULL OR price_version IS NULL OR invoice_created_at IS NULL;
 
 CREATE TRIGGER IF NOT EXISTS trg_admin_audit_no_update
 BEFORE UPDATE ON admin_audit_log
