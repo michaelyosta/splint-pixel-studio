@@ -3,7 +3,7 @@ import { getSessionGameDevSubject } from '../features/sessionGame/sessionGameExp
 import { resolveClientApiUrl } from './apiBase.js';
 import { getPlatform } from '../lib/platform.js';
 import { getTelegramWebApp } from '../lib/telegram.js';
-import { createSerialRequestQueue } from './analyticsQueue.js';
+import { createAnalyticsBatcher } from './analyticsQueue.js';
 
 export const DEV_USER_ID = getCoreFeelDevSubject()
   || getSessionGameDevSubject()
@@ -12,7 +12,20 @@ export const DEV_USER_ID = getCoreFeelDevSubject()
 
 let browserSessionState = Object.freeze({ status: 'unknown', user: null, csrfToken: null, expiresAt: null, browserAuthEnabled: null });
 let browserSessionPromise = null;
-const enqueueAnalyticsRequest = createSerialRequestQueue();
+const analyticsBatcher = createAnalyticsBatcher(async (events) => {
+  try {
+    return await request('/meta/analytics/batch', { method: 'POST', body: { events } });
+  } catch (error) {
+    if (error?.status !== 404) throw error;
+    // During a frontend-first deploy an older backend may not have the batch
+    // endpoint yet. Preserve telemetry without recreating parallel pressure.
+    let result = null;
+    for (const entry of events) {
+      result = await request('/meta/analytics', { method: 'POST', body: entry });
+    }
+    return result;
+  }
+});
 
 function notifyBrowserSession() {
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('splint:browser-session', { detail: browserSessionState }));
@@ -147,7 +160,7 @@ export const metaApi = {
   achievements: () => request('/meta/achievements'),
   collections: () => request('/meta/collections'),
   collectionTemplates: (id, { albumId } = {}) => request(`/meta/collections/${id}/templates${albumId ? `?album_id=${encodeURIComponent(albumId)}` : ''}`),
-  track: (event, payload = {}) => enqueueAnalyticsRequest(() => request('/meta/analytics', { method: 'POST', body: { event, payload } })),
+  track: (event, payload = {}) => analyticsBatcher.track({ event, payload }),
   trackBatch: (events = []) => enqueueAnalyticsRequest(() => request('/meta/analytics/batch', { method: 'POST', body: { events } })),
   analyticsSummary: () => request('/meta/analytics/summary'),
 };
