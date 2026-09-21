@@ -669,7 +669,7 @@ function App() {
     />;
   }
 
-  if (browserAuth.platform.isBrowser && !canUseApp) {
+  if (!canUseApp) {
     content = <BrowserAuthPage
       status={browserAuth.status}
       error={authError === 'telegram_denied' ? 'Вход отменён.' : authError ? 'Не удалось подтвердить вход через Telegram.' : null}
