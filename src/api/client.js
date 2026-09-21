@@ -161,7 +161,6 @@ export const metaApi = {
   collections: () => request('/meta/collections'),
   collectionTemplates: (id, { albumId } = {}) => request(`/meta/collections/${id}/templates${albumId ? `?album_id=${encodeURIComponent(albumId)}` : ''}`),
   track: (event, payload = {}) => analyticsBatcher.track({ event, payload }),
-  trackBatch: (events = []) => enqueueAnalyticsRequest(() => request('/meta/analytics/batch', { method: 'POST', body: { events } })),
   analyticsSummary: () => request('/meta/analytics/summary'),
 };
 
