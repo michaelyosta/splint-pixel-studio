@@ -15,7 +15,7 @@ export default function BrowserAuthPage({ status = 'anonymous', error = null }) 
             : 'Для входа откройте @splint_pixel_studio_bot и нажмите Open. Telegram Mini App передаст подписанные данные сессии и откроет тот же профиль и прогресс.'}
         </p>
         {error && <p className="browser-auth-error" role="alert">{error}</p>}
-        {!isLoading && <a
+        <a
           className="primary-button browser-auth-button"
           href={TELEGRAM_MINI_APP_BOT_URL}
           target="_blank"
@@ -23,7 +23,7 @@ export default function BrowserAuthPage({ status = 'anonymous', error = null }) 
           data-browser-mini-app-launch
         >
           <ExternalLink size={18} /> Открыть в Telegram
-        </a>}
+        </a>
         <small className="browser-auth-note">В обычном браузере отдельный аккаунт не создаётся.</small>
       </div>
     </section>
