@@ -12,6 +12,7 @@ import {
   resolvePremiumPackState,
 } from '../lib/premiumPack.js';
 import { createPremiumPackPurchaseIntent } from '../lib/premiumPurchase.js';
+import { isProductAllowed } from '../lib/packStore.js';
 import PremiumPackView, { PremiumPackTeaser } from '../features/premium/PremiumPackView.jsx';
 
 export default function CatalogView({
@@ -47,6 +48,7 @@ export default function CatalogView({
   onOpenFreePack,
   onPremiumWish,
   paymentsMode = 'disabled',
+  allowedProductIds = null,
   onOpenStore,
   onTrack = () => {},
 }) {
@@ -173,13 +175,14 @@ export default function CatalogView({
     description: `Доступ ко всей Premium Gallery Splint: ${premiumCount} работ${premiumAlbumCount ? ` в ${premiumAlbumCount} альбомах` : ''}. Яркие миры, неон, существа и атмосферные сцены — одна покупка, полный маршрут.`,
   };
   const premiumEntitlement = findPremiumEntitlement(unlockData?.snapshot, SHOWCASE_PREMIUM_PACK.id);
+  const premiumProductAllowed = isProductAllowed(premiumPack.id, allowedProductIds);
   const premiumState = unlockData?.snapshotStatus === 'loading' && !unlockData?.snapshot
     ? PREMIUM_PACK_STATES.PREVIEW
     : resolvePremiumPackState({
       pack: premiumPack,
       entitlement: premiumEntitlement,
       snapshotStatus: unlockData?.snapshotStatus || 'error',
-      paymentsMode,
+      paymentsMode: premiumProductAllowed ? paymentsMode : 'disabled',
     });
   const currentTemplates = activeShelf ? shelfTemplates : catalogChip === 'popular' ? popularTemplates
     : catalogChip === 'new' ? newestTemplates

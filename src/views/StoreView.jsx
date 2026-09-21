@@ -5,6 +5,7 @@ import {
   PACK_STATES,
   canCheckout,
   checkoutStateLabel,
+  isProductAllowed,
   normalizeStorePacks,
   packStateLabel,
   reduceCheckoutState,
@@ -79,7 +80,7 @@ export default function StoreView({
   loading = false,
   error = false,
   paymentsMode = 'disabled',
-  allowedProductIds = [],
+  allowedProductIds = null,
   onRetry,
   onOpenCollection,
   onBack,
@@ -109,9 +110,9 @@ export default function StoreView({
 
   const selected = packs.find((pack) => pack.id === selectedPackId) || null;
   const selectedMetadata = formatContentMetadataDetail(selected);
-  const selectedProductAllowed = !allowedProductIds.length || allowedProductIds.includes(selected?.id);
+  const selectedProductAllowed = isProductAllowed(selected?.id, allowedProductIds);
   const isPackCheckoutEnabled = (pack) => Boolean(
-    pack && (!allowedProductIds.length || allowedProductIds.includes(pack.id)) && canCheckout(pack, paymentsMode),
+    pack && isProductAllowed(pack.id, allowedProductIds) && canCheckout(pack, paymentsMode),
   );
 
   useEffect(() => {
