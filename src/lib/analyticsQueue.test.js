@@ -36,8 +36,6 @@ test('analytics batcher flushes immediately at the configured bound', async () =
     {
       maxBatchSize: 3,
       flushDelayMs: 1000,
-      setTimer: () => 0,
-      clearTimer: () => {},
     },
   );
 
