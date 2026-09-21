@@ -12,6 +12,7 @@ test('standalone browser hands authentication back to the production Telegram Mi
   const appSource = await readFile(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.match(source, /data-browser-mini-app-launch/);
   assert.match(source, /Открыть в Telegram/);
+  assert.doesNotMatch(source, /!isLoading\s*&&\s*<a[\s\S]{0,400}data-browser-mini-app-launch/);
   assert.doesNotMatch(source, /auth\/telegram\/start/);
   assert.doesNotMatch(source, /onLogin/);
   assert.doesNotMatch(clientSource, /auth\/telegram\/start/);
