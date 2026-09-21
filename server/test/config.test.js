@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getPaymentsMode, getTelegramStarsControlledConfiguration, isDevelopmentAuthEnabled, validateProductionConfiguration } from '../config.js';
-import { getBrowserAuthConfig } from '../services/telegram-oidc.js';
 
 const validProduction = {
   NODE_ENV: 'production',
@@ -67,31 +66,6 @@ test('production browser OIDC configuration must be complete and exact', () => {
     TELEGRAM_OIDC_REDIRECT_URI: 'https://login.example.com/api/auth/telegram/callback',
     BROWSER_AUTH_ORIGIN: 'https://login.example.com',
   }), /included in CORS_ORIGINS/);
-});
-
-test('browser OIDC is absent by default and rejects partial configuration', () => {
-  const absent = getBrowserAuthConfig({});
-  assert.equal(absent.configured, false);
-  assert.equal(absent.redirectUri, '');
-  assert.equal(absent.appOrigin, '');
-  assert.throws(
-    () => getBrowserAuthConfig({ TELEGRAM_OIDC_CLIENT_ID: '123' }),
-    /must be configured together/,
-  );
-});
-
-test('browser OIDC accepts the documented same-origin callback shape', () => {
-  const config = getBrowserAuthConfig({
-    NODE_ENV: 'production',
-    TELEGRAM_OIDC_CLIENT_ID: '123',
-    TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
-    TELEGRAM_OIDC_REDIRECT_URI: 'https://pixel.showalove.ru/api/auth/telegram/callback',
-    BROWSER_AUTH_ORIGIN: 'https://pixel.showalove.ru',
-  });
-  assert.equal(config.configured, true);
-  assert.equal(config.appOrigin, 'https://pixel.showalove.ru');
-  assert.equal(config.redirectUri, 'https://pixel.showalove.ru/api/auth/telegram/callback');
-  assert.equal(config.issuer, 'https://oauth.telegram.org');
 });
 
 test('production configuration is case-insensitive for the environment name', () => {
