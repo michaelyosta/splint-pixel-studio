@@ -3,6 +3,7 @@ import { getSessionGameDevSubject } from '../features/sessionGame/sessionGameExp
 import { resolveClientApiUrl } from './apiBase.js';
 import { getPlatform } from '../lib/platform.js';
 import { getTelegramWebApp } from '../lib/telegram.js';
+import { createSerialRequestQueue } from './analyticsQueue.js';
 
 export const DEV_USER_ID = getCoreFeelDevSubject()
   || getSessionGameDevSubject()
@@ -11,6 +12,7 @@ export const DEV_USER_ID = getCoreFeelDevSubject()
 
 let browserSessionState = Object.freeze({ status: 'unknown', user: null, csrfToken: null, expiresAt: null, browserAuthEnabled: null });
 let browserSessionPromise = null;
+const enqueueAnalyticsRequest = createSerialRequestQueue();
 
 function notifyBrowserSession() {
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('splint:browser-session', { detail: browserSessionState }));
@@ -145,7 +147,7 @@ export const metaApi = {
   achievements: () => request('/meta/achievements'),
   collections: () => request('/meta/collections'),
   collectionTemplates: (id, { albumId } = {}) => request(`/meta/collections/${id}/templates${albumId ? `?album_id=${encodeURIComponent(albumId)}` : ''}`),
-  track: (event, payload = {}) => request('/meta/analytics', { method: 'POST', body: { event, payload } }),
+  track: (event, payload = {}) => enqueueAnalyticsRequest(() => request('/meta/analytics', { method: 'POST', body: { event, payload } })),
   analyticsSummary: () => request('/meta/analytics/summary'),
 };
 
