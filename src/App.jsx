@@ -346,10 +346,6 @@ function App() {
     }
     if (nextView === 'profile') {
       setViewedProfileId(null);
-      // Start the authoritative own-profile request immediately. The profile
-      // view effect repeats it after the route state settles, while the
-      // request guard prevents an older public-profile response from winning.
-      profile.loadProfile(null);
     }
     setView(nextView);
   }
@@ -387,14 +383,10 @@ function App() {
     }).catch(() => {});
     session.setCompletionOpen(false);
     if (option.type === 'profile') {
-      // Switch immediately so a slow mobile request cannot leave the player
-      // mounted while the async profile/catalog refresh is still in flight.
-      // The profile view effect performs its own authoritative load on mount.
+      // Switch immediately; the profile route effects perform the single
+      // authoritative profile/mine/product refresh after the player unmounts.
+      setViewedProfileId(null);
       setView('profile');
-      // Start the handoff explicitly; the view effect remains the authoritative refresh path.
-      profile.loadProfile(null);
-      catalog.loadMine();
-      product.loadProductProfile();
       return;
     }
     if (option.template_id) {
