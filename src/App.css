@@ -3169,7 +3169,7 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .browser-auth-icon { width: 56px; height: 56px; display: grid; place-items: center; margin: 0 auto 18px; border: 1px solid rgba(43, 217, 254, 0.45); border-radius: 18px; color: var(--app-cyan); background: rgba(43, 217, 254, 0.1); }
 .browser-auth-card h1 { margin: 8px 0 12px; color: var(--app-text-primary); font-size: clamp(24px, 4vw, 36px); line-height: 1.08; letter-spacing: -0.04em; }
 .browser-auth-copy { max-width: 42ch; margin: 0 auto 24px; color: var(--app-text-secondary); font-size: 14px; line-height: 1.55; }
-.browser-auth-button { width: 100%; justify-content: center; min-height: 52px; }
+.browser-auth-button { width: 100%; min-height: 52px; box-sizing: border-box; justify-content: center; text-decoration: none; }
 .browser-auth-note { display: block; margin-top: 16px; color: var(--app-text-faint); font-size: 11px; line-height: 1.45; }
 .browser-auth-error { margin: 0 0 16px; color: #ff8b9a; font-size: 13px; }
 
