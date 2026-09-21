@@ -347,6 +347,9 @@ img { user-select: none; }
 .error-retry { text-align: center; padding: 34px 16px; }
 .error-retry p { color: var(--app-text-secondary); font-size: 13px; margin-bottom: 14px; }
 .error-retry .secondary-button { min-height: 44px; padding: 0 20px; }
+.player-load-error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 14px; }
+.player-load-error-actions .primary-button,
+.player-load-error-actions .secondary-button { min-height: 44px; }
 
 .toast {
   position: absolute;
