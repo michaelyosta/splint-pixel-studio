@@ -1,6 +1,6 @@
 import { getCoreFeelDevSubject } from '../features/coreFeel/coreFeelExperiment.js';
 import { getSessionGameDevSubject } from '../features/sessionGame/sessionGameExperiment.js';
-import { resolveClientApiUrl } from './apiBase.js';
+import { resolveApiUrl } from './apiBase.js';
 import { getPlatform } from '../lib/platform.js';
 import { getTelegramWebApp } from '../lib/telegram.js';
 import { createAnalyticsBatcher } from './analyticsQueue.js';
@@ -55,7 +55,7 @@ export async function bootstrapBrowserSession({ force = false } = {}) {
   }
   if (!force && browserSessionState.status !== 'unknown') return browserSessionState;
   if (browserSessionPromise && !force) return browserSessionPromise;
-  browserSessionPromise = fetch(resolveClientApiUrl('/auth/session'), {
+  browserSessionPromise = fetch(resolveApiUrl('/auth/session'), {
     credentials: 'include',
     cache: 'no-store',
     headers: { Accept: 'application/json' },
@@ -90,7 +90,7 @@ async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signa
     ? { 'X-CSRF-Token': browserSessionState.csrfToken }
     : {};
 
-  const response = await fetch(resolveClientApiUrl(path), {
+  const response = await fetch(resolveApiUrl(path), {
     method,
     signal,
     credentials: 'include',
@@ -117,7 +117,7 @@ async function request(path, { method = 'GET', body, userId = DEV_USER_ID, signa
 
 export async function downloadColoringResult(id, { userId = DEV_USER_ID, signal } = {}) {
   await bootstrapBrowserSession();
-  const response = await fetch(resolveClientApiUrl(`/colorings/${encodeURIComponent(id)}/result`), {
+  const response = await fetch(resolveApiUrl(`/colorings/${encodeURIComponent(id)}/result`), {
     method: 'GET',
     signal,
     credentials: 'include',
@@ -141,9 +141,9 @@ export const api = request;
 
 export const authApi = {
   session: () => bootstrapBrowserSession({ force: true }),
-  loginUrl: () => resolveClientApiUrl('/auth/telegram/start'),
+  loginUrl: () => resolveApiUrl('/auth/telegram/start'),
   login: () => {
-    if (typeof window !== 'undefined') window.location.assign(resolveClientApiUrl('/auth/telegram/start'));
+    if (typeof window !== 'undefined') window.location.assign(resolveApiUrl('/auth/telegram/start'));
   },
   logout: async () => {
     await request('/auth/logout', { method: 'POST' });
