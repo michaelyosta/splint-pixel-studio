@@ -50,7 +50,10 @@ export function subscribeBrowserSession(listener) {
 
 export async function bootstrapBrowserSession({ force = false } = {}) {
   const platform = getPlatform();
-  if (platform.isTelegram || import.meta.env.VITE_ALLOW_DEV_AUTH === 'true') {
+  if (platform.authMode === 'telegram_init_data') {
+    return setBrowserSessionState({ status: 'telegram', user: null, csrfToken: null, expiresAt: null });
+  }
+  if (import.meta.env.VITE_ALLOW_DEV_AUTH === 'true') {
     return setBrowserSessionState({ status: 'development', user: null, csrfToken: null, expiresAt: null });
   }
   if (!force && browserSessionState.status !== 'unknown') return browserSessionState;

@@ -16,6 +16,8 @@ test('standalone browser hands authentication back to the production Telegram Mi
   assert.doesNotMatch(source, /onLogin/);
   assert.doesNotMatch(clientSource, /auth\/telegram\/start/);
   assert.doesNotMatch(clientSource, /loginUrl/);
+  assert.match(clientSource, /platform\.authMode === 'telegram_init_data'/);
+  assert.doesNotMatch(clientSource, /platform\.isTelegram\s*\|\|\s*import\.meta\.env\.VITE_ALLOW_DEV_AUTH/);
   assert.match(authHookSource, /platform\.authMode === 'telegram_init_data'/);
   assert.doesNotMatch(authHookSource, /isAuthenticated:\s*platform\.isTelegram\s*\|\|/);
   assert.match(appSource, /if \(!canUseApp\)/);
