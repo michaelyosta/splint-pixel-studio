@@ -23,13 +23,6 @@ owns the OIDC client secret, callback, token validation, session cookie, and
 CSRF checks. No second auth service, bot, database, or storage project is
 permitted for this capability.
 
-The standalone browser reaches the API through a same-origin `/api` gateway
-implemented as a Cloudflare Pages Function inside the existing
-`splint-pixel-studio` project (`functions/api/[[path]].js`). It proxies
-`/api/*` to the Render service unchanged, so the OIDC callback and session
-cookie stay on the application origin. The Telegram Mini App continues to call
-the Render API origin directly with signed `initData`.
-
 During the pixel-subdomain migration window, `showalove.ru` and
 `www.showalove.ru` remain attached to the same Pages project and active as
 fallback origins. Unrelated hostnames such as `crm-pilot.showalove.ru`,
