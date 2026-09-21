@@ -374,7 +374,7 @@ export default function PlayerView({
 
   if (!template || !progress || !gameProgress) {
     if (loadError) {
-      return <section className="player-load-error" role="alert" data-player-load-error="true">
+      return <section className="error-retry player-load-error" role="alert" data-player-load-error="true">
         <p>Не удалось открыть раскраску.</p>
         <small>{loadError}</small>
         <div className="player-load-error-actions">
