@@ -231,18 +231,49 @@ function parseSafeTemplate(row) {
   };
 }
 
+function validateAnalyticsEntry(entry) {
+  const event = entry?.event;
+  const payload = entry?.payload ?? {};
+  const isKnownEvent = ANALYTICS_EVENTS.has(event) || /^reach_(25|50|75|100)$/.test(event);
+  if (typeof event !== 'string' || !isKnownEvent) return { error: 'Некорректное событие' };
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Buffer.byteLength(JSON.stringify(payload)) > 4096) {
+    return { error: 'Некорректный payload события' };
+  }
+  return { event, payload };
+}
+
+async function insertAnalyticsEvent(userId, entry, createdAt) {
+  await run('INSERT INTO analytics_events (id,user_id,event,payload_json,created_at) VALUES (?,?,?,?,?)',
+    [uuid(), userId, entry.event, JSON.stringify(entry.payload || {}), createdAt]);
+}
+
 // POST /meta/analytics — record a lightweight analytics event
 router.post('/analytics', authMiddleware, asyncRoute(async (req, res) => {
-  const { event, payload = {} } = req.body;
-  const isKnownEvent = ANALYTICS_EVENTS.has(event) || /^reach_(25|50|75|100)$/.test(event);
-  if (typeof event !== 'string' || !isKnownEvent) return res.status(400).json({ error: 'Некорректное событие' });
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Buffer.byteLength(JSON.stringify(payload)) > 4096) {
-    return res.status(400).json({ error: 'Некорректный payload события' });
+  const entry = validateAnalyticsEntry(req.body);
+  if (entry.error) return res.status(400).json({ error: entry.error });
+  await insertAnalyticsEvent(req.userId, entry, new Date().toISOString());
+  res.json({ success: true });
+}));
+
+// POST /meta/analytics/batch — preserve individual event rows while avoiding
+// browser connection-pool starvation from catalog impression bursts.
+router.post('/analytics/batch', authMiddleware, asyncRoute(async (req, res) => {
+  const events = req.body?.events;
+  if (!Array.isArray(events) || events.length < 1 || events.length > 50) {
+    return res.status(400).json({ error: 'Некорректный пакет событий' });
+  }
+  if (Buffer.byteLength(JSON.stringify(events)) > 64 * 1024) {
+    return res.status(400).json({ error: 'Пакет событий слишком большой' });
+  }
+  const validated = [];
+  for (let index = 0; index < events.length; index += 1) {
+    const entry = validateAnalyticsEntry(events[index]);
+    if (entry.error) return res.status(400).json({ error: entry.error, index });
+    validated.push(entry);
   }
   const now = new Date().toISOString();
-  await run('INSERT INTO analytics_events (id,user_id,event,payload_json,created_at) VALUES (?,?,?,?,?)',
-    [uuid(), req.userId, event, JSON.stringify(payload || {}), now]);
-  res.json({ success: true });
+  for (const entry of validated) await insertAnalyticsEvent(req.userId, entry, now);
+  res.json({ success: true, accepted: validated.length });
 }));
 
 // GET /meta/analytics/summary — counts of key events for the user (for dashboards)
