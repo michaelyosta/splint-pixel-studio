@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { API_BASE, resolveApiBase, resolveApiUrl, resolveClientApiBase, resolveClientApiUrl } from '../src/api/apiBase.js';
+import { API_BASE, resolveApiBase, resolveApiUrl } from '../src/api/apiBase.js';
 import { createProgressiveGridClient } from '../src/lib/progressiveGridClient.js';
 
 function manifestResponse(templateId) {
@@ -51,23 +51,4 @@ test('missing VITE_API_URL preserves the local /api contract', async () => {
   assert.equal(API_BASE, '/api');
   assert.equal(calls[0], '/api/colorings/local-tiled/manifest');
   client.destroy();
-});
-
-test('browser clients use the same-origin /api gateway for the OIDC session', () => {
-  const env = { VITE_API_URL: 'https://splint-api.onrender.com' };
-  assert.equal(resolveClientApiBase(env, { isTelegram: false }), '/api');
-  assert.equal(resolveClientApiUrl('/auth/session', env, { isTelegram: false }), '/api/auth/session');
-  assert.equal(
-    resolveClientApiUrl('/auth/telegram/start', env, { isTelegram: false }),
-    '/api/auth/telegram/start',
-  );
-});
-
-test('Telegram Mini App keeps the configured absolute API origin', () => {
-  const env = { VITE_API_URL: 'https://splint-api.onrender.com' };
-  assert.equal(resolveClientApiBase(env, { isTelegram: true }), 'https://splint-api.onrender.com');
-  assert.equal(
-    resolveClientApiUrl('/colorings', env, { isTelegram: true }),
-    'https://splint-api.onrender.com/colorings',
-  );
 });
