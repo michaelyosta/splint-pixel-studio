@@ -38,13 +38,13 @@ test('proxy passes upstream redirects, cookies, and JSON through untouched', asy
   const calls = [];
   globalThis.fetch = async (url, options) => {
     calls.push({ url: String(url), options });
-    return new Response(null, {
-      status: 302,
-      headers: {
-        location: 'https://oauth.telegram.org/auth?client_id=1',
-        'set-cookie': 'splint_session_oidc_state=state-value; Path=/; HttpOnly; SameSite=Lax',
-      },
+    const headers = new Headers({
+      location: 'https://oauth.telegram.org/auth?client_id=1',
     });
+    headers.append('set-cookie', 'splint_session=opaque-session; Path=/; Secure; HttpOnly; SameSite=Lax');
+    headers.append('set-cookie', 'splint_csrf=csrf-token; Path=/; Secure; SameSite=Lax');
+    headers.append('set-cookie', 'splint_session_oidc_state=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax');
+    return new Response(null, { status: 302, headers });
   };
   t.after(() => { globalThis.fetch = originalFetch; });
 
@@ -56,7 +56,11 @@ test('proxy passes upstream redirects, cookies, and JSON through untouched', asy
   assert.equal(calls[0].options.redirect, 'manual');
   assert.equal(response.status, 302);
   assert.equal(response.headers.get('location'), 'https://oauth.telegram.org/auth?client_id=1');
-  assert.match(response.headers.get('set-cookie'), /splint_session_oidc_state=state-value/);
+  const cookies = response.headers.getSetCookie();
+  assert.equal(cookies.length, 3, 'proxy must preserve every callback Set-Cookie header');
+  assert.match(cookies[0], /splint_session=opaque-session/);
+  assert.match(cookies[1], /splint_csrf=csrf-token/);
+  assert.match(cookies[2], /splint_session_oidc_state=/);
 });
 
 test('proxy forwards request bodies for mutating methods', async (t) => {
