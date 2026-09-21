@@ -30,6 +30,7 @@ import { readCurrentResumeSnapshot } from './lib/resumeState.js';
 import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
 import { resolveSessionGameExperiment } from './features/sessionGame/sessionGameExperiment.js';
 import { useBrowserAuth } from './hooks/useBrowserAuth.js';
+import { createAnalyticsBatcher } from './lib/analyticsBatcher.js';
 import './App.css';
 import './features/unlocks/unlocks.css';
 
@@ -64,6 +65,12 @@ function App() {
   const [starsOpsBusy, setStarsOpsBusy] = useState(false);
   const [adminAccess, setAdminAccess] = useState(null);
   const noticeTimerRef = useRef(null);
+  const analyticsBatcherRef = useRef(null);
+  if (!analyticsBatcherRef.current) {
+    analyticsBatcherRef.current = createAnalyticsBatcher({
+      send: (events) => metaApi.trackBatch(events),
+    });
+  }
   const resumeHandledRef = useRef(false);
   const coreFeelHandledRef = useRef(false);
   const unlockData = useUnlockData({ enabled: !coreFeelExperiment.enabled && canUseApp, refreshKey: unlockRefreshKey });
@@ -76,7 +83,7 @@ function App() {
   }, []);
 
   const trackEvent = useCallback((event, payload) => {
-    metaApi.track(event, payload).catch(() => {});
+    analyticsBatcherRef.current?.track(event, payload);
   }, []);
 
   const refreshUnlocks = useCallback(() => setUnlockRefreshKey((key) => key + 1), []);
@@ -335,6 +342,7 @@ function App() {
   }, [home.collections, openCatalogCollection, requestedPackId, setCatalogChip, setCatalogCollection, showNotice, view]);
 
   useEffect(() => () => window.clearTimeout(noticeTimerRef.current), []);
+  useEffect(() => () => analyticsBatcherRef.current?.dispose(), []);
 
   function navigatePrimary(nextView) {
     if (nextView === 'admin' && !adminAccess) return;
@@ -580,7 +588,7 @@ function App() {
     content = <CreatorView {...creatorViewProps} />;
   } else if (view === 'profile') {
     content = <ProfileView
-      profile={profile.profile}
+      profile={viewedProfileId ? profile.profile : (profile.currentUser || profile.profile)}
       currentUser={profile.currentUser}
       profileArtworks={profile.profileArtworks}
       mine={catalog.mine}
