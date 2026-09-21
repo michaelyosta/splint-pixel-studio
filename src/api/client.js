@@ -141,10 +141,6 @@ export const api = request;
 
 export const authApi = {
   session: () => bootstrapBrowserSession({ force: true }),
-  loginUrl: () => resolveApiUrl('/auth/telegram/start'),
-  login: () => {
-    if (typeof window !== 'undefined') window.location.assign(resolveApiUrl('/auth/telegram/start'));
-  },
   logout: async () => {
     await request('/auth/logout', { method: 'POST' });
     setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null });
