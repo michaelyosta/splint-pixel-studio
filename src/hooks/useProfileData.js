@@ -6,6 +6,8 @@ export function useProfileData({ showNotice, onNavigate }) {
   const [profileArtworks, setProfileArtworks] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [profileShelf, setProfileShelf] = useState('works');
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState(false);
   const profileRequestRef = useRef(0);
   const currentUserRequestRef = useRef(0);
   const currentUserRef = useRef(null);
@@ -29,12 +31,23 @@ export function useProfileData({ showNotice, onNavigate }) {
   const loadProfile = useCallback(async (userId = null) => {
     const requestId = profileRequestRef.current + 1;
     profileRequestRef.current = requestId;
-    if (!userId && currentUserRef.current) setProfile(currentUserRef.current);
+    setProfileLoading(true);
+    setProfileError(false);
+    if (userId) {
+      setProfile(null);
+      setProfileArtworks([]);
+    } else if (currentUserRef.current) {
+      setProfile(currentUserRef.current);
+    }
     try {
       const nextProfile = await api(userId ? `/users/${userId}/profile` : '/users/me');
       if (requestId !== profileRequestRef.current) return null;
       setProfile(nextProfile);
-      if (!userId) setCurrentUser(nextProfile);
+      setProfileError(false);
+      if (!userId) {
+        currentUserRef.current = nextProfile;
+        setCurrentUser(nextProfile);
+      }
       try {
         const artworks = await api(`/users/${nextProfile.id}/artworks`);
         if (requestId !== profileRequestRef.current) return null;
@@ -47,8 +60,11 @@ export function useProfileData({ showNotice, onNavigate }) {
       return nextProfile;
     } catch (error) {
       if (requestId !== profileRequestRef.current) return null;
+      setProfileError(true);
       showNotice(error.message, 'error');
       return null;
+    } finally {
+      if (requestId === profileRequestRef.current) setProfileLoading(false);
     }
   }, [showNotice]);
 
@@ -72,6 +88,8 @@ export function useProfileData({ showNotice, onNavigate }) {
     profileArtworks,
     currentUser,
     profileShelf,
+    profileLoading,
+    profileError,
     setProfileShelf,
     loadCurrentUser,
     loadProfile,

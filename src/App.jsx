@@ -582,6 +582,9 @@ function App() {
     content = <ProfileView
       profile={viewedProfileId ? profile.profile : (profile.currentUser || profile.profile)}
       currentUser={profile.currentUser}
+      loading={profile.profileLoading}
+      error={profile.profileError}
+      onRetry={() => profile.loadProfile(viewedProfileId || null)}
       profileArtworks={profile.profileArtworks}
       mine={catalog.mine}
       profileShelf={profile.profileShelf}
