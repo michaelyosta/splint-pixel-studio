@@ -22,32 +22,6 @@ import { completeOidcLogin, consumeOidcLoginTransaction, createOidcLoginTransact
 const router = Router();
 const PUBLIC_USER_FIELDS = 'id,nickname,avatar_url,status,karma,level';
 
-const BROWSER_AUTH_UNAVAILABLE_HTML = `<!doctype html>
-<html lang="ru">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Splint — вход недоступен</title></head>
-<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#04080e;color:#e8f5fa;font-family:system-ui,sans-serif">
-<main style="max-width:420px;padding:28px;text-align:center">
-<p style="letter-spacing:.16em;color:#9bb4c2;font-size:12px">SPLINT PIXEL STUDIO</p>
-<h1 style="font-size:20px">Вход через Telegram временно недоступен</h1>
-<p style="color:#9bb4c2;line-height:1.5">Браузерная авторизация не настроена на сервере. Попробуйте позже или откройте студию в Telegram.</p>
-</main>
-</body>
-</html>`;
-
-function browserAuthAvailable() {
-  try { return getBrowserAuthConfig().configured; } catch { return false; }
-}
-
-function respondBrowserAuthUnavailable(req, res, event) {
-  // Keep the diagnostic in logs/observability while ordinary browser
-  // navigations get a product error state instead of raw JSON.
-  console.error(JSON.stringify({ type: 'browser_auth_unconfigured', event }));
-  if (String(req.headers.accept || '').includes('text/html')) {
-    return res.status(503).type('html').send(BROWSER_AUTH_UNAVAILABLE_HTML);
-  }
-  return res.status(503).json({ error: 'Browser Telegram login is not configured', code: 'BROWSER_AUTH_NOT_CONFIGURED' });
-}
-
 async function sessionUser(userId) {
   return get(`SELECT ${PUBLIC_USER_FIELDS} FROM users WHERE id=?`, [userId]);
 }
@@ -60,50 +34,23 @@ function safeCallbackUrl(config, params = {}) {
   return url.href;
 }
 
-function browserRequestOrigin(req) {
-  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
-  const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
-  const protocol = forwardedProto || req.protocol || 'http';
-  const host = forwardedHost || req.headers.host || '';
-  if (!host) return null;
-  try { return new URL(`${protocol}://${host}`).origin; } catch { return null; }
-}
-
-function canonicalBrowserAuthStartUrl(config) {
-  const url = new URL(config.redirectUri);
-  url.pathname = url.pathname.replace(/\/callback\/?$/, '/start');
-  url.search = '';
-  url.hash = '';
-  return url.href;
-}
-
 router.get('/session', asyncRoute(async (req, res) => {
-  const browserAuthEnabled = browserAuthAvailable();
   const session = await getBrowserSession(req);
-  if (!session) return res.status(401).json({ authenticated: false, browserAuthEnabled });
+  if (!session) return res.status(401).json({ authenticated: false });
   const user = await sessionUser(session.userId);
   const csrfToken = getCsrfCookie(req);
   if (!user || !csrfToken || !verifySessionCsrf(session, csrfToken)) {
     await revokeBrowserSession(req);
     clearSessionCookie(res);
     clearCsrfCookie(res);
-    return res.status(401).json({ authenticated: false, browserAuthEnabled });
+    return res.status(401).json({ authenticated: false });
   }
-  return res.json({ authenticated: true, user, csrfToken, expiresAt: session.expiresAt, browserAuthEnabled });
+  return res.json({ authenticated: true, user, csrfToken, expiresAt: session.expiresAt });
 }));
 
-router.get('/telegram/start', asyncRoute(async (req, res) => {
+router.get('/telegram/start', asyncRoute(async (_req, res) => {
   const config = getBrowserAuthConfig();
-  if (!config.configured) return respondBrowserAuthUnavailable(req, res, 'start');
-
-  // The OIDC state cookie is intentionally host-only. If a user starts login
-  // from an attached fallback hostname, move them to the configured app origin
-  // before creating state/PKCE so the callback receives the same cookie.
-  const requestOrigin = browserRequestOrigin(req);
-  if (requestOrigin && requestOrigin !== config.appOrigin) {
-    return res.redirect(302, canonicalBrowserAuthStartUrl(config));
-  }
-
+  if (!config.configured) return res.status(503).json({ error: 'Browser Telegram login is not configured', code: 'BROWSER_AUTH_NOT_CONFIGURED' });
   const transaction = await createOidcLoginTransaction();
   setOidcStateCookie(res, transaction.state);
   return res.redirect(302, transaction.url);
@@ -111,7 +58,7 @@ router.get('/telegram/start', asyncRoute(async (req, res) => {
 
 router.get('/telegram/callback', asyncRoute(async (req, res) => {
   const config = getBrowserAuthConfig();
-  if (!config.configured) return respondBrowserAuthUnavailable(req, res, 'callback');
+  if (!config.configured) return res.status(503).json({ error: 'Browser Telegram login is not configured', code: 'BROWSER_AUTH_NOT_CONFIGURED' });
   const requestState = String(req.query.state || '');
   const boundState = getOidcStateCookie(req);
   if (!boundState || boundState !== requestState) {
