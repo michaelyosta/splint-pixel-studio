@@ -2262,7 +2262,8 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
   border-radius: 22px;
 }
 .app-tab-bar--redesigned > button {
-  width: 20%;
+  flex: 1 1 0;
+  width: auto;
   min-height: 60px;
   gap: 3px;
   padding: 5px 1px 4px;
