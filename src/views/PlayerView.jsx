@@ -153,6 +153,8 @@ export default function PlayerView({
   setCompletionOpen,
   sharing,
   saving,
+  loadError = null,
+  onRetryLoad = () => {},
   onRetrySave = () => {},
   setView,
   setPlayMode,
@@ -371,6 +373,16 @@ export default function PlayerView({
   }, [complete, isTiled, template]);
 
   if (!template || !progress || !gameProgress) {
+    if (loadError) {
+      return <section className="player-load-error" role="alert" data-player-load-error="true">
+        <p>Не удалось открыть раскраску.</p>
+        <small>{loadError}</small>
+        <div className="player-load-error-actions">
+          <button className="primary-button" type="button" onClick={onRetryLoad}>Повторить</button>
+          <button className="secondary-button" type="button" onClick={() => setView('catalog')}>В каталог</button>
+        </div>
+      </section>;
+    }
     return <div className="loading"><LoaderCircle className="spin" /> Загружаем…</div>;
   }
 

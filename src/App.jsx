@@ -498,6 +498,8 @@ function App() {
         setCompletionOpen={session.setCompletionOpen}
         sharing={session.sharing}
         saving={session.saving}
+        loadError={session.openError}
+        onRetryLoad={session.retryOpenColoring}
         onRetrySave={session.retryPendingSave}
         setView={session.handlePlayerSetView}
         setPlayMode={session.setPlayMode}
