@@ -88,6 +88,25 @@ test('coloring progress can become a social post', async (t) => {
   assert.equal(invalidAnalytics.response.status, 400);
   const validAnalytics = await request('/meta/analytics', { method: 'POST', body: { event: 'open_level', payload: { id: 'catalog_fox' } } });
   assert.equal(validAnalytics.response.status, 200);
+  const batchedAnalytics = await request('/meta/analytics/batch', {
+    method: 'POST',
+    body: {
+      events: [
+        { event: 'open_level', payload: { id: 'catalog_fox_batch' } },
+        { event: 'shelf_view', payload: { shelf_id: 'free', item_count: 12 } },
+      ],
+    },
+  });
+  assert.equal(batchedAnalytics.response.status, 200);
+  assert.equal(batchedAnalytics.json.accepted, 2);
+  const invalidAnalyticsBatch = await request('/meta/analytics/batch', {
+    method: 'POST',
+    body: { events: [{ event: 'not_allowed', payload: {} }] },
+  });
+  assert.equal(invalidAnalyticsBatch.response.status, 400);
+  const analyticsSummaryAfterBatch = await request('/meta/analytics/summary');
+  assert.equal(analyticsSummaryAfterBatch.json.open_level, 2);
+  assert.equal(analyticsSummaryAfterBatch.json.shelf_view, 1);
   const smartEngineAnalytics = await request('/meta/analytics', { method: 'POST', body: { event: 'camera_activate_target', payload: { templateId: 'catalog_fox' } } });
   assert.equal(smartEngineAnalytics.response.status, 200);
   for (const event of ['special_cell_discovered', 'powerup_received', 'powerup_used', 'special_action_selected']) {
