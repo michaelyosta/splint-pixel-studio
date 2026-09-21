@@ -30,7 +30,7 @@ export function createAnalyticsBatcher(sendBatch, {
   const enqueueRequest = createSerialRequestQueue();
 
   function flush() {
-    if (timer) {
+    if (timer !== null) {
       clearTimer(timer);
       timer = null;
     }
@@ -54,7 +54,7 @@ export function createAnalyticsBatcher(sendBatch, {
         flush();
         return;
       }
-      if (!timer) timer = setTimer(flush, flushDelayMs);
+      if (timer === null) timer = setTimer(flush, flushDelayMs);
     });
   }
 
