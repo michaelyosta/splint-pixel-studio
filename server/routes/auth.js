@@ -60,6 +60,23 @@ function safeCallbackUrl(config, params = {}) {
   return url.href;
 }
 
+function browserRequestOrigin(req) {
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+  const protocol = forwardedProto || req.protocol || 'http';
+  const host = forwardedHost || req.headers.host || '';
+  if (!host) return null;
+  try { return new URL(`${protocol}://${host}`).origin; } catch { return null; }
+}
+
+function canonicalBrowserAuthStartUrl(config) {
+  const url = new URL(config.redirectUri);
+  url.pathname = url.pathname.replace(/\/callback\/?$/, '/start');
+  url.search = '';
+  url.hash = '';
+  return url.href;
+}
+
 router.get('/session', asyncRoute(async (req, res) => {
   const browserAuthEnabled = browserAuthAvailable();
   const session = await getBrowserSession(req);
@@ -78,6 +95,15 @@ router.get('/session', asyncRoute(async (req, res) => {
 router.get('/telegram/start', asyncRoute(async (req, res) => {
   const config = getBrowserAuthConfig();
   if (!config.configured) return respondBrowserAuthUnavailable(req, res, 'start');
+
+  // The OIDC state cookie is intentionally host-only. If a user starts login
+  // from an attached fallback hostname, move them to the configured app origin
+  // before creating state/PKCE so the callback receives the same cookie.
+  const requestOrigin = browserRequestOrigin(req);
+  if (requestOrigin && requestOrigin !== config.appOrigin) {
+    return res.redirect(302, canonicalBrowserAuthStartUrl(config));
+  }
+
   const transaction = await createOidcLoginTransaction();
   setOidcStateCookie(res, transaction.state);
   return res.redirect(302, transaction.url);
