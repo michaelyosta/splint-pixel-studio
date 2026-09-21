@@ -36,10 +36,6 @@ ALLOW_DEV_AUTH=false
   HttpOnly browser cookie, and sets `splint_session` as Secure,
   HttpOnly, SameSite=Lax. A separate readable CSRF cookie is checked against
   `X-CSRF-Token` for state-changing requests.
-- Standalone browsers call the API through the same-origin `/api` gateway
-  (Cloudflare Pages Function in the existing Pages project), so the callback
-  and session cookie live on `BROWSER_AUTH_ORIGIN`. The Telegram Mini App keeps
-  calling the API origin directly with signed `initData`.
 
 ## Local browser development
 
