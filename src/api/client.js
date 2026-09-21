@@ -10,7 +10,7 @@ export const DEV_USER_ID = getCoreFeelDevSubject()
   || import.meta.env.VITE_DEV_USER_ID
   || 'user_pixelhunter';
 
-let browserSessionState = Object.freeze({ status: 'unknown', user: null, csrfToken: null, expiresAt: null, browserAuthEnabled: null });
+let browserSessionState = Object.freeze({ status: 'unknown', user: null, csrfToken: null, expiresAt: null });
 let browserSessionPromise = null;
 const analyticsBatcher = createAnalyticsBatcher(async (events) => {
   try {
@@ -62,13 +62,12 @@ export async function bootstrapBrowserSession({ force = false } = {}) {
   })
     .then(async (response) => {
       const data = await response.json().catch(() => ({}));
-      const browserAuthEnabled = typeof data.browserAuthEnabled === 'boolean' ? data.browserAuthEnabled : null;
       if (response.ok && data.authenticated && data.user && data.csrfToken) {
-        return setBrowserSessionState({ status: 'authenticated', user: data.user, csrfToken: data.csrfToken, expiresAt: data.expiresAt || null, browserAuthEnabled });
+        return setBrowserSessionState({ status: 'authenticated', user: data.user, csrfToken: data.csrfToken, expiresAt: data.expiresAt || null });
       }
-      return setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null, browserAuthEnabled });
+      return setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null });
     })
-    .catch(() => setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null, browserAuthEnabled: null }))
+    .catch(() => setBrowserSessionState({ status: 'anonymous', user: null, csrfToken: null, expiresAt: null }))
     .finally(() => { browserSessionPromise = null; });
   return browserSessionPromise;
 }
