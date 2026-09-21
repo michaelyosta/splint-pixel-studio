@@ -135,6 +135,17 @@ test('browser Telegram OIDC session and Mini App identity are continuous', async
   const invalidState = await fetch(`${apiBase}/auth/telegram/callback?state=invalid-state&code=unused`);
   assert.equal(invalidState.status, 400);
 
+  const fallbackStart = await fetch(`${apiBase}/auth/telegram/start`, {
+    headers: {
+      'X-Forwarded-Host': 'www.showalove.ru',
+      'X-Forwarded-Proto': 'https',
+    },
+    redirect: 'manual',
+  });
+  assert.equal(fallbackStart.status, 302);
+  assert.equal(fallbackStart.headers.get('location'), `${apiBase}/auth/telegram/start`);
+  assert.equal(fallbackStart.headers.getSetCookie?.().length || 0, 0, 'fallback redirect must not mint OIDC state on the wrong host');
+
   const start = await fetch(`${apiBase}/auth/telegram/start`, { redirect: 'manual' });
   assert.equal(start.status, 302);
   const startCookies = start.headers.getSetCookie?.() || [start.headers.get('set-cookie')].filter(Boolean);
