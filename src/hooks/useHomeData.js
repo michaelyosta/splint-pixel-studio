@@ -6,6 +6,8 @@ export function useHomeData() {
   const [streak, setStreak] = useState(null);
   const [achievements, setAchievements] = useState([]);
   const [collections, setCollections] = useState([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(true);
+  const [collectionsError, setCollectionsError] = useState(false);
 
   const loadToday = useCallback(async () => {
     try { setToday(await catalogApi.today()); } catch { /* non-critical */ }
@@ -20,7 +22,16 @@ export function useHomeData() {
   }, []);
 
   const loadCollections = useCallback(async () => {
-    try { setCollections(await metaApi.collections()); } catch { /* non-critical */ }
+    setCollectionsLoading(true);
+    setCollectionsError(false);
+    try {
+      setCollections(await metaApi.collections());
+      setCollectionsError(false);
+    } catch {
+      setCollectionsError(true);
+    } finally {
+      setCollectionsLoading(false);
+    }
   }, []);
 
   return {
@@ -28,6 +39,8 @@ export function useHomeData() {
     streak,
     achievements,
     collections,
+    collectionsLoading,
+    collectionsError,
     loadToday,
     loadStreak,
     loadAchievements,

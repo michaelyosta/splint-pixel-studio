@@ -82,6 +82,11 @@ function App() {
   const refreshUnlocks = useCallback(() => setUnlockRefreshKey((key) => key + 1), []);
 
   useEffect(() => {
+    if (!canUseApp) {
+      setPaymentsMode('disabled');
+      setPaymentProductIds([]);
+      return undefined;
+    }
     let active = true;
     telegramStarsApi.config()
       .then((config) => {
@@ -102,7 +107,7 @@ function App() {
         }
       });
     return () => { active = false; };
-  }, []);
+  }, [canUseApp]);
 
   useEffect(() => {
     if (!canUseApp) { setAdminAccess(null); return undefined; }
@@ -617,6 +622,8 @@ function App() {
   } else if (view === 'store') {
     content = <StoreView
       collections={home.collections}
+      loading={home.collectionsLoading}
+      error={home.collectionsError}
       unlockSnapshot={unlockData.snapshot}
       requestedPackId={requestedPackId}
       // No browser-side invoice adapter is mounted yet. Keep the product
