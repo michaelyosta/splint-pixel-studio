@@ -42,7 +42,8 @@ img { user-select: none; }
   body { background-color: var(--app-bg); background-image: none; }
   .telegram-frame {
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
     border: none;
     border-radius: 0;
     box-shadow: none;
@@ -1697,7 +1698,7 @@ html[data-tg-theme='light'] .session-goal-timer {
   border-bottom: none;
   border-radius: 24px 24px 0 0;
   padding: 10px 16px calc(22px + env(safe-area-inset-bottom, 0px));
-  max-height: 80vh;
+  max-height: 80dvh;
   overflow-y: auto;
   box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.55);
   animation: dialogSlideUp 0.28s cubic-bezier(0.25, 1, 0.5, 1);
@@ -1808,7 +1809,7 @@ html[data-tg-theme='light'] .session-goal-timer {
 .completion-dialog {
   width: 100%;
   max-width: 340px;
-  max-height: 96vh;
+  max-height: 96dvh;
   overflow-y: auto;
   background: var(--app-bg-elevated);
   border: 1px solid rgba(255, 199, 44, 0.35);
