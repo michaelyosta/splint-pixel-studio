@@ -388,6 +388,19 @@ test('ensureDailyChallenge repairs stale persisted assignments and skips ineligi
   });
 });
 
+test('ensureDailyChallenge never assigns premium access_type content', async () => {
+  const db = await createDb();
+  await insertTemplate(db, 'tpl_premium_only');
+  await withTransaction({ mode: 'sqlite', sqlite: db, persistFn: null }, async (tx) => {
+    await tx.run("UPDATE coloring_templates SET access_type='premium' WHERE id='tpl_premium_only'");
+    assert.equal(
+      await ensureDailyChallenge(tx, { date: new Date(NOW) }),
+      null,
+      'premium access_type content is not eligible for the daily assignment',
+    );
+  });
+});
+
 test('ensureDailyChallenge returns null only when no eligible content exists', async () => {
   const db = await createDb();
   await insertTemplate(db, 'tpl_hidden_only');

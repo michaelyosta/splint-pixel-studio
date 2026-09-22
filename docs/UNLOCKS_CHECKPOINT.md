@@ -142,6 +142,22 @@ Verification on this workspace:
 - Root `npm run lint`: warning budget 89/100 (no new warnings).
 - Root `npm run build`: passes.
 
+## Daily assignment eligibility mirrors the read gate
+
+`ensureDailyChallenge` may only assign a template the read gate would serve:
+`status='active'`, `visibility='public'`, `source_type <> 'unlockable'`,
+`access_type <> 'premium'`, no `unlock_rules` row, and no premium or
+unlock-gated collection. `access_type` is authoritative for catalog rows, so a
+premium entry stays ineligible even when its collection is not premium. Without
+that clause the daily assignment could hand out content that
+`GET /colorings/:id` answers with `403 PREMIUM_REQUIRED`, which is what the
+catalog merchandising content introduced.
+
+Covered by `server/test/progression.test.js` — `ensureDailyChallenge never
+assigns premium access_type content` (deterministic; it fails when the clause is
+removed) — and by `server/test/product-engagement.integration.test.js`, which
+paints the assigned daily template end to end.
+
 ## Remaining External Gates
 
 - PostgreSQL unlock tests must run in CI/staging with `DATABASE_URL`; they
