@@ -42,6 +42,12 @@ OIDC, mint anonymous users, or create a second identity. Existing OIDC/PKCE
 server code is dormant and feature-gated; reactivation requires a separate
 production task with configuration and live cross-device verification.
 
+A Telegram host is never shown this page. When the Telegram bridge resolves its
+init params after the first render, the host keeps the application shell, its
+header, and its three-tab navigation, and the data surfaces show their own
+loading/error states until signed `initData` is available. Platform metadata
+never authorizes a request; the server stays authoritative.
+
 ## Verification markers
 
 The implementation is considered ready for the following release checks only

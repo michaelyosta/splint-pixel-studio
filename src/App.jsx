@@ -682,7 +682,14 @@ function App() {
     />;
   }
 
-  if (!canUseApp) {
+  // The browser handoff is a browser-only surface. A Telegram-hosted user must
+  // never be asked to authenticate through it: the bridge script can resolve
+  // its init params after the first render, and unsigned platform metadata is
+  // not authorization. Inside Telegram the shell keeps rendering with its own
+  // loading/error states while signed initData is pending, and the server
+  // remains the authorization authority (owner routes answer 401). Only a real
+  // browser without a server session gets the handoff page.
+  if (!canUseApp && browserAuth.platform.isBrowser) {
     content = <BrowserAuthPage
       status={browserAuth.status}
       error={authError === 'telegram_denied' ? 'Вход отменён.' : authError ? 'Не удалось подтвердить вход через Telegram.' : null}
@@ -690,8 +697,8 @@ function App() {
   }
 
   // The primary-navigation contract is intentionally explicit: view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />
-  const showChrome = canUseApp && view !== 'play' && !coreFeelExperiment.enabled;
-  return <main className="telegram-frame" data-platform={browserAuth.platform.isTelegram ? 'telegram' : 'browser'} data-auth-mode={browserAuth.platform.authMode}><div className="app-container">{showChrome && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><div className="header-actions">{adminAccess && <button className="header-admin-button" type="button" onClick={() => navigatePrimary('admin')}>Admin</button>}{browserAuth.status === 'authenticated' && browserAuth.platform.isBrowser && <button className="header-logout-button" type="button" onClick={() => browserAuth.logout().catch(() => showNotice('Не удалось завершить сессию', 'error'))}>Выйти</button>}<button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></div></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{showChrome && canUseApp && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
+  const showChrome = (canUseApp || browserAuth.platform.isTelegram) && view !== 'play' && !coreFeelExperiment.enabled;
+  return <main className="telegram-frame" data-platform={browserAuth.platform.isTelegram ? 'telegram' : 'browser'} data-auth-mode={browserAuth.platform.authMode}><div className="app-container">{showChrome && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><div className="header-actions">{adminAccess && <button className="header-admin-button" type="button" onClick={() => navigatePrimary('admin')}>Admin</button>}{browserAuth.status === 'authenticated' && browserAuth.platform.isBrowser && <button className="header-logout-button" type="button" onClick={() => browserAuth.logout().catch(() => showNotice('Не удалось завершить сессию', 'error'))}>Выйти</button>}<button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></div></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{showChrome && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
 }
 
 export default App;

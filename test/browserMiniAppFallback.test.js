@@ -21,5 +21,10 @@ test('standalone browser hands authentication back to the production Telegram Mi
   assert.doesNotMatch(clientSource, /platform\.isTelegram\s*\|\|\s*import\.meta\.env\.VITE_ALLOW_DEV_AUTH/);
   assert.match(authHookSource, /platform\.authMode === 'telegram_init_data'/);
   assert.doesNotMatch(authHookSource, /isAuthenticated:\s*platform\.isTelegram\s*\|\|/);
-  assert.match(appSource, /if \(!canUseApp\)/);
+  // The handoff page is a browser-only surface: a Telegram-hosted user whose
+  // bridge resolves init params after the first render must keep the shell and
+  // its navigation instead of an authentication wall.
+  assert.match(appSource, /if \(!canUseApp && browserAuth\.platform\.isBrowser\) \{\s*\r?\n\s*content = <BrowserAuthPage/);
+  assert.doesNotMatch(appSource, /if \(!canUseApp\) \{\s*\r?\n\s*content = <BrowserAuthPage/);
+  assert.match(appSource, /const showChrome = \(canUseApp \|\| browserAuth\.platform\.isTelegram\)/);
 });
