@@ -280,6 +280,39 @@ buttons were 73px wide with ~49px gaps.
 flex and absolute navigation contract` asserts the equal-width rule and rejects
 a percentage width on the redesigned button.
 
+## Navigation shell stays free of backdrop-filter
+
+OLD CONTRACT
+
+`.app-tab-bar` blurred its backdrop (`backdrop-filter: blur(14px)`), and the
+navigation contract test pinned that property as part of the known-good shell.
+
+→ NEW CONTRACT
+
+The navigation panel keeps its geometry and 92% opaque fill but has no
+`backdrop-filter` at all; the contract test asserts its absence.
+
+→ WHY INTENTIONAL
+
+Physical Telegram iOS evidence: on cold start the bar painted as a block with
+no icons or labels while its tap targets stayed functional, and any viewport
+transition (background/resume, fullscreen) repainted the contents correctly.
+That isolates the failure to compositing of the blurred backdrop layer over the
+panel's own children, not to geometry, hit-testing, or theme tokens. The fill is
+92% opaque, so the blur was visually imperceptible.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/primary-ia-contract.test.js` — `application shell restores the known-good
+flex and absolute navigation contract` asserts the panel has no
+`backdrop-filter`. The physical cold-start check in the real Mini App is the
+release evidence for the defect itself.
+
+→ UNCHANGED CONTRACTS
+
+The absolute positioning, `bottom` safe-area calculation, `z-index`, equal
+three-tab widths, primary IA, and hit targets are unchanged.
+
 ## Contract coverage status
 
 All substantive changed assertions identified in the audit map to the approved decisions above. OPEN GAP: none. Any future selector-only change should remain in the mechanical section; any new semantic assertion must add its own four-field migration block or be marked OPEN GAP rather than inferred as an intentional contract.

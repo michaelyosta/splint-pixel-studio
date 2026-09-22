@@ -70,7 +70,10 @@ test('application shell restores the known-good flex and absolute navigation con
   assert.match(contentRule, /padding-bottom:\s*96px/);
   assert.match(navigationRule, /position:\s*absolute/);
   assert.match(navigationRule, /bottom:\s*calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
-  assert.match(navigationRule, /backdrop-filter:\s*blur\(14px\)/);
+  // The panel must stay free of backdrop-filter: the blurred backdrop layer is
+  // the one property of this shell that can hide the panel's own children in
+  // Telegram iOS WebView until a viewport transition repaints it.
+  assert.doesNotMatch(navigationRule, /backdrop-filter\s*:/);
   // Three primary destinations share the bar equally. The legacy five-tab
   // `width: 20%` rule (still present on `.app-tab-bar > button`) would leave a
   // three-tab bar at 60% width with a dead 40% tail.

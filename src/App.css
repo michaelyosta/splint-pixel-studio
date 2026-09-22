@@ -186,7 +186,11 @@ img { user-select: none; }
   background: rgba(12, 22, 34, 0.92);
   border: 1px solid var(--app-border);
   border-radius: 20px;
-  backdrop-filter: blur(14px);
+  /* No backdrop-filter here on purpose: in Telegram iOS WebView the blurred
+     backdrop layer can composite a stale snapshot over this panel's own
+     children, so the bar paints as an empty block until a viewport transition
+     (background/resume, fullscreen) forces a repaint. The fill is 92% opaque,
+     so the blur contributed nothing visually. */
   box-shadow: 0 12px 30px rgba(2, 8, 14, 0.6);
   z-index: 20;
 }
