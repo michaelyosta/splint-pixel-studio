@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { catalogApi } from '../api/client';
 
 export function useProductProfileData({ showNotice }) {
@@ -9,14 +9,25 @@ export function useProductProfileData({ showNotice }) {
   const [recentTemplates, setRecentTemplates] = useState([]);
   const [latestReward, setLatestReward] = useState(null);
   const [serverCompletedTemplateId, setServerCompletedTemplateId] = useState(null);
+  const profileRequestRef = useRef(null);
 
   const loadProductProfile = useCallback(async () => {
-    const [favoritesResult, historyResult] = await Promise.allSettled([
-      catalogApi.favorites(),
-      catalogApi.history(20),
-    ]);
-    if (favoritesResult.status === 'fulfilled') setFavoriteTemplates(favoritesResult.value);
-    if (historyResult.status === 'fulfilled') setRecentTemplates(historyResult.value);
+    if (profileRequestRef.current) return profileRequestRef.current;
+    const request = (async () => {
+      const [favoritesResult, historyResult] = await Promise.allSettled([
+        catalogApi.favorites(),
+        catalogApi.history(20),
+      ]);
+      if (favoritesResult.status === 'fulfilled') setFavoriteTemplates(favoritesResult.value);
+      if (historyResult.status === 'fulfilled') setRecentTemplates(historyResult.value);
+      return { favoritesResult, historyResult };
+    })();
+    profileRequestRef.current = request;
+    try {
+      return await request;
+    } finally {
+      if (profileRequestRef.current === request) profileRequestRef.current = null;
+    }
   }, []);
 
   const applyRewards = useCallback((saved, templateId, options = {}) => {

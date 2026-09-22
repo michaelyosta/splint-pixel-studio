@@ -216,6 +216,70 @@ The premium assertions are deliberately not classified as an OLD CONTRACT → NE
 
 The following edits are mechanical adaptations to the intentional contracts above and do not represent additional product migrations: helper renames such as `openHome` → `openCatalog`, variable renames such as `firstHomeCard` → `firstCatalogCard`, and replacing Home-card locators with `.catalog-art-open` where the test still only opens the same player. Opening `.creator-advanced summary` is a prerequisite for reaching controls that are intentionally collapsed; it does not remove those controls. Updating selectors for the new `Загрузить изображение` / `Сохранить работу` labels, or for the Profile showcase card, is covered by the Creator and Gallery/Profile blocks above. No mechanical edit changes timeouts, retries, production behavior, security, payment, painting, persistence, or navigation coverage.
 
+## Telegram host is never asked to authenticate through the browser handoff
+
+OLD CONTRACT
+
+The shell replaced its entire content with the authentication page for any host
+that was not already authenticated, including a Telegram host whose bridge had
+not yet exposed signed `initData` at first render.
+
+→ NEW CONTRACT
+
+The handoff page is rendered only for a plain browser (`platform.isBrowser`) with
+no server session. A Telegram host always keeps the application shell, its
+header, and its three-tab navigation; while signed `initData` is still
+resolving, data surfaces show their own loading/error states and the server
+remains the authorization authority (owner routes answer `401`). Platform
+metadata still never authorizes anything by itself.
+
+→ WHY INTENTIONAL
+
+Inside Telegram the browser handoff is unreachable by design: it points at the
+same bot the user already launched. The Telegram bridge can resolve its init
+params after the first render, and a resize/`focus` re-evaluation was the only
+recovery path, so the previous gate produced a dead-end login wall on a real
+Mini App cold start.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/browserMiniAppFallback.test.js` asserts the handoff render is guarded by
+`!canUseApp && browserAuth.platform.isBrowser` and that chrome/navigation is
+shown for a Telegram host. `e2e/responsive-platform.spec.js` — `Telegram
+wide-host stub uses the platform adapter without showing browser login` keeps
+asserting that a Telegram stub renders the three-tab shell and no auth page.
+
+→ UNCHANGED CONTRACTS
+
+Server-side authorization, signed `initData` verification, browser sessions,
+CSRF, entitlements, and fail-closed commerce are unchanged; no anonymous
+persistent account is created.
+
+## Three-tab navigation shares the bar equally
+
+OLD CONTRACT
+
+`.app-tab-bar--redesigned > button` kept the five-tab `width: 20%` rule, so the
+three primary destinations occupied 60% of the bar with a dead 40% tail.
+
+→ NEW CONTRACT
+
+The three primary buttons share the bar equally (`flex: 1 1 0`, `width: auto`);
+the legacy `width: 20%` rule remains only on the non-primary `.app-tab-bar`
+selector.
+
+→ WHY INTENTIONAL
+
+The bar was simplified from five destinations to three, and the five-tab width
+rule was never updated with it. Measured on the production build at 390×844:
+buttons were 73px wide with ~49px gaps.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/primary-ia-contract.test.js` — `application shell restores the known-good
+flex and absolute navigation contract` asserts the equal-width rule and rejects
+a percentage width on the redesigned button.
+
 ## Contract coverage status
 
 All substantive changed assertions identified in the audit map to the approved decisions above. OPEN GAP: none. Any future selector-only change should remain in the mechanical section; any new semantic assertion must add its own four-field migration block or be marked OPEN GAP rather than inferred as an intentional contract.

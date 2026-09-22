@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getPlatformSnapshot, isTelegramHost } from './platform.js';
+import { getPlatformSnapshot, isTelegramHost, subscribePlatform } from './platform.js';
 
 function installWindow(value) {
   globalThis.window = value;
@@ -33,4 +33,33 @@ test('Telegram host is detected from initData or an explicit host platform', () 
 
   assert.equal(isTelegramHost({ ready() {} }), false);
   assert.equal(isTelegramHost({ platform: 'tdesktop', ready() {} }), true);
+});
+
+
+test('platform subscription notices a Telegram bridge that appears after first render', () => {
+  const listeners = new Map();
+  const intervals = [];
+  const timeouts = [];
+  installWindow({
+    innerWidth: 390,
+    innerHeight: 844,
+    navigator: {},
+    addEventListener: (name, handler) => listeners.set(name, handler),
+    removeEventListener: () => {},
+  });
+  const snapshots = [];
+  const cleanup = subscribePlatform((snapshot) => snapshots.push(snapshot), {
+    setPollInterval: (callback) => { intervals.push(callback); return callback; },
+    clearPollInterval: () => {},
+    setPollTimeout: (callback) => { timeouts.push(callback); return callback; },
+    clearPollTimeout: () => {},
+  });
+
+  window.Telegram = { WebApp: { initData: 'signed-query', platform: 'android' } };
+  intervals[0]();
+
+  assert.equal(snapshots.length, 1);
+  assert.equal(snapshots[0].authMode, 'telegram_init_data');
+  assert.equal(snapshots[0].isTelegramAndroid, true);
+  cleanup();
 });

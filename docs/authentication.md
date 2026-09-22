@@ -7,13 +7,15 @@ Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_ST
 
 ## Overview
 
-Splint supports Telegram Mini App authentication and a feature-gated browser
-session flow:
+Splint's supported production authentication path is the Telegram Mini App:
 
 1. **Telegram Mini App** — production mode using Telegram's initData HMAC verification.
-2. **Browser Telegram Login** — server-side OIDC Authorization Code + PKCE,
-   issuing an opaque HttpOnly session and CSRF token when explicitly configured.
-3. **Dev-auth** — development-only mode using `X-User-Id` header.
+2. **Standalone browser handoff** — unauthenticated browser visitors are sent
+   to the existing production bot and open the Mini App there; no browser-only
+   account is created.
+3. **Browser OIDC code** — retained as dormant, feature-gated implementation
+   for future work, but not surfaced by the current product UI.
+4. **Dev-auth** — development-only mode using `X-User-Id` header.
 
 ## Production
 
@@ -26,16 +28,12 @@ ALLOW_DEV_AUTH=false
 - `ALLOW_DEV_AUTH` must never be enabled in production. The server will refuse to start if `NODE_ENV=production` and `ALLOW_DEV_AUTH=true`.
 - `TELEGRAM_BOT_TOKEN` is mandatory in production. The server will refuse to start without it.
 - The Telegram SDK (`telegram-web-app.js`) must be loaded in the Mini App context. It provides `initData` which is sent as the `X-Telegram-Init-Data` header.
-- Browser OIDC is not enabled by `NODE_ENV=production` alone. It requires all
-  `TELEGRAM_OIDC_CLIENT_ID`, `TELEGRAM_OIDC_CLIENT_SECRET`, and
-  `TELEGRAM_OIDC_REDIRECT_URI` values plus an exact `BROWSER_AUTH_ORIGIN`.
-  Production startup rejects partial, credential-bearing, non-HTTPS, or
-  cross-origin values.
-- The secret is server-only. The callback exchanges the code server-side,
-  validates the signed id_token, binds the single-use state to a short-lived
-  HttpOnly browser cookie, and sets `splint_session` as Secure,
-  HttpOnly, SameSite=Lax. A separate readable CSRF cookie is checked against
-  `X-CSRF-Token` for state-changing requests.
+- Standalone browser authentication is not part of the current production
+  path. The UI links to `@splint_pixel_studio_bot`; the user enters through
+  the Mini App and receives signed `initData`.
+- Dormant OIDC/session code remains fail-closed if explicitly configured for
+  future work, but production does not require OIDC credentials while this
+  handoff policy is active.
 
 ## Local browser development
 
@@ -54,19 +52,22 @@ VITE_DEV_USER_ID=user_pixelhunter
 
 ## Auth flow
 
-1. If `window.Telegram?.WebApp?.initData` is non-empty, the client sends
-   `X-Telegram-Init-Data`; the server verifies the HMAC and resolves the
-   canonical Telegram account.
-2. Otherwise, the client sends the server-issued session cookie. Mutating
-   requests also send the CSRF token; the server never trusts a frontend user
-   id or localStorage value.
-3. If neither is present, standalone browser UI shows `Войти через Telegram`
-   and owner APIs return `401`. There is no anonymous persistent account.
+1. Inside the Telegram Mini App, the client sends non-empty
+   `window.Telegram.WebApp.initData` as `X-Telegram-Init-Data`; the server
+   verifies the HMAC and resolves the canonical Telegram account.
+2. In an ordinary browser without an existing valid server session, Splint
+   shows `Открыть в Telegram` and links to
+   `https://t.me/splint_pixel_studio_bot`. The user opens the bot and presses
+   its configured `Open` menu button to launch the Mini App.
+3. The standalone browser UI does not call `/auth/telegram/start` and does
+   not create an anonymous or browser-only persistent account.
+4. Dev-auth remains available only under the explicit local development flags.
 
 ## Unified Telegram account identity
 
-Mini App initData and browser OIDC both use the verified numeric Telegram user
-identifier. `ensureTelegramUser()` first searches `users.telegram_id`, then
+Mini App initData uses the verified numeric Telegram user identifier. If the
+dormant browser OIDC path is reactivated in a future release, it must continue
+to use the same identifier. `ensureTelegramUser()` first searches `users.telegram_id`, then
 the canonical `tg_<id>` row, and refreshes only Telegram-owned profile fields.
 Username, display name, avatar, OIDC `sub`, and client headers cannot link two
 accounts. The OIDC provider contract and endpoint values are maintained by

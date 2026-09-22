@@ -1,3 +1,5 @@
+export const TELEGRAM_MINI_APP_BOT_URL = 'https://t.me/splint_pixel_studio_bot';
+
 export function getTelegramWebApp() {
   return typeof window === 'undefined' ? null : window.Telegram?.WebApp ?? null;
 }

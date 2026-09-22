@@ -23,7 +23,6 @@ export function useBrowserAuth() {
     };
   }, []);
 
-  const login = useCallback(() => authApi.login(), []);
   const logout = useCallback(async () => {
     await authApi.logout();
     setSession(getBrowserSessionState());
@@ -40,9 +39,8 @@ export function useBrowserAuth() {
     user: session.user,
     csrfToken: session.csrfToken,
     expiresAt: session.expiresAt,
-    isAuthenticated: platform.isTelegram || session.status === 'authenticated' || session.status === 'development',
-    login,
+    isAuthenticated: platform.authMode === 'telegram_init_data' || session.status === 'authenticated' || session.status === 'development',
     logout,
     refresh,
-  }), [login, logout, platform, refresh, session]);
+  }), [logout, platform, refresh, session]);
 }

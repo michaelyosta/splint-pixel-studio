@@ -42,6 +42,9 @@ function ArtworkCard({ work, onOpen, featured = false, children = null }) {
 export default function ProfileView({
   profile,
   currentUser,
+  loading = false,
+  error = false,
+  onRetry,
   profileArtworks = [],
   mine = [],
   favoriteTemplates = [],
@@ -58,7 +61,8 @@ export default function ProfileView({
   starsOpsBusy = false,
   onStarsOpsChange,
 }) {
-  if (!profile) return <section className="page profile-page"><div className="skeleton-block skeleton-profile" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></section>;
+  if (!profile && error) return <section className="page profile-page"><div className="error-retry" role="alert"><p>Не удалось загрузить профиль.</p><button className="secondary-button" type="button" onClick={onRetry}>Повторить</button></div></section>;
+  if (!profile) return <section className="page profile-page" aria-busy={loading ? 'true' : undefined}><div className="skeleton-block skeleton-profile" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></section>;
 
   const isOwnProfile = profile.id === currentUser?.id;
   const completedWorks = isOwnProfile ? mine.filter((item) => Number(item.progress?.percent) === 100) : profileArtworks;

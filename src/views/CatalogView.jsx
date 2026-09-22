@@ -12,6 +12,7 @@ import {
   resolvePremiumPackState,
 } from '../lib/premiumPack.js';
 import { createPremiumPackPurchaseIntent } from '../lib/premiumPurchase.js';
+import { isProductAllowed } from '../lib/packStore.js';
 import PremiumPackView, { PremiumPackTeaser } from '../features/premium/PremiumPackView.jsx';
 
 export default function CatalogView({
@@ -47,6 +48,7 @@ export default function CatalogView({
   onOpenFreePack,
   onPremiumWish,
   paymentsMode = 'disabled',
+  allowedProductIds = null,
   onOpenStore,
   onTrack = () => {},
 }) {
@@ -173,13 +175,14 @@ export default function CatalogView({
     description: `Доступ ко всей Premium Gallery Splint: ${premiumCount} работ${premiumAlbumCount ? ` в ${premiumAlbumCount} альбомах` : ''}. Яркие миры, неон, существа и атмосферные сцены — одна покупка, полный маршрут.`,
   };
   const premiumEntitlement = findPremiumEntitlement(unlockData?.snapshot, SHOWCASE_PREMIUM_PACK.id);
+  const premiumProductAllowed = isProductAllowed(premiumPack.id, allowedProductIds);
   const premiumState = unlockData?.snapshotStatus === 'loading' && !unlockData?.snapshot
     ? PREMIUM_PACK_STATES.PREVIEW
     : resolvePremiumPackState({
       pack: premiumPack,
       entitlement: premiumEntitlement,
       snapshotStatus: unlockData?.snapshotStatus || 'error',
-      paymentsMode,
+      paymentsMode: premiumProductAllowed ? paymentsMode : 'disabled',
     });
   const currentTemplates = activeShelf ? shelfTemplates : catalogChip === 'popular' ? popularTemplates
     : catalogChip === 'new' ? newestTemplates
@@ -253,10 +256,10 @@ export default function CatalogView({
     <label className="catalog-search"><span aria-hidden="true">⌕</span><input value={catalogQuery} onChange={(event) => onChangeQuery(event.target.value)} placeholder="Поиск картин и тем" type="search" /><button type="button" onClick={() => onChangeQuery('')} aria-label="Очистить поиск" hidden={!catalogQuery}>×</button></label>
     <div className="catalog-chips" role="tablist" aria-label="Раздел каталога">{chipItems.map((chip) => <button key={chip.id} type="button" className={catalogChip === chip.id && !activeShelfId ? 'active' : ''} role="tab" aria-selected={catalogChip === chip.id && !activeShelfId} onClick={() => { hapticSelection(); setActiveShelfId(null); onChangeChip(chip.id); }}>{chip.label}</button>)}<button type="button" className="catalog-store-chip" onClick={() => { onTrack('store_open_from_content', { source: 'catalog_header' }); onOpenStore?.(); }}><Crown size={13} /> Premium Gallery</button></div>
 
-    {loading && !templates.length ? <div className="skeleton-grid" aria-label="Загружаем каталог">{[0, 1, 2, 3].map((item) => <div className="skeleton-card" key={item}><div className="skeleton-block skeleton-preview" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></div>)}</div> : catalogError && !templates.length ? <div className="error-retry"><p>Не удалось загрузить каталог</p><button className="secondary-button" type="button" onClick={onRetryCatalog}>Повторить</button></div> : <>
+    {loading && !templates.length ? <div className="skeleton-grid" aria-label="Загружаем каталог">{[0, 1, 2, 3].map((item) => <div className="skeleton-card" key={item}><div className="skeleton-block skeleton-preview" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></div>)}</div> : catalogError && !templates.length ? <div className="error-retry"><p>Не удалось загрузить каталог</p><button className="secondary-button" type="button" onClick={onRetryCatalog}>Повторить</button></div> : !templates.length ? <div className="error-retry" data-catalog-empty="true"><p>Каталог пока пуст. Обновите его через несколько секунд.</p><button className="secondary-button" type="button" onClick={onRetryCatalog}>Обновить</button></div> : <>
       {catalogChip === 'all' && !catalogCollection && !activeShelf && <>
         <section className="catalog-hero" data-catalog-hero>
-          <div><p className="eyebrow">SPLINT · DIGITAL COLORING STUDIO</p><h2>Выбери свой следующий мир</h2><p>320 сцен — от voxel-приключений и неона до спокойных историй. Начни бесплатно, сохрани любимые темы и собери Premium Gallery.</p></div>
+          <div><p className="eyebrow">SPLINT · DIGITAL COLORING STUDIO</p><h2>Выбери свой следующий мир</h2><p>{templates.length} сцен — от voxel-приключений и неона до спокойных историй. Начни бесплатно, сохрани любимые темы и собери Premium Gallery.</p></div>
           <div className="catalog-hero-stats"><span><b>{templates.length}</b><small>работ</small></span><span><b>{catalogCollections.length}</b><small>коллекций</small></span><span><b>{premiumPack.total_count || premiumPack.items.length}</b><small>Premium</small></span></div>
         </section>
         <section className="catalog-featured-grid">

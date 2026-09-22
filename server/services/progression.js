@@ -48,8 +48,12 @@ function deltaProgressUpdateSql(column) {
 
 function dailyTemplateEligibilitySql(alias = 't') {
   const table = alias;
+  // `access_type` is authoritative for catalog rows: the read gate locks a
+  // premium entry even when its collection is not premium, so a daily
+  // assignment must never hand out content the reader cannot open.
   return `${table}.status='active' AND ${table}.visibility='public'
     AND ${table}.source_type <> 'unlockable'
+    AND ${table}.access_type <> 'premium'
     AND NOT EXISTS (
       SELECT 1 FROM unlock_rules r
       WHERE r.subject_type='template' AND r.subject_id=${table}.id

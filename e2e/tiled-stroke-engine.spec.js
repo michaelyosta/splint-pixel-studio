@@ -395,8 +395,24 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
     // === MID-DRAG EVIDENCE: finger still down, nothing committed to the
     // server yet — but cells 5/12/20 of the line must be painted already. ===
     for (const offset of [5, 12, 20]) {
-      const probe = await canvasPixelAt(page, line.lineStart + offset, paintY);
-      expect(probe, `cell ${line.lineStart + offset} painted while finger is down`).toEqual(expectedRgb);
+      const x = line.lineStart + offset;
+      const cellState = await page.evaluate(({ x: gx, y: gy }) => {
+        const cell = window.__splintClient?.getCell(gx, gy);
+        return { loaded: cell?.loaded, filled: cell?.filled };
+      }, { x, y: paintY });
+      expect(cellState, `cell ${x} exact palette state while finger is down`).toEqual({
+        loaded: true,
+        filled: activeColor,
+      });
+
+      const probe = await canvasPixelAt(page, x, paintY);
+      expect(probe, `cell ${x} canvas probe has three color channels`).toHaveLength(3);
+      for (let channel = 0; channel < 3; channel += 1) {
+        expect(
+          Math.abs(probe[channel] - expectedRgb[channel]),
+          `cell ${x} painted while finger is down, channel ${channel}`,
+        ).toBeLessThanOrEqual(1);
+      }
     }
     await page.screenshot({ path: resolve(evidenceDir, 'tiled-stroke-mid-drag.png') });
 

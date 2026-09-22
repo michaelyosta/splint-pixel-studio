@@ -55,15 +55,37 @@ export function getTelegramResumeScopeId(currentWindow = getWindow()) {
   return value != null && /^\d+$/.test(String(value)) ? String(value) : null;
 }
 
-export function subscribePlatform(listener) {
+export function subscribePlatform(listener, {
+  pollIntervalMs = 200,
+  pollWindowMs = 5_000,
+  setPollInterval = setInterval,
+  clearPollInterval = clearInterval,
+  setPollTimeout = setTimeout,
+  clearPollTimeout = clearTimeout,
+} = {}) {
   const currentWindow = getWindow();
   if (!currentWindow) return () => {};
-  const handleResize = () => listener(getPlatformSnapshot());
-  currentWindow.addEventListener('resize', handleResize);
-  currentWindow.visualViewport?.addEventListener('resize', handleResize);
+  let last = getPlatformSnapshot();
+  const emit = () => {
+    const next = getPlatformSnapshot();
+    const changed = next.isTelegram !== last.isTelegram
+      || next.authMode !== last.authMode
+      || next.viewport.width !== last.viewport.width
+      || next.viewport.height !== last.viewport.height;
+    last = next;
+    if (changed) listener(next);
+  };
+  currentWindow.addEventListener('resize', emit);
+  currentWindow.visualViewport?.addEventListener('resize', emit);
+  currentWindow.addEventListener('focus', emit);
+  const pollId = setPollInterval(emit, pollIntervalMs);
+  const stopPollId = setPollTimeout(() => clearPollInterval(pollId), pollWindowMs);
   return () => {
-    currentWindow.removeEventListener('resize', handleResize);
-    currentWindow.visualViewport?.removeEventListener('resize', handleResize);
+    clearPollInterval(pollId);
+    clearPollTimeout(stopPollId);
+    currentWindow.removeEventListener('resize', emit);
+    currentWindow.visualViewport?.removeEventListener('resize', emit);
+    currentWindow.removeEventListener('focus', emit);
   };
 }
 

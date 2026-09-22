@@ -52,13 +52,12 @@ claims into verified state.
   [PUBLIC_ALPHA_SECURITY_MATRIX.md](PUBLIC_ALPHA_SECURITY_MATRIX.md),
   [RESULT_IMAGE_INTEGRITY.md](RESULT_IMAGE_INTEGRITY.md), and
   [adr/ADR-002-canonical-artwork-and-media.md](adr/ADR-002-canonical-artwork-and-media.md).
-- `ACTIVE` — responsive browser shell and feature-gated browser Telegram OIDC
-  readiness. The responsive viewport matrix, centralized platform adapter,
-  PKCE/state verifier, opaque session, CSRF boundary, and shared
-  `telegram_id` identity path are documented in
+- `ACTIVE` — responsive browser shell with Telegram Mini App handoff.
+  Standalone browser visitors are directed to the existing production bot
+  `@splint_pixel_studio_bot` and authenticate only after opening the Mini App;
+  the dormant browser OIDC implementation is not part of the current production
+  path. The capability boundary is documented in
   [RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md](RESPONSIVE_WEB_AND_TELEGRAM_IDENTITY.md).
-  Production activation/configuration and cross-device live evidence remain
-  `UNKNOWN` until deployment and manual checks exist.
 - `ACTIVE` — E2E/CI integrity. The checked-in manifest generated on
   2026-09-07 selects 24 weighted shards for 150 logical tests and 450 project
   cases across Chromium, Mobile iPhone, and Mobile Pixel. The suite keeps

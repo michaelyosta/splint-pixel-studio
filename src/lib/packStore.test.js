@@ -5,6 +5,7 @@ import {
   PACK_STATES,
   canCheckout,
   getPackState,
+  isProductAllowed,
   normalizeStorePacks,
   reduceCheckoutState,
 } from './packStore.js';
@@ -84,4 +85,11 @@ test('checkout reducer exposes invoice and refund states without treating them a
   state = reduceCheckoutState(state, { type: 'REFUNDED', operationId: 'refund-1' });
   assert.equal(state.status, CHECKOUT_STATES.REFUNDED);
   assert.equal(state.owned, undefined);
+});
+
+
+test('an explicit empty product allowlist fails closed while an omitted allowlist stays compatible', () => {
+  assert.equal(isProductAllowed('col_premium-gallery', []), false);
+  assert.equal(isProductAllowed('col_premium-gallery', ['col_premium-gallery']), true);
+  assert.equal(isProductAllowed('col_premium-gallery', null), true);
 });

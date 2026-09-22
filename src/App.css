@@ -42,7 +42,8 @@ img { user-select: none; }
   body { background-color: var(--app-bg); background-image: none; }
   .telegram-frame {
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh;
     border: none;
     border-radius: 0;
     box-shadow: none;
@@ -346,6 +347,9 @@ img { user-select: none; }
 .error-retry { text-align: center; padding: 34px 16px; }
 .error-retry p { color: var(--app-text-secondary); font-size: 13px; margin-bottom: 14px; }
 .error-retry .secondary-button { min-height: 44px; padding: 0 20px; }
+.player-load-error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 14px; }
+.player-load-error-actions .primary-button,
+.player-load-error-actions .secondary-button { min-height: 44px; }
 
 .toast {
   position: absolute;
@@ -1697,7 +1701,7 @@ html[data-tg-theme='light'] .session-goal-timer {
   border-bottom: none;
   border-radius: 24px 24px 0 0;
   padding: 10px 16px calc(22px + env(safe-area-inset-bottom, 0px));
-  max-height: 80vh;
+  max-height: 80dvh;
   overflow-y: auto;
   box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.55);
   animation: dialogSlideUp 0.28s cubic-bezier(0.25, 1, 0.5, 1);
@@ -1808,7 +1812,7 @@ html[data-tg-theme='light'] .session-goal-timer {
 .completion-dialog {
   width: 100%;
   max-width: 340px;
-  max-height: 96vh;
+  max-height: 96dvh;
   overflow-y: auto;
   background: var(--app-bg-elevated);
   border: 1px solid rgba(255, 199, 44, 0.35);
@@ -2262,7 +2266,8 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
   border-radius: 22px;
 }
 .app-tab-bar--redesigned > button {
-  width: 20%;
+  flex: 1 1 0;
+  width: auto;
   min-height: 60px;
   gap: 3px;
   padding: 5px 1px 4px;
@@ -3169,7 +3174,7 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .browser-auth-icon { width: 56px; height: 56px; display: grid; place-items: center; margin: 0 auto 18px; border: 1px solid rgba(43, 217, 254, 0.45); border-radius: 18px; color: var(--app-cyan); background: rgba(43, 217, 254, 0.1); }
 .browser-auth-card h1 { margin: 8px 0 12px; color: var(--app-text-primary); font-size: clamp(24px, 4vw, 36px); line-height: 1.08; letter-spacing: -0.04em; }
 .browser-auth-copy { max-width: 42ch; margin: 0 auto 24px; color: var(--app-text-secondary); font-size: 14px; line-height: 1.55; }
-.browser-auth-button { width: 100%; justify-content: center; min-height: 52px; }
+.browser-auth-button { width: 100%; min-height: 52px; box-sizing: border-box; justify-content: center; text-decoration: none; }
 .browser-auth-note { display: block; margin-top: 16px; color: var(--app-text-faint); font-size: 11px; line-height: 1.45; }
 .browser-auth-error { margin: 0 0 16px; color: #ff8b9a; font-size: 13px; }
 

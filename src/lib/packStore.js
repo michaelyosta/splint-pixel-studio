@@ -189,6 +189,11 @@ export function checkoutStateLabel(state) {
   }
 }
 
+export function isProductAllowed(productId, allowedProductIds = null) {
+  if (!Array.isArray(allowedProductIds)) return true;
+  return allowedProductIds.map(String).includes(String(productId || ''));
+}
+
 export function canCheckout(pack, paymentsMode = pack?.payments_mode) {
   return Boolean(
     pack

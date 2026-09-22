@@ -94,6 +94,22 @@ ALTER TABLE telegram_stars_orders ADD COLUMN IF NOT EXISTS price_xtr INTEGER;
 ALTER TABLE telegram_stars_orders ADD COLUMN IF NOT EXISTS price_version INTEGER;
 ALTER TABLE telegram_stars_orders ADD COLUMN IF NOT EXISTS invoice_created_at TIMESTAMPTZ;
 
+-- Backfill the immutable price snapshot before the extended identity guard is
+-- installed. The guard below rejects any change to these columns, so the
+-- one-time backfill must run under the previous guard or it blocks itself on
+-- any database that already has issued orders.
+INSERT INTO catalog_product_prices (product_id, price_xtr, price_version, updated_at)
+SELECT id, price_in_stars, 1, CURRENT_TIMESTAMP
+  FROM collections
+ WHERE id = 'col_premium-gallery' AND price_in_stars > 0
+ON CONFLICT (product_id) DO NOTHING;
+
+UPDATE telegram_stars_orders
+   SET price_xtr = amount_xtr,
+       price_version = COALESCE(price_version, 1),
+       invoice_created_at = COALESCE(invoice_created_at, created_at)
+ WHERE price_xtr IS NULL OR price_version IS NULL OR invoice_created_at IS NULL;
+
 -- Extend the existing order identity guard to cover the explicit price
 -- snapshot columns introduced here.
 CREATE OR REPLACE FUNCTION prevent_telegram_stars_order_identity_update()
@@ -120,18 +136,6 @@ DROP TRIGGER IF EXISTS trg_telegram_stars_orders_identity ON telegram_stars_orde
 CREATE TRIGGER trg_telegram_stars_orders_identity
   BEFORE UPDATE ON telegram_stars_orders
   FOR EACH ROW EXECUTE FUNCTION prevent_telegram_stars_order_identity_update();
-
-INSERT INTO catalog_product_prices (product_id, price_xtr, price_version, updated_at)
-SELECT id, price_in_stars, 1, CURRENT_TIMESTAMP
-  FROM collections
- WHERE id = 'col_premium-gallery' AND price_in_stars > 0
-ON CONFLICT (product_id) DO NOTHING;
-
-UPDATE telegram_stars_orders
-   SET price_xtr = amount_xtr,
-       price_version = COALESCE(price_version, 1),
-       invoice_created_at = COALESCE(invoice_created_at, created_at)
- WHERE price_xtr IS NULL OR price_version IS NULL OR invoice_created_at IS NULL;
 
 CREATE OR REPLACE FUNCTION prevent_admin_audit_mutation()
 RETURNS trigger LANGUAGE plpgsql AS $$

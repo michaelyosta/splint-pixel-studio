@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, catalogApi, metaApi } from '../api/client';
 import { CATALOG_PAGE_SIZE } from '../lib/catalogMeta';
 import { hapticSelection } from '../lib/telegram';
@@ -18,6 +18,7 @@ export function useCatalogData({ showNotice, setFavoriteTemplates, onNavigate })
   const [favoriteSavingId, setFavoriteSavingId] = useState(null);
   const [ratingTemplateId, setRatingTemplateId] = useState(null);
   const [publishingTemplateId, setPublishingTemplateId] = useState(null);
+  const mineRequestRef = useRef(null);
 
   const loadCatalog = useCallback(async () => {
     setLoading(true);
@@ -43,12 +44,24 @@ export function useCatalogData({ showNotice, setFavoriteTemplates, onNavigate })
   }, [showNotice]);
 
   const loadMine = useCallback(async () => {
+    if (mineRequestRef.current) return mineRequestRef.current;
+    const request = (async () => {
+      try {
+        const nextMine = await api('/colorings/mine');
+        setMine(nextMine);
+        setMineError(false);
+        return nextMine;
+      } catch (error) {
+        showNotice(error.message, 'error');
+        setMineError(true);
+        return null;
+      }
+    })();
+    mineRequestRef.current = request;
     try {
-      setMine(await api('/colorings/mine'));
-      setMineError(false);
-    } catch (error) {
-      showNotice(error.message, 'error');
-      setMineError(true);
+      return await request;
+    } finally {
+      if (mineRequestRef.current === request) mineRequestRef.current = null;
     }
   }, [showNotice]);
 

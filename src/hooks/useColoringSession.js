@@ -61,6 +61,7 @@ export function useColoringSession({
   const [tiledSpecialDiscovered, setTiledSpecialDiscovered] = useState(null);
   const [tiledReconciledChanges, setTiledReconciledChanges] = useState([]);
   const [resumeSnapshot, setResumeSnapshot] = useState(null);
+  const [openError, setOpenError] = useState(null);
 
   const sessionStartRef = useRef(0);
   const sessionIdRef = useRef(null);
@@ -89,6 +90,7 @@ export function useColoringSession({
   const zoneIndicesRef = useRef({});
   const resumeSnapshotRef = useRef(null);
   const sessionStopRecordedRef = useRef(false);
+  const lastOpenRequestRef = useRef(null);
 
   tiledSpecialOfferRef.current = tiledSpecialOffer;
 
@@ -489,6 +491,11 @@ export function useColoringSession({
   }
 
   async function openColoring(id, { resumeSnapshot: requestedResume = null, usePersistedResume = true } = {}) {
+    lastOpenRequestRef.current = {
+      id,
+      options: { resumeSnapshot: requestedResume, usePersistedResume },
+    };
+    setOpenError(null);
     catalogScrollRef.current = screenContentRef.current?.scrollTop ?? 0;
     setLockedUnlock(null);
     setLoading(true);
@@ -616,15 +623,23 @@ export function useColoringSession({
     } catch (error) {
       const unlock = parseUnlockLockedError(error);
       if (unlock) {
+        setOpenError(null);
         setLockedUnlock(unlock);
         onNavigate('play');
         metaApi.track('unlock_locked_view', { id, code: unlock.reason_code }).catch(() => {});
       } else {
+        setOpenError(error.message || 'Не удалось открыть раскраску');
         showNotice(error.message, 'error');
       }
     } finally {
       setLoading(false);
     }
+  }
+
+  function retryOpenColoring() {
+    const request = lastOpenRequestRef.current;
+    if (!request?.id) return Promise.resolve(null);
+    return openColoring(request.id, request.options);
   }
 
   function handleTiledStrokeCommitted(changes, operation, specialAction = null) {
@@ -1249,6 +1264,8 @@ export function useColoringSession({
     zoneIndicesRef,
     screenContentRef,
     openColoring,
+    openError,
+    retryOpenColoring,
     resumeSnapshot,
     persistResumeState,
     retryPendingSave,
