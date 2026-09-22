@@ -71,7 +71,12 @@ test('application shell restores the known-good flex and absolute navigation con
   assert.match(navigationRule, /position:\s*absolute/);
   assert.match(navigationRule, /bottom:\s*calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
   assert.match(navigationRule, /backdrop-filter:\s*blur\(14px\)/);
-  assert.match(redesignedButtonRule, /width:\s*20%/);
+  // Three primary destinations share the bar equally. The legacy five-tab
+  // `width: 20%` rule (still present on `.app-tab-bar > button`) would leave a
+  // three-tab bar at 60% width with a dead 40% tail.
+  assert.match(redesignedButtonRule, /flex:\s*1 1 0/);
+  assert.match(redesignedButtonRule, /width:\s*auto/);
+  assert.doesNotMatch(redesignedButtonRule, /width:\s*\d+%/);
   assert.doesNotMatch(app, /createPortal|shellGeneration|telegramStartupBlocked|app-container--play/);
 });
 

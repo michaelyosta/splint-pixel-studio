@@ -58,6 +58,39 @@ async function paintActiveFragment(page) {
   return { indices: geometry.indices, continuousRun };
 }
 
+/**
+ * Event names carried by an analytics request, whichever transport it uses. The
+ * client coalesces low-priority telemetry into `POST /api/meta/analytics/batch`
+ * and only falls back to one request per event (`POST /api/meta/analytics`)
+ * when an older backend answers the batch route with 404 during a
+ * frontend-first deploy.
+ */
+function analyticsEventsFrom(request) {
+  if (request.method() !== 'POST') return [];
+  const url = request.url();
+  const isSingle = url.endsWith('/api/meta/analytics');
+  const isBatch = url.endsWith('/api/meta/analytics/batch');
+  if (!isSingle && !isBatch) return [];
+  let body;
+  try {
+    body = request.postDataJSON();
+  } catch {
+    // Malformed analytics are covered by the server contract test.
+    return [];
+  }
+  if (isSingle) return body?.event ? [body.event] : [];
+  return (body?.events || []).map((entry) => entry?.event).filter(Boolean);
+}
+
+function recordAnalyticsEvents(page, target = []) {
+  page.on('request', (request) => { target.push(...analyticsEventsFrom(request)); });
+  return target;
+}
+
+function carriesAnalyticsEvent(request, event) {
+  return analyticsEventsFrom(request).includes(event);
+}
+
 async function clickFirstActiveCell(page) {
   const canvas = page.locator('canvas.coloring-canvas');
   const point = await canvas.evaluate((element) => {
@@ -77,15 +110,7 @@ async function clickFirstActiveCell(page) {
 
 for (const variant of ['a', 'b', 'c']) {
   test(`core feel ${variant}: manual reveal owns the first minute`, async ({ page }, testInfo) => {
-    const analyticsEvents = [];
-    page.on('request', (request) => {
-      if (!request.url().endsWith('/api/meta/analytics') || request.method() !== 'POST') return;
-      try {
-        analyticsEvents.push(request.postDataJSON()?.event);
-      } catch {
-        // Malformed analytics are covered by the server contract test.
-      }
-    });
+    const analyticsEvents = recordAnalyticsEvents(page);
     const userId = freshSubject(variant, testInfo.project.name);
     await page.goto(`/?coreFeel=${variant}&coreSubject=${userId}`);
 
@@ -203,14 +228,9 @@ test('partial manual progress reloads into a meaningful resume action', async ({
     new RegExp(`(^|,)${firstIndex}(,|$)`),
   );
   await waitForColoringSessionReady(page, { 'data-route-status': 'ready' }, 'core feel resume ready');
-  const resumeEvent = page.waitForRequest((request) => {
-    if (!request.url().endsWith('/api/meta/analytics') || request.method() !== 'POST') return false;
-    try {
-      return request.postDataJSON()?.event === 'core_feel_resume_action';
-    } catch {
-      return false;
-    }
-  });
+  const resumeEvent = page.waitForRequest((request) => (
+    carriesAnalyticsEvent(request, 'core_feel_resume_action')
+  ));
   await clickFirstActiveCell(page);
   await resumeEvent;
 });
