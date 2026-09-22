@@ -276,9 +276,9 @@ buttons were 73px wide with ~49px gaps.
 
 → WHERE NEW BEHAVIOR IS COVERED
 
-`test/primary-ia-contract.test.js` — `application shell restores the known-good
-flex and absolute navigation contract` asserts the equal-width rule and rejects
-a percentage width on the redesigned button.
+`test/primary-ia-contract.test.js` — `application shell keeps navigation in
+normal flow for Telegram iOS reopen` asserts the equal-width rule and rejects a
+percentage width on the redesigned button.
 
 ## Navigation shell stays free of backdrop-filter
 
@@ -289,29 +289,35 @@ navigation contract test pinned that property as part of the known-good shell.
 
 → NEW CONTRACT
 
-The navigation panel keeps its geometry and 92% opaque fill but has no
-`backdrop-filter` at all; the contract test asserts its absence.
+The navigation panel keeps its geometry with an opaque fill, has no
+`backdrop-filter`, and remains a normal-flow flex item rather than an
+absolutely positioned overlay; the contract test asserts these properties.
 
 → WHY INTENTIONAL
 
-Physical Telegram iOS evidence: on cold start the bar painted as a block with
-no icons or labels while its tap targets stayed functional, and any viewport
-transition (background/resume, fullscreen) repainted the contents correctly.
-That isolates the failure to compositing of the blurred backdrop layer over the
-panel's own children, not to geometry, hit-testing, or theme tokens. The fill is
-92% opaque, so the blur was visually imperceptible.
+Physical Telegram iOS evidence: on cold start/reopen in the compact Telegram
+dialog the bar painted as a block with no icons or labels while its tap targets
+stayed functional, and background/resume or fullscreen repainted the contents.
+Historical physical passes also showed that the real iOS session must not be
+auto-expanded and that a normal-flow bar avoids the stale absolute-layer path.
+The remaining failure is therefore bounded to the compact-sheet compositor and
+startup transition, not to the three-tab IA or hit targets.
 
 → WHERE NEW BEHAVIOR IS COVERED
 
-`test/primary-ia-contract.test.js` — `application shell restores the known-good
-flex and absolute navigation contract` asserts the panel has no
-`backdrop-filter`. The physical cold-start check in the real Mini App is the
-release evidence for the defect itself.
+`test/primary-ia-contract.test.js` — `application shell keeps navigation in
+normal flow for Telegram iOS reopen` asserts the panel has no
+`backdrop-filter` and is not absolutely positioned. `src/lib/telegram.test.js`
+asserts that signed iOS sessions remain compact while other clients retain
+auto-expand. A fresh physical cold-start check in the real Mini App remains the
+release evidence for the fix.
 
 → UNCHANGED CONTRACTS
 
-The absolute positioning, `bottom` safe-area calculation, `z-index`, equal
-three-tab widths, primary IA, and hit targets are unchanged.
+The primary IA, safe-area spacing, `z-index`, equal three-tab widths, and hit
+targets are unchanged. The implementation intentionally changes the bar from
+an absolute overlay to a normal-flow item to remove the iOS compact-sheet
+compositing failure.
 
 ## Contract coverage status
 

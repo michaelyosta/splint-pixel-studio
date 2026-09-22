@@ -35,6 +35,16 @@ export function isRealTelegramSession(webApp = getTelegramWebApp()) {
 }
 
 /**
+ * Keep a real Telegram iOS session in the compact sheet selected by the user.
+ * Physical iOS evidence shows that the native expanded transition can leave
+ * bottom content hit-testable but unpainted; Android, desktop, and unsigned
+ * browser SDK stubs keep the existing auto-expand behavior.
+ */
+export function shouldAutoExpandTelegramWebApp(webApp = getTelegramWebApp()) {
+  return Boolean(webApp) && !(isRealTelegramSession(webApp) && webApp.platform === 'ios');
+}
+
+/**
  * Reports whether this WebApp can disable the vertical swipe-to-close gesture.
  * Prefers Telegram's own `isVersionAtLeast` capability check and falls back to
  * comparing `version` when the capability helper is unavailable or throws.
@@ -137,9 +147,9 @@ export function initializeTelegramWebApp() {
   const webApp = getTelegramWebApp();
   if (!webApp) return null;
   webApp.ready();
-  // Ask Telegram for the full viewport height right away so the studio
-  // never renders in the collapsed in-app window.
-  try { webApp.expand?.(); } catch { /* older clients */ }
+  if (shouldAutoExpandTelegramWebApp(webApp)) {
+    try { webApp.expand?.(); } catch { /* older clients */ }
+  }
   applyTelegramTheme(webApp);
   try { webApp.onEvent?.('themeChanged', () => applyTelegramTheme(webApp)); } catch { /* optional */ }
   return webApp;

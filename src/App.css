@@ -160,7 +160,6 @@ img { user-select: none; }
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: 96px;
   position: relative;
   scrollbar-width: thin;
 }
@@ -175,22 +174,18 @@ img { user-select: none; }
 
 /* ── Tab bar ──────────────────────────────────────────────────── */
 .app-tab-bar {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  position: relative;
+  flex: 0 0 auto;
+  margin: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
   height: 62px;
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  background: rgba(12, 22, 34, 0.92);
+  background: var(--app-dark-gray);
   border: 1px solid var(--app-border);
   border-radius: 20px;
-  /* No backdrop-filter here on purpose: in Telegram iOS WebView the blurred
-     backdrop layer can composite a stale snapshot over this panel's own
-     children, so the bar paints as an empty block until a viewport transition
-     (background/resume, fullscreen) forces a repaint. The fill is 92% opaque,
-     so the blur contributed nothing visually. */
+  /* Keep the bar in normal flow: Telegram iOS can drop the rasterization of
+     an absolutely positioned bottom layer during compact-sheet reopen. */
   box-shadow: 0 12px 30px rgba(2, 8, 14, 0.6);
   z-index: 20;
 }
@@ -2160,7 +2155,7 @@ html[data-tg-theme='light'] .app-container {
     linear-gradient(rgba(0, 120, 150, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 120, 150, 0.05) 1px, transparent 1px);
 }
-html[data-tg-theme='light'] .app-tab-bar { background: rgba(255, 255, 255, 0.94); box-shadow: 0 10px 26px rgba(23, 43, 66, 0.16); }
+html[data-tg-theme='light'] .app-tab-bar { background: var(--app-card); box-shadow: 0 10px 26px rgba(23, 43, 66, 0.16); }
 html[data-tg-theme='light'] .header-logo { text-shadow: none; }
 html[data-tg-theme='light'] .primary-button { color: #FFFFFF; }
 html[data-tg-theme='light'] .card-preview,
@@ -3193,7 +3188,7 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
     box-shadow: none;
   }
   .app-header { padding: 14px 28px; }
-  .screen-content { padding-bottom: 98px; }
+  .screen-content { padding-bottom: 0; }
   .home-page,
   .catalog-page--redesigned,
   .feed-page--redesigned,
@@ -3201,7 +3196,14 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
   .profile-page--showcase,
   .create-hub-page,
   .store-page { width: min(100%, 1180px); margin-inline: auto; box-sizing: border-box; padding: 32px 32px 48px; }
-  .app-tab-bar--redesigned { left: 50%; right: auto; width: min(calc(100% - 48px), 680px); transform: translateX(-50%); }
+  .app-tab-bar--redesigned {
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: min(calc(100% - 48px), 680px);
+    margin: 8px auto calc(10px + env(safe-area-inset-bottom, 0px));
+    transform: none;
+  }
   .catalog-art-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
   .catalog-collection-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
   .catalog-art-card .catalog-art-preview { aspect-ratio: 1; height: auto; }
