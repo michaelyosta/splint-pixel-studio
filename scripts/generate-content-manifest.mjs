@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
@@ -570,7 +570,13 @@ const manifest = {
   schema_version: 1,
   generated_at: '2026-09-15T00:00:00.000Z',
   art_bible: 'docs/SPLINT_ART_BIBLE.md',
-  catalog: { collections: 16, albums: 32, colorings: 320, free: 160, premium: 160 },
+  catalog: {
+    collections: collections.length,
+    albums: collections.reduce((total, collection) => total + collection.albums.length, 0),
+    colorings: entries.length,
+    free: entries.filter((entry) => entry.access === 'free').length,
+    premium: entries.filter((entry) => entry.access === 'premium').length,
+  },
   master_formats: {
     portrait: { width: 1600, height: 2000 },
     square: { width: 1600, height: 1600 },
@@ -584,6 +590,14 @@ const manifest = {
   covers,
   entries,
 };
+
+const existingManifest = await readFile(manifestPath, 'utf8')
+  .then((value) => JSON.parse(value))
+  .catch(() => null);
+const forceRegenerateBase = process.argv.includes('--force-regenerate-base');
+if (!forceRegenerateBase && existingManifest?.entries?.some((entry) => String(entry.id).startsWith('coloring_phase2_'))) {
+  throw new Error('Refusing to overwrite a Phase 2 canonical catalog. Use the phase-2 promotion pipeline or pass --force-regenerate-base for an intentional base reset.');
+}
 
 await mkdir(dirname(manifestPath), { recursive: true });
 await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');

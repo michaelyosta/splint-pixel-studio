@@ -113,6 +113,18 @@ function updateState(state, progress, ingestionReport, outcome) {
   };
 }
 
+function mergePhase2Collections(baseCollections, phaseCollections, entries) {
+  const entryCollectionIds = new Set(entries.map((entry) => entry.collection_id).filter(Boolean));
+  const phaseById = new Map((phaseCollections || []).map((collection) => [collection.id, collection]));
+  const retained = (baseCollections || [])
+    .filter((collection) => entryCollectionIds.has(collection.id))
+    .map((collection) => phaseById.get(collection.id) || collection);
+  const added = (phaseCollections || []).filter((collection) => (
+    entryCollectionIds.has(collection.id) && !retained.some((candidate) => candidate.id === collection.id)
+  ));
+  return [...retained, ...added];
+}
+
 const [baseBefore, phaseBefore, stateBefore, registryBefore] = await Promise.all([
   readJson(basePath),
   readJson(phasePath),
@@ -149,6 +161,7 @@ for (const filePath of [basePath, catalogPath, reportPath]) backups.set(filePath
 
 const candidateManifest = {
   ...baseBefore,
+  collections: mergePhase2Collections(baseBefore.collections, phaseBefore.collections, baseBefore.entries.map((entry, index) => index === slotIndex ? { ...candidate } : entry)),
   entries: baseBefore.entries.map((entry, index) => index === slotIndex ? { ...candidate } : entry),
 };
 await writeJson(basePath, candidateManifest);

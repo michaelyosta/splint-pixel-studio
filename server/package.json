@@ -16,6 +16,7 @@
     "migrate": "node scripts/migrate.js",
     "migrate:postgres": "node scripts/migrate-postgres.js",
     "bootstrap:system": "node bootstrap-system.js",
+    "catalog:publish": "node scripts/publish-catalog.mjs",
     "seed:demo": "node seed-demo.js",
     "reset:demo": "node reset-demo.js",
     "check": "node scripts/check.js",

@@ -5,9 +5,14 @@ import { fileURLToPath } from 'node:url';
 const serviceDirectory = dirname(fileURLToPath(import.meta.url));
 const manifestPath = join(serviceDirectory, '..', '..', 'content', 'catalog-manifest.json');
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+const catalogAssetBaseUrl = String(process.env.CATALOG_ASSET_BASE_URL || '').replace(/\/+$/, '');
 
-function assetUrl(assetPath) {
+export function catalogAssetUrl(assetPath) {
   const value = String(assetPath || '').replaceAll('\\', '/');
+  if (!value) return null;
+  if (catalogAssetBaseUrl && value.startsWith('public/assets/catalog/')) {
+    return `${catalogAssetBaseUrl}/${value.slice('public/assets/catalog/'.length)}`;
+  }
   return value.startsWith('public/') ? `/${value.slice('public/'.length)}` : value;
 }
 
@@ -62,7 +67,7 @@ export const CATALOG_COLLECTIONS = (Array.isArray(manifest.collections) ? manife
         count: albumEntries.length,
         free_count: albumEntries.filter((entry) => entry.access === 'free').length,
         premium_count: albumEntries.filter((entry) => entry.access === 'premium').length,
-        cover_url: assetUrl(albumCover?.optimized_asset || albumCover?.source_asset),
+        cover_url: catalogAssetUrl(albumCover?.optimized_asset || albumCover?.source_asset),
         featured_rank: index * 100 + albumIndex * 10,
       };
     });
@@ -75,7 +80,7 @@ export const CATALOG_COLLECTIONS = (Array.isArray(manifest.collections) ? manife
       free_count: collectionEntries.filter((entry) => entry.access === 'free').length,
       premium_count: collectionEntries.filter((entry) => entry.access === 'premium').length,
       tags: unique(collectionEntries.flatMap((entry) => entry.tags || [])),
-      image_url: assetUrl(cover?.optimized_asset || cover?.source_asset),
+      image_url: catalogAssetUrl(cover?.optimized_asset || cover?.source_asset),
       catalog_scope: 'merchandising',
       catalog_rank: index,
       albums,
