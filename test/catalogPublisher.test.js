@@ -45,5 +45,6 @@ test('catalog asset inventory does not require generated binaries to validate id
   const catalog = readCanonicalCatalog();
   const inventory = buildCatalogAssetInventory(catalog);
   assert.equal(inventory.length, 1056);
-  assert.ok(inventory.every((asset) => asset.absolute_source.endsWith(asset.source_asset.replaceAll('/', '\\'))));
+  const normalizePath = (value) => String(value).replaceAll('\\', '/');
+  assert.ok(inventory.every((asset) => normalizePath(asset.absolute_source).endsWith(asset.source_asset)));
 });
