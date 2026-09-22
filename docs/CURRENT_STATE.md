@@ -182,6 +182,11 @@ deployment occurred. The checked-in workflow is `.github/workflows/ci.yml`.
 
 ## Non-blocking debt
 
+- One root unit-suite failure was observed once and never reproduced: `npm test`
+  reported `# fail 1` on a single run of the diagnostic branch, the failing name
+  was not captured, and twelve later runs (six sequential, six under concurrent
+  load) were clean. Treat as a rare load-sensitive flake and capture the name
+  the next time `npm test` fails locally before assuming it is new.
 - Legacy product views, server compatibility routes, and historical experiment
   code remain and require scope discipline when touched.
 - Historical documents still contain useful forensic detail; they are being
