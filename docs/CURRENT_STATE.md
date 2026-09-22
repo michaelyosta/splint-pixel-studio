@@ -2,7 +2,7 @@
 
 Status: CURRENT
 Authority: Current operational truth for this repository.
-Last verified: 2026-09-15
+Last verified: 2026-09-22
 Repository state: verify current HEAD and origin/main at task start per AGENTS.md.
 
 This document is intentionally short and bounded. It records what is
@@ -19,6 +19,14 @@ This confirms the primary public origin and Telegram launch path. Current
 commerce status below also incorporates the controlled-production evidence
 recorded through 2026-09-15; it does not promote physical-iOS or editorial
 claims into verified state.
+
+Recovery release `5a829a7` (PR #47) is deployed: the browser handoff renders
+only for a plain browser without a session, a Telegram host keeps the shell and
+its three-tab navigation while signed `initData` is resolving, the three primary
+buttons share the navigation bar equally, and the daily assignment never hands
+out content the read gate locks. Migration `033` applied with the server deploy.
+Direct smoke evidence from 2026-09-22 is recorded in
+[evidence/RECOVERY_DEPLOY_SMOKE_2026-09-22.md](evidence/RECOVERY_DEPLOY_SMOKE_2026-09-22.md).
 
 ## Product
 
