@@ -8,6 +8,7 @@ import {
   readCanonicalCatalog,
   sha256,
 } from '../services/catalog-publisher.js';
+import { uploadImmutableCatalogAsset } from '../services/catalog-asset-storage.js';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const defaultInventoryPath = resolve(root, 'content', 'catalog-r2-inventory.json');
@@ -82,34 +83,17 @@ async function collectLocalInventory(records) {
 }
 
 async function uploadAssets(records, storage) {
-  const { HeadObjectCommand, PutObjectCommand } = await import('@aws-sdk/client-s3');
   const localInventory = await collectLocalInventory(records);
   const uploaded = [];
   for (const expected of localInventory) {
-    let head = null;
-    try {
-      head = await storage.client.send(new HeadObjectCommand({ Bucket: storage.bucket, Key: expected.key }));
-    } catch (error) {
-      if (!isNotFound(error)) throw error;
-    }
-    if (head) {
-      const remoteSha = head.Metadata?.sha256 || head.Metadata?.['x-amz-meta-sha256'];
-      if (Number(head.ContentLength) !== expected.bytes || remoteSha !== expected.sha256) {
-        throw new Error(`Immutable catalog object mismatch at ${expected.key}; refusing overwrite`);
-      }
-      uploaded.push({ ...expected, action: 'verified-existing' });
-      continue;
-    }
-    const body = await readFile(resolve(root, expected.source_asset));
-    await storage.client.send(new PutObjectCommand({
-      Bucket: storage.bucket,
-      Key: expected.key,
-      Body: body,
-      ContentType: contentType(expected.source_asset),
-      CacheControl: 'public, max-age=31536000, immutable',
-      Metadata: { sha256: expected.sha256, source_asset: expected.source_asset },
-    }));
-    uploaded.push({ ...expected, action: 'uploaded' });
+    const action = await uploadImmutableCatalogAsset({
+      client: storage.client,
+      bucket: storage.bucket,
+      asset: expected,
+      readBody: () => readFile(resolve(root, expected.source_asset)),
+      contentType: contentType(expected.source_asset),
+    });
+    uploaded.push({ ...expected, action });
   }
   return uploaded;
 }
@@ -174,7 +158,7 @@ async function main() {
   };
 
   if (upload || verify || restoreCheck) {
-    const storage = storageConfig();
+    const storage = await storageConfig();
     const records = buildCatalogAssetInventory(catalog);
     if (upload) {
       const uploaded = await uploadAssets(records, storage);
