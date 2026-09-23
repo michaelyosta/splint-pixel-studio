@@ -995,6 +995,29 @@ test('deterministic cohort seed returns the same template and cohort for repeate
   assert.equal(progress.json.specials_experiment_group, 'treatment');
 });
 
+test('deterministic cohort seeds remain owner-scoped for users with a shared legacy prefix', async (t) => {
+  const baseUrl = await startServer(t, 'SPECIALS_TREATMENT', { e2eHooks: true });
+  const sharedPrefix = 'e2e_4f4833c294ef93c78246';
+  const firstUser = `${sharedPrefix}-263ca0c2902293ec8046`;
+  const secondUser = `${sharedPrefix}-46b3c5a901e1c0ba07db`;
+  const body = { cohort: 'control', storage: 'tiled', size: { width: 160, height: 160 } };
+
+  const first = await createClient(baseUrl, firstUser)('/__e2e/seed-cohort-template', {
+    method: 'POST',
+    body,
+  });
+  const second = await createClient(baseUrl, secondUser)('/__e2e/seed-cohort-template', {
+    method: 'POST',
+    body,
+  });
+
+  assert.equal(first.response.status, 201);
+  assert.equal(first.json.user_id, firstUser);
+  assert.equal(second.response.status, 201);
+  assert.equal(second.json.user_id, secondUser);
+  assert.notEqual(second.json.id, first.json.id);
+});
+
 test('deterministic cohort seed supports treatment and control with real assignment semantics', async (t) => {
   const baseUrl = await startServer(t, 'SPECIALS_TREATMENT', { e2eHooks: true });
   const request = createClient(baseUrl, 'user_cohort_both');

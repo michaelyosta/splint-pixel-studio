@@ -7,11 +7,22 @@ const manifestPath = join(serviceDirectory, '..', '..', 'content', 'catalog-mani
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const catalogAssetBaseUrl = String(process.env.CATALOG_ASSET_BASE_URL || '').replace(/\/+$/, '');
 
-export function catalogAssetUrl(assetPath) {
+export function catalogAssetUrl(assetPath, baseUrl = catalogAssetBaseUrl) {
   const value = String(assetPath || '').replaceAll('\\', '/');
   if (!value) return null;
-  if (catalogAssetBaseUrl && value.startsWith('public/assets/catalog/')) {
-    return `${catalogAssetBaseUrl}/${value.slice('public/assets/catalog/'.length)}`;
+  const normalizedBaseUrl = String(baseUrl || '').replace(/\/+$/, '');
+  const normalizedPath = value.replace(/^\/+/, '').replace(/^public\//, '');
+  const catalogPathPrefix = 'assets/catalog/';
+  if (normalizedBaseUrl && normalizedPath.startsWith(catalogPathPrefix)) {
+    const relativePath = normalizedPath.slice(catalogPathPrefix.length);
+    const parts = relativePath.split('/');
+    const filename = parts.at(-1);
+    if (parts.length === 2 && parts[0] === 'generated' && filename.endsWith('-pixel.png')) {
+      return `${normalizedBaseUrl}/previews/${filename}`;
+    }
+    if (parts.length === 3 && parts[0] === 'generated' && parts[1] === 'covers') {
+      return `${normalizedBaseUrl}/covers/${filename}`;
+    }
   }
   return value.startsWith('public/') ? `/${value.slice('public/'.length)}` : value;
 }

@@ -9,6 +9,7 @@
  *  - simulated broken guidance indexes (partial rows without a marker).
  */
 import { Router } from 'express';
+import { createHash } from 'node:crypto';
 import { v4 as uuid } from 'uuid';
 import { get, withDbTransaction } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -65,7 +66,8 @@ function buildTiles(width, height, tileSize, paletteLength) {
 
 function deterministicCohortTemplateId(userId, cohort, attempt, size, fixture = '') {
   const fixtureSuffix = fixture ? `_${fixture}` : '';
-  return `${COHORT_FIXTURE_TEMPLATE_PREFIX}${String(userId).slice(0, 24)}_${cohort}_${attempt}_${size.width}x${size.height}${fixtureSuffix}`;
+  const ownerKey = createHash('sha256').update(String(userId)).digest('hex').slice(0, 24);
+  return `${COHORT_FIXTURE_TEMPLATE_PREFIX}${ownerKey}_${cohort}_${attempt}_${size.width}x${size.height}${fixtureSuffix}`;
 }
 
 /**
