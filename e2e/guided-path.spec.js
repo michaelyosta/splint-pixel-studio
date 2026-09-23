@@ -112,6 +112,9 @@ test('catalog is the default and primary navigation has exactly three product ta
   await page.goto('/');
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
   await page.addStyleTag({ content: '.catalog-page, .profile-page { min-height: 1500px; }' });
+  await page.addStyleTag({ content: 'html { --tg-viewport-stable-height: 640px !important; }' });
+  const stableShellHeight = await page.locator('.telegram-frame').evaluate((frame) => getComputedStyle(frame).height);
+  expect(stableShellHeight).toBe('640px');
   const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
   await expect(navigation.getByRole('button')).toHaveCount(3);
   expect(await navigation.getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))).toEqual(['Каталог', 'Создать', 'Профиль']);

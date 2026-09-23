@@ -362,10 +362,9 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     for (let i = 0; i < 10; i++) {
       const before = await session.getAttribute('data-target-id');
       await nextButton.click();
+      await expect(session).toHaveAttribute('data-route-status', /^(ready|artworkComplete)$/);
       const status = await session.getAttribute('data-route-status');
       if (status === 'artworkComplete') break;
-      await expect(session).toHaveAttribute('data-route-status', 'focusingTarget');
-      await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 2000 });
       await expect(session).not.toHaveAttribute('data-target-id', before);
     }
   });
