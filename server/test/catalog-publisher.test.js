@@ -245,6 +245,11 @@ test('publisher source does not route through demo seeding', async () => {
   assert.doesNotMatch(source, /seedDemoData|bootstrapSystemData/);
 });
 
+test('catalog asset upload accepts short-lived scoped S3 session credentials', async () => {
+  const source = await readFile(join(serverDir, 'scripts', 'publish-catalog.mjs'), 'utf8');
+  assert.match(source, /sessionToken:\s*process\.env\.S3_SESSION_TOKEN/);
+});
+
 test('catalog media delivery allows previews and covers but never masters', () => {
   assert.equal(isCatalogDeliveryKey('catalog/previews/pixel.png'), true);
   assert.equal(isCatalogDeliveryKey('catalog/covers/collection.png'), true);

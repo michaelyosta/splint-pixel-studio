@@ -64,6 +64,11 @@ normal deployment operator. Never enable `SEED_DEMO_DATA` to publish the
 canonical catalog, and never delete repository binaries or storage objects
 until the object inventory and restore check have passed.
 
+The publisher accepts the optional `S3_SESSION_TOKEN` for short-lived,
+prefix-scoped R2 credentials. Do not pass a bucket-wide parent credential to
+the catalog upload process when a `catalog/`-scoped temporary credential is
+available.
+
 ## Recovery evidence
 
 Keep the generated `content/catalog-r2-inventory.json` outside the deploy
