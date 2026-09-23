@@ -254,7 +254,7 @@ export async function applyDraft(tx, { entityType, entityId, changes, actor }) {
       cover_url: changes.cover_url ?? beforeRow.cover_url, sort_rank: changes.sort_rank ?? beforeRow.sort_rank, featured: changes.featured ?? Boolean(beforeRow.featured),
       is_new: changes.is_new ?? Boolean(beforeRow.is_new), tags_json: json(changes.tags ?? parseJson(beforeRow.tags_json, [])),
     };
-    await tx.run(`UPDATE catalog_albums SET collection_id=?,slug=?,title=?,description=?,visibility=?,status=?,cover_url=?,sort_rank=?,featured=?,is_new=?,tags_json=?,updated_at=? WHERE id=?`, [values.collection_id, values.slug, values.title, values.description, values.visibility, values.status, values.cover_url, values.sort_rank, values.featured ? 1 : 0, values.is_new ? 1 : 0, values.tags_json, now, entityId]);
+    await tx.run(`UPDATE catalog_albums SET collection_id=?,slug=?,title=?,description=?,visibility=?,status=?,cover_url=?,sort_rank=?,featured=?,is_new=?,tags_json=?,editor_managed=TRUE,updated_at=? WHERE id=?`, [values.collection_id, values.slug, values.title, values.description, values.visibility, values.status, values.cover_url, values.sort_rank, values.featured ? 1 : 0, values.is_new ? 1 : 0, values.tags_json, now, entityId]);
     await tx.run('UPDATE coloring_templates SET album_title=? WHERE album_id=?', [values.title, entityId]);
   } else if (entityType === 'coloring') {
     const values = {

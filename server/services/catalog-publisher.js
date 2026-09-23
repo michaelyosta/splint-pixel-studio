@@ -445,12 +445,25 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
         const coverUrl = catalogAssetUrl(albumCover?.optimized_asset || albumCover?.source_asset) || collectionCoverUrl;
         const albumEntries = entries.filter((entry) => entry.album_id === album.id);
         await q.run(`INSERT INTO catalog_albums
-          (id,collection_id,slug,title,description,visibility,status,cover_url,sort_rank,featured,is_new,tags_json,created_at,updated_at)
-          VALUES (?,?,?,?,?,'public','active',?,?,?,?,?,?,?)
-          ON CONFLICT(id) DO NOTHING`,
+          (id,collection_id,slug,title,description,visibility,status,cover_url,sort_rank,featured,is_new,tags_json,editor_managed,created_at,updated_at)
+          VALUES (?,?,?,?,?,'public','active',?,?,?,?,?,?,?,?)
+          ON CONFLICT(id) DO UPDATE SET
+            collection_id=excluded.collection_id,
+            slug=excluded.slug,
+            title=excluded.title,
+            description=excluded.description,
+            visibility=excluded.visibility,
+            status=excluded.status,
+            cover_url=excluded.cover_url,
+            sort_rank=excluded.sort_rank,
+            featured=excluded.featured,
+            is_new=excluded.is_new,
+            tags_json=excluded.tags_json,
+            updated_at=excluded.updated_at
+          WHERE catalog_albums.editor_managed=FALSE`,
         [album.id, collection.id, album.slug || album.id, album.title || album.id, '', coverUrl,
           collectionIndex * 100 + albumIndex * 10, albumEntries.some((entry) => entry.id.endsWith('_01')) ? 1 : 0,
-          collection.id.includes('phase2') ? 1 : 0, json([...new Set(albumEntries.flatMap((entry) => entry.tags || []))]), now, now]);
+          collection.id.includes('phase2') ? 1 : 0, json([...new Set(albumEntries.flatMap((entry) => entry.tags || []))]), false, now, now]);
       }
     }
 

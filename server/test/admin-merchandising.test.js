@@ -174,6 +174,18 @@ test('merchandising validates references, applies changes, and writes append-onl
   });
 
   await withTransaction({ mode: 'sqlite', sqlite: db, persistFn: null }, async (tx) => {
+    await applyDraft(tx, {
+      entityType: 'album',
+      entityId: 'alb_blockbound-main',
+      changes: normalizeAdminChanges('album', { title: 'Main Album — Curated' }),
+      actor,
+    });
+    const album = await tx.get('SELECT title,editor_managed FROM catalog_albums WHERE id=?', ['alb_blockbound-main']);
+    assert.equal(album.title, 'Main Album — Curated');
+    assert.equal(Number(album.editor_managed), 1);
+  });
+
+  await withTransaction({ mode: 'sqlite', sqlite: db, persistFn: null }, async (tx) => {
     await assert.rejects(
       () => validateDraftAgainstCatalog(tx, 'album', 'alb_blockbound-main', { slug: 'other' }),
       (error) => error.code === 'ADMIN_DUPLICATE_SLUG',

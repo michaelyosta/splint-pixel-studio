@@ -39,8 +39,11 @@ reconciliation. Before replacing a grid, it checks legacy progress, tiled
 progress, progress batches, and special-cell progress. A changed map with any
 such state fails the whole transaction; an identical map is idempotent and
 keeps that state intact. Existing rows marked `catalog_managed` and their
-stored grids are preserved. Stale non-managed catalog rows are hidden rather
-than deleted.
+stored grids are preserved. Manifest-owned album rows are upserted on later
+publishes, while existing albums default to `editor_managed` and remain
+unchanged until the canonical publisher first creates them. A published admin
+edit permanently opts that album out of manifest synchronization. Stale
+non-managed catalog rows are hidden rather than deleted.
 
 The legacy base-manifest generator fails closed once Phase 2 IDs are present;
 the Phase-2 promotion script is the only supported path for continuing a

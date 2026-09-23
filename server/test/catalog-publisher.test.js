@@ -108,6 +108,41 @@ test('publisher writes the canonical catalog without touching protected domains'
   }
 });
 
+test('publisher syncs manifest-owned albums but preserves editor-managed overrides', async () => {
+  const SQL = await initSqlJs();
+  const sqlite = new SQL.Database();
+  sqlite.run('PRAGMA foreign_keys = ON');
+  await runMigrations({ mode: 'sqlite', pool: null, sqlite, persistFn: null, migrationsDir });
+
+  try {
+    const canonical = readCanonicalCatalog();
+    const album = canonical.collections[0].albums[0];
+    const withAlbumTitle = (catalog, title) => ({
+      ...catalog,
+      collections: catalog.collections.map((collection) => ({
+        ...collection,
+        albums: collection.albums.map((candidate) => candidate.id === album.id ? { ...candidate, title } : candidate),
+      })),
+    });
+
+    await publishCatalog({ db: createAdapter(sqlite), catalog: canonical });
+    let row = sqlite.exec('SELECT title,editor_managed FROM catalog_albums WHERE id=?', [album.id])[0].values[0];
+    assert.equal(row[0], album.title);
+    assert.equal(Number(row[1]), 0);
+
+    await publishCatalog({ db: createAdapter(sqlite), catalog: withAlbumTitle(canonical, 'Manifest refresh') });
+    row = sqlite.exec('SELECT title,editor_managed FROM catalog_albums WHERE id=?', [album.id])[0].values[0];
+    assert.deepEqual(row, ['Manifest refresh', 0]);
+
+    sqlite.run('UPDATE catalog_albums SET title=?,editor_managed=1 WHERE id=?', ['Editorial override', album.id]);
+    await publishCatalog({ db: createAdapter(sqlite), catalog: withAlbumTitle(canonical, 'Later manifest refresh') });
+    row = sqlite.exec('SELECT title,editor_managed FROM catalog_albums WHERE id=?', [album.id])[0].values[0];
+    assert.deepEqual(row, ['Editorial override', 1]);
+  } finally {
+    sqlite.close();
+  }
+});
+
 test('publisher stores 1200x900 catalog grids as tiles and reruns idempotently', async () => {
   const SQL = await initSqlJs();
   const sqlite = new SQL.Database();
