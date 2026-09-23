@@ -159,9 +159,9 @@ export async function pickLoadedUnfilledCell(page) {
   });
 }
 
-export async function pickLoadedVisibleCell(page, box) {
+export async function pickLoadedVisibleCell(page, box, { targetColor = null } = {}) {
   const camera = await readTiledCamera(page);
-  return page.evaluate(({ box, camera }) => {
+  return page.evaluate(({ box, camera, targetColor }) => {
     const client = window.__splintClient;
     if (!client) return null;
     const margin = 40;
@@ -175,6 +175,7 @@ export async function pickLoadedVisibleCell(page, box) {
         if (tile.filled[localIndex] !== -1) continue;
         const x = tile.offsetX + (localIndex % tile.width);
         const y = tile.offsetY + Math.floor(localIndex / tile.width);
+        if (targetColor != null && client.getCell(x, y)?.target !== targetColor) continue;
         const screenX = box.x + x * 32 * camera.zoom + camera.x + 16 * camera.zoom;
         const screenY = box.y + y * 32 * camera.zoom + camera.y + 16 * camera.zoom;
         if (screenX >= minX && screenX <= maxX && screenY >= minY && screenY <= maxY) {
@@ -183,7 +184,7 @@ export async function pickLoadedVisibleCell(page, box) {
       }
     }
     return null;
-  }, { box, camera });
+  }, { box, camera, targetColor });
 }
 
 export async function cellToScreen(cellX, cellY, camera, box) {
