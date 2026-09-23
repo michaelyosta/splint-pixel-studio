@@ -43,7 +43,8 @@ async function createLegacy(page, {
   expect(fixture.cohort).toBe(cohort);
   expect(fixture.storage).toBe('legacy');
   expect(fixture.size).toEqual({ width: LEGACY_GRID, height: LEGACY_GRID });
-  expect(fixture.id).toContain(`tpl_cohort_e2e_${ownerId.slice(0, 24)}_`);
+  const ownerKey = createHash('sha256').update(ownerId).digest('hex').slice(0, 24);
+  expect(fixture.id).toContain(`tpl_cohort_e2e_${ownerKey}_`);
   const progressResponse = await page.request.get(`/api/colorings/${fixture.id}/progress`);
   expect(progressResponse.ok()).toBe(true);
   const progress = await progressResponse.json();
