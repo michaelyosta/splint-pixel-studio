@@ -276,9 +276,53 @@ buttons were 73px wide with ~49px gaps.
 
 → WHERE NEW BEHAVIOR IS COVERED
 
-`test/primary-ia-contract.test.js` — `application shell restores the known-good
-flex and absolute navigation contract` asserts the equal-width rule and rejects
-a percentage width on the redesigned button.
+`test/primary-ia-contract.test.js` — `application shell keeps navigation in
+normal flow for Telegram iOS reopen` asserts the equal-width rule and rejects a
+percentage width on the redesigned button.
+
+## Telegram navigation follows the stable viewport
+
+OLD CONTRACT
+
+The shell used `100dvh` while Telegram's menu-button Mini App could be animating
+between compact and expanded heights. The bottom navigation was an absolutely
+positioned child with a `backdrop-filter` layer.
+
+→ NEW CONTRACT
+
+The shell height uses Telegram's `--tg-viewport-stable-height` CSS variable,
+falling back to `100dvh` outside Telegram. The navigation is in normal flow,
+uses the existing safe-area margin, has no relative-position insets, and keeps
+an opaque fill without `backdrop-filter`.
+
+→ WHY INTENTIONAL
+
+Physical Telegram iOS reports show a blank panel with working hit targets on a
+cold menu-button launch; background/resume or fullscreen causes the contents to
+paint. Telegram documents that `viewportHeight` changes during gestures and
+animations and is not suitable for bottom-pinned UI, while
+`viewportStableHeight` changes only after the viewport reaches its stable size.
+The shell therefore follows that supported stable measurement, keeps the nav
+in flow, and removes an unnecessary backdrop layer. The exact WebKit failure
+mode is not isolated by available physical evidence; the launch-path/lifecycle
+interaction is the supported root-cause class. Existing `expand()` behavior is
+preserved.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/primary-ia-contract.test.js` — `application shell keeps navigation in
+normal flow for Telegram iOS reopen` asserts the stable-height shell and flow
+layout. `e2e/guided-path.spec.js` sets a synthetic stable-height CSS variable
+and verifies the shell uses it while the navigation remains bounded and
+actionable. `src/lib/telegram.test.js` asserts existing ready-then-expand
+behavior. A fresh physical cold-start check in real Telegram remains the
+strongest platform-specific validation.
+
+→ UNCHANGED CONTRACTS
+
+The primary IA, `z-index`, equal three-tab widths, and hit targets are
+unchanged. The shell still auto-expands as before; only its sizing source
+changes when Telegram provides a stable viewport value.
 
 ## Contract coverage status
 

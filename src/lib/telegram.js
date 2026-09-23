@@ -137,8 +137,8 @@ export function initializeTelegramWebApp() {
   const webApp = getTelegramWebApp();
   if (!webApp) return null;
   webApp.ready();
-  // Ask Telegram for the full viewport height right away so the studio
-  // never renders in the collapsed in-app window.
+  // Preserve the existing launch behavior; bottom UI sizes from Telegram's
+  // stable viewport CSS variable instead of tracking its animated height.
   try { webApp.expand?.(); } catch { /* older clients */ }
   applyTelegramTheme(webApp);
   try { webApp.onEvent?.('themeChanged', () => applyTelegramTheme(webApp)); } catch { /* optional */ }
