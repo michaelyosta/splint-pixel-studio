@@ -52,25 +52,31 @@ test('app header and default shell expose only primary navigation routes', () =>
   );
 });
 
-test('application shell restores the known-good flex and absolute navigation contract', () => {
+test('application shell keeps navigation in normal flow for Telegram iOS reopen', () => {
   const app = source('src/App.jsx');
   const styles = source('src/App.css');
   const containerRule = styles.match(/\.app-container\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const frameRule = styles.match(/(?:^|\n)\.telegram-frame\s*\{([\s\S]*?)\}/)?.[1] || '';
   const contentRule = styles.match(/\.screen-content\s*\{([\s\S]*?)\}/)?.[1] || '';
   const navigationRule = styles.match(/(?:^|\n)\.app-tab-bar\s*\{([\s\S]*?)\}/)?.[1] || '';
   const redesignedButtonRule = styles.match(/\.app-tab-bar--redesigned > button\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const redesignedNavigationRule = styles.match(/(?:^|\n)\.app-tab-bar--redesigned\s*\{([\s\S]*?)\}/)?.[1] || '';
 
   assert.match(containerRule, /display:\s*flex/);
   assert.match(containerRule, /flex-direction:\s*column/);
   assert.match(containerRule, /position:\s*relative/);
   assert.doesNotMatch(containerRule, /display:\s*grid|grid-template-rows/);
+  assert.match(frameRule, /height:\s*var\(--tg-viewport-stable-height,\s*100dvh\)/);
+  assert.match(frameRule, /max-height:\s*var\(--tg-viewport-stable-height,\s*100dvh\)/);
   assert.match(contentRule, /flex:\s*1/);
   assert.match(contentRule, /min-height:\s*0/);
   assert.match(contentRule, /overflow-y:\s*auto/);
-  assert.match(contentRule, /padding-bottom:\s*96px/);
-  assert.match(navigationRule, /position:\s*absolute/);
-  assert.match(navigationRule, /bottom:\s*calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
-  assert.match(navigationRule, /backdrop-filter:\s*blur\(14px\)/);
+  assert.doesNotMatch(contentRule, /padding-bottom:\s*96px/);
+  assert.match(navigationRule, /position:\s*relative/);
+  assert.match(navigationRule, /flex:\s*0 0 auto/);
+  assert.match(navigationRule, /margin:\s*8px 10px calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
+  assert.doesNotMatch(navigationRule, /backdrop-filter\s*:/);
+  assert.doesNotMatch(redesignedNavigationRule, /(?:left|right|bottom|transform):\s*/);
   // Three primary destinations share the bar equally. The legacy five-tab
   // `width: 20%` rule (still present on `.app-tab-bar > button`) would leave a
   // three-tab bar at 60% width with a dead 40% tail.
@@ -80,7 +86,7 @@ test('application shell restores the known-good flex and absolute navigation con
   assert.doesNotMatch(app, /createPortal|shellGeneration|telegramStartupBlocked|app-container--play/);
 });
 
-test('navigation shell contains no post-regression iOS paint workarounds', () => {
+test('navigation shell contains no speculative iOS paint workarounds', () => {
   const app = source('src/App.jsx');
   const styles = source('src/App.css');
   const telegram = source('src/lib/telegram.js');
@@ -88,9 +94,10 @@ test('navigation shell contains no post-regression iOS paint workarounds', () =>
 
   assert.doesNotMatch(app, /createPortal|isRealTelegramIosSession|iosNavigationHost|shellGeneration|telegramStartupBlocked/);
   assert.doesNotMatch(styles, /ios-primary|primary-navigation--portal|telegram-startup-surface|data-tg-ios|app-tab-bar--repaint|translateZ\(0\)|grid-template-rows/);
-  assert.doesNotMatch(telegram, /isRealTelegramIosSession|shouldAutoExpandTelegramWebApp|syncTelegramViewportCssVars|bindTelegramViewportLifecycle|requestFullscreen|exitFullscreen/);
+  assert.doesNotMatch(telegram, /syncTelegramViewportCssVars|bindTelegramViewportLifecycle|requestFullscreen|exitFullscreen/);
   assert.doesNotMatch(main, /ViewportSelfHeal|viewportDiagnostic|flushSync|shellGeneration/);
   assert.match(telegram, /webApp\.ready\(\)[\s\S]*webApp\.expand\?\.\(\)/);
+  assert.doesNotMatch(telegram, /shouldAutoExpandTelegramWebApp/);
 });
 
 test('profile CTAs stay within primary IA while secondary routes remain implementation details', () => {

@@ -254,7 +254,7 @@ test('deep-link readers accept query and Telegram start parameters', () => {
   }
 });
 
-test('Telegram startup expands the WebApp on every platform', () => {
+test('Telegram startup preserves ready-then-expand behavior across supported hosts', () => {
   for (const platform of ['ios', 'android', 'tdesktop']) {
     const previousWindow = globalThis.window;
     const previousDocument = globalThis.document;
