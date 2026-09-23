@@ -20,9 +20,9 @@ function watchErrors(page) {
   return errors;
 }
 
-async function tiledTargetPoint(page) {
+async function tiledTargetPoint(page, { targetColor = null } = {}) {
   const box = await page.locator('.progressive-grid-area').boundingBox();
-  const target = await pickLoadedVisibleCell(page, box);
+  const target = await pickLoadedVisibleCell(page, box, { targetColor });
   expect(target).not.toBeNull();
   await waitForTiledCellLoaded(page, target.x, target.y);
   const camera = await readTiledCamera(page);
@@ -127,10 +127,24 @@ test.describe('Input gesture evidence', () => {
   test('pointercancel does not leave a stuck stroke; next touch still commits', async ({ page, browserName }) => {
     test.skip(browserName === 'webkit', 'CDP touchCancel evidence is Chromium-only');
     const errors = watchErrors(page);
-    const coloring = await createTiledColoring(page);
+    const fixtureResponse = await page.request.post('/api/__e2e/seed-cohort-template', {
+      data: { cohort: 'control', storage: 'tiled', size: { width: 160, height: 160 } },
+    });
+    expect(fixtureResponse.ok()).toBe(true);
+    const fixture = await fixtureResponse.json();
+    expect(fixture).toMatchObject({
+      cohort: 'control',
+      storage: 'tiled',
+      size: { width: 160, height: 160 },
+    });
+    const coloring = { id: fixture.id };
     await openColoring(page, coloring.id, { metrics: true });
     await waitForTiledReady(page, coloring.id);
-    const first = await tiledTargetPoint(page);
+    const sessionRoot = page.locator('.progressive-coloring-session');
+    await expect(sessionRoot).toHaveAttribute('data-special-treatment', 'control');
+    const firstColor = Number(await sessionRoot.getAttribute('data-smart-color'));
+    expect(Number.isInteger(firstColor)).toBe(true);
+    const first = await tiledTargetPoint(page, { targetColor: firstColor });
     const session = await createTouchSession(page);
 
     const firstProgress = waitForProgressAction(page);
@@ -141,7 +155,9 @@ test.describe('Input gesture evidence', () => {
     const firstBody = await firstResponse.json();
     expect(firstBody.completed_cells).toBeGreaterThan(0);
 
-    const secondTarget = await pickLoadedVisibleCell(page, first.box);
+    const secondColor = Number(await sessionRoot.getAttribute('data-smart-color'));
+    expect(Number.isInteger(secondColor)).toBe(true);
+    const secondTarget = await pickLoadedVisibleCell(page, first.box, { targetColor: secondColor });
     expect(secondTarget).not.toBeNull();
     await waitForTiledCellLoaded(page, secondTarget.x, secondTarget.y);
     const camera = await readTiledCamera(page);
