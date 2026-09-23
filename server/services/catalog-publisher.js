@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { basename, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gunzipSync } from 'node:zlib';
 import { catalogAssetUrl, CATALOG_SHELF_DEFINITIONS } from './catalog-merchandising.js';
 
 const serviceRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
@@ -29,6 +30,174 @@ function assertAssetPath(value, label, errors) {
     || normalized.startsWith('public/assets/catalog/generated/');
   if (!normalized || normalized.includes('..') || !isCanonicalGeneratedPath) {
     errors.push(`${label} is not a canonical generated asset path: ${value}`);
+  }
+}
+
+function readCatalogGridBytes(template, root = serviceRoot) {
+  const asset = String(template?.cell_map_asset || '').replaceAll('\\', '/');
+  if (!asset.startsWith('content/generated/') || asset.split('/').includes('..')) {
+    throw new Error(`CATALOG_GRID_ASSET_PATH_INVALID: ${template.id}`);
+  }
+  const width = Number(template.width);
+  const height = Number(template.height);
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 8 || height < 8
+    || width > 1200 || height > 1200) {
+    throw new Error(`CATALOG_GRID_DIMENSIONS_INVALID: ${template.id}`);
+  }
+  const path = resolve(root, asset);
+  const realRoot = realpathSync(root);
+  const realPath = realpathSync(path);
+  const pathFromRoot = relative(realRoot, realPath);
+  if (pathFromRoot === '..' || pathFromRoot.startsWith(`..${sep}`) || resolve(realRoot, pathFromRoot) === realRoot) {
+    throw new Error(`CATALOG_GRID_ASSET_PATH_INVALID: ${template.id}`);
+  }
+  const expectedBytes = width * height;
+  const compressedBytes = statSync(path).size;
+  if (compressedBytes > expectedBytes + 65_536) throw new Error(`CATALOG_GRID_COMPRESSED_SIZE_INVALID: ${template.id}`);
+  const compressed = readFileSync(path);
+  const actualSha = sha256(compressed);
+  if (actualSha !== String(template.cell_map_sha256 || '').toLowerCase()) {
+    throw new Error(`CATALOG_GRID_CHECKSUM_MISMATCH: ${template.id}`);
+  }
+  const raw = gunzipSync(compressed, { maxOutputLength: expectedBytes });
+  if (raw.length !== expectedBytes || (template.cell_map_raw_bytes !== undefined
+    && Number(template.cell_map_raw_bytes) !== raw.length)) {
+    throw new Error(`CATALOG_GRID_SIZE_MISMATCH: ${template.id}`);
+  }
+  const paletteLength = template.palette?.length || 0;
+  for (let index = 0; index < raw.length; index += 1) {
+    if (raw[index] >= paletteLength) throw new Error(`CATALOG_GRID_PALETTE_INDEX_INVALID: ${template.id}`);
+  }
+  return raw;
+}
+
+function buildTilesFromGridBytes(template, raw) {
+  const width = Number(template.width);
+  const height = Number(template.height);
+  const tileSize = Number(template.tile_size || 32);
+  const tiles = [];
+  for (let tileY = 0; tileY < Math.ceil(height / tileSize); tileY += 1) {
+    for (let tileX = 0; tileX < Math.ceil(width / tileSize); tileX += 1) {
+      const tileWidth = Math.min(tileSize, width - tileX * tileSize);
+      const tileHeight = Math.min(tileSize, height - tileY * tileSize);
+      const cells = new Array(tileWidth * tileHeight);
+      for (let y = 0; y < tileHeight; y += 1) {
+        const sourceOffset = (tileY * tileSize + y) * width + tileX * tileSize;
+        const targetOffset = y * tileWidth;
+        for (let x = 0; x < tileWidth; x += 1) cells[targetOffset + x] = raw[sourceOffset + x];
+      }
+      tiles.push({ tile_x: tileX, tile_y: tileY, width: tileWidth, height: tileHeight, cells });
+    }
+  }
+  return tiles;
+}
+
+function validatePublisherTiles(template, tiles) {
+  const width = Number(template.width);
+  const height = Number(template.height);
+  const tileSize = Number(template.tile_size || 32);
+  const paletteLength = template.palette?.length || 0;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 8 || height < 8
+    || width > 1200 || height > 1200 || !Number.isInteger(tileSize) || tileSize < 8 || tileSize > 128
+    || paletteLength < 2 || paletteLength > 32) {
+    throw new Error(`CATALOG_TILED_GRID_INVALID: ${template.id}`);
+  }
+  const columns = Math.ceil(width / tileSize);
+  const rows = Math.ceil(height / tileSize);
+  if (!Array.isArray(tiles) || tiles.length !== columns * rows) {
+    throw new Error(`CATALOG_TILED_GRID_INCOMPLETE: ${template.id}`);
+  }
+  const coordinates = new Set();
+  for (const tile of tiles) {
+    const tileX = Number(tile.tile_x);
+    const tileY = Number(tile.tile_y);
+    const tileWidth = Math.min(tileSize, width - tileX * tileSize);
+    const tileHeight = Math.min(tileSize, height - tileY * tileSize);
+    const key = `${tileX}:${tileY}`;
+    if (!Number.isInteger(tileX) || !Number.isInteger(tileY) || tileX < 0 || tileY < 0
+      || tileX >= columns || tileY >= rows || coordinates.has(key)
+      || Number(tile.width) !== tileWidth || Number(tile.height) !== tileHeight
+      || !Array.isArray(tile.cells) || tile.cells.length !== tileWidth * tileHeight
+      || tile.cells.some((cell) => !Number.isInteger(cell) || cell < 0 || cell >= paletteLength)) {
+      throw new Error(`CATALOG_TILED_TILE_INVALID: ${template.id}:${key}`);
+    }
+    coordinates.add(key);
+  }
+  return [...tiles].sort((a, b) => a.tile_y - b.tile_y || a.tile_x - b.tile_x);
+}
+
+function parseStoredArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return null;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function sameJsonArray(first, second) {
+  const a = parseStoredArray(first);
+  const b = parseStoredArray(second);
+  return Boolean(a && b && JSON.stringify(a) === JSON.stringify(b));
+}
+
+function sameTemplateMap(existing, runtime, tiles = null) {
+  if (!existing || Number(existing.width) !== Number(runtime.width)
+    || Number(existing.height) !== Number(runtime.height)
+    || !sameJsonArray(existing.palette_json, runtime.palette)) return false;
+  if (tiles) {
+    if (existing.storage_mode !== 'tiled') return false;
+    const storedTiles = Array.isArray(existing.tiles) ? existing.tiles : [];
+    if (storedTiles.length !== tiles.length) return false;
+    return tiles.every((tile, index) => {
+      const stored = storedTiles[index];
+      return Number(stored.tile_x) === tile.tile_x
+        && Number(stored.tile_y) === tile.tile_y
+        && Number(stored.width) === tile.width
+        && Number(stored.height) === tile.height
+        && sameJsonArray(stored.cells_json, tile.cells);
+    });
+  }
+  return (existing.storage_mode || 'legacy') === 'legacy'
+    && sameJsonArray(existing.cells_json, runtime.cells);
+}
+
+async function templateHasProgress(db, templateId) {
+  const row = await db.get(`SELECT
+    (SELECT COUNT(*) FROM coloring_progress WHERE template_id=?)
+    + (SELECT COUNT(*) FROM coloring_progress_batches WHERE template_id=?)
+    + (SELECT COUNT(*) FROM coloring_tiled_progress WHERE template_id=?)
+    + (SELECT COUNT(*) FROM coloring_tiled_progress_tiles WHERE template_id=?)
+    + (SELECT COUNT(*) FROM coloring_tiled_progress_tile_colors WHERE template_id=?)
+    + (SELECT COUNT(*) FROM coloring_tiled_progress_colors WHERE template_id=?)
+    + (SELECT COUNT(*) FROM coloring_special_progress WHERE template_id=?) AS progress_count`,
+  Array(7).fill(templateId));
+  return Number(row?.progress_count || 0) > 0;
+}
+
+async function clearStoredGrid(db, templateId) {
+  await db.run('DELETE FROM coloring_zones WHERE template_id=?', [templateId]);
+  await db.run('DELETE FROM coloring_template_tile_color_counts WHERE template_id=?', [templateId]);
+  await db.run('DELETE FROM coloring_template_color_counts WHERE template_id=?', [templateId]);
+  await db.run('DELETE FROM coloring_template_guidance_index_meta WHERE template_id=?', [templateId]);
+  await db.run('DELETE FROM coloring_special_cells WHERE template_id=?', [templateId]);
+  await db.run('DELETE FROM coloring_template_tiles WHERE template_id=?', [templateId]);
+}
+
+async function insertTemplateTiles(db, templateId, tiles, now) {
+  const batchSize = 100;
+  for (let offset = 0; offset < tiles.length; offset += batchSize) {
+    const batch = tiles.slice(offset, offset + batchSize);
+    const values = [];
+    const placeholders = batch.map((tile) => {
+      values.push(templateId, tile.tile_x, tile.tile_y, tile.width, tile.height, json(tile.cells), now, now);
+      return '(?,?,?,?,?,?,?,?)';
+    });
+    await db.run(`INSERT INTO coloring_template_tiles
+      (template_id,tile_x,tile_y,width,height,cells_json,created_at,updated_at)
+      VALUES ${placeholders.join(',')}`, values);
   }
 }
 
@@ -68,7 +237,7 @@ function buildCatalogAssetRecords(manifest) {
   return [...byKey.values()];
 }
 
-export function readCanonicalCatalog({ manifestPath = defaultManifestPath, runtimePath = defaultRuntimePath } = {}) {
+export function readCanonicalCatalog({ manifestPath = defaultManifestPath, runtimePath = defaultRuntimePath, gridRoot = serviceRoot } = {}) {
   const manifest = parseJsonFile(manifestPath);
   const runtimeTemplates = parseJsonFile(runtimePath);
   const errors = [];
@@ -115,8 +284,42 @@ export function readCanonicalCatalog({ manifestPath = defaultManifestPath, runti
   if (runtime.some((template) => !entryIds.has(template.id))) errors.push('runtime contains ids absent from manifest');
   if (entries.some((entry) => !runtimeIds.has(entry.id))) errors.push('manifest contains ids absent from runtime template data');
   for (const template of runtime) {
-    if (!Array.isArray(template.palette) || !Array.isArray(template.cells)) errors.push(`${template.id} runtime payload is missing palette or cells`);
-    if (!Number.isInteger(template.width) || !Number.isInteger(template.height)) errors.push(`${template.id} runtime payload has invalid dimensions`);
+    if (!Number.isInteger(template.width) || !Number.isInteger(template.height)) {
+      errors.push(`${template.id} runtime payload has invalid dimensions`);
+      continue;
+    }
+    if (!Array.isArray(template.palette) || template.palette.length < 2 || template.palette.length > 32
+      || template.palette.some((color) => typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color))) {
+      errors.push(`${template.id} runtime payload has an invalid palette`);
+      continue;
+    }
+    if (template.storage_mode === 'tiled') {
+      const tileSize = Number(template.tile_size || 32);
+      if (template.width < 8 || template.height < 8 || template.width > 1200 || template.height > 1200
+        || !Number.isInteger(tileSize) || tileSize < 8 || tileSize > 128) {
+        errors.push(`${template.id} has invalid tiled dimensions or tile_size`);
+      }
+      if (!String(template.cell_map_asset || '').endsWith('.u8.gz')) {
+        errors.push(`${template.id} tiled runtime payload has no .u8.gz cell_map_asset`);
+      }
+      assertAssetPath(template.cell_map_asset, `${template.id}.cell_map_asset`, errors);
+      if (!/^[a-f0-9]{64}$/i.test(String(template.cell_map_sha256 || ''))) {
+        errors.push(`${template.id} tiled runtime payload has no SHA-256 checksum`);
+      }
+      if (Array.isArray(template.cells) && template.cells.length > 0) {
+        errors.push(`${template.id} tiled runtime payload must not embed a full cells array`);
+      }
+      try {
+        readCatalogGridBytes(template, gridRoot);
+      } catch (error) {
+        errors.push(`${template.id} cell map validation failed: ${error.message}`);
+      }
+    } else if ((template.storage_mode !== undefined && template.storage_mode !== 'legacy')
+      || template.width < 8 || template.height < 8 || template.width > 160 || template.height > 160
+      || !Array.isArray(template.cells) || template.cells.length !== template.width * template.height
+      || template.cells.some((color) => !Number.isInteger(color) || color < 0 || color >= template.palette.length)) {
+      errors.push(`${template.id} runtime payload has invalid legacy cells`);
+    }
   }
 
   const counts = {
@@ -147,6 +350,7 @@ export function readCanonicalCatalog({ manifestPath = defaultManifestPath, runti
     runtimeById: new Map(runtime.map((template) => [template.id, template])),
     collectionById: new Map(collections.map((collection) => [collection.id, collection])),
     coverByParent: new Map(covers.map((cover) => [cover.parent_id, cover])),
+    loadTiledTiles: (template) => buildTilesFromGridBytes(template, readCatalogGridBytes(template, gridRoot)),
     counts,
     assetRecords: buildCatalogAssetRecords(manifest),
   };
@@ -198,8 +402,8 @@ function numberValue(row, key) {
 }
 
 export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now = new Date().toISOString() } = {}) {
-  if (!db?.withDbTransaction || !db?.run || !db?.all) throw new Error('publishCatalog requires database helpers');
-  const { entries, collections, coverByParent, collectionById, runtimeById, counts } = catalog;
+  if (!db?.withDbTransaction || !db?.run || !db?.get || !db?.all) throw new Error('publishCatalog requires database helpers');
+  const { entries, collections, coverByParent, collectionById, runtimeById, loadTiledTiles, counts } = catalog;
   const entryIds = entries.map((entry) => entry.id);
 
   return db.withDbTransaction(async (transaction) => {
@@ -267,8 +471,8 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
 
     const templateSql = `INSERT INTO coloring_templates
       (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,mood,theme,est_minutes,collection_id,daily_featured,added_at,created_at,updated_at,
-       album_id,album_title,access_type,tags_json,season_json,audience_json,featured_rank,is_new)
-      VALUES (${Array.from({ length: 31 }, () => '?').join(',')})
+       album_id,album_title,access_type,tags_json,season_json,audience_json,featured_rank,is_new,storage_mode,tile_size)
+      VALUES (${Array.from({ length: 33 }, () => '?').join(',')})
       ON CONFLICT(id) DO UPDATE SET
         title=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.title ELSE excluded.title END,
         description=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.description ELSE excluded.description END,
@@ -295,7 +499,12 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
         season_json=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.season_json ELSE excluded.season_json END,
         audience_json=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.audience_json ELSE excluded.audience_json END,
         featured_rank=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.featured_rank ELSE excluded.featured_rank END,
-        is_new=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.is_new ELSE excluded.is_new END`;
+        is_new=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.is_new ELSE excluded.is_new END,
+        storage_mode=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.storage_mode ELSE excluded.storage_mode END,
+        tile_size=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.tile_size ELSE excluded.tile_size END`;
+
+    let tiledTemplatesPublished = 0;
+    let tiledTemplateTilesPublished = 0;
 
     for (const entry of entries) {
       const runtime = runtimeById.get(entry.id);
@@ -306,14 +515,52 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
       const metadata = runtimeMetadata(entry, collection, album, runtime, collectionIndex, albumIndex);
       const addedAt = entry.added_at || now;
       const existingZoneCount = existingZoneCounts.get(entry.id) || 0;
+      const existing = await q.get(`SELECT width,height,palette_json,cells_json,storage_mode,tile_size,catalog_managed
+        FROM coloring_templates WHERE id=?`, [entry.id]);
+      const catalogManaged = existing?.catalog_managed === true
+        || existing?.catalog_managed === 1
+        || existing?.catalog_managed === '1';
+      const tiled = runtime.storage_mode === 'tiled';
+      let tiles = null;
+      let gridChanged = !existing;
+      if (!catalogManaged) {
+        if (tiled) {
+          if (typeof loadTiledTiles !== 'function') {
+            throw new Error(`CATALOG_TILED_LOADER_MISSING: ${entry.id}`);
+          }
+          tiles = validatePublisherTiles(runtime, loadTiledTiles(runtime));
+          if (existing) {
+            existing.tiles = await q.all(`SELECT tile_x,tile_y,width,height,cells_json
+              FROM coloring_template_tiles WHERE template_id=? ORDER BY tile_y,tile_x`, [entry.id]);
+          }
+          gridChanged = !sameTemplateMap(existing, runtime, tiles);
+        } else {
+          gridChanged = !sameTemplateMap(existing, runtime);
+        }
+        if (existing && gridChanged && await templateHasProgress(q, entry.id)) {
+          const error = new Error(`Catalog grid change would invalidate existing painting progress: ${entry.id}`);
+          error.code = 'CATALOG_GRID_CHANGE_WITH_PROGRESS';
+          throw error;
+        }
+        if (existing && gridChanged) await clearStoredGrid(q, entry.id);
+      }
       await q.run(templateSql, [
         entry.id, null, entry.title, entry.description || '', entry.category || 'featured', entry.difficulty || 'easy',
-        runtime.width, runtime.height, json(runtime.palette), json(runtime.cells), catalogAssetUrl(entry.preview_asset), null,
+        runtime.width, runtime.height, json(runtime.palette), tiled ? json([]) : json(runtime.cells), catalogAssetUrl(entry.preview_asset), null,
         'catalog', 'public', 'active', entry.mood || 'calm', entry.theme || collection?.theme || 'featured', entry.est_minutes || 3,
         metadata.collection_id, metadata.daily_featured, addedAt, now, now, metadata.album_id, metadata.album_title,
         metadata.access_type, metadata.tags_json, metadata.season_json, metadata.audience_json, metadata.featured_rank, metadata.is_new,
+        tiled ? 'tiled' : 'legacy', tiled ? Number(runtime.tile_size || 32) : 32,
       ]);
-      if (existingZoneCount === 0) {
+
+      if (!catalogManaged && tiled) {
+        await q.run('DELETE FROM coloring_zones WHERE template_id=?', [entry.id]);
+        if (!existing || gridChanged) {
+          await insertTemplateTiles(q, entry.id, tiles, now);
+          tiledTemplatesPublished += 1;
+          tiledTemplateTilesPublished += tiles.length;
+        }
+      } else if (!catalogManaged && (existingZoneCount === 0 || gridChanged)) {
         for (const [zoneIndex, zone] of buildZones(runtime.width, runtime.height).entries()) {
           await q.run('INSERT INTO coloring_zones (id,template_id,title,cell_indices_json,created_at) VALUES (?,?,?,?,?)',
             [`zone_${entry.id}_${zoneIndex}`, entry.id, zone.title, json(zone.indices), now]);
@@ -341,6 +588,8 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
       production_premium: numberValue(accessCounts.find((row) => row.access_type === 'premium'), 'c'),
       hidden_stale_catalog_rows: numberValue(stale, 'changes'),
       managed_stale_catalog_rows: numberValue(managedStale, 'c'),
+      tiled_templates_published: tiledTemplatesPublished,
+      tiled_template_tiles_published: tiledTemplateTilesPublished,
       user_progress_touched: false,
       ownership_touched: false,
       stars_semantics_touched: false,
