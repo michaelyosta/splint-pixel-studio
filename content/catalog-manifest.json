@@ -234,12 +234,11 @@
       "id": "col_spooky-cute",
       "slug": "spooky-cute",
       "title": "Spooky Cute",
-      "access": "premium",
-      "theme": "spooky",
-      "mood": "cozy",
+      "access": "mixed",
+      "theme": "dark-cute",
+      "mood": "cursed-cozy",
       "season": [
-        "autumn",
-        "halloween"
+        "evergreen"
       ],
       "albums": [
         {
@@ -257,177 +256,176 @@
       ]
     },
     {
-      "id": "col_enchanted-forest",
-      "slug": "enchanted-forest",
-      "title": "Enchanted Forest",
-      "access": "premium",
-      "theme": "fantasy",
-      "mood": "calm",
+      "id": "col_blockbound-worlds",
+      "slug": "blockbound-worlds",
+      "title": "Blockbound Worlds",
+      "access": "mixed",
+      "theme": "voxel-sandbox",
+      "mood": "adventure",
       "season": [
         "evergreen"
       ],
       "albums": [
         {
-          "id": "alb_enchanted-forest_magical-creatures",
-          "slug": "magical-creatures",
-          "title": "Волшебные существа",
+          "id": "alb_blockbound-worlds_voxel-dawn",
+          "slug": "voxel-dawn",
+          "title": "Voxel Dawn",
           "count": 10
         },
         {
-          "id": "alb_enchanted-forest_secret-trails",
-          "slug": "secret-trails",
-          "title": "Тайные тропы",
+          "id": "alb_blockbound-worlds_craft-survive",
+          "slug": "craft-survive",
+          "title": "Craft & Survive",
           "count": 10
         }
       ]
     },
     {
-      "id": "col_mystic-outlands",
-      "slug": "mystic-outlands",
-      "title": "Mystic Outlands",
-      "access": "premium",
-      "theme": "fantasy",
-      "mood": "focus",
+      "id": "col_minigame-mayhem",
+      "slug": "minigame-mayhem",
+      "title": "Minigame Mayhem",
+      "access": "mixed",
+      "theme": "arcade-obstacle",
+      "mood": "high-energy",
       "season": [
         "evergreen"
       ],
       "albums": [
         {
-          "id": "alb_mystic-outlands_fairy-lands",
-          "slug": "fairy-lands",
-          "title": "Сказочные земли",
+          "id": "alb_minigame-mayhem_obstacle-arcade",
+          "slug": "obstacle-arcade",
+          "title": "Obstacle Arcade",
           "count": 10
         },
         {
-          "id": "alb_mystic-outlands_lost-temples",
-          "slug": "lost-temples",
-          "title": "Затерянные храмы",
+          "id": "alb_minigame-mayhem_ranked-arena",
+          "slug": "ranked-arena",
+          "title": "Ranked Arena",
           "count": 10
         }
       ]
     },
     {
-      "id": "col_moon-stars",
-      "slug": "moon-stars",
-      "title": "Moon & Stars",
-      "access": "premium",
-      "theme": "celestial",
-      "mood": "calm",
+      "id": "col_creature-collectors",
+      "slug": "creature-collectors",
+      "title": "Creature Collectors",
+      "access": "mixed",
+      "theme": "creature-collecting",
+      "mood": "wonder",
       "season": [
         "evergreen"
       ],
       "albums": [
         {
-          "id": "alb_moon-stars_moon-gardens",
-          "slug": "moon-gardens",
-          "title": "Лунные сады",
+          "id": "alb_creature-collectors_pocket-beasts",
+          "slug": "pocket-beasts",
+          "title": "Pocket Beasts",
           "count": 10
         },
         {
-          "id": "alb_moon-stars_cosmic-dreams",
-          "slug": "cosmic-dreams",
-          "title": "Космические сны",
+          "id": "alb_creature-collectors_mythic-expeditions",
+          "slug": "mythic-expeditions",
+          "title": "Mythic Expeditions",
           "count": 10
         }
       ]
     },
     {
-      "id": "col_vamp-romantic",
-      "slug": "vamp-romantic",
-      "title": "Vamp Romantic",
-      "access": "premium",
-      "theme": "gothic-romantic",
-      "mood": "cozy",
+      "id": "col_neon-city-rush",
+      "slug": "neon-city-rush",
+      "title": "Neon City Rush",
+      "access": "mixed",
+      "theme": "neon-city",
+      "mood": "electric",
       "season": [
         "evergreen"
       ],
       "albums": [
         {
-          "id": "alb_vamp-romantic_night-mansion",
-          "slug": "night-mansion",
-          "title": "Ночной особняк",
+          "id": "alb_neon-city-rush_midnight-district",
+          "slug": "midnight-district",
+          "title": "Midnight District",
           "count": 10
         },
         {
-          "id": "alb_vamp-romantic_roses-stained-glass",
-          "slug": "roses-stained-glass",
-          "title": "Розы и витражи",
+          "id": "alb_neon-city-rush_tuner-nights",
+          "slug": "tuner-nights",
+          "title": "Tuner Nights",
           "count": 10
         }
       ]
     },
     {
-      "id": "col_dream-interiors",
-      "slug": "dream-interiors",
-      "title": "Dream Interiors",
-      "access": "premium",
-      "theme": "interiors",
-      "mood": "cozy",
+      "id": "col_cyber-arena",
+      "slug": "cyber-arena",
+      "title": "Cyber Arena",
+      "access": "mixed",
+      "theme": "cyberpunk-sport",
+      "mood": "intense",
       "season": [
         "evergreen"
       ],
       "albums": [
         {
-          "id": "alb_dream-interiors_dark-cottage",
-          "slug": "dark-cottage",
-          "title": "Dark Cottage",
+          "id": "alb_cyber-arena_circuit-champions",
+          "slug": "circuit-champions",
+          "title": "Circuit Champions",
           "count": 10
         },
         {
-          "id": "alb_dream-interiors_neo-deco-rooms",
-          "slug": "neo-deco-rooms",
-          "title": "Neo Deco Rooms",
+          "id": "alb_cyber-arena_battle-protocol",
+          "slug": "battle-protocol",
+          "title": "Battle Protocol",
           "count": 10
         }
       ]
     },
     {
-      "id": "col_glamour-fashion",
-      "slug": "glamour-fashion",
-      "title": "Glamour & Fashion",
-      "access": "premium",
-      "theme": "fashion",
-      "mood": "focus",
+      "id": "col_streamer-stickerverse",
+      "slug": "streamer-stickerverse",
+      "title": "Streamer Stickerverse",
+      "access": "mixed",
+      "theme": "internet-core",
+      "mood": "playful",
       "season": [
         "evergreen"
       ],
       "albums": [
         {
-          "id": "alb_glamour-fashion_vintage-glam",
-          "slug": "vintage-glam",
-          "title": "Vintage Glam",
+          "id": "alb_streamer-stickerverse_live-loop",
+          "slug": "live-loop",
+          "title": "Live Loop",
           "count": 10
         },
         {
-          "id": "alb_glamour-fashion_jewelry-accessories",
-          "slug": "jewelry-accessories",
-          "title": "Украшения и аксессуары",
+          "id": "alb_streamer-stickerverse_sticker-chaos",
+          "slug": "sticker-chaos",
+          "title": "Sticker Chaos",
           "count": 10
         }
       ]
     },
     {
-      "id": "col_winter-wishes",
-      "slug": "winter-wishes",
-      "title": "Winter Wishes",
+      "id": "col_dreamcore-idols",
+      "slug": "dreamcore-idols",
+      "title": "Dreamcore Idols",
       "access": "premium",
-      "theme": "winter",
-      "mood": "cozy",
+      "theme": "surreal-pop",
+      "mood": "dreamy",
       "season": [
-        "winter",
-        "christmas"
+        "evergreen"
       ],
       "albums": [
         {
-          "id": "alb_winter-wishes_first-snow",
-          "slug": "first-snow",
-          "title": "Первый снег",
+          "id": "alb_dreamcore-idols_digital-debut",
+          "slug": "digital-debut",
+          "title": "Digital Debut",
           "count": 10
         },
         {
-          "id": "alb_winter-wishes_winter-city-lights",
-          "slug": "winter-city-lights",
-          "title": "Огни зимнего города",
+          "id": "alb_dreamcore-idols_surreal-pop",
+          "slug": "surreal-pop",
+          "title": "Surreal Pop",
           "count": 10
         }
       ]

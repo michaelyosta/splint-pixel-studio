@@ -8,6 +8,7 @@
     "dev:api": "npm --prefix server run dev:local",
     "build": "vite build",
     "catalog:build": "python server/scripts/build-catalog-assets.py",
+    "catalog:publish": "node server/scripts/publish-catalog.mjs",
     "validate:catalog": "node --test test/catalogIntegrity.test.js",
     "validate:phase2": "node scripts/validate-phase2-manifest.mjs",
     "benchmark:pixelization": "node scripts/pixelization-corpus-benchmark.mjs",

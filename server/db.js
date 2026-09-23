@@ -8,7 +8,7 @@ import { withTransaction } from './database/transaction.js';
 import { getTransactionContext } from './database/runtime-context.js';
 import { scheduleSqliteOperation } from './database/sqlite-scheduler.js';
 import { toPostgres } from './database/sql.js';
-import { CATALOG_COLLECTIONS, CATALOG_SHELF_DEFINITIONS, catalogTemplateSeedMetadata } from './services/catalog-merchandising.js';
+import { CATALOG_COLLECTIONS, CATALOG_SHELF_DEFINITIONS, catalogAssetUrl, catalogTemplateSeedMetadata } from './services/catalog-merchandising.js';
 
 const { Pool } = pg;
 const directory = dirname(fileURLToPath(import.meta.url));
@@ -510,7 +510,7 @@ export async function bootstrapSystemData() {
     // pixel variant renders the same artwork and upscales cleanly with the
     // pixelated canvas aesthetic; the full master stays available on disk
     // for regeneration but is not referenced at runtime.
-    const runtimePreviewUrl = template.preview_asset || template.preview;
+    const runtimePreviewUrl = catalogAssetUrl(template.preview_asset || template.preview);
     await run(sql, [template.id, null, template.title, template.description, template.category, template.difficulty, template.width, template.height, JSON.stringify(template.palette), JSON.stringify(template.cells), runtimePreviewUrl, null, 'catalog', 'public', 'active', template.mood || 'calm', template.theme || 'featured', template.est_minutes || 3, merchandising.collection_id, merchandising.daily_featured, template.added_at || now, now, now, merchandising.album_id, merchandising.album_title, merchandising.access_type, merchandising.tags_json, merchandising.season_json, merchandising.audience_json, merchandising.featured_rank, merchandising.is_new]);
 
     const existingZoneCount = existingZoneCounts.get(template.id) || 0;

@@ -5,9 +5,38 @@ import { readMediaObject } from '../services/media-storage.js';
 
 const router = Router();
 
-// Only canonical artwork objects are public. Original uploads never pass this route.
+export function isCatalogDeliveryKey(storageKey) {
+  const normalized = String(storageKey || '').replaceAll('\\', '/');
+  const isPreview = normalized.startsWith('catalog/previews/');
+  const isCover = normalized.startsWith('catalog/covers/') && !normalized.startsWith('catalog/covers/source/');
+  if (!isPreview && !isCover) return false;
+  return normalized.split('/').every((segment) => segment && segment !== '.' && segment !== '..');
+}
+
+function contentTypeForKey(storageKey) {
+  return /\.(jpe?g)$/i.test(storageKey) ? 'image/jpeg' : 'image/png';
+}
+
+// Only canonical artwork and catalog delivery objects are public. Original
+// uploads, masters, and full-size catalog objects never pass this route.
 router.get('/*', asyncRoute(async (req, res) => {
   const storageKey = req.params[0];
+  if (isCatalogDeliveryKey(storageKey)) {
+    let body;
+    try {
+      body = await readMediaObject(storageKey);
+    } catch {
+      return res.status(404).end();
+    }
+    if (!body) return res.status(404).end();
+    res.set({
+      'Content-Type': contentTypeForKey(storageKey),
+      'Content-Length': String(body.length),
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    return res.send(body);
+  }
   if (!storageKey?.startsWith('artworks/') && !storageKey?.startsWith('thumbnails/')) return res.status(404).end();
 
   const artwork = await get(`SELECT a.storage_key,a.thumbnail_key,a.mime_type,a.render_status

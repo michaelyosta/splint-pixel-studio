@@ -8,6 +8,12 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+# Separate nested checkout used for another task; it is not part of this repo.
+/work/
+/.worktrees/
+# Historical pre-frame masters are evidence candidates for R2 archival, not
+# runtime catalog inputs; do not add new snapshots to the application repo.
+/content/generated/masters/history/
 dist
 dist-ssr
 *.local
