@@ -5,9 +5,10 @@ Authority: Bounded physical Telegram iOS diagnostic protocol.
 
 Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
 
-This protocol is for one bounded physical measurement pass. It does not change
-CSS, Telegram lifecycle behavior, authentication, production configuration, or
-the visual blur hypothesis. Use a preview/staging origin only.
+This protocol is for one bounded physical measurement pass. It records viewport,
+layout, and computed-paint evidence without changing Telegram lifecycle
+behavior, authentication, or production configuration. Use a preview/staging
+origin only.
 
 ## Preconditions
 
@@ -59,10 +60,15 @@ contains `page N/4`, which makes omissions detectable. Use names
    `viewportChanged` updates as part of this cold snapshot.
 2. `portrait-stable`: after Telegram expansion settles, start a fresh cycle
    once the displayed values remain unchanged for at least 1 second.
-3. Rotate the same device to landscape, wait for the displayed values to remain
+3. With the viewport held stable in portrait, select `Каталог → Создать →
+   Профиль → Каталог`. After returning to Catalog, wait 10 seconds for content
+   loading to settle. Record whether the nav foreground remains painted and
+   tappable at every step; do not resize or background the app during this
+   sequence.
+4. Rotate the same device to landscape, wait for the displayed values to remain
    unchanged for at least 1 second, and capture one complete cycle as
    `landscape-stable`.
-4. Return to portrait, background Telegram for 5 seconds, resume the same Mini
+5. Return to portrait, background Telegram for 5 seconds, resume the same Mini
    App without reloading or changing the query, wait for stable displayed
    values, and capture one complete cycle as `portrait-resume`.
 
@@ -117,11 +123,12 @@ or a Playwright iPhone profile can never satisfy those rows.
 
 - Compare Telegram JS viewport values with the corresponding CSS variables;
   record parity/delta per checkpoint. A missing bridge value is a validation
-  blocker, not a zero.
+  blocker, not a zero. A reported stable height of `0` or `1` is an invalid
+  measurement to investigate, not a usable shell size.
 - `#root` and `.telegram-frame` should remain inside the visual viewport. A tab
   bar bottom beyond the frame bottom is a clipping signal.
-- `.screen-content` × `.app-tab-bar` overlap is expected from the absolute tab
-  bar; record its rectangle and area before deciding whether content is hidden.
+- `.app-tab-bar` is in normal layout flow; overlap with `.screen-content` is
+  unexpected and should be recorded as a geometry finding.
 - If a nav item has a non-zero rectangle and a `hit nav[...]` target but its
   paint line reports `visibility=hidden`, `opacity=0`, an unexpected
   `display`, or a non-`none` transform/filter, classify it as a paint/style
@@ -137,16 +144,16 @@ or a Playwright iPhone profile can never satisfy those rows.
 - A changed `visualViewport` offset/height with stable frame geometry indicates
   a viewport-state transition to investigate. It does not establish a CSS root
   cause.
-- One physical sample cannot confirm the blur hypothesis. Keep it
-  `NOT CONFIRMED` unless a separately scoped visual experiment reproduces it.
+- Computed paint and hit-test checks cannot prove that pixels were actually
+  rasterized. If the bar looks blank but its buttons remain tappable, record
+  that mismatch as physical paint evidence even if the computed-style verdict
+  is otherwise clear.
 
 ## Next bounded experiment
 
-Run this protocol on exactly one iPhone and one frozen preview SHA, with no CSS
-or product changes. Compare only `portrait-stable` with `portrait-resume`; the
-single variable is the Telegram background/resume lifecycle. If frame/tab
-clipping appears only after resume, classify it as a lifecycle/viewport
-measurement issue and collect one fresh repeated pass. If geometry remains
-inside the frame and only rendering looks blurred, leave the blur hypothesis
-unconfirmed and open a separate visual investigation. No production or CSS
-fix follows from this pass alone.
+Run this protocol on exactly one iPhone and one frozen preview SHA. Compare
+`portrait-cold`, `portrait-stable`, the route sequence, and `portrait-resume`.
+If Telegram reports an invalid stable height, compare it with the corresponding
+CSS variable and shell rect; if geometry is valid but the bar still looks blank
+while tappable, classify that as a paint/compositing mismatch for separate
+investigation. This pass alone does not authorize or prove a production fix.
