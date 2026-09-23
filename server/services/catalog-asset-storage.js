@@ -1,6 +1,14 @@
 import { createHash } from 'node:crypto';
 import { HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
+export function createS3Credentials({ accessKeyId, secretAccessKey, sessionToken } = {}) {
+  return {
+    accessKeyId,
+    secretAccessKey,
+    ...(sessionToken ? { sessionToken } : {}),
+  };
+}
+
 function isNotFound(error) {
   return error?.name === 'NotFound'
     || error?.$metadata?.httpStatusCode === 404

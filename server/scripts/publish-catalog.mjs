@@ -8,7 +8,7 @@ import {
   readCanonicalCatalog,
   sha256,
 } from '../services/catalog-publisher.js';
-import { uploadImmutableCatalogAsset } from '../services/catalog-asset-storage.js';
+import { createS3Credentials, uploadImmutableCatalogAsset } from '../services/catalog-asset-storage.js';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const defaultInventoryPath = resolve(root, 'content', 'catalog-r2-inventory.json');
@@ -41,10 +41,11 @@ async function storageConfig() {
       endpoint: process.env.S3_ENDPOINT,
       region: process.env.S3_REGION || 'auto',
       forcePathStyle: true,
-      credentials: {
+      credentials: createS3Credentials({
         accessKeyId: process.env.S3_ACCESS_KEY_ID,
         secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
-      },
+        sessionToken: process.env.S3_SESSION_TOKEN,
+      }),
     }),
   };
 }

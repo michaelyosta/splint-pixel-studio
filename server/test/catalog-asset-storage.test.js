@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
-import { uploadImmutableCatalogAsset } from '../services/catalog-asset-storage.js';
+import { createS3Credentials, uploadImmutableCatalogAsset } from '../services/catalog-asset-storage.js';
 
 const body = Buffer.from('immutable catalog fixture');
 const asset = {
@@ -23,6 +23,28 @@ function preconditionFailed() {
 function matchingHead() {
   return { ContentLength: body.length, Metadata: { sha256: asset.sha256 } };
 }
+
+test('temporary S3 credentials preserve the session token', () => {
+  assert.deepEqual(createS3Credentials({
+    accessKeyId: 'temporary-access-key',
+    secretAccessKey: 'temporary-secret-key',
+    sessionToken: 'temporary-session-token',
+  }), {
+    accessKeyId: 'temporary-access-key',
+    secretAccessKey: 'temporary-secret-key',
+    sessionToken: 'temporary-session-token',
+  });
+});
+
+test('long-lived S3 credentials omit an absent session token', () => {
+  assert.deepEqual(createS3Credentials({
+    accessKeyId: 'access-key',
+    secretAccessKey: 'secret-key',
+  }), {
+    accessKeyId: 'access-key',
+    secretAccessKey: 'secret-key',
+  });
+});
 
 test('catalog asset upload is conditional and verifies the local bytes before writing', async () => {
   const sent = [];
