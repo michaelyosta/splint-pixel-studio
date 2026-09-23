@@ -22,8 +22,8 @@ img { user-select: none; }
 /* ── Phone frame (desktop preview of the Mini App) ────────────── */
 .telegram-frame {
   width: min(100%, 420px);
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--tg-viewport-stable-height, 100dvh);
+  max-height: var(--tg-viewport-stable-height, 100dvh);
   background-color: var(--app-bg);
   border: 1px solid #22364C;
   border-radius: 36px;
@@ -42,8 +42,6 @@ img { user-select: none; }
   body { background-color: var(--app-bg); background-image: none; }
   .telegram-frame {
     width: 100vw;
-    height: 100dvh;
-    max-height: 100dvh;
     border: none;
     border-radius: 0;
     box-shadow: none;
@@ -184,8 +182,7 @@ img { user-select: none; }
   background: var(--app-dark-gray);
   border: 1px solid var(--app-border);
   border-radius: 20px;
-  /* Keep the bar in normal flow: Telegram iOS can drop the rasterization of
-     an absolutely positioned bottom layer during compact-sheet reopen. */
+  /* Avoid a separate backdrop layer while Telegram's WebView viewport settles. */
   box-shadow: 0 12px 30px rgba(2, 8, 14, 0.6);
   z-index: 20;
 }
@@ -2257,9 +2254,6 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .header-profile-button:active { transform: scale(0.94); }
 
 .app-tab-bar--redesigned {
-  left: 9px;
-  right: 9px;
-  bottom: calc(9px + env(safe-area-inset-bottom, 0px));
   height: 68px;
   padding: 0 2px;
   border-radius: 22px;
@@ -3181,7 +3175,6 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
   body { align-items: stretch; background-color: #04080E; }
   .telegram-frame {
     width: 100vw;
-    height: 100dvh;
     max-height: none;
     border: none;
     border-radius: 0;
@@ -3197,12 +3190,8 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
   .create-hub-page,
   .store-page { width: min(100%, 1180px); margin-inline: auto; box-sizing: border-box; padding: 32px 32px 48px; }
   .app-tab-bar--redesigned {
-    left: auto;
-    right: auto;
-    bottom: auto;
     width: min(calc(100% - 48px), 680px);
     margin: 8px auto calc(10px + env(safe-area-inset-bottom, 0px));
-    transform: none;
   }
   .catalog-art-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
   .catalog-collection-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }

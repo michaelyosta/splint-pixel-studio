@@ -280,44 +280,49 @@ buttons were 73px wide with ~49px gaps.
 normal flow for Telegram iOS reopen` asserts the equal-width rule and rejects a
 percentage width on the redesigned button.
 
-## Navigation shell stays free of backdrop-filter
+## Telegram navigation follows the stable viewport
 
 OLD CONTRACT
 
-`.app-tab-bar` blurred its backdrop (`backdrop-filter: blur(14px)`), and the
-navigation contract test pinned that property as part of the known-good shell.
+The shell used `100dvh` while Telegram's menu-button Mini App could be animating
+between compact and expanded heights. The bottom navigation was an absolutely
+positioned child with a `backdrop-filter` layer.
 
 → NEW CONTRACT
 
-The navigation panel keeps its geometry with an opaque fill, has no
-`backdrop-filter`, and remains a normal-flow flex item rather than an
-absolutely positioned overlay; the contract test asserts these properties.
+The shell height uses Telegram's `--tg-viewport-stable-height` CSS variable,
+falling back to `100dvh` outside Telegram. The navigation is in normal flow,
+uses the existing safe-area margin, has no relative-position insets, and keeps
+an opaque fill without `backdrop-filter`.
 
 → WHY INTENTIONAL
 
-Physical Telegram iOS evidence: on cold start/reopen in the compact Telegram
-dialog the bar painted as a block with no icons or labels while its tap targets
-stayed functional, and background/resume or fullscreen repainted the contents.
-Historical physical passes also showed that the real iOS session must not be
-auto-expanded and that a normal-flow bar avoids the stale absolute-layer path.
-The remaining failure is therefore bounded to the compact-sheet compositor and
-startup transition, not to the three-tab IA or hit targets.
+Physical Telegram iOS reports show a blank panel with working hit targets on a
+cold menu-button launch; background/resume or fullscreen causes the contents to
+paint. Telegram documents that `viewportHeight` changes during gestures and
+animations and is not suitable for bottom-pinned UI, while
+`viewportStableHeight` changes only after the viewport reaches its stable size.
+The shell therefore follows that supported stable measurement, keeps the nav
+in flow, and removes an unnecessary backdrop layer. The exact WebKit failure
+mode is not isolated by available physical evidence; the launch-path/lifecycle
+interaction is the supported root-cause class. Existing `expand()` behavior is
+preserved.
 
 → WHERE NEW BEHAVIOR IS COVERED
 
 `test/primary-ia-contract.test.js` — `application shell keeps navigation in
-normal flow for Telegram iOS reopen` asserts the panel has no
-`backdrop-filter` and is not absolutely positioned. `src/lib/telegram.test.js`
-asserts that signed iOS sessions remain compact while other clients retain
-auto-expand. A fresh physical cold-start check in the real Mini App remains the
-release evidence for the fix.
+normal flow for Telegram iOS reopen` asserts the stable-height shell and flow
+layout. `e2e/guided-path.spec.js` sets a synthetic stable-height CSS variable
+and verifies the shell uses it while the navigation remains bounded and
+actionable. `src/lib/telegram.test.js` asserts existing ready-then-expand
+behavior. A fresh physical cold-start check in real Telegram remains the
+strongest platform-specific validation.
 
 → UNCHANGED CONTRACTS
 
-The primary IA, safe-area spacing, `z-index`, equal three-tab widths, and hit
-targets are unchanged. The implementation intentionally changes the bar from
-an absolute overlay to a normal-flow item to remove the iOS compact-sheet
-compositing failure.
+The primary IA, `z-index`, equal three-tab widths, and hit targets are
+unchanged. The shell still auto-expands as before; only its sizing source
+changes when Telegram provides a stable viewport value.
 
 ## Contract coverage status
 

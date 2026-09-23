@@ -12,7 +12,6 @@ import {
   getTelegramVerticalSwipeStatus,
   initializeTelegramWebApp,
   isTelegramVersionAtLeast,
-  shouldAutoExpandTelegramWebApp,
   supportsTelegramVerticalSwipes,
   TELEGRAM_SWIPE_CONTROL_VERSION,
 } from './telegram.js';
@@ -255,7 +254,7 @@ test('deep-link readers accept query and Telegram start parameters', () => {
   }
 });
 
-test('Telegram startup keeps real iOS compact and expands other supported hosts', () => {
+test('Telegram startup preserves ready-then-expand behavior across supported hosts', () => {
   for (const platform of ['ios', 'android', 'tdesktop']) {
     const previousWindow = globalThis.window;
     const previousDocument = globalThis.document;
@@ -273,7 +272,7 @@ test('Telegram startup keeps real iOS compact and expands other supported hosts'
     globalThis.document = { documentElement: { dataset: {} } };
     try {
       assert.equal(initializeTelegramWebApp(), webApp);
-      assert.deepEqual(calls, platform === 'ios' ? ['ready'] : ['ready', 'expand']);
+      assert.deepEqual(calls, ['ready', 'expand']);
     } finally {
       if (previousWindow === undefined) delete globalThis.window;
       else globalThis.window = previousWindow;
@@ -281,12 +280,4 @@ test('Telegram startup keeps real iOS compact and expands other supported hosts'
       else globalThis.document = previousDocument;
     }
   }
-});
-
-test('auto-expand is limited to non-iOS real sessions and browser SDK stubs', () => {
-  assert.equal(shouldAutoExpandTelegramWebApp({ platform: 'ios', initData: 'signed-query' }), false);
-  assert.equal(shouldAutoExpandTelegramWebApp({ platform: 'android', initData: 'signed-query' }), true);
-  assert.equal(shouldAutoExpandTelegramWebApp({ platform: 'tdesktop', initData: 'signed-query' }), true);
-  assert.equal(shouldAutoExpandTelegramWebApp({ platform: 'ios', initData: '' }), true);
-  assert.equal(shouldAutoExpandTelegramWebApp(null), false);
 });
