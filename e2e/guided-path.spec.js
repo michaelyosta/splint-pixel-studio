@@ -145,7 +145,12 @@ test('catalog is the default and primary navigation has exactly three product ta
   expect(collectionsResponse.ok()).toBe(true);
   const freePack = (await collectionsResponse.json()).find((collection) => collection.pack_type !== 'premium');
   expect(freePack).toBeTruthy();
+  const appCollectionsResponsePromise = page.waitForResponse((response) => (
+    new URL(response.url()).pathname === '/api/meta/collections'
+  ));
   await page.goto(`/?pack=${encodeURIComponent(freePack.id)}`);
+  const appCollectionsResponse = await appCollectionsResponsePromise;
+  expect(appCollectionsResponse.ok()).toBe(true);
   await expect(page.locator('.catalog-heading h1')).toHaveText(freePack.title, { timeout: 15000 });
   await expect(page.locator('.catalog-page')).toContainText('КОЛЛЕКЦИЯ');
 
