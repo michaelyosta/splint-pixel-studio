@@ -123,6 +123,28 @@ test('an existing mismatched object is never overwritten', async () => {
   assert.equal(bodyReads, 0);
 });
 
+test('a missing local source fails closed when the R2 object is absent', async () => {
+  let puts = 0;
+  const client = {
+    async send(command) {
+      if (command instanceof HeadObjectCommand) throw notFound();
+      assert.ok(command instanceof PutObjectCommand);
+      puts += 1;
+      return {};
+    },
+  };
+  const missingSource = Object.assign(new Error('source image is missing'), { code: 'ENOENT' });
+
+  await assert.rejects(uploadImmutableCatalogAsset({
+    client,
+    bucket: 'splint-originals',
+    asset,
+    readBody: async () => { throw missingSource; },
+    contentType: 'image/png',
+  }), /source image is missing/);
+  assert.equal(puts, 0);
+});
+
 test('a mismatched object created during upload is rejected after the conditional write fails', async () => {
   let heads = 0;
   let puts = 0;

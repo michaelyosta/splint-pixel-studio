@@ -65,6 +65,12 @@ normal deployment operator. Never enable `SEED_DEMO_DATA` to publish the
 canonical catalog, and never delete repository binaries or storage objects
 until the object inventory and restore check have passed.
 
+Catalog pixel previews are budgeted at 16 KiB per artwork. CI validates the
+complete R2 inventory against the canonical asset set, rejects missing or
+duplicate object keys, and fails if any preview exceeds this delivery budget.
+Listing records use only pixel-preview URLs; the media route rejects master,
+full-size, and source-cover keys.
+
 The publisher accepts the optional `S3_SESSION_TOKEN` for short-lived,
 prefix-scoped R2 credentials. Do not pass a bucket-wide parent credential to
 the catalog upload process when a `catalog/`-scoped temporary credential is

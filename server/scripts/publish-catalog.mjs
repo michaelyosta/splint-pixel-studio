@@ -69,7 +69,9 @@ async function readExpectedInventory(records, inventoryPath) {
     }
     return normalizeCatalogAssetInventory(records, stored.assets);
   } catch (error) {
-    if (error.code === 'ENOENT') return collectLocalInventory(records);
+    if (error.code === 'ENOENT') {
+      return normalizeCatalogAssetInventory(records, await collectLocalInventory(records));
+    }
     throw new Error(`Cannot read inventory ${inventoryPath}: ${error.message}`);
   }
 }

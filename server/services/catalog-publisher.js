@@ -10,6 +10,7 @@ const defaultManifestPath = join(serviceRoot, 'content', 'catalog-manifest.json'
 const defaultRuntimePath = join(serviceRoot, 'server', 'catalog-templates.json');
 const EXPECTED_CATALOG_COUNT = 320;
 const EXPECTED_COVER_COUNT = 48;
+const MAX_CATALOG_PREVIEW_BYTES = 16 * 1024;
 
 function parseJsonFile(path) {
   try {
@@ -638,7 +639,11 @@ export function normalizeCatalogAssetInventory(records, assets) {
       || !/^[a-f0-9]{64}$/i.test(String(expected.sha256 || ''))) {
       throw new Error(`inventory does not match canonical catalog at ${record.key}`);
     }
-    return { ...record, bytes: Number(expected.bytes), sha256: String(expected.sha256).toLowerCase() };
+    const bytes = Number(expected.bytes);
+    if (record.kind === 'preview' && bytes > MAX_CATALOG_PREVIEW_BYTES) {
+      throw new Error(`CATALOG_PREVIEW_SIZE_BUDGET_EXCEEDED: ${record.key} is ${bytes} bytes; limit is ${MAX_CATALOG_PREVIEW_BYTES}`);
+    }
+    return { ...record, bytes, sha256: String(expected.sha256).toLowerCase() };
   });
 }
 
@@ -646,4 +651,8 @@ export function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-export const catalogConstants = Object.freeze({ EXPECTED_CATALOG_COUNT, EXPECTED_COVER_COUNT });
+export const catalogConstants = Object.freeze({
+  EXPECTED_CATALOG_COUNT,
+  EXPECTED_COVER_COUNT,
+  MAX_CATALOG_PREVIEW_BYTES,
+});

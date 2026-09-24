@@ -8,7 +8,14 @@ import { gzipSync } from 'node:zlib';
 import initSqlJs from 'sql.js';
 import { runMigrations } from '../database/migrations.js';
 import { isCatalogDeliveryKey } from '../routes/media.js';
-import { normalizeCatalogAssetInventory, publishCatalog, readCanonicalCatalog, sha256 } from '../services/catalog-publisher.js';
+import {
+  buildCatalogAssetInventory,
+  catalogConstants,
+  normalizeCatalogAssetInventory,
+  publishCatalog,
+  readCanonicalCatalog,
+  sha256,
+} from '../services/catalog-publisher.js';
 import { validateTiledGridDimensions } from '../services/tiled-coloring.js';
 
 const serverDir = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -103,6 +110,9 @@ test('publisher writes the canonical catalog without touching protected domains'
 
     const row = sqlite.exec("SELECT COUNT(*) AS c FROM coloring_templates WHERE source_type='catalog' AND status='active' AND visibility='public'")[0].values[0][0];
     assert.equal(row, 320);
+    const previewUrl = sqlite.exec("SELECT preview_url FROM coloring_templates WHERE source_type='catalog' ORDER BY id LIMIT 1")[0].values[0][0];
+    assert.match(previewUrl, /-pixel\.png$/);
+    assert.doesNotMatch(previewUrl, /(?:masters|\/full)\//);
   } finally {
     sqlite.close();
   }
@@ -268,4 +278,24 @@ test('catalog R2 inventory is bound to the exact canonical asset set', () => {
   assert.throws(() => normalizeCatalogAssetInventory(records, [{ ...assets[0], source_asset: 'public/other.png' }]), /does not match/);
   assert.throws(() => normalizeCatalogAssetInventory(records, [{ ...assets[0], sha256: 'nope' }]), /does not match/);
   assert.throws(() => normalizeCatalogAssetInventory(records, [assets[0], assets[0]]), /duplicate/);
+});
+
+test('catalog preview inventory is complete, unique, and within the 16 KiB delivery budget', async () => {
+  const catalog = readCanonicalCatalog();
+  const records = buildCatalogAssetInventory(catalog);
+  const inventoryPath = join(serverDir, '..', 'docs', 'evidence', 'catalog-r2-inventory.json');
+  const inventory = JSON.parse(await readFile(inventoryPath, 'utf8'));
+  const assets = normalizeCatalogAssetInventory(records, inventory.assets);
+  const previews = assets.filter((asset) => asset.kind === 'preview');
+
+  assert.equal(previews.length, 320);
+  assert.equal(new Set(previews.map((asset) => asset.key)).size, previews.length);
+  assert.ok(previews.every((asset) => asset.bytes <= catalogConstants.MAX_CATALOG_PREVIEW_BYTES));
+  assert.throws(() => normalizeCatalogAssetInventory(records, inventory.assets.slice(1)), /asset count/);
+  assert.throws(
+    () => normalizeCatalogAssetInventory(records, inventory.assets.map((asset) => asset.kind === 'preview'
+      ? { ...asset, bytes: catalogConstants.MAX_CATALOG_PREVIEW_BYTES + 1 }
+      : asset)),
+    /CATALOG_PREVIEW_SIZE_BUDGET_EXCEEDED/,
+  );
 });
