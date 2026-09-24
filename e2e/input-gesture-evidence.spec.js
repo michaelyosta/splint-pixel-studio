@@ -144,6 +144,19 @@ test.describe('Input gesture evidence', () => {
     const secondTarget = await pickLoadedVisibleCell(page, first.box);
     expect(secondTarget).not.toBeNull();
     await waitForTiledCellLoaded(page, secondTarget.x, secondTarget.y);
+    const secondCellState = await page.evaluate(({ x, y }) => {
+      const cell = window.__splintClient?.getCell(x, y);
+      const selectedColor = [...document.querySelectorAll('.color-swatch')]
+        .findIndex((swatch) => swatch.getAttribute('data-state') === 'selected');
+      return {
+        loaded: cell?.loaded ?? false,
+        filled: cell?.filled ?? null,
+        target: cell?.target ?? null,
+        selectedColor: selectedColor < 0 ? null : selectedColor,
+      };
+    }, secondTarget);
+    expect(secondTarget).not.toEqual({ x: first.target.x, y: first.target.y });
+    expect(secondCellState).toEqual({ loaded: true, filled: -1, target: 0, selectedColor: 0 });
     const camera = await readTiledCamera(page);
     const secondPoint = {
       x: first.box.x + secondTarget.x * CELL * camera.zoom + camera.x + 16 * camera.zoom,
