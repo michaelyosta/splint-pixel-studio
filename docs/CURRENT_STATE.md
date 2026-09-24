@@ -122,10 +122,15 @@ Direct smoke evidence from 2026-09-22 is recorded in
   change adds tiled-map publishing capability only and explicitly did not
   approve or publish the 1200-pixel candidates or mutate production catalog
   rows. The PR run reported 33 checks passed.
-- A read-only Telegram catalog smoke during this task observed 7 works and 0
-  collections. Production is therefore not verified at the 320-item target;
-  `catalog:publish` has not been run against production. No user progress,
-  ownership, payment, or catalog database state was changed by the R2 migration.
+- The latest authorized read-only Telegram catalog smoke observed 7 works and
+  0 collections. Production is therefore not verified at the 320-item target;
+  `catalog:publish` has not been run against production. On 2026-09-25, direct
+  `/health` and `/ready` checks returned 200, but a HEAD request for a verified
+  R2 catalog preview through the production media route returned 404. Runtime
+  asset delivery remains unverified; the cause is unknown. See
+  [evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md](evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md).
+  No user progress, ownership, payment, or catalog database state was changed
+  by the R2 migration or these read-only checks.
 - The 1,056 canonical source/runtime image objects (2,167,344,016 bytes) were
   uploaded to existing R2 bucket `splint-originals` under `catalog/`. The
   inventory has 1:1 path coverage of the tracked catalog binaries, all remote
@@ -140,10 +145,12 @@ Direct smoke evidence from 2026-09-22 is recorded in
   Git tree until production publication and runtime delivery are proven. The
   shared Git object pack is 2.09 GiB; deleting files from a future `main` tree
   alone will not remove their historical blobs.
-- Visual approval for the 1200-pixel candidate set and production publication
-  remain pending. Technical support for 1200×1200 and aspect-preserving maps is
-  not editorial approval. Do not publish candidates or remove their source
-  binaries until the canonical content gate is satisfied.
+- The catalog publisher and tiled player support maps up to 1200 pixels per
+  side while preserving aspect ratio; this is not blocked by the separate
+  25,600-cell public-import visibility budget. The 1200-pixel candidate set is
+  technically valid, but visual/effort approval and production publication
+  remain pending under the canonical content gate. Do not remove source
+  binaries until production publication and runtime delivery are proven.
 
 ## Pixelization
 

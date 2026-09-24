@@ -84,6 +84,10 @@ The 2026-09-24 R2 transfer checksum/restore evidence is recorded in
 with its [per-object inventory](evidence/catalog-r2-inventory.json). This is
 dated operational evidence, not editorial approval or a production-publish
 authorization.
+The subsequent production API/media-route smoke is recorded in
+[evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md](evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md);
+it is operational evidence only and does not establish a root cause or
+catalog publication.
 
 ## Pixelization
 
