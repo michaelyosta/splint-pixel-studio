@@ -1,8 +1,8 @@
 # Production catalog API/media smoke — 2026-09-25
 
-Status: partial API readiness pass; production catalog media delivery is not
-verified. This is dated operational evidence and does not authorize content
-publication.
+Status: API readiness passes, but the production catalog media 404 is explained
+by an outdated backend revision. This is dated operational evidence and does
+not authorize content publication.
 
 ## Read-only checks
 
@@ -15,12 +15,19 @@ Against the existing production API `https://splint-api.onrender.com`:
   route for an existing preview object returned HTTP 404.
 
 The readiness result verifies the API's reported database/configuration checks
-and bucket availability; it does not prove that the media route can read this
-object. The route currently reports 404 for both a missing object and storage
-read errors, so this observation does not identify the cause. Render runtime
-configuration/log evidence or a direct production-credential object-read
-diagnostic is needed to distinguish those cases. No credentials were created
-or changed during these checks.
+and bucket availability. Read-only inspection of the Render service showed its
+last successful deployment is `5a829a746431502fbdd8f32239cb3d5e4dc8400b`
+(PR #47), while current `main` is `623ad03afb1236327b93a4e326e7fb601c617518`
+(14 commits ahead). In the deployed revision, `server/routes/media.js` only
+allows `artworks/` and `thumbnails/` keys, so `catalog/previews/*` is rejected
+with 404 before an R2 object read. Current `main` adds catalog preview and
+non-source cover delivery. The verified R2 object is therefore not the cause
+of this 404; the serving backend is stale. Render is configured for
+`After CI Checks Pass` and no successful deployment beyond `5a829a7` was
+observed. The push CI run for `623ad03` has one failed release-critical iPhone
+job, which is consistent with the configured deployment hold, but no Render
+event directly linking that check to the absent deployment was available.
+No credentials were created or changed during these checks.
 
 ## Boundaries and interpretation
 
@@ -33,7 +40,10 @@ this smoke. The earlier authorized read-only Telegram catalog observation of
 The R2 migration remains independently verified for all 1,056 objects by size
 and SHA-256, with three representative restore checks, as documented in
 [CATALOG_R2_MIGRATION_2026-09-24.md](CATALOG_R2_MIGRATION_2026-09-24.md).
-Successful bucket readiness does not supersede the failed media-route check.
+The code-version diagnosis supersedes the earlier uncertainty about whether
+the specific preview key exists or whether R2 reads fail. Successful bucket
+readiness still does not make the current production media route capable of
+serving catalog previews.
 
 The candidate map dimensions (maximum 1200 pixels per side, aspect ratio
 preserved) are supported by the catalog tiled-map path. The separate

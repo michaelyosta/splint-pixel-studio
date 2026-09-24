@@ -2,7 +2,7 @@
 
 Status: CURRENT
 Authority: Current operational truth for this repository.
-Last verified: 2026-09-24
+Last verified: 2026-09-25
 Repository state: verify current HEAD and origin/main at task start per AGENTS.md.
 
 This document is intentionally short and bounded. It records what is
@@ -126,8 +126,15 @@ Direct smoke evidence from 2026-09-22 is recorded in
   0 collections. Production is therefore not verified at the 320-item target;
   `catalog:publish` has not been run against production. On 2026-09-25, direct
   `/health` and `/ready` checks returned 200, but a HEAD request for a verified
-  R2 catalog preview through the production media route returned 404. Runtime
-  asset delivery remains unverified; the cause is unknown. See
+  R2 catalog preview through the production media route returned 404. Render's
+  last successful deployment is `5a829a7` (PR #47), while `origin/main` is
+  `623ad03`, 14 commits ahead. The deployed `server/routes/media.js` does not
+  allow `catalog/previews/*`; current `main` adds that delivery path. The 404
+  is therefore caused by stale production backend code before any R2 object
+  read, not evidence of a missing R2 object. Render is configured for
+  `After CI Checks Pass`; the push CI run for `623ad03` failed its critical
+  iPhone job, consistent with the deployment hold. A direct Render event tying
+  that check to the skipped deployment has not been observed. See
   [evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md](evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md).
   No user progress, ownership, payment, or catalog database state was changed
   by the R2 migration or these read-only checks.
@@ -203,11 +210,29 @@ production deployment.
 
 The normal flow is fresh branch/worktree → focused local checks → push/PR →
 required CI green → merge `main` → automatic deployment → smoke verification.
-This is a stable operating contract, not evidence that a current merge or
-deployment occurred. The checked-in workflow is `.github/workflows/ci.yml`.
+The checked-in workflow is `.github/workflows/ci.yml`. On 2026-09-25, push run
+`36027133545` for `623ad03` failed `e2e-critical (iphone)` because a catalog
+deep-link test expected the collection title but observed the default catalog
+heading. A focused Node 24 local run passed that test. PR #54 run `36046517508`
+completed with 25 jobs successful, four failed (`e2e-critical (iphone)`,
+`e2e (18/24)`, `(21/24)`, `(24/24)`), and one cancelled
+(`e2e-critical (chromium)`). The failed test cases were tiled completion and
+premium direct-ID on iPhone, Phase 2 Bomb on iPhone, the core-feel control on
+iPhone, and Chromium pointer-cancel follow-up. Focused Node 24 local runs passed
+the first four. The pointer-cancel failure was traced to test geometry: the
+second selected cell's point landed on the overlaid minimap canvas, not the
+coloring canvas. The E2E helper now filters candidates using the topmost DOM
+hit target; the pointer-cancel case and two adjacent tiled-touch/capture cases
+pass locally (3/3). The exact CI Node 22.23.2 runtime is not installed locally,
+so these results do not clear the GitHub CI gate. No retries, weakened product
+assertions, or failure suppression were used. No production deployment or
+catalog publication has occurred from PR #54.
 
 ## Known blockers
 
+- `RELEASE HOLD` — production still runs backend `5a829a7`; catalog preview
+  delivery requires the route added on current `main` (`623ad03`). The current
+  PR and main push checks are not green; resolve the CI failures before merge.
 - `UNKNOWN` — physical Telegram iOS runtime result.
 - `UNKNOWN` — current editorial approval/publication and pixelization winner.
 - `PAYMENT GATE` — public Stars access remains closed until the launch-hardening

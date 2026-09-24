@@ -178,6 +178,9 @@ export async function pickLoadedVisibleCell(page, box) {
         const screenX = box.x + x * 32 * camera.zoom + camera.x + 16 * camera.zoom;
         const screenY = box.y + y * 32 * camera.zoom + camera.y + 16 * camera.zoom;
         if (screenX >= minX && screenX <= maxX && screenY >= minY && screenY <= maxY) {
+          const hit = document.elementFromPoint(screenX, screenY);
+          if (!hit?.closest('.progressive-grid-area')
+            || !hit.closest('canvas[aria-roledescription="поле раскраски"]')) continue;
           return { x, y };
         }
       }
