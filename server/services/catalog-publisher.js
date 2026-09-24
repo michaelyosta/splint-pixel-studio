@@ -617,6 +617,31 @@ export function buildCatalogAssetInventory(catalog = readCanonicalCatalog()) {
   }));
 }
 
+export function normalizeCatalogAssetInventory(records, assets) {
+  if (!Array.isArray(assets)) throw new Error('inventory.assets must be an array');
+  const byKey = new Map();
+  for (const asset of assets) {
+    if (!asset || typeof asset.key !== 'string' || byKey.has(asset.key)) {
+      throw new Error('inventory contains an invalid or duplicate asset key');
+    }
+    byKey.set(asset.key, asset);
+  }
+  if (byKey.size !== records.length) throw new Error('inventory asset count does not match canonical catalog');
+  return records.map((record) => {
+    const expected = byKey.get(record.key);
+    if (!expected
+      || expected.id !== record.id
+      || expected.kind !== record.kind
+      || expected.source_asset !== record.source_asset
+      || !Number.isSafeInteger(Number(expected.bytes))
+      || Number(expected.bytes) < 0
+      || !/^[a-f0-9]{64}$/i.test(String(expected.sha256 || ''))) {
+      throw new Error(`inventory does not match canonical catalog at ${record.key}`);
+    }
+    return { ...record, bytes: Number(expected.bytes), sha256: String(expected.sha256).toLowerCase() };
+  });
+}
+
 export function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }

@@ -8,7 +8,7 @@ import { gzipSync } from 'node:zlib';
 import initSqlJs from 'sql.js';
 import { runMigrations } from '../database/migrations.js';
 import { isCatalogDeliveryKey } from '../routes/media.js';
-import { publishCatalog, readCanonicalCatalog, sha256 } from '../services/catalog-publisher.js';
+import { normalizeCatalogAssetInventory, publishCatalog, readCanonicalCatalog, sha256 } from '../services/catalog-publisher.js';
 import { validateTiledGridDimensions } from '../services/tiled-coloring.js';
 
 const serverDir = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -248,6 +248,8 @@ test('publisher source does not route through demo seeding', async () => {
 test('catalog asset upload accepts short-lived scoped S3 session credentials', async () => {
   const source = await readFile(join(serverDir, 'scripts', 'publish-catalog.mjs'), 'utf8');
   assert.match(source, /sessionToken:\s*process\.env\.S3_SESSION_TOKEN/);
+  assert.match(source, /const storage = await storageConfig\(\)/);
+  assert.match(source, /typeof stored\.bucket !== 'string'/);
 });
 
 test('catalog media delivery allows previews and covers but never masters', () => {
@@ -256,4 +258,14 @@ test('catalog media delivery allows previews and covers but never masters', () =
   assert.equal(isCatalogDeliveryKey('catalog/covers/source/collection.png'), false);
   assert.equal(isCatalogDeliveryKey('catalog/masters/secret.png'), false);
   assert.equal(isCatalogDeliveryKey('catalog/previews/../masters/secret.png'), false);
+});
+
+test('catalog R2 inventory is bound to the exact canonical asset set', () => {
+  const records = [{ id: 'coloring_one', kind: 'preview', source_asset: 'public/assets/catalog/generated/one-pixel.png', key: 'catalog/previews/one-pixel.png' }];
+  const assets = [{ ...records[0], bytes: '123', sha256: 'A'.repeat(64) }];
+  assert.deepEqual(normalizeCatalogAssetInventory(records, assets), [{ ...records[0], bytes: 123, sha256: 'a'.repeat(64) }]);
+  assert.throws(() => normalizeCatalogAssetInventory(records, []), /asset count/);
+  assert.throws(() => normalizeCatalogAssetInventory(records, [{ ...assets[0], source_asset: 'public/other.png' }]), /does not match/);
+  assert.throws(() => normalizeCatalogAssetInventory(records, [{ ...assets[0], sha256: 'nope' }]), /does not match/);
+  assert.throws(() => normalizeCatalogAssetInventory(records, [assets[0], assets[0]]), /duplicate/);
 });

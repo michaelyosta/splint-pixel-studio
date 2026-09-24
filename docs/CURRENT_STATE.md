@@ -2,7 +2,7 @@
 
 Status: CURRENT
 Authority: Current operational truth for this repository.
-Last verified: 2026-09-22
+Last verified: 2026-09-24
 Repository state: verify current HEAD and origin/main at task start per AGENTS.md.
 
 This document is intentionally short and bounded. It records what is
@@ -114,6 +114,36 @@ Direct smoke evidence from 2026-09-22 is recorded in
 - Quality and metadata rules are canonical in
   [CONTENT_PIPELINE_CONTRACT.md](CONTENT_PIPELINE_CONTRACT.md) and
   [PHASE4_CONTENT_METADATA_UI.md](PHASE4_CONTENT_METADATA_UI.md).
+
+## Catalog delivery
+
+- The canonical manifest contains 320 artworks, 16 collections, 32 albums,
+  172 free and 148 premium items. PR #53 merged to `main` at `623ad03`; its
+  change adds tiled-map publishing capability only and explicitly did not
+  approve or publish the 1200-pixel candidates or mutate production catalog
+  rows. The PR run reported 33 checks passed.
+- A read-only Telegram catalog smoke during this task observed 7 works and 0
+  collections. Production is therefore not verified at the 320-item target;
+  `catalog:publish` has not been run against production. No user progress,
+  ownership, payment, or catalog database state was changed by the R2 migration.
+- The 1,056 canonical source/runtime image objects (2,167,344,016 bytes) were
+  uploaded to existing R2 bucket `splint-originals` under `catalog/`. The
+  inventory has 1:1 path coverage of the tracked catalog binaries, all remote
+  size/SHA-256 checks passed, and three representative objects (master, full,
+  preview) were restored and matched. The eight pre-frame history masters
+  (28,498,751 bytes) remain in Git and are outside that migration inventory.
+  Evidence and the checksum inventory are in
+  [evidence/CATALOG_R2_MIGRATION_2026-09-24.md](evidence/CATALOG_R2_MIGRATION_2026-09-24.md)
+  and [evidence/catalog-r2-inventory.json](evidence/catalog-r2-inventory.json).
+- The temporary R2 migration credentials were revoked after verification;
+  `originals/` was not read or modified. Heavy binaries remain in the current
+  Git tree until production publication and runtime delivery are proven. The
+  shared Git object pack is 2.09 GiB; deleting files from a future `main` tree
+  alone will not remove their historical blobs.
+- Visual approval for the 1200-pixel candidate set and production publication
+  remain pending. Technical support for 1200×1200 and aspect-preserving maps is
+  not editorial approval. Do not publish candidates or remove their source
+  binaries until the canonical content gate is satisfied.
 
 ## Pixelization
 

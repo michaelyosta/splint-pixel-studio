@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buildCatalogAssetInventory,
   catalogConstants,
+  normalizeCatalogAssetInventory,
   publishCatalog,
   readCanonicalCatalog,
   sha256,
@@ -59,7 +60,13 @@ async function readExpectedInventory(records, inventoryPath) {
   try {
     const stored = JSON.parse(await readFile(inventoryPath, 'utf8'));
     if (!Array.isArray(stored.assets)) throw new Error('inventory.assets must be an array');
-    return stored.assets;
+    if (typeof stored.bucket !== 'string' || !stored.bucket) {
+      throw new Error('inventory.bucket must be set');
+    }
+    if (stored.bucket !== process.env.S3_BUCKET) {
+      throw new Error(`inventory bucket ${stored.bucket} does not match configured bucket`);
+    }
+    return normalizeCatalogAssetInventory(records, stored.assets);
   } catch (error) {
     if (error.code === 'ENOENT') return collectLocalInventory(records);
     throw new Error(`Cannot read inventory ${inventoryPath}: ${error.message}`);
@@ -82,11 +89,12 @@ async function collectLocalInventory(records) {
   return assets;
 }
 
-async function uploadAssets(records, storage) {
+async function uploadAssets(records, storage, inventoryPath) {
   const { HeadObjectCommand, PutObjectCommand } = await import('@aws-sdk/client-s3');
-  const localInventory = await collectLocalInventory(records);
+  const expectedAssets = await readExpectedInventory(records, inventoryPath);
+  const recordsByKey = new Map(records.map((record) => [record.key, record]));
   const uploaded = [];
-  for (const expected of localInventory) {
+  for (const expected of expectedAssets) {
     let head = null;
     try {
       head = await storage.client.send(new HeadObjectCommand({ Bucket: storage.bucket, Key: expected.key }));
@@ -101,14 +109,26 @@ async function uploadAssets(records, storage) {
       uploaded.push({ ...expected, action: 'verified-existing' });
       continue;
     }
-    const body = await readFile(resolve(root, expected.source_asset));
+    const record = recordsByKey.get(expected.key);
+    let body;
+    try {
+      body = await readFile(resolve(root, record.source_asset));
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`Missing local source for absent R2 object ${expected.key}; refusing upload`);
+      }
+      throw error;
+    }
+    if (body.length !== expected.bytes || sha256(body) !== expected.sha256) {
+      throw new Error(`Local catalog source mismatch at ${expected.key}; refusing upload`);
+    }
     await storage.client.send(new PutObjectCommand({
       Bucket: storage.bucket,
       Key: expected.key,
       Body: body,
-      ContentType: contentType(expected.source_asset),
+      ContentType: contentType(record.source_asset),
       CacheControl: 'public, max-age=31536000, immutable',
-      Metadata: { sha256: expected.sha256, source_asset: expected.source_asset },
+      Metadata: { sha256: expected.sha256, source_asset: record.source_asset },
     }));
     uploaded.push({ ...expected, action: 'uploaded' });
   }
@@ -175,10 +195,10 @@ async function main() {
   };
 
   if (upload || verify || restoreCheck) {
-    const storage = storageConfig();
+    const storage = await storageConfig();
     const records = buildCatalogAssetInventory(catalog);
     if (upload) {
-      const uploaded = await uploadAssets(records, storage);
+      const uploaded = await uploadAssets(records, storage, inventoryPath);
       report.asset_upload = { total: uploaded.length, uploaded: uploaded.filter((item) => item.action === 'uploaded').length, verified_existing: uploaded.filter((item) => item.action === 'verified-existing').length };
       if (writeInventory) {
         const inventoryAssets = uploaded.map((asset) => Object.fromEntries(Object.entries(asset).filter(([key]) => key !== 'action')));

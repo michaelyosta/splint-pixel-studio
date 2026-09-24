@@ -7,11 +7,17 @@ const manifestPath = join(serviceDirectory, '..', '..', 'content', 'catalog-mani
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const catalogAssetBaseUrl = String(process.env.CATALOG_ASSET_BASE_URL || '').replace(/\/+$/, '');
 
-export function catalogAssetUrl(assetPath) {
+export function catalogAssetUrl(assetPath, baseUrl = catalogAssetBaseUrl) {
   const value = String(assetPath || '').replaceAll('\\', '/');
   if (!value) return null;
-  if (catalogAssetBaseUrl && value.startsWith('public/assets/catalog/')) {
-    return `${catalogAssetBaseUrl}/${value.slice('public/assets/catalog/'.length)}`;
+  const base = String(baseUrl || '').replace(/\/+$/, '');
+  const generatedPrefix = 'public/assets/catalog/generated/';
+  if (base && value.startsWith(generatedPrefix)) {
+    const generatedPath = value.slice(generatedPrefix.length);
+    const filename = generatedPath.split('/').at(-1);
+    if (generatedPath.startsWith('covers/')) return `${base}/covers/${filename}`;
+    if (filename.endsWith('-pixel.png')) return `${base}/previews/${filename}`;
+    return `${base}/full/${filename}`;
   }
   return value.startsWith('public/') ? `/${value.slice('public/'.length)}` : value;
 }

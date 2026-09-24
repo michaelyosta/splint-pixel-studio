@@ -14,6 +14,14 @@ node_modules
 # Historical pre-frame masters are evidence candidates for R2 archival, not
 # runtime catalog inputs; do not add new snapshots to the application repo.
 /content/generated/masters/history/
+
+# Canonical catalog binaries are durable R2 objects, not source files.
+# Keep manifests, scripts and metadata in Git; retain the separately tracked
+# pre-frame history masters until their own archival decision is complete.
+/content/generated/masters/*.png
+/content/generated/covers/*.png
+/public/assets/catalog/generated/
+
 dist
 dist-ssr
 *.local

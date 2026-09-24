@@ -54,10 +54,11 @@ dropping the Phase-2 collection and album hierarchy.
 
 Set `CATALOG_ASSET_BASE_URL=/media/catalog` to serve private R2 objects through
 the existing API, or set it to an existing public R2/CDN base whose path is the
-`catalog/` prefix. Do not put credentials in this variable. Runtime card and
-collection surfaces use `catalog/previews/` and `catalog/covers/`; the API
-route deliberately permits only those two delivery prefixes. Masters and
-full-size assets remain storage objects and are not runtime preview URLs.
+`catalog/` prefix. Do not put credentials in this variable. Generated pixel
+previews map to `catalog/previews/{filename}` and optimized cover images map to
+`catalog/covers/{filename}`. The API route deliberately permits only those two
+delivery prefixes. Masters and full-size assets remain storage objects and are
+not runtime preview URLs.
 
 The production database and object-store environment must be supplied by the
 normal deployment operator. Never enable `SEED_DEMO_DATA` to publish the
@@ -71,11 +72,15 @@ available.
 
 ## Recovery evidence
 
-Keep the generated `content/catalog-r2-inventory.json` outside the deploy
-commit or in the approved evidence location. It records each object key,
-source asset, byte count, and SHA-256. Use the existing backup/restore
-runbooks for a full bucket backup; the publisher's restore check is a
-targeted post-upload validation, not a replacement for backup.
+Keep the generated inventory outside the deploy commit or in the approved
+evidence location. The verified migration inventory is
+`docs/evidence/catalog-r2-inventory.json`; it records each object key, source
+asset, byte count, and SHA-256. When tracked binaries are absent, pass that
+inventory to `--upload-assets --inventory <path>`: matching remote objects are
+verified without local source files; a missing remote object still requires a
+matching local source and fails closed otherwise. Use the existing
+backup/restore runbooks for a full bucket backup; the publisher's restore check
+is a targeted post-upload validation, not a replacement for backup.
 
 The audit found eight unreferenced pre-frame history masters (about 27.18 MiB)
 under `content/generated/masters/history/`. They are retained pending an

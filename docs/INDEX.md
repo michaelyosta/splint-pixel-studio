@@ -79,6 +79,12 @@ Read [CONTENT_PIPELINE_CONTRACT.md](CONTENT_PIPELINE_CONTRACT.md) and
 as dated evidence only. Technical status, visual approval, and publication
 must remain separate.
 
+The 2026-09-24 R2 transfer checksum/restore evidence is recorded in
+[evidence/CATALOG_R2_MIGRATION_2026-09-24.md](evidence/CATALOG_R2_MIGRATION_2026-09-24.md)
+with its [per-object inventory](evidence/catalog-r2-inventory.json). This is
+dated operational evidence, not editorial approval or a production-publish
+authorization.
+
 ## Pixelization
 
 Read [CONTENT_PIPELINE_CONTRACT.md](CONTENT_PIPELINE_CONTRACT.md), then inspect
