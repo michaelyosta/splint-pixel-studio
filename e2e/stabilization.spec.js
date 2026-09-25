@@ -52,6 +52,23 @@ async function paintActiveTarget(page) {
   }
 }
 
+function sparkTreatmentFor(userId, templateId) {
+  let hash = 2166136261;
+  for (const character of `${userId}:${templateId}:spark-v0`) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % 2 === 0;
+}
+
+function controlUserFor(testId, templateId) {
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    const userId = `e2e_${testId}_control_${attempt}`;
+    if (!sparkTreatmentFor(userId, templateId)) return userId;
+  }
+  throw new Error(`Could not select the Spark control cohort for ${templateId}`);
+}
+
 async function completeColor(page, colorIndex) {
   const session = page.locator('.coloring-session');
   const swatch = page.locator('.color-swatch').nth(colorIndex);
@@ -116,10 +133,21 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
       });
     });
     await page.route('**/api/**', async (route) => {
+      let userId = `e2e_${testInfo.testId}`;
+      if (testInfo.title.includes('Auto transition remains focusing until camera animation completes')) {
+        const path = new URL(route.request().url()).pathname;
+        const match = path.match(/\/colorings\/([^/]+)/);
+        const staticColoringRoutes = new Set([
+          'collections', 'favorites', 'history', 'mine', 'recommendations', 'shelves',
+        ]);
+        if (match && !staticColoringRoutes.has(match[1])) {
+          userId = controlUserFor(testInfo.testId, decodeURIComponent(match[1]));
+        }
+      }
       await route.continue({
         headers: {
           ...route.request().headers(),
-          'x-user-id': `e2e_${testInfo.testId}`,
+          'x-user-id': userId,
         },
       });
     });
@@ -339,6 +367,8 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
 
     const session = page.locator('.coloring-session');
     await expect(session).toHaveAttribute('data-route-status', 'ready');
+    // This route test measures camera advancement, not Spark special-cell UX.
+    await expect(session).toHaveAttribute('data-special-cohort', 'control');
     const generationBefore = Number(await session.getAttribute('data-target-generation'));
     await paintActiveTarget(page);
 
