@@ -168,14 +168,41 @@ function catalogWithTiledTemplate(catalog, templateId, { phase = 0, width = 1200
   return singleTemplateCatalog(catalog, templateId, runtime, loadTiledGrid);
 }
 
-test('publisher writes the canonical catalog without touching protected domains', async () => {
+function canonicalCatalogWithLegacyDemoGrids(catalog) {
+  const runtimeTemplates = catalog.runtimeTemplates.map((template) => ({
+    ...template,
+    width: 32,
+    height: 32,
+    cells: Array(32 * 32).fill(0),
+    storage_mode: 'legacy',
+    tile_size: 32,
+    cell_map_asset: null,
+    cell_map_r2_key: null,
+    cell_map_sha256: null,
+    cell_map_bytes: null,
+    cell_map_raw_bytes: null,
+  }));
+  return {
+    ...catalog,
+    runtimeTemplates,
+    runtimeById: new Map(runtimeTemplates.map((template) => [template.id, template])),
+    loadTiledGrid: undefined,
+    loadTiledTiles: undefined,
+  };
+}
+
+test('publisher writes canonical catalog metadata without production grids or protected-domain changes', async () => {
   const SQL = await initSqlJs();
   const sqlite = new SQL.Database();
   sqlite.run('PRAGMA foreign_keys = ON');
   await runMigrations({ mode: 'sqlite', pool: null, sqlite, persistFn: null, migrationsDir });
 
   try {
-    const report = await publishCatalog({ db: createAdapter(sqlite), catalog: readCanonicalCatalog() });
+    // Production grid maps live in R2. Keep this metadata/protected-domain
+    // contract test independent of generated catalog binaries in Git; the
+    // adjacent tiled tests exercise grid validation and persistence directly.
+    const catalog = canonicalCatalogWithLegacyDemoGrids(readCanonicalCatalog());
+    const report = await publishCatalog({ db: createAdapter(sqlite), catalog });
     assert.equal(report.production_catalog_count, 320);
     assert.equal(report.production_collections, 16);
     assert.equal(report.production_albums, 32);
