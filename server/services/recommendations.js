@@ -77,7 +77,7 @@ async function loadCandidates(db, userId) {
     `SELECT t.id, t.title, t.preview_url, t.theme, t.collection_id, t.difficulty,
             t.width, t.height, t.est_minutes, t.daily_featured, t.added_at, t.storage_mode
       FROM coloring_templates t
-      WHERE t.status='active' AND t.visibility='public'
+      WHERE t.status='active' AND t.visibility='public' AND t.catalog_retired_at IS NULL
         AND (t.owner_id IS NULL OR t.owner_id<>?)
         AND NOT EXISTS (
           SELECT 1 FROM artworks a

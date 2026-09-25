@@ -16,6 +16,13 @@ import {
   generateHazardCells,
   persistHazardCells,
 } from './tiled-hazard.js';
+import {
+  catalogGridTileColorCountsFromSource,
+  readCatalogGridSourceDescriptor,
+  readCatalogGridTile,
+  readCatalogGridTileFromSource,
+  readCatalogGridTiles,
+} from './catalog-grid-source.js';
 
 export const TILED_STORAGE_MODE = 'tiled';
 export const TILED_MAX_DIMENSION = 1_200;
@@ -253,15 +260,25 @@ export async function syncProgressColorCounters(tx, {
   const paletteLength = template.palette?.length || 0;
   if (paletteLength < 1) return;
   await ensureStaticGuidanceIndex(tx, template);
+  const catalogGridSource = await readCatalogGridSourceDescriptor(tx, template);
   const staticTileCounts = new Map();
   for (const stateTile of states.values()) {
     const key = `${stateTile.bounds.tile_x}:${stateTile.bounds.tile_y}`;
-    const rows = await tx.all(
-      `SELECT color_index, total_count FROM coloring_template_tile_color_counts
-        WHERE template_id=? AND tile_x=? AND tile_y=?`,
-      [template.id, stateTile.bounds.tile_x, stateTile.bounds.tile_y],
-    );
-    staticTileCounts.set(key, new Map(rows.map((row) => [Number(row.color_index), Number(row.total_count)])));
+    if (catalogGridSource) {
+      staticTileCounts.set(key, catalogGridTileColorCountsFromSource(
+        catalogGridSource,
+        template,
+        stateTile.bounds.tile_x,
+        stateTile.bounds.tile_y,
+      ).counts);
+    } else {
+      const rows = await tx.all(
+        `SELECT color_index, total_count FROM coloring_template_tile_color_counts
+          WHERE template_id=? AND tile_x=? AND tile_y=?`,
+        [template.id, stateTile.bounds.tile_x, stateTile.bounds.tile_y],
+      );
+      staticTileCounts.set(key, new Map(rows.map((row) => [Number(row.color_index), Number(row.total_count)])));
+    }
   }
 
   const staticColorRows = await tx.all(
@@ -345,12 +362,16 @@ export function tiledProgressPayload(template, row, artworkId = null) {
 export async function readTiledTile(db, { template, userId, tileX, tileY, progress = null } = {}) {
   const grid = validateTiledGridDimensions(template.width, template.height, template.tile_size);
   const bounds = getTileBounds({ ...grid, tileX, tileY, tileSize: grid.tile_size });
-  const tile = await db.get(
-    'SELECT * FROM coloring_template_tiles WHERE template_id=? AND tile_x=? AND tile_y=?',
-    [template.id, bounds.tile_x, bounds.tile_y],
-  );
-  if (!tile) throw new TiledColoringError('Tiled template tile is missing', 'MISSING_TILED_TILE', 500);
-  const cells = storedTileCells(tile, bounds.cell_count, `tile ${bounds.tile_x}:${bounds.tile_y}`);
+  const sourceTile = await readCatalogGridTile(db, template, bounds.tile_x, bounds.tile_y);
+  let cells = sourceTile?.cells || null;
+  if (!sourceTile) {
+    const tile = await db.get(
+      'SELECT * FROM coloring_template_tiles WHERE template_id=? AND tile_x=? AND tile_y=?',
+      [template.id, bounds.tile_x, bounds.tile_y],
+    );
+    if (!tile) throw new TiledColoringError('Tiled template tile is missing', 'MISSING_TILED_TILE', 500);
+    cells = storedTileCells(tile, bounds.cell_count, `tile ${bounds.tile_x}:${bounds.tile_y}`);
+  }
   const progressTile = await db.get(
     `SELECT * FROM coloring_tiled_progress_tiles
       WHERE user_id=? AND template_id=? AND tile_x=? AND tile_y=?`,
@@ -374,6 +395,13 @@ export async function readTiledTile(db, { template, userId, tileX, tileY, progre
 
 export async function readTiledTemplateTiles(db, { template } = {}) {
   const grid = validateTiledGridDimensions(template.width, template.height, template.tile_size);
+  const catalogTiles = await readCatalogGridTiles(db, template);
+  if (catalogTiles) {
+    if (catalogTiles.length !== grid.tiles_x * grid.tiles_y) {
+      throw new TiledColoringError('R2-backed tiled template is missing one or more tiles', 'CORRUPT_TILED_TEMPLATE', 500);
+    }
+    return catalogTiles;
+  }
   const rows = await db.all(
     `SELECT tile_x, tile_y, width, height, cells_json
       FROM coloring_template_tiles
@@ -404,6 +432,19 @@ export async function readTiledTemplateTiles(db, { template } = {}) {
  */
 export async function readTiledTemplateTilesForSpecials(db, { template } = {}) {
   const grid = validateTiledGridDimensions(template.width, template.height, template.tile_size);
+  const catalogTiles = await readCatalogGridTiles(db, template);
+  if (catalogTiles) {
+    if (catalogTiles.length !== grid.tiles_x * grid.tiles_y) {
+      throw new TiledColoringError('R2-backed tiled template is missing one or more tiles', 'CORRUPT_TILED_TEMPLATE', 500);
+    }
+    return catalogTiles.map((tile) => ({
+      tile_x: tile.tile_x,
+      tile_y: tile.tile_y,
+      width: tile.width,
+      height: tile.height,
+      cells: tile.cells,
+    }));
+  }
   const rows = await db.all(
     `SELECT tile_x, tile_y, width, height, cells_json
       FROM coloring_template_tiles
@@ -666,6 +707,7 @@ export async function applyTiledChanges(tx, {
     maxChanges,
   });
   const states = new Map();
+  const catalogGridSource = await readCatalogGridSourceDescriptor(tx, template);
 
   for (const change of validated.changes) {
     const key = `${change.tile_x}:${change.tile_y}`;
@@ -676,12 +718,17 @@ export async function applyTiledChanges(tx, {
       tileY: change.tile_y,
       tileSize: validated.grid.tile_size,
     });
-    const tile = await tx.get(
-      'SELECT * FROM coloring_template_tiles WHERE template_id=? AND tile_x=? AND tile_y=?',
-      [template.id, bounds.tile_x, bounds.tile_y],
-    );
-    if (!tile) throw new TiledColoringError('Tiled template tile is missing', 'MISSING_TILED_TILE', 500);
-    const cells = storedTileCells(tile, bounds.cell_count, `tile ${key}`);
+    let cells;
+    if (catalogGridSource) {
+      cells = (await readCatalogGridTileFromSource(catalogGridSource, template, bounds.tile_x, bounds.tile_y)).cells;
+    } else {
+      const tile = await tx.get(
+        'SELECT * FROM coloring_template_tiles WHERE template_id=? AND tile_x=? AND tile_y=?',
+        [template.id, bounds.tile_x, bounds.tile_y],
+      );
+      if (!tile) throw new TiledColoringError('Tiled template tile is missing', 'MISSING_TILED_TILE', 500);
+      cells = storedTileCells(tile, bounds.cell_count, `tile ${key}`);
+    }
     const progressTile = await tx.get(
       `SELECT * FROM coloring_tiled_progress_tiles
         WHERE user_id=? AND template_id=? AND tile_x=? AND tile_y=?`,

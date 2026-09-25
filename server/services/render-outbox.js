@@ -260,6 +260,7 @@ export async function loadRenderPlan(db, job) {
       palette,
       tile_size: Number(templateRow.tile_size || 32),
       storage_mode: templateRow.storage_mode || 'legacy',
+      source_type: templateRow.source_type || null,
     };
     if (template.storage_mode === 'tiled') {
       const tiles = await readTiledTemplateTiles(tx, { template });

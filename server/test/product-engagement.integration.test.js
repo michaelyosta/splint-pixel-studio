@@ -29,6 +29,7 @@ test('product engagement APIs use verified actions and keep creator packs free',
       PORT: String(port),
       SQLITE_DB_PATH: join(directory, 'test.db.bin'),
       MEDIA_STORAGE_ROOT: join(directory, 'uploads'),
+      NODE_ENV: 'test',
       ALLOW_DEV_AUTH: 'true',
       SEED_DEMO_DATA: 'true',
     },
@@ -78,6 +79,28 @@ test('product engagement APIs use verified actions and keep creator packs free',
   const history = await request('/colorings/history?limit=1');
   assert.equal(history.response.status, 200);
   assert.equal(history.json[0].id, templateId);
+
+  const dailyFixture = await request('/colorings/create', {
+    method: 'POST',
+    body: {
+      title: 'Daily challenge legacy API fixture',
+      width: 8,
+      height: 8,
+      palette: ['#102030', '#00b5d8'],
+      cells: Array(64).fill(0),
+    },
+  });
+  assert.equal(dailyFixture.response.status, 201);
+  const publicDailyFixture = await request(`/colorings/${dailyFixture.json.id}/visibility`, {
+    method: 'PATCH',
+    body: { visibility: 'public' },
+  });
+  assert.equal(publicDailyFixture.response.status, 200);
+  const dailyAssignment = await request('/meta/_test/daily-challenge-assignment', {
+    method: 'PUT',
+    body: { template_id: dailyFixture.json.id, target_cells: 20 },
+  });
+  assert.equal(dailyAssignment.response.status, 200);
 
   const daily = await request('/meta/daily-challenge');
   assert.equal(daily.response.status, 200);

@@ -156,6 +156,7 @@ export function validateProductionConfiguration(env = process.env) {
   if (env.SPECIAL_CELLS_DIAGNOSTICS === 'true') throw new Error('SPECIAL_CELLS_DIAGNOSTICS cannot be enabled in production');
   if (env.SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE === 'true') throw new Error('SPECIAL_CELLS_LEGACY_CHOICE_FIXTURE cannot be enabled in production');
   if (env.E2E_SEED_HOOKS === 'true') throw new Error('E2E_SEED_HOOKS cannot be enabled in production');
+  if (env.E2E_SEED_FULL_CATALOG === 'true') throw new Error('E2E_SEED_FULL_CATALOG cannot be enabled in production');
   if (String(env.TELEGRAM_BOT_API_ENVIRONMENT || 'production').trim().toLowerCase() !== 'production') {
     throw new Error('TELEGRAM_BOT_API_ENVIRONMENT must be production in production');
   }

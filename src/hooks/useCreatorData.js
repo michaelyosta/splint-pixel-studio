@@ -294,6 +294,12 @@ export function useCreatorData({ showNotice, onLoadMine, onLoadCatalog, onNaviga
     const sourceFile = creatorFileRef.current || file;
     if (!sourceFile) return;
     const activeBatch = batchId ?? ++creatorComputeRef.current;
+    // An image/crop effect schedules a debounced batch while file selection
+    // also starts an immediate batch. If the timer fires after that immediate
+    // batch has superseded it, do not let the obsolete task latch the shared
+    // busy state: its finally block is intentionally forbidden from clearing
+    // state owned by the newer batch.
+    if (!isCreatorPreviewCurrent(activeBatch, creatorComputeRef.current)) return;
     if (batchId == null) {
       creatorWorkerRef.current?.cancel();
       creatorFullResultRef.current = null;

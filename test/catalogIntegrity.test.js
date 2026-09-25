@@ -79,7 +79,7 @@ test('catalog manifest has a complete normalized hierarchy and valid local asset
   // Delivery budgets: card and player surfaces serve the lightweight pixel
   // preview, never the full-resolution master. A regression here directly
   // inflates every catalog page view on mobile WebViews.
-  const MAX_PREVIEW_BYTES = 256 * 1024;
+  const MAX_PREVIEW_BYTES = 16 * 1024;
   const MAX_COVER_BYTES = 1024 * 1024;
   await Promise.all(manifest.entries.map(async (entry) => {
     const bytes = await readFile(localAssetPath(entry.preview_asset));

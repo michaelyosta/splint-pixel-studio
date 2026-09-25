@@ -162,6 +162,10 @@ const ZONE_PRESETS = {
 };
 
 export function buildZones(template) {
+  // Tiled maps are navigated by the bounded tile/guidance indexes. Building
+  // legacy zone JSON for a 1200x1200 catalog grid would allocate hundreds of
+  // millions of cell indices and duplicate the tiled representation.
+  if (template?.storage_mode === 'tiled') return [];
   const { width, height, id } = template;
   const labels = ZONE_PRESETS[id] || ['Верхняя часть', 'Центр', 'Низ', 'Левый край', 'Правый край', 'Фон'];
   const rows = 3;
@@ -185,6 +189,33 @@ export function buildZones(template) {
     }
   }
   return zones;
+}
+
+function buildDemoCatalogTemplates(templates) {
+  const fixtureCount = process.env.E2E_SEED_FULL_CATALOG === 'true' ? templates.length : 6;
+  return templates.slice(0, fixtureCount).map((template, index) => {
+    const width = 32;
+    const height = 32;
+    const palette = Array.isArray(template.palette) && template.palette.length
+      ? template.palette
+      : ['#172554', '#38bdf8', '#f8fafc'];
+    const primary = palette.length > 1 ? 1 + (index % (palette.length - 1)) : 0;
+    const secondary = palette.length > 2 ? 1 + ((index + 1) % (palette.length - 1)) : primary;
+    const cells = Array(width * height).fill(0);
+
+    // A deterministic, playable placeholder map: a compact diamond with a
+    // contrasting center. Demo boot must not embed production's 1200px maps
+    // or depend on R2. The explicit E2E-only flag expands this fixture set to
+    // all 320 metadata entries so merchandising counts remain testable.
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const distance = Math.abs(x - 15.5) + Math.abs(y - 15.5);
+        if (distance <= 10) cells[y * width + x] = distance <= 3 ? secondary : primary;
+      }
+    }
+
+    return { ...template, width, height, palette, cells, storage_mode: 'legacy', tile_size: 32 };
+  });
 }
 
 export const ACHIEVEMENTS = [
@@ -396,7 +427,7 @@ export async function bootstrapSystemData() {
   return withDbTransaction(async () => {
     const now = new Date().toISOString();
 
-  const templates = JSON.parse(readFileSync(catalogPath, 'utf8'));
+  const templates = buildDemoCatalogTemplates(JSON.parse(readFileSync(catalogPath, 'utf8')));
 
   for (const collection of COLLECTIONS) {
     await run(`INSERT INTO collections (id,title,pack_type,rarity,total_artworks,image_url) VALUES (?,?,?,?,?,?)
@@ -471,8 +502,8 @@ export async function bootstrapSystemData() {
 
   const sql = `INSERT INTO coloring_templates
     (id,owner_id,title,description,category,difficulty,width,height,palette_json,cells_json,preview_url,original_media_key,source_type,visibility,status,mood,theme,est_minutes,collection_id,daily_featured,added_at,created_at,updated_at,
-     album_id,album_title,access_type,tags_json,season_json,audience_json,featured_rank,is_new)
-    VALUES (${Array.from({ length: 31 }, () => '?').join(',')})
+     album_id,album_title,access_type,tags_json,season_json,audience_json,featured_rank,is_new,storage_mode,tile_size)
+    VALUES (${Array.from({ length: 33 }, () => '?').join(',')})
     ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description, category=excluded.category,
       difficulty=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.difficulty ELSE excluded.difficulty END,
       width=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.width ELSE excluded.width END,
@@ -496,7 +527,9 @@ export async function bootstrapSystemData() {
       season_json=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.season_json ELSE excluded.season_json END,
       audience_json=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.audience_json ELSE excluded.audience_json END,
       featured_rank=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.featured_rank ELSE excluded.featured_rank END,
-      is_new=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.is_new ELSE excluded.is_new END`;
+      is_new=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.is_new ELSE excluded.is_new END,
+      storage_mode=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.storage_mode ELSE excluded.storage_mode END,
+      tile_size=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.tile_size ELSE excluded.tile_size END`;
 
   // One read for the whole catalog keeps cold SQLite/demo boot comfortably
   // below the local health-test deadline. Zone rows themselves remain
@@ -511,7 +544,7 @@ export async function bootstrapSystemData() {
     // pixelated canvas aesthetic; the full master stays available on disk
     // for regeneration but is not referenced at runtime.
     const runtimePreviewUrl = catalogAssetUrl(template.preview_asset || template.preview);
-    await run(sql, [template.id, null, template.title, template.description, template.category, template.difficulty, template.width, template.height, JSON.stringify(template.palette), JSON.stringify(template.cells), runtimePreviewUrl, null, 'catalog', 'public', 'active', template.mood || 'calm', template.theme || 'featured', template.est_minutes || 3, merchandising.collection_id, merchandising.daily_featured, template.added_at || now, now, now, merchandising.album_id, merchandising.album_title, merchandising.access_type, merchandising.tags_json, merchandising.season_json, merchandising.audience_json, merchandising.featured_rank, merchandising.is_new]);
+    await run(sql, [template.id, null, template.title, template.description, template.category, template.difficulty, template.width, template.height, JSON.stringify(template.palette), JSON.stringify(template.cells), runtimePreviewUrl, null, 'catalog', 'public', 'active', template.mood || 'calm', template.theme || 'featured', template.est_minutes || 3, merchandising.collection_id, merchandising.daily_featured, template.added_at || now, now, now, merchandising.album_id, merchandising.album_title, merchandising.access_type, merchandising.tags_json, merchandising.season_json, merchandising.audience_json, merchandising.featured_rank, merchandising.is_new, template.storage_mode || 'legacy', template.tile_size || 32]);
 
     const existingZoneCount = existingZoneCounts.get(template.id) || 0;
     if (existingZoneCount === 0) {
@@ -522,7 +555,7 @@ export async function bootstrapSystemData() {
         [`zone_${template.id}_${zoneIndex}`, template.id, zone.title, JSON.stringify(zone.indices), now]);
       }
     }
-    const zoneCount = existingZoneCount || 6;
+    const zoneCount = existingZoneCount || (template.storage_mode === 'tiled' ? 0 : 6);
     await run(`UPDATE coloring_templates SET
       zone_count=?, collection_id=CASE WHEN catalog_managed THEN collection_id ELSE ? END,
       theme=CASE WHEN catalog_managed THEN theme ELSE ? END,

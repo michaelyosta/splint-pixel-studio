@@ -26,6 +26,7 @@ const evidenceDir = resolve(__dirname, '..', 'docs', 'evidence');
 
 const GRID = 1200;
 const CELL = 32;
+const TILE_BOUNDARY_CONTROL_USER = 'e2e_tiled_boundary_control';
 
 async function dismissOnboarding(page) {
   const skip = page.locator('.onboarding-card .secondary-button');
@@ -313,7 +314,10 @@ async function endTouchStroke(page, touchSession) {
 
 test.describe('tiled stroke engine — paint follows the finger', () => {
   test.beforeEach(async ({ page }, testInfo) => {
-    await page.context().setExtraHTTPHeaders({ 'X-User-Id': `e2e_stroke_${testInfo.testId}` });
+    const userId = testInfo.title.includes('drag across a tile boundary')
+      ? TILE_BOUNDARY_CONTROL_USER
+      : `e2e_stroke_${testInfo.testId}`;
+    await page.context().setExtraHTTPHeaders({ 'X-User-Id': userId });
     await page.addInitScript(() => {
       try {
         localStorage.setItem('splint_onboarding_version', '2');
@@ -492,6 +496,7 @@ test.describe('tiled stroke engine — paint follows the finger', () => {
 
     const id = await createAndOpenBarsColoring(page);
     await waitForTiledReady(page);
+    await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-special-treatment', 'control');
 
     const viewportBox = await page.locator('.progressive-grid-area').boundingBox();
     expect(viewportBox).toBeTruthy();

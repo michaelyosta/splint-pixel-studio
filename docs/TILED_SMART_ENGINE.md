@@ -44,6 +44,15 @@ Static counts are built once when a tiled template is created:
 - `coloring_template_color_counts(template_id, color_index, total_count)`
 - `coloring_template_tile_color_counts(template_id, tile_x, tile_y, color_index, total_count)`
 
+Catalog grids are the storage exception: their immutable palette-index map is
+read from a checksum-pinned R2 object. Neon keeps the object descriptor and a
+compact checksummed Uint16LE vector ordered by tile row, tile column, then
+palette color. Global counts remain in `coloring_template_color_counts`; the
+catalog's tile counts are read from the vector instead of duplicating hundreds
+of thousands of cells/count rows in the database. User-created tiled maps keep
+the row-based static index above. Both paths share the same progress and
+guidance contract.
+
 Progress counters are updated only for tiles/colors touched by a paint batch:
 
 - `coloring_tiled_progress_colors(user_id, template_id, color_index, remaining_count)`
@@ -51,8 +60,9 @@ Progress counters are updated only for tiles/colors touched by a paint batch:
 
 A missing progress row means the static count is still fully remaining. A zero
 row stays explicit so a fully painted color can never be misread as "still
-fully remaining". Worst case this is tens of thousands of integer rows, not
-1.44 million cells, and the planner never scans `filled_json` of every tile.
+fully remaining"; any explicit progress row suppresses the corresponding
+static candidate even when its remaining count is zero. The planner never
+scans `filled_json` of every tile.
 
 ### Guidance API
 

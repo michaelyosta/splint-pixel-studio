@@ -20,12 +20,18 @@ production.
 | Optimized collection covers | 48 | 37,156,928 | Uploaded and checksum-verified |
 | **Total** | **1,056** | **2,167,344,016** | **Complete** |
 
-`docs/evidence/catalog-r2-inventory.json` contains the per-object keys, source
-paths, byte counts and SHA-256 values. Its SHA-256 is
+At the time of this migration, `docs/evidence/catalog-r2-inventory.json`
+contained the per-object keys, source paths, byte counts and SHA-256 values;
+its SHA-256 was
 `0350e6afaecdb51ff4f85a43d95496a8d13f72350308119d4e80a7a5c8b7c871`. The
-1,056 unique inventory paths exactly cover the 1,056 non-history tracked
+1,056 unique inventory paths exactly covered the 1,056 non-history tracked
 catalog binaries. Eight unreferenced pre-frame history masters (28,498,751
-bytes) were deliberately excluded and remain in Git.
+bytes) were deliberately excluded and remain in Git. The original inventory
+snapshot is preserved at the
+[2026-09-24 repository revision](https://github.com/michaelyosta/splint-pixel-studio/blob/eee5eee34672fd818dfc18b1147cc9cdcbbc24b8/docs/evidence/catalog-r2-inventory.json);
+the canonical inventory path was refreshed on 2026-09-25 for the approved
+1200-pixel candidates, documented in
+[CATALOG_R2_1200_ASSETS_2026-09-25.md](CATALOG_R2_1200_ASSETS_2026-09-25.md).
 
 The upload report was `uploaded=1056`, `verified_existing=0`. A subsequent
 read-only verification checked all 1,056 objects with no missing or mismatched

@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid';
 import { all, get, run, withDbTransaction } from '../db.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { asyncRoute } from '../middleware/asyncRoute.js';
-import { getDailyChallengeStatus, getUserProgression, getWeeklyChallengeStatus } from '../services/progression.js';
+import { getDailyChallengeStatus, getUserProgression, getWeeklyChallengeStatus, XP_REWARDS } from '../services/progression.js';
 import { assertCollectionAccessible } from '../services/unlock-service.js';
 import { buildCollectionContentMetadata, buildContentMetadata } from '../services/content-quality.js';
 import { CATALOG_COLLECTION_BY_ID, CATALOG_COLLECTION_IDS } from '../services/catalog-merchandising.js';
@@ -107,15 +107,15 @@ router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
       COALESCE(catalog_rank, 1000), title`, [req.userId]);
   const rows = await Promise.all(cols.map(async (col) => {
     const completed = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.collection_id=? AND a.is_completed=1", [req.userId, col.id]);
-    const total = await all('SELECT COUNT(*) as c FROM coloring_templates WHERE collection_id=?', [col.id]);
+    const total = await all('SELECT COUNT(*) as c FROM coloring_templates WHERE collection_id=? AND catalog_retired_at IS NULL', [col.id]);
     // Collection cards need one bounded, authoritative summary. Do not load
     // cells here; tiled rows must remain metadata-only at this endpoint.
     const templates = await all(`SELECT width,height,difficulty,est_minutes,storage_mode
-      FROM coloring_templates WHERE collection_id=? AND status='active' ORDER BY title LIMIT 48`, [col.id]);
+      FROM coloring_templates WHERE collection_id=? AND status='active' AND catalog_retired_at IS NULL ORDER BY title LIMIT 48`, [col.id]);
     const catalogDefinition = CATALOG_COLLECTION_BY_ID.get(col.id);
     const accessCounts = col.catalog_scope === 'merchandising'
       ? await all(`SELECT access_type, COUNT(*) AS c FROM coloring_templates
-        WHERE collection_id=? AND status='active' GROUP BY access_type`, [col.id])
+        WHERE collection_id=? AND status='active' AND catalog_retired_at IS NULL GROUP BY access_type`, [col.id])
       : [];
     const freeCount = Number(accessCounts.find((row) => row.access_type === 'free')?.c || 0);
     const premiumCount = Number(accessCounts.find((row) => row.access_type === 'premium')?.c || 0);
@@ -127,12 +127,12 @@ router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
       ? await Promise.all(albumDefinitions.map(async (album) => ({
         ...album,
         title: album.title || album.album_title,
-        total_count: Number((await all(`SELECT COUNT(*) AS c FROM coloring_templates WHERE collection_id=? AND album_id=? AND status='active'`, [col.id, album.id]))[0]?.c || 0),
+        total_count: Number((await all(`SELECT COUNT(*) AS c FROM coloring_templates WHERE collection_id=? AND album_id=? AND status='active' AND catalog_retired_at IS NULL`, [col.id, album.id]))[0]?.c || 0),
       })))
       : [];
     const isShowcase = col.id === 'col_premium-gallery';
     const premiumGalleryTotal = isShowcase
-      ? Number((await get("SELECT COUNT(*) AS c FROM coloring_templates WHERE access_type='premium' AND status='active' AND visibility='public'", []))?.c || 0)
+      ? Number((await get("SELECT COUNT(*) AS c FROM coloring_templates WHERE access_type='premium' AND status='active' AND visibility='public' AND catalog_retired_at IS NULL", []))?.c || 0)
       : null;
     const catalogCoverUrl = col.catalog_cover_url || col.image_url || catalogDefinition?.image_url || (isShowcase ? '/assets/catalog/astro-whale-pixel.png' : null);
     return {
@@ -182,7 +182,7 @@ router.get('/collections/:id/templates', authMiddleware, asyncRoute(async (req, 
       });
     }
   }
-  const rows = await all(`SELECT * FROM coloring_templates WHERE collection_id=? AND status='active'
+  const rows = await all(`SELECT * FROM coloring_templates WHERE collection_id=? AND status='active' AND catalog_retired_at IS NULL
     ${isOwner ? '' : "AND visibility='public'"}
     ${albumId ? 'AND album_id=?' : ''}
     ORDER BY featured_rank ASC, title`, albumId ? [req.params.id, albumId] : [req.params.id]);
@@ -301,6 +301,29 @@ if (process.env.NODE_ENV === 'test') {
     }
     await run('UPDATE users SET role=? WHERE id=?', [role, userId]);
     res.json({ success: true });
+  }));
+
+  router.put('/_test/daily-challenge-assignment', authMiddleware, asyncRoute(async (req, res) => {
+    const templateId = String(req.body?.template_id || '');
+    const targetCells = Number(req.body?.target_cells);
+    const template = await get(`SELECT id,owner_id,width,height,storage_mode,source_type,visibility,status
+      FROM coloring_templates WHERE id=?`, [templateId]);
+    if (!template || template.owner_id !== req.userId || template.source_type !== 'user'
+      || template.visibility !== 'public' || template.status !== 'active' || template.storage_mode === 'tiled') {
+      return res.status(404).json({ error: 'Test fixture must be an owned, public legacy template' });
+    }
+    if (!Number.isInteger(targetCells) || targetCells < 1 || targetCells > Number(template.width) * Number(template.height)) {
+      return res.status(400).json({ error: 'Invalid test daily-challenge target' });
+    }
+    const dateKey = todayKey();
+    const now = new Date().toISOString();
+    await run(`INSERT INTO daily_challenges (date_key,template_id,target_cells,xp_reward,created_at)
+      VALUES (?,?,?,?,?)
+      ON CONFLICT(date_key) DO UPDATE SET
+        template_id=excluded.template_id,target_cells=excluded.target_cells,
+        xp_reward=excluded.xp_reward,created_at=excluded.created_at`,
+    [dateKey, template.id, targetCells, XP_REWARDS.daily_challenge, now]);
+    res.json({ date_key: dateKey, template_id: template.id, target_cells: targetCells });
   }));
 }
 

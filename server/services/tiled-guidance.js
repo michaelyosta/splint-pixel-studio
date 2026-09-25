@@ -22,6 +22,11 @@ import {
   summarizeSpecialEffort,
 } from './tiled-specials.js';
 import { ensureTiledSpecialCells, readTiledTile } from './tiled-coloring.js';
+import {
+  catalogGridTileColorCountsFromSource,
+  readCatalogGridSourceDescriptor,
+  readCatalogGridTileFromSource,
+} from './catalog-grid-source.js';
 
 export const GUIDANCE_SCHEMA_VERSION = 1;
 export const ACTIONABLE_WINDOW_SIZE = 12;
@@ -276,6 +281,34 @@ export async function ensureStaticGuidanceIndex(db, template) {
   if (meta) {
     return { status: 'ready', colors: Number(meta.colors), tiles: Number(meta.tiles) };
   }
+  const catalogGridSource = await readCatalogGridSourceDescriptor(db, template);
+  if (catalogGridSource) {
+    const grid = getTileGrid(template.width, template.height, template.tile_size || DEFAULT_TILE_SIZE);
+    const totals = new Map();
+    for (let tileY = 0; tileY < grid.tiles_y; tileY += 1) {
+      for (let tileX = 0; tileX < grid.tiles_x; tileX += 1) {
+        const { counts } = catalogGridTileColorCountsFromSource(catalogGridSource, template, tileX, tileY);
+        for (const [color, count] of counts) totals.set(color, (totals.get(color) || 0) + count);
+      }
+    }
+    await db.run('DELETE FROM coloring_template_tile_color_counts WHERE template_id=?', [template.id]);
+    await db.run('DELETE FROM coloring_template_color_counts WHERE template_id=?', [template.id]);
+    for (const [color, total] of totals) {
+      await db.run(
+        'INSERT INTO coloring_template_color_counts (template_id,color_index,total_count) VALUES (?,?,?)',
+        [template.id, color, total],
+      );
+    }
+    const built = { colors: totals.size, tiles: grid.tiles_x * grid.tiles_y };
+    await db.run(
+      `INSERT INTO coloring_template_guidance_index_meta (template_id, colors, tiles, built_at)
+        VALUES (?,?,?,?)
+        ON CONFLICT(template_id) DO UPDATE SET
+          colors=excluded.colors, tiles=excluded.tiles, built_at=excluded.built_at`,
+      [template.id, built.colors, built.tiles, new Date().toISOString()],
+    );
+    return { status: 'built', ...built };
+  }
   const rows = await db.all(
     `SELECT tile_x, tile_y, width, height, cells_json
       FROM coloring_template_tiles WHERE template_id=? ORDER BY tile_y, tile_x`,
@@ -332,14 +365,28 @@ async function ensureProgressGuidanceCounters(db, { userId, template }) {
   );
   if (!progressTiles.length) return;
 
-  const templateTileRows = await db.all(
-    `SELECT tile_x, tile_y, cells_json
-      FROM coloring_template_tiles WHERE template_id=? ORDER BY tile_y, tile_x`,
-    [template.id],
-  );
   const cellsByKey = new Map();
-  for (const row of templateTileRows) {
-    cellsByKey.set(`${row.tile_x}:${row.tile_y}`, parseJsonArray(row.cells_json) || []);
+  const staticTileTotals = new Map();
+  const catalogGridSource = await readCatalogGridSourceDescriptor(db, template);
+  if (catalogGridSource) {
+    for (const progressTile of progressTiles) {
+      const tileX = Number(progressTile.tile_x);
+      const tileY = Number(progressTile.tile_y);
+      const key = `${tileX}:${tileY}`;
+      const tile = await readCatalogGridTileFromSource(catalogGridSource, template, tileX, tileY);
+      cellsByKey.set(key, tile.cells);
+      const { counts } = catalogGridTileColorCountsFromSource(catalogGridSource, template, tileX, tileY);
+      for (const [color, count] of counts) staticTileTotals.set(`${key}:${color}`, count);
+    }
+  } else {
+    const templateTileRows = await db.all(
+      `SELECT tile_x, tile_y, cells_json
+        FROM coloring_template_tiles WHERE template_id=? ORDER BY tile_y, tile_x`,
+      [template.id],
+    );
+    for (const row of templateTileRows) {
+      cellsByKey.set(`${row.tile_x}:${row.tile_y}`, parseJsonArray(row.cells_json) || []);
+    }
   }
   const filledByKey = new Map();
   for (const progressTile of progressTiles) {
@@ -352,16 +399,15 @@ async function ensureProgressGuidanceCounters(db, { userId, template }) {
   const staticColorTotals = new Map(
     staticColorRows.map((row) => [Number(row.color_index), Number(row.total_count)]),
   );
-  const staticTileRows = await db.all(
-    'SELECT tile_x, tile_y, color_index, total_count FROM coloring_template_tile_color_counts WHERE template_id=?',
-    [template.id],
-  );
-  const staticTileTotals = new Map(
-    staticTileRows.map((row) => [
-      `${row.tile_x}:${row.tile_y}:${row.color_index}`,
-      Number(row.total_count),
-    ]),
-  );
+  if (!catalogGridSource) {
+    const staticTileRows = await db.all(
+      'SELECT tile_x, tile_y, color_index, total_count FROM coloring_template_tile_color_counts WHERE template_id=?',
+      [template.id],
+    );
+    for (const row of staticTileRows) {
+      staticTileTotals.set(`${row.tile_x}:${row.tile_y}:${row.color_index}`, Number(row.total_count));
+    }
+  }
   const colorRemaining = new Map();
   const tileColorRemaining = new Map();
   const paintedByColor = new Map();
@@ -442,6 +488,52 @@ async function readColorTotals(db, { userId, template }) {
 }
 
 async function findTileCandidates(db, { userId, template, colorIndex, recentKeys }) {
+  const catalogGridSource = await readCatalogGridSourceDescriptor(db, template);
+  if (catalogGridSource) {
+    const progressRows = await db.all(
+      `SELECT tile_x, tile_y, remaining_count
+         FROM coloring_tiled_progress_tile_colors
+        WHERE user_id=? AND template_id=? AND color_index=?`,
+      [userId, template.id, colorIndex],
+    );
+    const progressByKey = new Map(progressRows.map((row) => [
+      `${Number(row.tile_x)}:${Number(row.tile_y)}`,
+      Number(row.remaining_count),
+    ]));
+    const grid = getTileGrid(template.width, template.height, template.tile_size || DEFAULT_TILE_SIZE);
+    const candidates = [];
+    for (let tileY = 0; tileY < grid.tiles_y; tileY += 1) {
+      for (let tileX = 0; tileX < grid.tiles_x; tileX += 1) {
+        const key = `${tileX}:${tileY}`;
+        const staticCount = catalogGridTileColorCountsFromSource(catalogGridSource, template, tileX, tileY)
+          .counts.get(Number(colorIndex)) || 0;
+        const hasProgress = progressByKey.has(key);
+        const remaining = hasProgress ? progressByKey.get(key) : staticCount;
+        if (hasProgress && remaining > staticCount) {
+          throw new TiledGuidanceError('Progress exceeds the static catalog cell count', 'GUIDANCE_PROGRESS_CORRUPT', 503);
+        }
+        if (!staticCount && hasProgress && remaining > 0) {
+          throw new TiledGuidanceError('Progress references a color absent from the catalog grid', 'GUIDANCE_PROGRESS_CORRUPT', 503);
+        }
+        if (staticCount && remaining > 0) {
+          candidates.push({ tileX, tileY, key, remaining });
+        }
+      }
+    }
+    const knownTiles = new Set(candidates.map((candidate) => candidate.key));
+    for (const [key, remaining] of progressByKey) {
+      const [tileX, tileY] = key.split(':').map(Number);
+      if (!Number.isInteger(tileX) || !Number.isInteger(tileY)
+        || tileX < 0 || tileY < 0 || tileX >= grid.tiles_x || tileY >= grid.tiles_y) {
+        throw new TiledGuidanceError('Progress references an invalid catalog tile', 'GUIDANCE_PROGRESS_CORRUPT', 503);
+      }
+      if (remaining > 0 && !knownTiles.has(key)) {
+        throw new TiledGuidanceError('Progress references a color absent from the catalog grid', 'GUIDANCE_PROGRESS_CORRUPT', 503);
+      }
+    }
+    const blocked = new Set(recentKeys || []);
+    return candidates.filter((candidate) => !blocked.has(candidate.key));
+  }
   const rows = await db.all(
     `SELECT tile_x, tile_y, remaining FROM (
       SELECT p.tile_x, p.tile_y, p.remaining_count AS remaining
@@ -454,7 +546,7 @@ async function findTileCandidates(db, { userId, template, colorIndex, recentKeys
         AND NOT EXISTS (
           SELECT 1 FROM coloring_tiled_progress_tile_colors p2
           WHERE p2.user_id=? AND p2.template_id=? AND p2.tile_x=s.tile_x
-            AND p2.tile_y=s.tile_y AND p2.color_index=s.color_index AND p2.remaining_count>0
+            AND p2.tile_y=s.tile_y AND p2.color_index=s.color_index
         )
     ) ORDER BY tile_y, tile_x`,
     [userId, template.id, colorIndex, template.id, colorIndex, userId, template.id],

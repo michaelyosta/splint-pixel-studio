@@ -49,14 +49,25 @@ Quality review considers at least:
 
 `good`/`fair` automated quality labels are advisory. Historical pixelization
 matrices under `docs/evidence/pixelization/` are reproducible evidence and do
-not declare a current winner. Current winner and editorial approval remain
-`UNKNOWN` unless fresh direct evidence and an explicit decision say otherwise.
+not declare a current winner. The specific 320-item catalog set produced by
+the app's classic-v1 pipeline at up to 1200 logical cells per longest side was
+visually approved by the owner on 2026-09-25, including its increased region
+count/painting effort. That scoped catalog decision does not establish a
+universal pixelization winner or change creator defaults; see
+[the approval record](evidence/CATALOG_PIXEL_GRID_APPROVAL_2026-09-25.md).
 
 ## Catalog publication
 
 Publication requires the relevant content and security gates, server-owned
-metadata, and an explicit product decision. This documentation migration does
-not generate, approve, or publish catalog content.
+metadata, and an explicit product decision. Visual approval does not itself
+publish content; the production catalog remains behind the normal release and
+asset-verification sequence.
+
+When an item leaves the canonical manifest, publication retires it from
+discovery without hiding or deleting its playable template. Existing painting
+progress and ownership remain available through direct/player and personal
+resume surfaces; later manifest re-entry restores catalog discoverability.
+Catalog listings and new recommendations exclude retired items.
 
 The shared metadata contract is documented in
 [PHASE4_CONTENT_METADATA_UI.md](PHASE4_CONTENT_METADATA_UI.md); the dated

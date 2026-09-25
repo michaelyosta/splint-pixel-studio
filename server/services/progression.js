@@ -164,7 +164,7 @@ export async function ensureDailyChallenge(tx, { date = new Date() } = {}) {
 
   const templates = await tx.all(`SELECT id,title,width,height
     FROM coloring_templates t
-    WHERE ${dailyTemplateEligibilitySql()}
+    WHERE t.catalog_retired_at IS NULL AND ${dailyTemplateEligibilitySql()}
     ORDER BY id ASC`);
   if (!templates.length) return null;
 

@@ -136,6 +136,22 @@ test('cold start recommendations are deterministic, bounded, and exclude hidden/
   assert.ok(first.recommendations.every((item) => item.content_metadata?.duration?.label && item.content_metadata?.complexity?.label));
 });
 
+test('retired catalog templates are not recommendation candidates, but saved work remains a history signal', async () => {
+  const db = await createDb();
+  await insertLegacyTemplate(db, 'tpl_retired', { theme: 'night-city', collectionId: 'col_night-city' });
+  await insertLegacyTemplate(db, 'tpl_current', { theme: 'space', collectionId: 'col_space' });
+  await withTransaction({ mode: 'sqlite', sqlite: db, persistFn: null }, async (tx) => {
+    await tx.run('UPDATE coloring_templates SET catalog_retired_at=? WHERE id=?', [NOW, 'tpl_retired']);
+  });
+  await addHistory(db, 'u_personal', { inProgressLegacy: ['tpl_retired'] });
+
+  const result = await withTransaction({ mode: 'sqlite', sqlite: db, persistFn: null }, (tx) => buildRecommendations(tx, 'u_personal', { limit: 10 }));
+  const ids = result.recommendations.map((item) => item.id);
+  assert.equal(result.cold_start, false, 'retired work remains part of personal history');
+  assert.ok(!ids.includes('tpl_retired'), 'retired work must not re-enter discovery as a candidate');
+  assert.deepEqual(ids, ['tpl_current']);
+});
+
 test('personalized ranking uses verified themes, collections, difficulty, and in-progress state', async () => {
   const db = await createDb();
   await insertLegacyTemplate(db, 'night_1', { theme: 'night-city', collectionId: 'col_night-city' });
