@@ -93,6 +93,10 @@ publisher: it seeds only six playable 32×32 local examples, reusing the first
 six entries' lightweight metadata while replacing their large production maps
 with deterministic demo grids. It never inserts the complete 320-item set or
 production grid descriptors.
+The isolated E2E harness may additionally set the production-forbidden
+`E2E_SEED_FULL_CATALOG=true` flag to seed 320 metadata rows with the same small
+synthetic maps for merchandising-count assertions; it never uses production
+grid descriptors or changes the publisher path.
 The canonical 320-item catalog is changed only by the explicit
 `npm run catalog:publish` flow after R2 asset verification. This keeps the
 demo seed independent of the production artwork count and avoids requiring R2

@@ -192,7 +192,8 @@ export function buildZones(template) {
 }
 
 function buildDemoCatalogTemplates(templates) {
-  return templates.slice(0, 6).map((template, index) => {
+  const fixtureCount = process.env.E2E_SEED_FULL_CATALOG === 'true' ? templates.length : 6;
+  return templates.slice(0, fixtureCount).map((template, index) => {
     const width = 32;
     const height = 32;
     const palette = Array.isArray(template.palette) && template.palette.length
@@ -203,8 +204,9 @@ function buildDemoCatalogTemplates(templates) {
     const cells = Array(width * height).fill(0);
 
     // A deterministic, playable placeholder map: a compact diamond with a
-    // contrasting center. Demo boot must not attempt to embed production's
-    // 1200px tiled grids or depend on R2 being configured.
+    // contrasting center. Demo boot must not embed production's 1200px maps
+    // or depend on R2. The explicit E2E-only flag expands this fixture set to
+    // all 320 metadata entries so merchandising counts remain testable.
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const distance = Math.abs(x - 15.5) + Math.abs(y - 15.5);

@@ -163,6 +163,10 @@ test('production rejects QA diagnostics and cohort override flags', () => {
     () => validateProductionConfiguration({ ...validProduction, E2E_SEED_HOOKS: 'true' }),
     /E2E_SEED_HOOKS cannot be enabled in production/,
   );
+  assert.throws(
+    () => validateProductionConfiguration({ ...validProduction, E2E_SEED_FULL_CATALOG: 'true' }),
+    /E2E_SEED_FULL_CATALOG cannot be enabled in production/,
+  );
 });
 
 test('production rejects the Telegram Test API environment', () => {
