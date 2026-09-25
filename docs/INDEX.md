@@ -94,6 +94,10 @@ The subsequent production API/media-route smoke is recorded in
 [evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md](evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md);
 it is operational evidence only and does not establish a root cause or
 catalog publication.
+The current-schema disposable PostgreSQL backup/restore rehearsal and observed
+production snapshot are recorded in
+[evidence/POSTGRES_RESTORE_REHEARSAL_2026-09-25.md](evidence/POSTGRES_RESTORE_REHEARSAL_2026-09-25.md);
+neither constitutes a production restore or catalog publication.
 
 ## Pixelization
 

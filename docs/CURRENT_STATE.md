@@ -124,8 +124,11 @@ Direct smoke evidence from 2026-09-22 is recorded in
   delivery code keeps large source/full images in R2 and serves preview/cover
   keys through the API. The owner separately approved the 1200-max classic-v1
   candidates on 2026-09-25. The latest authorized read-only Neon aggregate
-  check observed 6 active catalog templates, 0 published collections, and 0
-  albums; `catalog:publish` has not been run against production.
+  check observed 6 active public catalog templates (all 6 unmanaged, 0
+  managed), 0 published collections, and 0 albums. The catalog publisher
+  would retire those 6 legacy rows without deleting their 142 related
+  progress rows; `coloring_template_tiles` contains 2,724 rows and totals
+  2,539,520 bytes. `catalog:publish` has not been run against production.
 - A post-merge production smoke on 2026-09-25 returned HTTP 200 for `/health`
   and `/ready`. HEAD for an existing verified R2 preview returned HTTP 200,
   `image/png`, 6,953 bytes, with immutable one-year caching. This confirms the
@@ -154,6 +157,11 @@ Direct smoke evidence from 2026-09-22 is recorded in
   in the current Git tree until production publication and runtime delivery are
   proven. The shared Git object pack is 2.09 GiB; deleting files from a future
   `main` tree alone will not remove their historical blobs.
+- Neon Backup & Restore showed one manual production snapshot created at
+  `2026-09-25 10:21:40 UTC`. The current 37-migration schema also passed a
+  disposable PostgreSQL 16 `pg_dump`/`pg_restore` rehearsal, including an
+  idempotent migration rerun. No production data was restored or copied; see
+  [evidence/POSTGRES_RESTORE_REHEARSAL_2026-09-25.md](evidence/POSTGRES_RESTORE_REHEARSAL_2026-09-25.md).
 - The catalog publisher and tiled player support maps up to 1200 pixels per
   side while preserving aspect ratio; this is not blocked by the separate
   25,600-cell public-import visibility budget. The approved candidates remain
