@@ -16,12 +16,14 @@ node_modules
 /content/generated/masters/history/
 /content/generated/catalog-grids/
 
-# Canonical catalog binaries are durable R2 objects, not source files.
+# Canonical catalog binaries are durable R2 objects, not source files. Keep
+# only the budgeted 1200px pixel previews in Git for local builds and QA.
 # Keep manifests, scripts and metadata in Git; retain the separately tracked
 # pre-frame history masters until their own archival decision is complete.
 /content/generated/masters/*.png
 /content/generated/covers/*.png
-/public/assets/catalog/generated/
+/public/assets/catalog/generated/*
+!/public/assets/catalog/generated/*-1200px-pixel.png
 
 dist
 dist-ssr

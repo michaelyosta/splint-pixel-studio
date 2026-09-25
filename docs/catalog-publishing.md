@@ -118,9 +118,11 @@ normal deployment operator. Never enable `SEED_DEMO_DATA` to publish the
 canonical catalog, and never delete repository binaries or storage objects
 until the object inventory and restore check have passed.
 
-Catalog pixel previews are budgeted at 16 KiB per artwork. CI validates the
-complete R2 inventory against the canonical asset set, rejects missing or
-duplicate object keys, and fails if any preview exceeds this delivery budget.
+Catalog pixel previews are budgeted at 16 KiB per artwork and may be kept in
+Git as the only generated catalog-image exception. CI validates their PNG
+dimensions, aspect ratio, and byte budget, then validates the complete R2
+inventory against the canonical asset set, rejects missing and duplicate
+object keys, and fails if any preview exceeds this delivery budget.
 Listing records use only pixel-preview URLs; the media route rejects master,
 full-size, and source-cover keys.
 
