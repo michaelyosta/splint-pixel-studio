@@ -134,7 +134,8 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     });
     await page.route('**/api/**', async (route) => {
       let userId = `e2e_${testInfo.testId}`;
-      if (testInfo.title.includes('Auto transition remains focusing until camera animation completes')) {
+      if (testInfo.title.includes('Auto transition remains focusing until camera animation completes')
+        || testInfo.title.includes('Selecting a completed color keeps a truthful active target')) {
         const path = new URL(route.request().url()).pathname;
         const match = path.match(/\/colorings\/([^/]+)/);
         const staticColoringRoutes = new Set([
@@ -429,6 +430,8 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     const session = page.locator('.coloring-session');
     const canvas = page.locator('canvas.coloring-canvas');
     await expect(session).toHaveAttribute('data-route-status', 'ready');
+    // This route invariant is independent of Spark offer/rejection behavior.
+    await expect(session).toHaveAttribute('data-special-cohort', 'control');
     const completedColor = Number(await session.getAttribute('data-target-color'));
     const completedSwatch = page.locator('.color-swatch').nth(completedColor);
     await expect(completedSwatch.locator('small')).toHaveText(/^[1-9]\d*$/);

@@ -37,6 +37,12 @@ const child = spawn(process.execPath, ['index.js'], {
     SEED_DEMO_DATA: 'true',
     E2E_SEED_FULL_CATALOG: 'true',
     E2E_SEED_HOOKS: 'true',
+    // Keep the live canvas pixel-probe test independent of Spark overlays.
+    // The override is restricted to this one synthetic E2E identity and the
+    // server rejects QA overrides outside NODE_ENV=test/development.
+    SPECIAL_CELLS_COHORT: 'SPECIALS_CONTROL',
+    SPECIAL_CELLS_QA_OVERRIDE: 'true',
+    SPECIAL_CELLS_QA_USER_ID: 'e2e_tiled_boundary_control',
     GUIDANCE_BACKFILL_AUTO: 'false',
   },
   stdio: 'inherit',
