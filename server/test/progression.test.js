@@ -401,6 +401,23 @@ test('ensureDailyChallenge never assigns premium access_type content', async () 
   });
 });
 
+test('new daily assignments exclude retired catalog rows but preserve already-frozen assignments', async () => {
+  const db = await createDb();
+  await insertTemplate(db, 'tpl_retired_daily');
+  const dateKey = NOW.slice(0, 10);
+
+  await withTransaction({ mode: 'sqlite', sqlite: db, persistFn: null }, async (tx) => {
+    await tx.run('UPDATE coloring_templates SET catalog_retired_at=? WHERE id=?', [NOW, 'tpl_retired_daily']);
+    assert.equal(await ensureDailyChallenge(tx, { date: new Date(NOW) }), null, 'a retired item is not newly assigned');
+
+    await tx.run(`INSERT INTO daily_challenges
+      (date_key,template_id,target_cells,xp_reward,created_at)
+      VALUES (?, 'tpl_retired_daily', 5, 30, ?)`, [dateKey, NOW]);
+    const existing = await ensureDailyChallenge(tx, { date: new Date(NOW) });
+    assert.equal(existing.template_id, 'tpl_retired_daily', 'a previously frozen daily remains available');
+  });
+});
+
 test('ensureDailyChallenge returns null only when no eligible content exists', async () => {
   const db = await createDb();
   await insertTemplate(db, 'tpl_hidden_only');

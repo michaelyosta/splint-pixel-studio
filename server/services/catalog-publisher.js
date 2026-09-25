@@ -596,10 +596,12 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
       [shelf.id, shelf.label, shelf.description || '', json({ definition_id: shelf.id }), shelfIndex, null, now, now]);
     }
 
-    const stale = await q.run(
-      `UPDATE coloring_templates SET status='hidden',updated_at=?
-       WHERE source_type='catalog' AND catalog_managed=FALSE AND id NOT IN (${entryIds.map(() => '?').join(',')})`,
-      [now, ...entryIds],
+    const retired = await q.run(
+      `UPDATE coloring_templates
+       SET catalog_retired_at=?,status=CASE WHEN status='hidden' THEN 'active' ELSE status END,updated_at=?
+       WHERE source_type='catalog' AND catalog_managed=FALSE
+         AND catalog_retired_at IS NULL AND id NOT IN (${entryIds.map(() => '?').join(',')})`,
+      [now, now, ...entryIds],
     );
     const existingZoneCounts = new Map((await q.all('SELECT template_id,COUNT(*) AS c FROM coloring_zones GROUP BY template_id'))
       .map((row) => [row.template_id, numberValue(row, 'c')]));
@@ -620,6 +622,7 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
         preview_url=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.preview_url ELSE excluded.preview_url END,
         visibility=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.visibility ELSE 'public' END,
         status=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.status ELSE 'active' END,
+        catalog_retired_at=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.catalog_retired_at ELSE NULL END,
         mood=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.mood ELSE excluded.mood END,
         theme=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.theme ELSE excluded.theme END,
         est_minutes=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.est_minutes ELSE excluded.est_minutes END,
@@ -743,10 +746,10 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
     }
 
     const [catalogCount, publishedCollections, publishedAlbums, accessCounts, managedStale] = await Promise.all([
-      q.get("SELECT COUNT(*) AS c FROM coloring_templates WHERE source_type='catalog' AND status='active' AND visibility='public'"),
+      q.get("SELECT COUNT(*) AS c FROM coloring_templates WHERE source_type='catalog' AND status='active' AND visibility='public' AND catalog_retired_at IS NULL"),
       q.get("SELECT COUNT(*) AS c FROM collections WHERE catalog_scope='merchandising' AND status <> 'archived'"),
       q.get("SELECT COUNT(*) AS c FROM catalog_albums WHERE status='active' AND visibility='public'"),
-      q.all("SELECT access_type,COUNT(*) AS c FROM coloring_templates WHERE source_type='catalog' AND status='active' AND visibility='public' GROUP BY access_type"),
+      q.all("SELECT access_type,COUNT(*) AS c FROM coloring_templates WHERE source_type='catalog' AND status='active' AND visibility='public' AND catalog_retired_at IS NULL GROUP BY access_type"),
       q.get(`SELECT COUNT(*) AS c FROM coloring_templates WHERE source_type='catalog' AND catalog_managed=TRUE AND id NOT IN (${entryIds.map(() => '?').join(',')})`, entryIds),
     ]);
     return {
@@ -760,7 +763,7 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
       production_albums: numberValue(publishedAlbums, 'c'),
       production_free: numberValue(accessCounts.find((row) => row.access_type === 'free'), 'c'),
       production_premium: numberValue(accessCounts.find((row) => row.access_type === 'premium'), 'c'),
-      hidden_stale_catalog_rows: numberValue(stale, 'changes'),
+      retired_stale_catalog_rows: numberValue(retired, 'changes'),
       managed_stale_catalog_rows: numberValue(managedStale, 'c'),
       tiled_templates_published: tiledTemplatesPublished,
       tiled_grid_source_bytes: tiledGridSourceBytes,

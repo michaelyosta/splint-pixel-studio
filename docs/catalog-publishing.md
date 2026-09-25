@@ -86,7 +86,11 @@ stored grids are preserved. Manifest-owned album rows are upserted on later
 publishes, while existing albums default to `editor_managed` and remain
 unchanged until the canonical publisher first creates them. A published admin
 edit permanently opts that album out of manifest synchronization. Stale
-non-managed catalog rows are hidden rather than deleted.
+non-managed catalog rows receive `catalog_retired_at` and are excluded from
+catalog discovery/counts and new daily/recommendation selection. Their active
+status and visibility are preserved, so direct player routes, saved progress,
+favorites/history, and owner resume access continue to work. If a retired ID
+re-enters the canonical manifest, the publisher clears its retirement marker.
 
 `SEED_DEMO_DATA=true` is a development/test fixture path, not a catalog
 publisher: it seeds only six playable 32×32 local examples, reusing the first

@@ -63,6 +63,12 @@ metadata, and an explicit product decision. Visual approval does not itself
 publish content; the production catalog remains behind the normal release and
 asset-verification sequence.
 
+When an item leaves the canonical manifest, publication retires it from
+discovery without hiding or deleting its playable template. Existing painting
+progress and ownership remain available through direct/player and personal
+resume surfaces; later manifest re-entry restores catalog discoverability.
+Catalog listings and new recommendations exclude retired items.
+
 The shared metadata contract is documented in
 [PHASE4_CONTENT_METADATA_UI.md](PHASE4_CONTENT_METADATA_UI.md); the dated
 quality report in [evidence/content-quality/REPORT.md](evidence/content-quality/REPORT.md)

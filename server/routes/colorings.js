@@ -506,7 +506,7 @@ router.get('/', authMiddleware, asyncRoute(async (req, res) => {
     return res.status(400).json({ error: 'Некорректная длительность', code: 'INVALID_CATALOG_DURATION' });
   }
 
-  const clauses = ["t.status='active'", "t.visibility='public'", "t.source_type <> 'unlockable'"];
+  const clauses = ["t.status='active'", "t.visibility='public'", "t.source_type <> 'unlockable'", 't.catalog_retired_at IS NULL'];
   const params = [];
   if (typeof mood === 'string' && mood) { clauses.push('t.mood=?'); params.push(mood.slice(0, 80)); }
   if (typeof theme === 'string' && theme) { clauses.push('t.theme=?'); params.push(theme.slice(0, 80)); }
@@ -570,6 +570,7 @@ router.get('/shelves', authMiddleware, asyncRoute(async (req, res) => {
     LEFT JOIN collections c ON c.id=t.collection_id
     LEFT JOIN users owner ON owner.id=t.owner_id
     WHERE t.status='active' AND t.visibility='public' AND t.source_type <> 'unlockable'
+      AND t.catalog_retired_at IS NULL
     ORDER BY t.featured_rank ASC, t.added_at DESC, t.title ASC
     LIMIT 500`);
   const decorated = await attachViewerCatalogData(rows, req.userId, { popularity: true });
@@ -580,9 +581,9 @@ router.get('/shelves', authMiddleware, asyncRoute(async (req, res) => {
 
 // GET /colorings/today — editorial "for you today" + quick picks
 router.get('/today', authMiddleware, asyncRoute(async (req, res) => {
-  const featured = await get("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND source_type <> 'unlockable' AND daily_featured=1 ORDER BY added_at DESC LIMIT 1");
-  const quick = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND source_type <> 'unlockable' AND est_minutes<=3 ORDER BY added_at DESC LIMIT 6");
-  const allTemplates = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND source_type <> 'unlockable' ORDER BY added_at DESC LIMIT 8");
+  const featured = await get("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND source_type <> 'unlockable' AND catalog_retired_at IS NULL AND daily_featured=1 ORDER BY added_at DESC LIMIT 1");
+  const quick = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND source_type <> 'unlockable' AND catalog_retired_at IS NULL AND est_minutes<=3 ORDER BY added_at DESC LIMIT 6");
+  const allTemplates = await all("SELECT * FROM coloring_templates WHERE status='active' AND visibility='public' AND source_type <> 'unlockable' AND catalog_retired_at IS NULL ORDER BY added_at DESC LIMIT 8");
   const ratedRows = await attachViewerCatalogData(
     [...new Map([featured, ...quick, ...allTemplates].filter(Boolean).map((row) => [row.id, row])).values()],
     req.userId,

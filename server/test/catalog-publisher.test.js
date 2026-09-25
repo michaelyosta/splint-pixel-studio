@@ -451,6 +451,59 @@ test('canonical tiled input may load an integrity-checked grid from R2 when loca
   }
 });
 
+test('publisher retires stale catalog rows without hiding them or mutating saved progress, and restores reintroduced IDs', async () => {
+  const SQL = await initSqlJs();
+  const sqlite = new SQL.Database();
+  sqlite.run('PRAGMA foreign_keys = ON');
+  await runMigrations({ mode: 'sqlite', pool: null, sqlite, persistFn: null, migrationsDir });
+
+  try {
+    const canonical = canonicalCatalogWithLegacyDemoGrids(readCanonicalCatalog());
+    const retiredId = canonical.entries[0].id;
+    const currentId = canonical.entries[1].id;
+    const retiredCatalog = singleTemplateCatalog(canonical, retiredId, canonical.runtimeById.get(retiredId));
+    const currentCatalog = singleTemplateCatalog(canonical, currentId, canonical.runtimeById.get(currentId));
+    const db = createAdapter(sqlite);
+    const firstPublishedAt = '2026-09-25T10:00:00.000Z';
+    const retiredAt = '2026-09-25T11:00:00.000Z';
+
+    await publishCatalog({ db, catalog: retiredCatalog, now: firstPublishedAt });
+    // The previous publisher retired rows by setting status='hidden'. Exercise
+    // this upgrade path as well as rows that are still active.
+    await db.run("UPDATE coloring_templates SET status='hidden' WHERE id=?", [retiredId]);
+    await db.run('INSERT INTO users (id,nickname,created_at,updated_at) VALUES (?,?,?,?)',
+      ['retirement_owner', 'Retirement Owner', firstPublishedAt, firstPublishedAt]);
+    const originalFilled = Array(32 * 32).fill(-1);
+    originalFilled[7] = 0;
+    await db.run(`INSERT INTO coloring_progress
+      (user_id,template_id,filled_json,revision,completed_at,created_at,updated_at)
+      VALUES (?,?,?,?,NULL,?,?)`,
+    ['retirement_owner', retiredId, JSON.stringify(originalFilled), 4, firstPublishedAt, firstPublishedAt]);
+
+    const report = await publishCatalog({ db, catalog: currentCatalog, now: retiredAt });
+    assert.equal(report.production_catalog_count, 1);
+    assert.equal(report.retired_stale_catalog_rows, 1);
+    const retired = await db.get('SELECT status,visibility,catalog_retired_at FROM coloring_templates WHERE id=?', [retiredId]);
+    assert.deepEqual(retired, { status: 'active', visibility: 'public', catalog_retired_at: retiredAt });
+    let progress = await db.get('SELECT filled_json,revision,completed_at FROM coloring_progress WHERE user_id=? AND template_id=?',
+      ['retirement_owner', retiredId]);
+    assert.deepEqual(progress, { filled_json: JSON.stringify(originalFilled), revision: 4, completed_at: null });
+
+    const rerun = await publishCatalog({ db, catalog: currentCatalog, now: '2026-09-25T12:00:00.000Z' });
+    assert.equal(rerun.retired_stale_catalog_rows, 0);
+    assert.equal((await db.get('SELECT catalog_retired_at FROM coloring_templates WHERE id=?', [retiredId])).catalog_retired_at, retiredAt);
+
+    const restored = await publishCatalog({ db, catalog: retiredCatalog, now: '2026-09-25T13:00:00.000Z' });
+    assert.equal(restored.production_catalog_count, 1);
+    assert.equal((await db.get('SELECT status,visibility,catalog_retired_at FROM coloring_templates WHERE id=?', [retiredId])).catalog_retired_at, null);
+    progress = await db.get('SELECT filled_json,revision,completed_at FROM coloring_progress WHERE user_id=? AND template_id=?',
+      ['retirement_owner', retiredId]);
+    assert.deepEqual(progress, { filled_json: JSON.stringify(originalFilled), revision: 4, completed_at: null });
+  } finally {
+    sqlite.close();
+  }
+});
+
 test('publisher source does not route through demo seeding', async () => {
   const source = await readFile(join(serverDir, 'services', 'catalog-publisher.js'), 'utf8');
   assert.doesNotMatch(source, /seedDemoData|bootstrapSystemData/);

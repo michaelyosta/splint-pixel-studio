@@ -107,15 +107,15 @@ router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
       COALESCE(catalog_rank, 1000), title`, [req.userId]);
   const rows = await Promise.all(cols.map(async (col) => {
     const completed = await all("SELECT COUNT(*) as c FROM artworks a JOIN coloring_templates t ON a.template_id=t.id WHERE a.owner_id=? AND a.collection_id=? AND a.is_completed=1", [req.userId, col.id]);
-    const total = await all('SELECT COUNT(*) as c FROM coloring_templates WHERE collection_id=?', [col.id]);
+    const total = await all('SELECT COUNT(*) as c FROM coloring_templates WHERE collection_id=? AND catalog_retired_at IS NULL', [col.id]);
     // Collection cards need one bounded, authoritative summary. Do not load
     // cells here; tiled rows must remain metadata-only at this endpoint.
     const templates = await all(`SELECT width,height,difficulty,est_minutes,storage_mode
-      FROM coloring_templates WHERE collection_id=? AND status='active' ORDER BY title LIMIT 48`, [col.id]);
+      FROM coloring_templates WHERE collection_id=? AND status='active' AND catalog_retired_at IS NULL ORDER BY title LIMIT 48`, [col.id]);
     const catalogDefinition = CATALOG_COLLECTION_BY_ID.get(col.id);
     const accessCounts = col.catalog_scope === 'merchandising'
       ? await all(`SELECT access_type, COUNT(*) AS c FROM coloring_templates
-        WHERE collection_id=? AND status='active' GROUP BY access_type`, [col.id])
+        WHERE collection_id=? AND status='active' AND catalog_retired_at IS NULL GROUP BY access_type`, [col.id])
       : [];
     const freeCount = Number(accessCounts.find((row) => row.access_type === 'free')?.c || 0);
     const premiumCount = Number(accessCounts.find((row) => row.access_type === 'premium')?.c || 0);
@@ -127,12 +127,12 @@ router.get('/collections', authMiddleware, asyncRoute(async (req, res) => {
       ? await Promise.all(albumDefinitions.map(async (album) => ({
         ...album,
         title: album.title || album.album_title,
-        total_count: Number((await all(`SELECT COUNT(*) AS c FROM coloring_templates WHERE collection_id=? AND album_id=? AND status='active'`, [col.id, album.id]))[0]?.c || 0),
+        total_count: Number((await all(`SELECT COUNT(*) AS c FROM coloring_templates WHERE collection_id=? AND album_id=? AND status='active' AND catalog_retired_at IS NULL`, [col.id, album.id]))[0]?.c || 0),
       })))
       : [];
     const isShowcase = col.id === 'col_premium-gallery';
     const premiumGalleryTotal = isShowcase
-      ? Number((await get("SELECT COUNT(*) AS c FROM coloring_templates WHERE access_type='premium' AND status='active' AND visibility='public'", []))?.c || 0)
+      ? Number((await get("SELECT COUNT(*) AS c FROM coloring_templates WHERE access_type='premium' AND status='active' AND visibility='public' AND catalog_retired_at IS NULL", []))?.c || 0)
       : null;
     const catalogCoverUrl = col.catalog_cover_url || col.image_url || catalogDefinition?.image_url || (isShowcase ? '/assets/catalog/astro-whale-pixel.png' : null);
     return {
@@ -182,7 +182,7 @@ router.get('/collections/:id/templates', authMiddleware, asyncRoute(async (req, 
       });
     }
   }
-  const rows = await all(`SELECT * FROM coloring_templates WHERE collection_id=? AND status='active'
+  const rows = await all(`SELECT * FROM coloring_templates WHERE collection_id=? AND status='active' AND catalog_retired_at IS NULL
     ${isOwner ? '' : "AND visibility='public'"}
     ${albumId ? 'AND album_id=?' : ''}
     ORDER BY featured_rank ASC, title`, albumId ? [req.params.id, albumId] : [req.params.id]);
