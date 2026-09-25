@@ -51,6 +51,15 @@ async function expectNavigationBounded(page, { scrollable, selector = '.app-tab-
   expect(after.bottom).toBeCloseTo(before.bottom, 1);
 }
 
+async function expectNavigationUntransformed(page) {
+  const transforms = await page.locator('.app-tab-bar > button').evaluateAll((buttons) => buttons.map((button) => ({
+    button: getComputedStyle(button).transform,
+    icon: button.querySelector('svg') ? getComputedStyle(button.querySelector('svg')).transform : 'none',
+    indicator: getComputedStyle(button, '::before').transform,
+  })));
+  expect(transforms).toEqual(transforms.map(() => ({ button: 'none', icon: 'none', indicator: 'none' })));
+}
+
 async function createAndCompleteSmallColoring(page) {
   const width = 8;
   const height = 8;
@@ -120,6 +129,7 @@ test('catalog is the default and primary navigation has exactly three product ta
   expect(await navigation.getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')))).toEqual(['Каталог', 'Создать', 'Профиль']);
   await expect(navigation).not.toContainText(/Главная|Сообщество|Gallery|Store|Achievements/i);
   await expect(navigation.getByRole('button', { name: 'Каталог' })).toHaveAttribute('aria-current', 'page');
+  await expectNavigationUntransformed(page);
   await navigation.evaluate((node) => { node.dataset.e2eStableInstance = 'known-good-bottom'; });
   await expectNavigationBounded(page, { scrollable: true });
 
@@ -127,18 +137,21 @@ test('catalog is the default and primary navigation has exactly three product ta
   await expect(page.locator('.create-hub-page')).toBeVisible();
   await expect(navigation).toHaveAttribute('data-e2e-stable-instance', 'known-good-bottom');
   await expect(navigation.getByRole('button', { name: 'Создать' })).toHaveAttribute('aria-current', 'page');
+  await expectNavigationUntransformed(page);
   await expectNavigationBounded(page, { scrollable: false });
 
   await navigation.getByRole('button', { name: 'Профиль' }).click();
   await expect(page.locator('[data-profile-showcase="true"]')).toBeVisible({ timeout: 15000 });
   await expect(navigation).toHaveAttribute('data-e2e-stable-instance', 'known-good-bottom');
   await expect(navigation.getByRole('button', { name: 'Профиль' })).toHaveAttribute('aria-current', 'page');
+  await expectNavigationUntransformed(page);
   await expectNavigationBounded(page, { scrollable: true });
 
   await navigation.getByRole('button', { name: 'Каталог' }).click();
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
   await expect(navigation).toHaveAttribute('data-e2e-stable-instance', 'known-good-bottom');
   await expect(navigation.getByRole('button', { name: 'Каталог' })).toHaveAttribute('aria-current', 'page');
+  await expectNavigationUntransformed(page);
   await expectNavigationBounded(page, { scrollable: true });
 
   const collectionsResponse = await page.request.get('/api/meta/collections');
