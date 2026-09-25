@@ -93,8 +93,17 @@ test('PostgreSQL demo seed starts twice and hides obsolete catalog templates', {
   servers.push(server);
   await stopServer(server);
 
-  const catalog = await pool.query("SELECT id, status, visibility FROM coloring_templates WHERE source_type='catalog'");
+  const catalog = await pool.query(`SELECT id, status, visibility, width, height, storage_mode, tile_size, cells_json
+    FROM coloring_templates WHERE source_type='catalog'`);
   const obsolete = catalog.rows.find((row) => row.id === 'obsolete_catalog_template');
   assert.equal(obsolete?.status, 'hidden');
-  assert.equal(catalog.rows.filter((row) => row.status === 'active' && row.visibility === 'public').length, 320);
+  const active = catalog.rows.filter((row) => row.status === 'active' && row.visibility === 'public');
+  assert.equal(active.length, 6);
+  for (const row of active) {
+    assert.equal(row.width, 32);
+    assert.equal(row.height, 32);
+    assert.equal(row.storage_mode, 'legacy');
+    assert.equal(row.tile_size, 32);
+    assert.equal(row.cells_json.length, 32 * 32);
+  }
 });

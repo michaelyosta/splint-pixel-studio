@@ -21,12 +21,12 @@ jobs:
           node-version: 22.23.2
           cache: npm
       - run: npm ci
+      - run: npm --prefix server ci
       - name: Preflight extended shard coverage
         run: node scripts/preflight-e2e-shards.mjs --manifest docs/E2E_SHARD_LOAD_MANIFEST.json --shards 24
       - run: npm test
       - run: npm run lint
       - run: npm run build
-      - run: npm --prefix server ci
       - run: npm --prefix server run check
       - run: npm --prefix server test
 

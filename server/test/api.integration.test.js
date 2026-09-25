@@ -59,7 +59,8 @@ test('coloring progress can become a social post', async (t) => {
 
   const catalog = await request('/colorings?limit=500&sort=featured');
   assert.equal(catalog.response.status, 200);
-  assert.equal(catalog.json.length, 320);
+  assert.equal(catalog.json.length, 6, 'demo boot exposes six playable local fixtures; production catalog is published separately');
+  assert.ok(catalog.json.every((item) => item.width === 32 && item.height === 32));
   assert.ok(catalog.json.every((item) => item.preview_url.includes('/assets/catalog/')));
   assert.ok(catalog.json.every((item) => item.content_metadata?.schema_version === 'content-metadata.v1'));
   assert.ok(catalog.json.every((item) => item.content_metadata?.duration?.label && item.content_metadata?.complexity?.label));

@@ -88,6 +88,16 @@ unchanged until the canonical publisher first creates them. A published admin
 edit permanently opts that album out of manifest synchronization. Stale
 non-managed catalog rows are hidden rather than deleted.
 
+`SEED_DEMO_DATA=true` is a development/test fixture path, not a catalog
+publisher: it seeds only six playable 32×32 local examples, reusing the first
+six entries' lightweight metadata while replacing their large production maps
+with deterministic demo grids. It never inserts the complete 320-item set or
+production grid descriptors.
+The canonical 320-item catalog is changed only by the explicit
+`npm run catalog:publish` flow after R2 asset verification. This keeps the
+demo seed independent of the production artwork count and avoids requiring R2
+or 1200-cell maps for local player tests.
+
 The legacy base-manifest generator fails closed once Phase 2 IDs are present;
 the Phase-2 promotion script is the only supported path for continuing a
 completed catalog. This prevents a later base regeneration from silently
