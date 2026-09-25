@@ -81,9 +81,15 @@ must remain separate.
 
 The 2026-09-24 R2 transfer checksum/restore evidence is recorded in
 [evidence/CATALOG_R2_MIGRATION_2026-09-24.md](evidence/CATALOG_R2_MIGRATION_2026-09-24.md)
-with its [per-object inventory](evidence/catalog-r2-inventory.json). This is
-dated operational evidence, not editorial approval or a production-publish
-authorization.
+with its contemporaneous [per-object inventory snapshot](https://github.com/michaelyosta/splint-pixel-studio/blob/eee5eee34672fd818dfc18b1147cc9cdcbbc24b8/docs/evidence/catalog-r2-inventory.json).
+This is dated operational evidence, not editorial approval or a
+production-publish authorization.
+The 2026-09-25 upload and checksum/restore verification for the approved
+1200-pixel previews and candidate grids is recorded in
+[evidence/CATALOG_R2_1200_ASSETS_2026-09-25.md](evidence/CATALOG_R2_1200_ASSETS_2026-09-25.md)
+with its [media inventory](evidence/catalog-r2-inventory.json) and
+[grid inventory](evidence/catalog-grids-r2-inventory.json). This proves R2
+storage only, not production catalog publication or Telegram delivery.
 The subsequent production API/media-route smoke is recorded in
 [evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md](evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md);
 it is operational evidence only and does not establish a root cause or

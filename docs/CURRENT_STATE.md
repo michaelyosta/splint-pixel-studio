@@ -135,27 +135,31 @@ Direct smoke evidence from 2026-09-22 is recorded in
   is no post-merge 320-item Telegram verification. See
   [evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md](evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md).
   No user progress, ownership, payment, or catalog database state was changed.
-- The 1,056 canonical source/runtime image objects (2,167,344,016 bytes) were
-  uploaded to existing R2 bucket `splint-originals` under `catalog/`. The
-  inventory has 1:1 path coverage of the tracked catalog binaries, all remote
-  size/SHA-256 checks passed, and three representative objects (master, full,
-  preview) were restored and matched. The eight pre-frame history masters
-  (28,498,751 bytes) remain in Git and are outside that migration inventory.
-  Evidence and the checksum inventory are in
-  [evidence/CATALOG_R2_MIGRATION_2026-09-24.md](evidence/CATALOG_R2_MIGRATION_2026-09-24.md)
-  and [evidence/catalog-r2-inventory.json](evidence/catalog-r2-inventory.json).
-- The temporary R2 migration credentials used for the original 1,056-object
-  transfer were revoked after verification; `originals/` was not read or
-  modified. The 1200-candidate previews and grids are not in that verified
-  inventory. Heavy binaries remain in the current
-  Git tree until production publication and runtime delivery are proven. The
-  shared Git object pack is 2.09 GiB; deleting files from a future `main` tree
-  alone will not remove their historical blobs.
+- The original 1,056 source/runtime media objects remain verified in R2; the
+  eight pre-frame history masters (28,498,751 bytes) were outside that transfer
+  and remain in Git. Its dated evidence is
+  [evidence/CATALOG_R2_MIGRATION_2026-09-24.md](evidence/CATALOG_R2_MIGRATION_2026-09-24.md).
+- The approved 1200-pixel delivery set is now stored in the existing
+  `splint-originals` bucket under `catalog/`: 320 lightweight previews were
+  uploaded, 736 matching media objects were verified without overwrite, and
+  all 320 content-addressed grids were uploaded. Remote verification checked
+  all 1,056 media and all 320 grids with zero missing or mismatched objects;
+  three media and three grid restore samples matched their bytes and SHA-256.
+  Per-object evidence is in
+  [evidence/CATALOG_R2_1200_ASSETS_2026-09-25.md](evidence/CATALOG_R2_1200_ASSETS_2026-09-25.md),
+  [evidence/catalog-r2-inventory.json](evidence/catalog-r2-inventory.json),
+  and [evidence/catalog-grids-r2-inventory.json](evidence/catalog-grids-r2-inventory.json).
+- The temporary bucket-scoped R2 token used for that transfer was deleted after
+  verification. No `originals/` key was read or modified. Heavy binaries remain
+  in the current Git tree until production publication and runtime delivery are
+  proven. The shared Git object pack is 2.09 GiB; deleting files from a future
+  `main` tree alone will not remove their historical blobs.
 - The catalog publisher and tiled player support maps up to 1200 pixels per
   side while preserving aspect ratio; this is not blocked by the separate
   25,600-cell public-import visibility budget. The approved candidates remain
-  unpublished; do not remove source binaries until candidate-object checksums,
-  production publication, and real-product delivery are proven.
+  R2-verified but remain unpublished to the production catalog; do not remove
+  source binaries until production publication and real-product delivery are
+  proven.
 
 ## Pixelization
 
@@ -212,15 +216,16 @@ The checked-in workflow is `.github/workflows/ci.yml`. PR #54 merged to `main`
 at `79bdd75f6e03df4597382c8965da2df1d8fce270`; its post-merge main CI run
 `36063168677` completed successfully, including required checks. Earlier PR
 attempt failures were resolved before merge. The direct post-merge media smoke
-confirms preview delivery. No 1200-candidate R2 upload or production catalog
-database publication has occurred from this candidate work.
+confirms preview delivery. The candidate 1200-preview/grid R2 upload and
+checksums are verified, but production catalog database publication has not
+occurred from this candidate work.
 
 ## Known blockers
 
-- `CATALOG PUBLICATION PENDING` — the deployed media route works for existing
-  assets, but the production database remains below the 320-item target and no
-  post-merge Telegram smoke has shown the new collections. Complete verified
-  candidate asset upload and the normal green-CI release before publishing.
+- `CATALOG PUBLICATION PENDING` — candidate previews and grids now pass R2
+  checksum/restore verification, but the production database remains below the
+  320-item target and no post-merge Telegram smoke has shown the new collections.
+  Complete the normal green-CI release before publishing.
 - `UNKNOWN` — physical Telegram iOS runtime result.
 - `UNKNOWN` — current editorial approval/publication and pixelization winner.
 - `PAYMENT GATE` — public Stars access remains closed until the launch-hardening
