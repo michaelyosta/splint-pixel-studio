@@ -109,8 +109,10 @@ Direct smoke evidence from 2026-09-22 is recorded in
 - Built-in catalog templates and a reproducible catalog asset builder are
   present in the current tree.
 - `TECHNICALLY_VALID`, `VISUALLY_APPROVED`, and `PUBLISHED` are distinct
-  states. Current editorial approval and publication status are `UNKNOWN` from
-  this repository audit; no content is being published by this migration.
+  states. The 320 classic-v1 catalog grids (maximum 1200 cells on the long
+  side, aspect ratio preserved) were visually approved by the owner on
+  2026-09-25, including the increased detail/region-count tradeoff. Production
+  publication remains pending.
 - Quality and metadata rules are canonical in
   [CONTENT_PIPELINE_CONTRACT.md](CONTENT_PIPELINE_CONTRACT.md) and
   [PHASE4_CONTENT_METADATA_UI.md](PHASE4_CONTENT_METADATA_UI.md).
@@ -118,26 +120,21 @@ Direct smoke evidence from 2026-09-22 is recorded in
 ## Catalog delivery
 
 - The canonical manifest contains 320 artworks, 16 collections, 32 albums,
-  172 free and 148 premium items. PR #53 merged to `main` at `623ad03`; its
-  change adds tiled-map publishing capability only and explicitly did not
-  approve or publish the 1200-pixel candidates or mutate production catalog
-  rows. The PR run reported 33 checks passed.
-- The latest authorized read-only Telegram catalog smoke observed 7 works and
-  0 collections. Production is therefore not verified at the 320-item target;
-  `catalog:publish` has not been run against production. On 2026-09-25, direct
-  `/health` and `/ready` checks returned 200, but a HEAD request for a verified
-  R2 catalog preview through the production media route returned 404. Render's
-  last successful deployment is `5a829a7` (PR #47), while `origin/main` is
-  `623ad03`, 14 commits ahead. The deployed `server/routes/media.js` does not
-  allow `catalog/previews/*`; current `main` adds that delivery path. The 404
-  is therefore caused by stale production backend code before any R2 object
-  read, not evidence of a missing R2 object. Render is configured for
-  `After CI Checks Pass`; the push CI run for `623ad03` failed its critical
-  iPhone job, consistent with the deployment hold. A direct Render event tying
-  that check to the skipped deployment has not been observed. See
+  172 free and 148 premium items. PR #54 (`79bdd75`) is merged to `main`; its
+  delivery code keeps large source/full images in R2 and serves preview/cover
+  keys through the API. The owner separately approved the 1200-max classic-v1
+  candidates on 2026-09-25. The latest authorized read-only Neon aggregate
+  check observed 6 active catalog templates, 0 published collections, and 0
+  albums; `catalog:publish` has not been run against production.
+- A post-merge production smoke on 2026-09-25 returned HTTP 200 for `/health`
+  and `/ready`. HEAD for an existing verified R2 preview returned HTTP 200,
+  `image/png`, 6,953 bytes, with immutable one-year caching. This confirms the
+  current media route can deliver that existing preview, not that the new 320
+  catalog rows or candidate grids are published. The latest authorized
+  pre-merge Telegram Mini App observation was 7 works and 0 collections; there
+  is no post-merge 320-item Telegram verification. See
   [evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md](evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md).
-  No user progress, ownership, payment, or catalog database state was changed
-  by the R2 migration or these read-only checks.
+  No user progress, ownership, payment, or catalog database state was changed.
 - The 1,056 canonical source/runtime image objects (2,167,344,016 bytes) were
   uploaded to existing R2 bucket `splint-originals` under `catalog/`. The
   inventory has 1:1 path coverage of the tracked catalog binaries, all remote
@@ -147,17 +144,18 @@ Direct smoke evidence from 2026-09-22 is recorded in
   Evidence and the checksum inventory are in
   [evidence/CATALOG_R2_MIGRATION_2026-09-24.md](evidence/CATALOG_R2_MIGRATION_2026-09-24.md)
   and [evidence/catalog-r2-inventory.json](evidence/catalog-r2-inventory.json).
-- The temporary R2 migration credentials were revoked after verification;
-  `originals/` was not read or modified. Heavy binaries remain in the current
+- The temporary R2 migration credentials used for the original 1,056-object
+  transfer were revoked after verification; `originals/` was not read or
+  modified. The 1200-candidate previews and grids are not in that verified
+  inventory. Heavy binaries remain in the current
   Git tree until production publication and runtime delivery are proven. The
   shared Git object pack is 2.09 GiB; deleting files from a future `main` tree
   alone will not remove their historical blobs.
 - The catalog publisher and tiled player support maps up to 1200 pixels per
   side while preserving aspect ratio; this is not blocked by the separate
-  25,600-cell public-import visibility budget. The 1200-pixel candidate set is
-  technically valid, but visual/effort approval and production publication
-  remain pending under the canonical content gate. Do not remove source
-  binaries until production publication and runtime delivery are proven.
+  25,600-cell public-import visibility budget. The approved candidates remain
+  unpublished; do not remove source binaries until candidate-object checksums,
+  production publication, and real-product delivery are proven.
 
 ## Pixelization
 
@@ -210,29 +208,19 @@ production deployment.
 
 The normal flow is fresh branch/worktree → focused local checks → push/PR →
 required CI green → merge `main` → automatic deployment → smoke verification.
-The checked-in workflow is `.github/workflows/ci.yml`. On 2026-09-25, push run
-`36027133545` for `623ad03` failed `e2e-critical (iphone)` because a catalog
-deep-link test expected the collection title but observed the default catalog
-heading. A focused Node 24 local run passed that test. PR #54 run `36046517508`
-completed with 25 jobs successful, four failed (`e2e-critical (iphone)`,
-`e2e (18/24)`, `(21/24)`, `(24/24)`), and one cancelled
-(`e2e-critical (chromium)`). The failed test cases were tiled completion and
-premium direct-ID on iPhone, Phase 2 Bomb on iPhone, the core-feel control on
-iPhone, and Chromium pointer-cancel follow-up. Focused Node 24 local runs passed
-the first four. The pointer-cancel failure was traced to test geometry: the
-second selected cell's point landed on the overlaid minimap canvas, not the
-coloring canvas. The E2E helper now filters candidates using the topmost DOM
-hit target; the pointer-cancel case and two adjacent tiled-touch/capture cases
-pass locally (3/3). The exact CI Node 22.23.2 runtime is not installed locally,
-so these results do not clear the GitHub CI gate. No retries, weakened product
-assertions, or failure suppression were used. No production deployment or
-catalog publication has occurred from PR #54.
+The checked-in workflow is `.github/workflows/ci.yml`. PR #54 merged to `main`
+at `79bdd75f6e03df4597382c8965da2df1d8fce270`; its post-merge main CI run
+`36063168677` completed successfully, including required checks. Earlier PR
+attempt failures were resolved before merge. The direct post-merge media smoke
+confirms preview delivery. No 1200-candidate R2 upload or production catalog
+database publication has occurred from this candidate work.
 
 ## Known blockers
 
-- `RELEASE HOLD` — production still runs backend `5a829a7`; catalog preview
-  delivery requires the route added on current `main` (`623ad03`). The current
-  PR and main push checks are not green; resolve the CI failures before merge.
+- `CATALOG PUBLICATION PENDING` — the deployed media route works for existing
+  assets, but the production database remains below the 320-item target and no
+  post-merge Telegram smoke has shown the new collections. Complete verified
+  candidate asset upload and the normal green-CI release before publishing.
 - `UNKNOWN` — physical Telegram iOS runtime result.
 - `UNKNOWN` — current editorial approval/publication and pixelization winner.
 - `PAYMENT GATE` — public Stars access remains closed until the launch-hardening

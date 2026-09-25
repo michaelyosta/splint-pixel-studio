@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { DEFAULT_TILE_SIZE, getTileBounds, getTileGrid } from './coloring-chunks.js';
+import { readCatalogGridSourceDescriptor, readCatalogGridTileFromSource } from './catalog-grid-source.js';
 
 export const SPARK_KIND = 'spark';
 export const BOMB_KIND = 'bomb';
@@ -1472,16 +1473,22 @@ export async function deriveSparkChanges(db, {
     tileX: Number(target.tile_x),
     tileY: Number(target.tile_y),
   });
-  const row = await db.get(
-    'SELECT cells_json, width, height FROM coloring_template_tiles WHERE template_id=? AND tile_x=? AND tile_y=?',
-    [template.id, bounds.tile_x, bounds.tile_y],
-  );
-  if (!row) return [];
+  const catalogGridSource = await readCatalogGridSourceDescriptor(db, template);
+  let cells;
+  if (catalogGridSource) {
+    cells = (await readCatalogGridTileFromSource(catalogGridSource, template, bounds.tile_x, bounds.tile_y)).cells;
+  } else {
+    const row = await db.get(
+      'SELECT cells_json, width, height FROM coloring_template_tiles WHERE template_id=? AND tile_x=? AND tile_y=?',
+      [template.id, bounds.tile_x, bounds.tile_y],
+    );
+    if (!row) return [];
+    cells = parseJsonArray(row.cells_json) || [];
+  }
   const progress = await db.get(
     'SELECT filled_json FROM coloring_tiled_progress_tiles WHERE user_id=? AND template_id=? AND tile_x=? AND tile_y=?',
     [userId, template.id, bounds.tile_x, bounds.tile_y],
   );
-  const cells = parseJsonArray(row.cells_json) || [];
   const filled = parseJsonArray(progress?.filled_json) || Array(bounds.cell_count).fill(-1);
   const box = target.bounds || {};
   const minX = Math.max(bounds.offset_x, Number(box.min_x) || bounds.offset_x);
@@ -1539,21 +1546,28 @@ export async function deriveBombChanges(db, {
     }
   }
   const tileState = new Map();
+  const catalogGridSource = await readCatalogGridSourceDescriptor(db, template);
   for (const key of tileKeys) {
     const [tileX, tileY] = key.split(':').map(Number);
     const bounds = getTileBounds({ width, height, tileSize, tileX, tileY });
-    const row = await db.get(
-      'SELECT cells_json FROM coloring_template_tiles WHERE template_id=? AND tile_x=? AND tile_y=?',
-      [template.id, bounds.tile_x, bounds.tile_y],
-    );
-    if (!row) continue;
+    let cells;
+    if (catalogGridSource) {
+      cells = (await readCatalogGridTileFromSource(catalogGridSource, template, bounds.tile_x, bounds.tile_y)).cells;
+    } else {
+      const row = await db.get(
+        'SELECT cells_json FROM coloring_template_tiles WHERE template_id=? AND tile_x=? AND tile_y=?',
+        [template.id, bounds.tile_x, bounds.tile_y],
+      );
+      if (!row) continue;
+      cells = parseJsonArray(row.cells_json) || [];
+    }
     const progress = await db.get(
       'SELECT filled_json FROM coloring_tiled_progress_tiles WHERE user_id=? AND template_id=? AND tile_x=? AND tile_y=?',
       [userId, template.id, bounds.tile_x, bounds.tile_y],
     );
     tileState.set(key, {
       bounds,
-      cells: parseJsonArray(row.cells_json) || [],
+      cells,
       filled: parseJsonArray(progress?.filled_json) || Array(bounds.cell_count).fill(-1),
     });
   }
@@ -1649,21 +1663,28 @@ export async function deriveTiledFuseChanges(db, {
     }
   }
   const tileState = new Map();
+  const catalogGridSource = await readCatalogGridSourceDescriptor(db, template);
   for (const key of tileKeys) {
     const [tileX, tileY] = key.split(':').map(Number);
     const bounds = getTileBounds({ width, height, tileSize, tileX, tileY });
-    const row = await db.get(
-      'SELECT cells_json FROM coloring_template_tiles WHERE template_id=? AND tile_x=? AND tile_y=?',
-      [template.id, bounds.tile_x, bounds.tile_y],
-    );
-    if (!row) continue;
+    let cells;
+    if (catalogGridSource) {
+      cells = (await readCatalogGridTileFromSource(catalogGridSource, template, bounds.tile_x, bounds.tile_y)).cells;
+    } else {
+      const row = await db.get(
+        'SELECT cells_json FROM coloring_template_tiles WHERE template_id=? AND tile_x=? AND tile_y=?',
+        [template.id, bounds.tile_x, bounds.tile_y],
+      );
+      if (!row) continue;
+      cells = parseJsonArray(row.cells_json) || [];
+    }
     const progress = await db.get(
       'SELECT filled_json FROM coloring_tiled_progress_tiles WHERE user_id=? AND template_id=? AND tile_x=? AND tile_y=?',
       [userId, template.id, bounds.tile_x, bounds.tile_y],
     );
     tileState.set(key, {
       bounds,
-      cells: parseJsonArray(row.cells_json) || [],
+      cells,
       filled: parseJsonArray(progress?.filled_json) || Array(bounds.cell_count).fill(-1),
     });
   }

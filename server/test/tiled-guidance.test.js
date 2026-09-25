@@ -401,6 +401,48 @@ test('SAME_COLOR_NEXT: after the active tile is done the camera moves to the nex
   db.close();
 });
 
+test('SAME_COLOR_NEXT does not reconsider a tile whose explicit progress counter is zero', async () => {
+  const db = await createGuidanceDb();
+  const adapter = wrapSqlite(db);
+  const template = await seedTemplate(adapter);
+  const filledIndices = Array.from({ length: 32 * 32 }, (_, index) => {
+    const x = index % 32;
+    const y = Math.floor(index / 32);
+    return y * template.width + x;
+  });
+  await paintColor(adapter, template, filledIndices, 0);
+  const completedTile = await adapter.get(
+    `SELECT remaining_count FROM coloring_tiled_progress_tile_colors
+      WHERE user_id=? AND template_id=? AND tile_x=0 AND tile_y=0 AND color_index=0`,
+    ['user-guidance', template.id],
+  );
+  assert.equal(Number(completedTile.remaining_count), 0);
+
+  const tileReads = [];
+  const tracked = {
+    ...adapter,
+    async get(sql, params = []) {
+      if (sql.includes('SELECT * FROM coloring_template_tiles WHERE template_id=?')) {
+        tileReads.push([Number(params[1]), Number(params[2])]);
+      }
+      return adapter.get(sql, params);
+    },
+  };
+  const plan = await buildGuidancePlan({
+    db: tracked,
+    userId: 'user-guidance',
+    template,
+    reason: GUIDANCE_REASON.SAME_COLOR_NEXT,
+    selectedColor: 0,
+    cameraCenter: { x: 16, y: 16 },
+    sparkTreatment: false,
+  });
+  assert.ok(plan.target);
+  assert.notDeepEqual([plan.target.tile_x, plan.target.tile_y], [0, 0]);
+  assert.equal(tileReads.some(([tileX, tileY]) => tileX === 0 && tileY === 0), false);
+  db.close();
+});
+
 test('TRUE_COLOR_COMPLETION and NEXT_COLOR: zero remaining is global, then a rewarding color is offered', async () => {
   const db = await createGuidanceDb();
   const adapter = wrapSqlite(db);

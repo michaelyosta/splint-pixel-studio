@@ -162,6 +162,10 @@ const ZONE_PRESETS = {
 };
 
 export function buildZones(template) {
+  // Tiled maps are navigated by the bounded tile/guidance indexes. Building
+  // legacy zone JSON for a 1200x1200 catalog grid would allocate hundreds of
+  // millions of cell indices and duplicate the tiled representation.
+  if (template?.storage_mode === 'tiled') return [];
   const { width, height, id } = template;
   const labels = ZONE_PRESETS[id] || ['Верхняя часть', 'Центр', 'Низ', 'Левый край', 'Правый край', 'Фон'];
   const rows = 3;
@@ -522,7 +526,7 @@ export async function bootstrapSystemData() {
         [`zone_${template.id}_${zoneIndex}`, template.id, zone.title, JSON.stringify(zone.indices), now]);
       }
     }
-    const zoneCount = existingZoneCount || 6;
+    const zoneCount = existingZoneCount || (template.storage_mode === 'tiled' ? 0 : 6);
     await run(`UPDATE coloring_templates SET
       zone_count=?, collection_id=CASE WHEN catalog_managed THEN collection_id ELSE ? END,
       theme=CASE WHEN catalog_managed THEN theme ELSE ? END,

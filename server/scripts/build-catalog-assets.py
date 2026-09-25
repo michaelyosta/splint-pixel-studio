@@ -111,5 +111,15 @@ def build_template(item: dict) -> dict:
     }
 
 
+if OUTPUT.exists():
+    existing = json.loads(OUTPUT.read_text(encoding="utf-8"))
+    existing_ids = {item.get("id") for item in existing if isinstance(item, dict)}
+    legacy_ids = {item["id"] for item in CATALOG}
+    if existing_ids and existing_ids != legacy_ids:
+        raise SystemExit(
+            "Refusing to replace a different canonical catalog with the six-item legacy demo build. "
+            "Use the production catalog candidate builder instead."
+        )
+
 OUTPUT.write_text(json.dumps([build_template(item) for item in CATALOG], ensure_ascii=False), encoding="utf-8")
 print(f"Built {len(CATALOG)} catalog templates at {OUTPUT}")

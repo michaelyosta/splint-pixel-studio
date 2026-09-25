@@ -4,34 +4,77 @@ Status: OPERATIONAL CONTRACT
 
 The production catalog is the canonical `content/catalog-manifest.json` plus
 the runtime grid definitions in `server/catalog-templates.json`. Legacy
-templates may keep an inline `cells` array. Large templates use a tiled
-descriptor with `storage_mode: "tiled"`, `tile_size`, `cell_map_asset`, and
-`cell_map_sha256`; the referenced `.u8.gz` file contains one row-major palette
-index byte per logical cell. The publisher verifies its checksum, expanded
-size, and palette indices before writing tiles to
-`coloring_template_tiles`. Both dimensions may be up to 1200; aspect ratio is
-preserved by using each artwork's own width and height, not by forcing a square.
-Tiled templates store an empty legacy `cells_json` and do not receive legacy
-zones. The publisher expects exactly 320 artworks, 16 collections, 32 albums,
-172 free artworks, and 148 premium artworks. The phase-2 draft manifest is not
-a production catalog input.
+templates may keep an inline `cells` array. Large catalog templates use a
+tiled descriptor with `storage_mode: "tiled"`, `tile_size`, `cell_map_asset`,
+`cell_map_r2_key`, compressed/raw byte counts, and `cell_map_sha256`. The
+immutable content-addressed R2 object (`catalog/grids/<id>.<sha256>.u8.gz`)
+contains one row-major palette-index byte per logical cell. Both dimensions
+may be up to 1200 and aspect ratio is preserved rather than forcing a square.
+
+For catalog templates, R2 is the authoritative grid source. Neon stores one
+small `coloring_catalog_grid_sources` descriptor per work and a compact
+checksummed Uint16LE per-tile/per-color count vector, plus global color totals
+and the guidance-index marker. It does not store catalog cells in
+`coloring_template_tiles` or duplicate the vector into
+`coloring_template_tile_color_counts`. User-created tiled templates continue
+to use the existing tile-row representation. The server verifies the R2
+object's checksum, expanded size, and palette indices, then uses that same
+source for tile delivery, cell validation, guidance, special effects, and
+completed-artwork rendering. Catalog templates keep empty legacy `cells_json`
+and do not receive legacy zones.
+
+The publisher expects exactly 320 artworks, 16 collections, 32 albums, 172
+free artworks, and 148 premium artworks. The Phase-2 draft manifest is not a
+production catalog input. The 320 1200-max classic-v1 catalog candidates were
+visually approved on 2026-09-25; the scoped approval and effort tradeoff are
+recorded in [evidence/CATALOG_PIXEL_GRID_APPROVAL_2026-09-25.md](evidence/CATALOG_PIXEL_GRID_APPROVAL_2026-09-25.md).
 
 ## Separate the three operations
 
-1. `npm run catalog:build` creates or refreshes local generated assets.
-2. `npm run catalog:publish -- --upload-assets --write-inventory` uploads the
+1. `npm run catalog:build` creates or refreshes local generated grid
+   candidates and quality evidence; it never changes canonical catalog files.
+2. Visually approved candidates are promoted with
+   `npm run catalog:promote -- --apply`. Promotion requires the checked-in
+   owner approval record, verifies all 320 compressed grids and lightweight
+   preview checksums, and updates only the canonical manifest/runtime JSON.
+3. `npm run catalog:publish -- --upload-assets --write-inventory` uploads the
    canonical masters, full-size assets, lightweight previews, and covers to
-   the existing R2/S3-compatible bucket. Objects are immutable: an existing
-   object with a different size or SHA-256 is a hard failure, never an
-   overwrite.
-3. `npm run catalog:publish` publishes catalog metadata and runtime grids to
-   the configured database. It is explicit and must be run after the asset
-   upload has passed verification.
+   existing R2. Objects are immutable: an existing object with a different
+   size or SHA-256 is a hard failure, never an overwrite.
+4. `npm run catalog:publish -- --upload-grid-assets --write-grid-inventory`
+   uploads and records the content-addressed cell maps. Grid and media asset
+   inventories are separate and each is checked against the exact canonical
+   asset set.
+5. Verify media with `npm run catalog:publish -- --verify-assets
+   --restore-check` and grids with `npm run catalog:publish --
+   --verify-grid-assets --restore-check-grid-assets`. Only after both
+   inventories, checksums, and restore samples pass may the production-safe
+   database publisher run.
+6. `npm run catalog:publish` verifies the R2 inventory/object metadata before
+   upserting catalog metadata and grid descriptors to the configured DB. It
+   does not require the master or grid binaries to be committed in Git.
 
-Use `npm run catalog:publish -- --check` before any external mutation. After
-upload, run `npm run catalog:publish -- --verify-assets --restore-check`.
-Verification checks object size and the SHA-256 sidecar metadata, then reads a
-master, full-size asset, and pixel preview back from storage.
+Before uploading a promoted set, run
+`npm run catalog:prepare-r2-inventories`. It reuses the prior verified
+master/full/cover inventory, hashes the new local delivery previews and grids,
+and writes ignored candidate inventories under
+`content/generated/catalog-grids/`. Pass those paths explicitly to upload and
+verification:
+
+```sh
+npm run catalog:publish -- --upload-assets --write-inventory --inventory content/generated/catalog-grids/catalog-r2-inventory.candidate.json
+npm run catalog:publish -- --upload-grid-assets --write-grid-inventory --grid-inventory content/generated/catalog-grids/catalog-grids-r2-inventory.candidate.json
+npm run catalog:publish -- --verify-assets --restore-check --inventory content/generated/catalog-grids/catalog-r2-inventory.candidate.json
+npm run catalog:publish -- --verify-grid-assets --restore-check-grid-assets --grid-inventory content/generated/catalog-grids/catalog-grids-r2-inventory.candidate.json
+```
+
+Only after verification succeeds, copy the two inventories to the canonical
+`docs/evidence/` inventory paths. Those paths are the publisher defaults used
+by the production DB command.
+
+Use `npm run catalog:publish -- --check` before any external mutation.
+Verification checks object size and SHA-256 sidecar metadata, then restores
+representative image and grid objects and verifies their bytes locally.
 
 The publisher does not call demo seeding and never edits progress or ownership
 tables or changes Stars pricing, invoices, refunds, entitlements, or
@@ -71,10 +114,10 @@ duplicate object keys, and fails if any preview exceeds this delivery budget.
 Listing records use only pixel-preview URLs; the media route rejects master,
 full-size, and source-cover keys.
 
-The publisher accepts the optional `S3_SESSION_TOKEN` for short-lived,
-prefix-scoped R2 credentials. Do not pass a bucket-wide parent credential to
-the catalog upload process when a `catalog/`-scoped temporary credential is
-available.
+The publisher accepts the optional `S3_SESSION_TOKEN` for short-lived R2
+credentials. Cloudflare R2 credentials may be bucket-scoped rather than
+prefix-scoped; if such credentials are used, the operator must constrain the
+commands and inventory to `catalog/` keys and must not touch `originals/`.
 
 ## Recovery evidence
 
@@ -91,4 +134,6 @@ is a targeted post-upload validation, not a replacement for backup.
 The audit found eight unreferenced pre-frame history masters (about 27.18 MiB)
 under `content/generated/masters/history/`. They are retained pending an
 R2-backed checksum/restore decision; new history snapshots are ignored so the
-repository cannot grow this class of binary again.
+repository cannot grow this class of binary again. Do not remove any tracked
+master/full/cover binary until the exact inventory has 1:1 R2 checksum and
+size coverage plus restore evidence.

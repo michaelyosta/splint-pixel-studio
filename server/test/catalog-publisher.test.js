@@ -10,16 +10,76 @@ import { runMigrations } from '../database/migrations.js';
 import { isCatalogDeliveryKey } from '../routes/media.js';
 import {
   buildCatalogAssetInventory,
+  buildCatalogGridAssetInventory,
   catalogConstants,
+  deriveCatalogGridDimensions,
   normalizeCatalogAssetInventory,
+  normalizeCatalogGridAssetInventory,
   publishCatalog,
   readCanonicalCatalog,
   sha256,
 } from '../services/catalog-publisher.js';
 import { validateTiledGridDimensions } from '../services/tiled-coloring.js';
+import { connectedRegionStats } from '../../scripts/catalog-grid-analysis.mjs';
+import { encodeCatalogGridPng } from '../../scripts/catalog-grid-png.mjs';
 
 const serverDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const migrationsDir = join(serverDir, 'migrations', 'sqlite');
+
+test('catalog grid dimensions preserve source proportions up to the 1200-cell max side', () => {
+  assert.deepEqual(deriveCatalogGridDimensions(2000, 2500), { width: 960, height: 1200 });
+  assert.deepEqual(deriveCatalogGridDimensions(2000, 2000), { width: 1200, height: 1200 });
+  assert.deepEqual(deriveCatalogGridDimensions(3000, 2250), { width: 1200, height: 900 });
+  assert.deepEqual(deriveCatalogGridDimensions(64, 80), { width: 64, height: 80 });
+  assert.throws(() => deriveCatalogGridDimensions(0, 80), RangeError);
+});
+
+test('catalog candidate fragmentation metrics use four-connected equal-color components', () => {
+  assert.deepEqual(connectedRegionStats(Uint8Array.from([0, 0, 1, 1, 0, 2]), 3, 2), {
+    regions4: 4,
+    regionDensityPer10k: 6666.67,
+    singletonCount: 3,
+    singletonAreaRatio: 0.5,
+    tinyRegionCount: 4,
+    smallRegionCellCount: 3,
+    smallRegionCellRatio: 0.5,
+    tinyRegionCellCount: 6,
+    tinyRegionCellRatio: 1,
+    medianRegionCells: 1,
+    p90RegionCells: 1,
+    maxRegionCells: 3,
+  });
+  assert.throws(() => connectedRegionStats(Uint8Array.from([0, 1]), 3, 1), TypeError);
+});
+
+test('catalog preview PNG stays palette-indexed, aspect-preserving, and decodes to the expected colors', async () => {
+  const { deflateSync, inflateSync } = await import('node:zlib');
+  const { bytes, width, height } = encodeCatalogGridPng({
+    cells: Uint8Array.from([0, 1, 2, 3]),
+    width: 2,
+    height: 2,
+    palette: ['#000000', '#ffffff', '#ff0000', '#00ff00'],
+  });
+  assert.deepEqual([width, height], [2, 2]);
+  assert.deepEqual(bytes.subarray(12, 16).toString('ascii'), 'IHDR');
+  assert.deepEqual([bytes[24], bytes[25]], [4, 3]);
+  let offset = 8;
+  const chunks = [];
+  while (offset < bytes.length) {
+    const length = bytes.readUInt32BE(offset);
+    const type = bytes.subarray(offset + 4, offset + 8).toString('ascii');
+    const data = bytes.subarray(offset + 8, offset + 8 + length);
+    chunks.push({ type, data });
+    offset += length + 12;
+    if (type === 'IEND') break;
+  }
+  assert.deepEqual(chunks.find((chunk) => chunk.type === 'PLTE').data, Buffer.from([
+    0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 255, 0,
+  ]));
+  const scanlines = inflateSync(Buffer.concat(chunks.filter((chunk) => chunk.type === 'IDAT').map((chunk) => chunk.data)));
+  assert.deepEqual(scanlines, Buffer.from([0, 0x01, 0, 0x23]));
+  assert.equal(deflateSync(scanlines).length > 0, true);
+});
 
 function createAdapter(sqlite) {
   const rows = (sql, params = []) => {
@@ -54,10 +114,41 @@ function createAdapter(sqlite) {
   };
 }
 
+function singleTemplateCatalog(catalog, templateId, runtime, loadTiledGrid = catalog.loadTiledGrid) {
+  const entry = catalog.entries.find((candidate) => candidate.id === templateId);
+  const sourceCollection = catalog.collectionById.get(entry.collection_id);
+  const album = sourceCollection.albums.find((candidate) => candidate.id === entry.album_id);
+  const collection = { ...sourceCollection, albums: [album] };
+  const covers = catalog.covers.filter((cover) => cover.parent_id === collection.id || cover.parent_id === album.id);
+  return {
+    ...catalog,
+    entries: [entry],
+    collections: [collection],
+    covers,
+    runtimeTemplates: [runtime],
+    runtimeById: new Map([[templateId, runtime]]),
+    collectionById: new Map([[collection.id, collection]]),
+    coverByParent: new Map(covers.map((cover) => [cover.parent_id, cover])),
+    counts: {
+      collections: 1,
+      albums: 1,
+      colorings: 1,
+      free: entry.access === 'free' ? 1 : 0,
+      premium: entry.access === 'premium' ? 1 : 0,
+    },
+    loadTiledGrid,
+  };
+}
+
 function catalogWithTiledTemplate(catalog, templateId, { phase = 0, width = 1200, height = 900, tileSize = 32 } = {}) {
-  const runtimeById = new Map(catalog.runtimeById);
+  const rawGrid = Buffer.alloc(width * height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) rawGrid[y * width + x] = (x + y + phase) % 2;
+  }
+  const compressedGrid = gzipSync(rawGrid, { mtime: 0 });
+  const cellMapSha = sha256(compressedGrid);
   const runtime = {
-    ...runtimeById.get(templateId),
+    ...catalog.runtimeById.get(templateId),
     width,
     height,
     palette: ['#000000', '#ffffff'],
@@ -65,30 +156,16 @@ function catalogWithTiledTemplate(catalog, templateId, { phase = 0, width = 1200
     storage_mode: 'tiled',
     tile_size: tileSize,
     cell_map_asset: 'content/generated/catalog-grids/test.u8.gz',
-    cell_map_sha256: '0'.repeat(64),
+    cell_map_r2_key: `catalog/grids/${templateId}.${cellMapSha}.u8.gz`,
+    cell_map_sha256: cellMapSha,
+    cell_map_bytes: compressedGrid.length,
+    cell_map_raw_bytes: rawGrid.length,
   };
-  runtimeById.set(templateId, runtime);
-  const loadTiledTiles = (candidate) => {
-    if (candidate.id !== templateId) return catalog.loadTiledTiles(candidate);
-    const tiles = [];
-    for (let tileY = 0; tileY < Math.ceil(height / tileSize); tileY += 1) {
-      for (let tileX = 0; tileX < Math.ceil(width / tileSize); tileX += 1) {
-        const tileWidth = Math.min(tileSize, width - tileX * tileSize);
-        const tileHeight = Math.min(tileSize, height - tileY * tileSize);
-        const cells = new Array(tileWidth * tileHeight);
-        for (let y = 0; y < tileHeight; y += 1) {
-          for (let x = 0; x < tileWidth; x += 1) {
-            const globalX = tileX * tileSize + x;
-            const globalY = tileY * tileSize + y;
-            cells[y * tileWidth + x] = (globalX + globalY + phase) % 2;
-          }
-        }
-        tiles.push({ tile_x: tileX, tile_y: tileY, width: tileWidth, height: tileHeight, cells });
-      }
-    }
-    return tiles;
+  const loadTiledGrid = (candidate) => {
+    if (candidate.id !== templateId) return catalog.loadTiledGrid(candidate);
+    return rawGrid;
   };
-  return { ...catalog, runtimeById, loadTiledTiles };
+  return singleTemplateCatalog(catalog, templateId, runtime, loadTiledGrid);
 }
 
 test('publisher writes the canonical catalog without touching protected domains', async () => {
@@ -127,6 +204,17 @@ test('publisher syncs manifest-owned albums but preserves editor-managed overrid
   try {
     const canonical = readCanonicalCatalog();
     const album = canonical.collections[0].albums[0];
+    const templateId = canonical.entries.find((entry) => entry.album_id === album.id).id;
+    const sourceRuntime = canonical.runtimeById.get(templateId);
+    const runtime = {
+      ...sourceRuntime,
+      width: 8,
+      height: 8,
+      cells: Array(64).fill(0),
+      storage_mode: 'legacy',
+      tile_size: 32,
+    };
+    const scopedCatalog = singleTemplateCatalog(canonical, templateId, runtime);
     const withAlbumTitle = (catalog, title) => ({
       ...catalog,
       collections: catalog.collections.map((collection) => ({
@@ -135,17 +223,17 @@ test('publisher syncs manifest-owned albums but preserves editor-managed overrid
       })),
     });
 
-    await publishCatalog({ db: createAdapter(sqlite), catalog: canonical });
+    await publishCatalog({ db: createAdapter(sqlite), catalog: scopedCatalog });
     let row = sqlite.exec('SELECT title,editor_managed FROM catalog_albums WHERE id=?', [album.id])[0].values[0];
     assert.equal(row[0], album.title);
     assert.equal(Number(row[1]), 0);
 
-    await publishCatalog({ db: createAdapter(sqlite), catalog: withAlbumTitle(canonical, 'Manifest refresh') });
+    await publishCatalog({ db: createAdapter(sqlite), catalog: withAlbumTitle(scopedCatalog, 'Manifest refresh') });
     row = sqlite.exec('SELECT title,editor_managed FROM catalog_albums WHERE id=?', [album.id])[0].values[0];
     assert.deepEqual(row, ['Manifest refresh', 0]);
 
     sqlite.run('UPDATE catalog_albums SET title=?,editor_managed=1 WHERE id=?', ['Editorial override', album.id]);
-    await publishCatalog({ db: createAdapter(sqlite), catalog: withAlbumTitle(canonical, 'Later manifest refresh') });
+    await publishCatalog({ db: createAdapter(sqlite), catalog: withAlbumTitle(scopedCatalog, 'Later manifest refresh') });
     row = sqlite.exec('SELECT title,editor_managed FROM catalog_albums WHERE id=?', [album.id])[0].values[0];
     assert.deepEqual(row, ['Editorial override', 1]);
   } finally {
@@ -153,7 +241,7 @@ test('publisher syncs manifest-owned albums but preserves editor-managed overrid
   }
 });
 
-test('publisher stores 1200x900 catalog grids as tiles and reruns idempotently', async () => {
+test('publisher stores catalog grids in R2 with a compact count vector and reruns idempotently', async () => {
   const SQL = await initSqlJs();
   const sqlite = new SQL.Database();
   sqlite.run('PRAGMA foreign_keys = ON');
@@ -167,17 +255,22 @@ test('publisher stores 1200x900 catalog grids as tiles and reruns idempotently',
     assert.deepEqual([acceptedGrid.width, acceptedGrid.height, acceptedGrid.tiles_x, acceptedGrid.tiles_y], [1200, 900, 38, 29]);
     const first = await publishCatalog({ db: createAdapter(sqlite), catalog });
     assert.equal(first.tiled_templates_published, 1);
-    assert.equal(first.tiled_template_tiles_published, 1102);
+    assert.equal(first.tiled_map_tiles_indexed, 1102);
+    assert.equal(first.tiled_grid_source_bytes, catalog.runtimeById.get(templateId).cell_map_bytes);
+    assert.equal(first.database_template_tile_rows_written, 0);
     const row = sqlite.exec('SELECT width,height,storage_mode,cells_json FROM coloring_templates WHERE id=?', [templateId])[0].values[0];
     assert.deepEqual(row.slice(0, 3), [1200, 900, 'tiled']);
     assert.equal(JSON.parse(row[3]).length, 0);
-    assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_template_tiles WHERE template_id=?', [templateId])[0].values[0][0], 1102);
+    assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_template_tiles WHERE template_id=?', [templateId])[0].values[0][0], 0);
+    assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_catalog_grid_sources WHERE template_id=?', [templateId])[0].values[0][0], 1);
+    assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_template_color_counts WHERE template_id=?', [templateId])[0].values[0][0], 2);
+    assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_template_tile_color_counts WHERE template_id=?', [templateId])[0].values[0][0], 0);
     assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_zones WHERE template_id=?', [templateId])[0].values[0][0], 0);
 
     const second = await publishCatalog({ db: createAdapter(sqlite), catalog, now: '2026-09-24T00:00:00.000Z' });
     assert.equal(second.tiled_templates_published, 0);
-    assert.equal(second.tiled_template_tiles_published, 0);
-    assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_template_tiles WHERE template_id=?', [templateId])[0].values[0][0], 1102);
+    assert.equal(second.tiled_map_tiles_indexed, 0);
+    assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_template_tiles WHERE template_id=?', [templateId])[0].values[0][0], 0);
   } finally {
     sqlite.close();
   }
@@ -206,7 +299,8 @@ test('publisher preserves existing progress and fails closed if its tiled map ch
       (error) => error.code === 'CATALOG_GRID_CHANGE_WITH_PROGRESS',
     );
     assert.equal(sqlite.exec('SELECT revision FROM coloring_tiled_progress WHERE user_id=? AND template_id=?', ['progress-owner', templateId])[0].values[0][0], 1);
-    assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_template_tiles WHERE template_id=?', [templateId])[0].values[0][0], 2);
+    assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_template_tiles WHERE template_id=?', [templateId])[0].values[0][0], 0);
+    assert.equal(sqlite.exec('SELECT COUNT(*) FROM coloring_catalog_grid_sources WHERE template_id=?', [templateId])[0].values[0][0], 1);
   } finally {
     sqlite.close();
   }
@@ -219,7 +313,8 @@ test('canonical tiled input verifies compressed cell-map checksum and restores t
     const runtimePath = join(root, 'runtime.json');
     await mkdir(gridDir, { recursive: true });
     const canonical = readCanonicalCatalog();
-    const runtime = canonical.runtimeTemplates.map((template, index) => index === 0 ? {
+    const templateId = canonical.entries[0].id;
+    const runtime = canonical.runtimeTemplates.map((template) => template.id === templateId ? {
       ...template,
       width: 8,
       height: 8,
@@ -228,10 +323,17 @@ test('canonical tiled input verifies compressed cell-map checksum and restores t
       storage_mode: 'tiled',
       tile_size: 8,
       cell_map_asset: 'content/generated/catalog-grids/test.u8.gz',
+      cell_map_r2_key: `catalog/grids/${templateId}.${'0'.repeat(64)}.u8.gz`,
+      cell_map_bytes: 1,
+      cell_map_sha256: '0'.repeat(64),
+      cell_map_raw_bytes: 64,
     } : template);
     const compressed = gzipSync(Buffer.from(Array.from({ length: 64 }, (_, index) => index % 2)));
-    runtime[0].cell_map_sha256 = sha256(compressed);
-    runtime[0].cell_map_raw_bytes = 64;
+    const targetIndex = runtime.findIndex((template) => template.id === templateId);
+    runtime[targetIndex].cell_map_sha256 = sha256(compressed);
+    runtime[targetIndex].cell_map_r2_key = `catalog/grids/${templateId}.${runtime[targetIndex].cell_map_sha256}.u8.gz`;
+    runtime[targetIndex].cell_map_bytes = compressed.length;
+    runtime[targetIndex].cell_map_raw_bytes = 64;
     const mapPath = join(gridDir, 'test.u8.gz');
     await writeFile(mapPath, compressed);
     await writeFile(runtimePath, JSON.stringify(runtime));
@@ -243,8 +345,80 @@ test('canonical tiled input verifies compressed cell-map checksum and restores t
     assert.equal(tiles[0].height, 8);
     assert.deepEqual(tiles[0].cells.slice(0, 8), [0, 1, 0, 1, 0, 1, 0, 1]);
 
-    await writeFile(mapPath, gzipSync(Buffer.from(Array(64).fill(1))));
+    const changedCompressed = gzipSync(Buffer.from(Array(64).fill(1)));
+    await writeFile(mapPath, changedCompressed);
+    catalog.runtimeById.get(templateId).cell_map_bytes = changedCompressed.length;
     assert.throws(() => catalog.loadTiledTiles(catalog.runtimeById.get(catalog.entries[0].id)), /CATALOG_GRID_CHECKSUM_MISMATCH/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('canonical tiled input may load an integrity-checked grid from R2 when local assets are absent', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'catalog-grid-r2-'));
+  const runtimePath = join(root, 'runtime.json');
+  const canonical = readCanonicalCatalog();
+  const templateId = canonical.entries[0].id;
+  const raw = Buffer.from(Array.from({ length: 64 }, (_, index) => index % 2));
+  const compressed = gzipSync(raw);
+  const gridSha = sha256(compressed);
+  const runtime = canonical.runtimeTemplates.map((template) => template.id === templateId ? {
+    ...template,
+    width: 8,
+    height: 8,
+    palette: ['#000000', '#ffffff'],
+    cells: [],
+    storage_mode: 'tiled',
+    tile_size: 8,
+    cell_map_asset: `content/generated/catalog-grids/${templateId}.u8.gz`,
+    cell_map_r2_key: `catalog/grids/${templateId}.${gridSha}.u8.gz`,
+    cell_map_bytes: compressed.length,
+    cell_map_raw_bytes: raw.length,
+    cell_map_sha256: gridSha,
+  } : template);
+  await writeFile(runtimePath, JSON.stringify(runtime));
+
+  try {
+    const catalog = readCanonicalCatalog({
+      runtimePath,
+      gridRoot: root,
+      gridReader: async (template) => {
+        assert.equal(template.cell_map_r2_key, `catalog/grids/${templateId}.${gridSha}.u8.gz`);
+        return compressed;
+      },
+    });
+    const gridRecords = buildCatalogGridAssetInventory({
+      ...catalog,
+      runtimeTemplates: [catalog.runtimeById.get(templateId)],
+    });
+    assert.equal(gridRecords.length, 1);
+    assert.equal(gridRecords[0].key, `catalog/grids/${templateId}.${gridSha}.u8.gz`);
+    assert.deepEqual(normalizeCatalogGridAssetInventory(gridRecords, [{
+      id: templateId,
+      kind: 'grid',
+      source_asset: gridRecords[0].source_asset,
+      key: gridRecords[0].key,
+      bytes: compressed.length,
+      sha256: sha256(compressed),
+      raw_bytes: raw.length,
+    }]), gridRecords);
+    const tiles = await catalog.loadTiledTiles(catalog.runtimeById.get(templateId));
+    assert.equal(tiles.length, 1);
+    assert.deepEqual(tiles[0].cells.slice(0, 8), [0, 1, 0, 1, 0, 1, 0, 1]);
+
+    const targetIndex = runtime.findIndex((template) => template.id === templateId);
+    runtime[targetIndex].cell_map_sha256 = '0'.repeat(64);
+    runtime[targetIndex].cell_map_r2_key = `catalog/grids/${templateId}.${runtime[targetIndex].cell_map_sha256}.u8.gz`;
+    await writeFile(runtimePath, JSON.stringify(runtime));
+    const corruptCatalog = readCanonicalCatalog({
+      runtimePath,
+      gridRoot: root,
+      gridReader: async () => compressed,
+    });
+    await assert.rejects(
+      corruptCatalog.loadTiledTiles(corruptCatalog.runtimeById.get(templateId)),
+      /CATALOG_GRID_CHECKSUM_MISMATCH/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -255,10 +429,18 @@ test('publisher source does not route through demo seeding', async () => {
   assert.doesNotMatch(source, /seedDemoData|bootstrapSystemData/);
 });
 
+test('catalog build entrypoint uses the tiled candidate pipeline and legacy demo builder refuses catalog replacement', async () => {
+  const packageJson = JSON.parse(await readFile(join(serverDir, '..', 'package.json'), 'utf8'));
+  const legacyBuilder = await readFile(join(serverDir, 'scripts', 'build-catalog-assets.py'), 'utf8');
+  assert.equal(packageJson.scripts['catalog:build'], 'node scripts/build-catalog-grid-candidates.mjs');
+  assert.match(packageJson.scripts['catalog:build:legacy-demo'], /build-catalog-assets\.py/);
+  assert.match(legacyBuilder, /Refusing to replace a different canonical catalog/);
+});
+
 test('catalog asset upload accepts short-lived scoped S3 session credentials', async () => {
   const source = await readFile(join(serverDir, 'scripts', 'publish-catalog.mjs'), 'utf8');
   assert.match(source, /sessionToken:\s*process\.env\.S3_SESSION_TOKEN/);
-  assert.match(source, /const storage = await storageConfig\(\)/);
+  assert.match(source, /const storage = needsStorage \? await storageConfig\(\) : null/);
   assert.match(source, /typeof stored\.bucket !== 'string'/);
 });
 
@@ -285,17 +467,25 @@ test('catalog preview inventory is complete, unique, and within the 16 KiB deliv
   const records = buildCatalogAssetInventory(catalog);
   const inventoryPath = join(serverDir, '..', 'docs', 'evidence', 'catalog-r2-inventory.json');
   const inventory = JSON.parse(await readFile(inventoryPath, 'utf8'));
-  const assets = normalizeCatalogAssetInventory(records, inventory.assets);
-  const previews = assets.filter((asset) => asset.kind === 'preview');
+  // The checked-in inventory is the last verified R2 inventory and therefore
+  // still names the previous delivery previews. Reuse only its unchanged
+  // masters/full/covers until the candidate previews are uploaded and verified.
+  const reusableRecords = records.filter((record) => record.kind !== 'preview');
+  const reusableAssets = inventory.assets.filter((asset) => asset.kind !== 'preview');
+  const verifiedReusableAssets = normalizeCatalogAssetInventory(reusableRecords, reusableAssets);
+  const previews = records.filter((asset) => asset.kind === 'preview');
 
   assert.equal(previews.length, 320);
   assert.equal(new Set(previews.map((asset) => asset.key)).size, previews.length);
-  assert.ok(previews.every((asset) => asset.bytes <= catalogConstants.MAX_CATALOG_PREVIEW_BYTES));
-  assert.throws(() => normalizeCatalogAssetInventory(records, inventory.assets.slice(1)), /asset count/);
+  assert.ok(previews.every((asset) => /-1200px-pixel\.png$/.test(asset.source_asset)));
+  assert.equal(verifiedReusableAssets.length, 736);
+  assert.throws(() => normalizeCatalogAssetInventory(reusableRecords, reusableAssets.slice(1)), /asset count/);
   assert.throws(
-    () => normalizeCatalogAssetInventory(records, inventory.assets.map((asset) => asset.kind === 'preview'
-      ? { ...asset, bytes: catalogConstants.MAX_CATALOG_PREVIEW_BYTES + 1 }
-      : asset)),
+    () => normalizeCatalogAssetInventory([previews[0]], [{
+      ...previews[0],
+      bytes: catalogConstants.MAX_CATALOG_PREVIEW_BYTES + 1,
+      sha256: 'a'.repeat(64),
+    }]),
     /CATALOG_PREVIEW_SIZE_BUDGET_EXCEEDED/,
   );
 });

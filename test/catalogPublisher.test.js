@@ -29,15 +29,21 @@ test('catalog publisher validates the canonical 320-item delivery set', () => {
   assert.ok(catalog.assetRecords.filter((asset) => asset.kind === 'cover').every((asset) => asset.key.startsWith('catalog/covers/')));
 });
 
-test('catalog publisher keeps runtime payload ids aligned with canonical metadata', () => {
+test('catalog publisher keeps runtime payload ids aligned with canonical metadata and external grids', () => {
   const catalog = readCanonicalCatalog();
   assert.equal(catalog.runtimeById.size, catalog.entries.length);
   for (const entry of catalog.entries) {
     const runtime = catalog.runtimeById.get(entry.id);
     assert.ok(runtime, entry.id);
     assert.ok(Array.isArray(runtime.palette), entry.id);
+    assert.equal(runtime.storage_mode, 'tiled', entry.id);
     assert.ok(Array.isArray(runtime.cells), entry.id);
-    assert.equal(runtime.cells.length, runtime.width * runtime.height, entry.id);
+    assert.equal(runtime.cells.length, 0, entry.id);
+    assert.ok(runtime.width <= 1200 && runtime.height <= 1200, entry.id);
+    assert.equal(runtime.cell_map_raw_bytes, runtime.width * runtime.height, entry.id);
+    assert.ok(Number.isSafeInteger(runtime.cell_map_bytes) && runtime.cell_map_bytes > 0, entry.id);
+    assert.match(runtime.cell_map_sha256, /^[a-f0-9]{64}$/i, entry.id);
+    assert.match(runtime.cell_map_r2_key, /^catalog\/grids\/.+\.[a-f0-9]{64}\.u8\.gz$/i, entry.id);
   }
 });
 

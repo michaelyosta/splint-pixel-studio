@@ -1,8 +1,8 @@
 # Production catalog API/media smoke — 2026-09-25
 
-Status: API readiness passes, but the production catalog media 404 is explained
-by an outdated backend revision. This is dated operational evidence and does
-not authorize content publication.
+Status: the initial media 404 was from an outdated backend revision; a later
+post-merge check served an existing catalog preview successfully. Neither
+check establishes publication of the 320-item catalog.
 
 ## Read-only checks
 
@@ -47,5 +47,25 @@ serving catalog previews.
 
 The candidate map dimensions (maximum 1200 pixels per side, aspect ratio
 preserved) are supported by the catalog tiled-map path. The separate
-public-import visibility budget is not the catalog publishing limit. Candidate
-visual/effort approval remains a distinct content decision.
+public-import visibility budget is not the catalog publishing limit. The owner
+approved the 320 candidate grids and their effort/detail tradeoff on
+2026-09-25; approval is distinct from production publication.
+
+## Post-merge follow-up — 2026-09-25
+
+After PR #54 merged as `79bdd75f6e03df4597382c8965da2df1d8fce270` and its main
+CI run `36063168677` passed, a bounded, read-only direct API recheck returned:
+
+- `GET /health`: HTTP 200.
+- `GET /ready`: HTTP 200, `ready: true`, database/object-storage/configuration
+  checks `ok`.
+- HEAD `/media/catalog/previews/autumn-cozy_coffee-rain_01-pixel.png`: HTTP
+  200, `image/png`, 6,953 bytes, `public, max-age=31536000, immutable`.
+
+This establishes delivery of that already-verified R2 preview through the
+current API route. It does not verify the new 1200-pixel preview set or any
+candidate grids. The latest authorized read-only Neon aggregate query observed
+6 active catalog templates, 0 published collections and 0 albums;
+`catalog:publish` has not been run. A post-merge Telegram Mini App smoke at the
+320-item target remains outstanding. No database, user, payment, ownership,
+progress, or R2 object was changed by this follow-up.

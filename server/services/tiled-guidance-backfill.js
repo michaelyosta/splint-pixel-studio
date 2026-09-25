@@ -30,6 +30,7 @@ function parseTemplateRow(row) {
       }
     })(),
     tile_size: Number(row.tile_size || 32),
+    source_type: row.source_type || null,
     updated_at: row.updated_at,
     storage_mode: row.storage_mode,
   };

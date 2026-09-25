@@ -1,9 +1,13 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { catalogAssetUrl, CATALOG_SHELF_DEFINITIONS } from './catalog-merchandising.js';
+import {
+  buildCatalogTileColorCountVector,
+  validateCatalogGridSourceDescriptor,
+} from './catalog-grid-source.js';
 
 const serviceRoot = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const defaultManifestPath = join(serviceRoot, 'content', 'catalog-manifest.json');
@@ -11,6 +15,21 @@ const defaultRuntimePath = join(serviceRoot, 'server', 'catalog-templates.json')
 const EXPECTED_CATALOG_COUNT = 320;
 const EXPECTED_COVER_COUNT = 48;
 const MAX_CATALOG_PREVIEW_BYTES = 16 * 1024;
+
+export function deriveCatalogGridDimensions(sourceWidth, sourceHeight, maxSide = 1200) {
+  if (!Number.isInteger(sourceWidth) || !Number.isInteger(sourceHeight)
+    || sourceWidth < 1 || sourceHeight < 1
+    || !Number.isInteger(maxSide) || maxSide < 8 || maxSide > 1200) {
+    throw new RangeError('Catalog grid dimensions require positive source dimensions and maxSide in [8, 1200]');
+  }
+  const scale = Math.min(maxSide / Math.max(sourceWidth, sourceHeight), 1);
+  const width = Math.round(sourceWidth * scale);
+  const height = Math.round(sourceHeight * scale);
+  if (width < 8 || height < 8) {
+    throw new RangeError('Source aspect ratio cannot fit the supported minimum grid dimensions without distortion');
+  }
+  return { width, height };
+}
 
 function parseJsonFile(path) {
   try {
@@ -52,10 +71,22 @@ function readCatalogGridBytes(template, root = serviceRoot) {
   if (pathFromRoot === '..' || pathFromRoot.startsWith(`..${sep}`) || resolve(realRoot, pathFromRoot) === realRoot) {
     throw new Error(`CATALOG_GRID_ASSET_PATH_INVALID: ${template.id}`);
   }
-  const expectedBytes = width * height;
-  const compressedBytes = statSync(path).size;
-  if (compressedBytes > expectedBytes + 65_536) throw new Error(`CATALOG_GRID_COMPRESSED_SIZE_INVALID: ${template.id}`);
   const compressed = readFileSync(path);
+  return validateCatalogGridBytes(template, compressed);
+}
+
+function validateCatalogGridBytes(template, compressed) {
+  const width = Number(template.width);
+  const height = Number(template.height);
+  const expectedBytes = width * height;
+  if (!Buffer.isBuffer(compressed) && !(compressed instanceof Uint8Array)) {
+    throw new Error(`CATALOG_GRID_ASSET_INVALID: ${template.id}`);
+  }
+  if (Number.isSafeInteger(Number(template.cell_map_bytes))
+    && Number(template.cell_map_bytes) !== compressed.length) {
+    throw new Error(`CATALOG_GRID_COMPRESSED_SIZE_MISMATCH: ${template.id}`);
+  }
+  if (compressed.length > expectedBytes + 65_536) throw new Error(`CATALOG_GRID_COMPRESSED_SIZE_INVALID: ${template.id}`);
   const actualSha = sha256(compressed);
   if (actualSha !== String(template.cell_map_sha256 || '').toLowerCase()) {
     throw new Error(`CATALOG_GRID_CHECKSUM_MISMATCH: ${template.id}`);
@@ -70,6 +101,14 @@ function readCatalogGridBytes(template, root = serviceRoot) {
     if (raw[index] >= paletteLength) throw new Error(`CATALOG_GRID_PALETTE_INDEX_INVALID: ${template.id}`);
   }
   return raw;
+}
+
+function validCatalogGridKey(template) {
+  const key = String(template?.cell_map_r2_key || '');
+  const checksum = String(template?.cell_map_sha256 || '').toLowerCase();
+  return key === `catalog/grids/${template.id}.${checksum}.u8.gz`
+    && /^[a-z0-9_-]+$/.test(String(template.id || ''))
+    && /^[a-f0-9]{64}$/.test(checksum);
 }
 
 function buildTilesFromGridBytes(template, raw) {
@@ -144,22 +183,21 @@ function sameJsonArray(first, second) {
   return Boolean(a && b && JSON.stringify(a) === JSON.stringify(b));
 }
 
-function sameTemplateMap(existing, runtime, tiles = null) {
+function sameTemplateMap(existing, runtime, gridSource = null) {
   if (!existing || Number(existing.width) !== Number(runtime.width)
     || Number(existing.height) !== Number(runtime.height)
     || !sameJsonArray(existing.palette_json, runtime.palette)) return false;
-  if (tiles) {
-    if (existing.storage_mode !== 'tiled') return false;
-    const storedTiles = Array.isArray(existing.tiles) ? existing.tiles : [];
-    if (storedTiles.length !== tiles.length) return false;
-    return tiles.every((tile, index) => {
-      const stored = storedTiles[index];
-      return Number(stored.tile_x) === tile.tile_x
-        && Number(stored.tile_y) === tile.tile_y
-        && Number(stored.width) === tile.width
-        && Number(stored.height) === tile.height
-        && sameJsonArray(stored.cells_json, tile.cells);
-    });
+  if (runtime.storage_mode === 'tiled') {
+    if (existing.storage_mode !== 'tiled' || !gridSource) return false;
+    try {
+      const descriptor = validateCatalogGridSourceDescriptor(gridSource, runtime);
+      return descriptor.object_key === runtime.cell_map_r2_key
+        && descriptor.sha256 === String(runtime.cell_map_sha256).toLowerCase()
+        && Number(descriptor.compressed_bytes) === Number(runtime.cell_map_bytes)
+        && Number(descriptor.raw_bytes) === Number(runtime.cell_map_raw_bytes);
+    } catch {
+      return false;
+    }
   }
   return (existing.storage_mode || 'legacy') === 'legacy'
     && sameJsonArray(existing.cells_json, runtime.cells);
@@ -184,22 +222,8 @@ async function clearStoredGrid(db, templateId) {
   await db.run('DELETE FROM coloring_template_color_counts WHERE template_id=?', [templateId]);
   await db.run('DELETE FROM coloring_template_guidance_index_meta WHERE template_id=?', [templateId]);
   await db.run('DELETE FROM coloring_special_cells WHERE template_id=?', [templateId]);
+  await db.run('DELETE FROM coloring_catalog_grid_sources WHERE template_id=?', [templateId]);
   await db.run('DELETE FROM coloring_template_tiles WHERE template_id=?', [templateId]);
-}
-
-async function insertTemplateTiles(db, templateId, tiles, now) {
-  const batchSize = 100;
-  for (let offset = 0; offset < tiles.length; offset += batchSize) {
-    const batch = tiles.slice(offset, offset + batchSize);
-    const values = [];
-    const placeholders = batch.map((tile) => {
-      values.push(templateId, tile.tile_x, tile.tile_y, tile.width, tile.height, json(tile.cells), now, now);
-      return '(?,?,?,?,?,?,?,?)';
-    });
-    await db.run(`INSERT INTO coloring_template_tiles
-      (template_id,tile_x,tile_y,width,height,cells_json,created_at,updated_at)
-      VALUES ${placeholders.join(',')}`, values);
-  }
 }
 
 function buildCatalogAssetRecords(manifest) {
@@ -238,7 +262,7 @@ function buildCatalogAssetRecords(manifest) {
   return [...byKey.values()];
 }
 
-export function readCanonicalCatalog({ manifestPath = defaultManifestPath, runtimePath = defaultRuntimePath, gridRoot = serviceRoot } = {}) {
+export function readCanonicalCatalog({ manifestPath = defaultManifestPath, runtimePath = defaultRuntimePath, gridRoot = serviceRoot, gridReader = null } = {}) {
   const manifest = parseJsonFile(manifestPath);
   const runtimeTemplates = parseJsonFile(runtimePath);
   const errors = [];
@@ -307,13 +331,28 @@ export function readCanonicalCatalog({ manifestPath = defaultManifestPath, runti
       if (!/^[a-f0-9]{64}$/i.test(String(template.cell_map_sha256 || ''))) {
         errors.push(`${template.id} tiled runtime payload has no SHA-256 checksum`);
       }
+      if (template.cell_map_r2_key !== undefined && !validCatalogGridKey(template)) {
+        errors.push(`${template.id} tiled runtime payload has an invalid R2 grid key`);
+      }
+      if (template.cell_map_bytes !== undefined
+        && (!Number.isSafeInteger(Number(template.cell_map_bytes)) || Number(template.cell_map_bytes) < 1)) {
+        errors.push(`${template.id} tiled runtime payload has an invalid compressed byte count`);
+      }
+      if (template.cell_map_raw_bytes !== undefined && Number(template.cell_map_raw_bytes) !== template.width * template.height) {
+        errors.push(`${template.id} tiled runtime payload has an invalid raw byte count`);
+      }
       if (Array.isArray(template.cells) && template.cells.length > 0) {
         errors.push(`${template.id} tiled runtime payload must not embed a full cells array`);
       }
-      try {
-        readCatalogGridBytes(template, gridRoot);
-      } catch (error) {
-        errors.push(`${template.id} cell map validation failed: ${error.message}`);
+      const localGridPath = resolve(gridRoot, String(template.cell_map_asset || ''));
+      if (existsSync(localGridPath)) {
+        try {
+          readCatalogGridBytes(template, gridRoot);
+        } catch (error) {
+          errors.push(`${template.id} cell map validation failed: ${error.message}`);
+        }
+      } else if (!validCatalogGridKey(template)) {
+        errors.push(`${template.id} cell map is absent locally and has no canonical R2 source`);
       }
     } else if ((template.storage_mode !== undefined && template.storage_mode !== 'legacy')
       || template.width < 8 || template.height < 8 || template.width > 160 || template.height > 160
@@ -351,7 +390,29 @@ export function readCanonicalCatalog({ manifestPath = defaultManifestPath, runti
     runtimeById: new Map(runtime.map((template) => [template.id, template])),
     collectionById: new Map(collections.map((collection) => [collection.id, collection])),
     coverByParent: new Map(covers.map((cover) => [cover.parent_id, cover])),
-    loadTiledTiles: (template) => buildTilesFromGridBytes(template, readCatalogGridBytes(template, gridRoot)),
+    loadTiledGrid: (template) => {
+      const localGridPath = resolve(gridRoot, String(template.cell_map_asset || ''));
+      if (existsSync(localGridPath)) {
+        return readCatalogGridBytes(template, gridRoot);
+      }
+      if (validCatalogGridKey(template) && typeof gridReader === 'function') {
+        return Promise.resolve(gridReader(template)).then((compressed) => validateCatalogGridBytes(template, compressed));
+      }
+      throw new Error(`CATALOG_GRID_ASSET_MISSING: ${template.id}`);
+    },
+    loadTiledTiles: (template) => {
+      const loaded = (() => {
+        const localGridPath = resolve(gridRoot, String(template.cell_map_asset || ''));
+        if (existsSync(localGridPath)) return buildTilesFromGridBytes(template, readCatalogGridBytes(template, gridRoot));
+        if (validCatalogGridKey(template) && typeof gridReader === 'function') {
+          return Promise.resolve(gridReader(template)).then((compressed) => (
+            buildTilesFromGridBytes(template, validateCatalogGridBytes(template, compressed))
+          ));
+        }
+        throw new Error(`CATALOG_GRID_ASSET_MISSING: ${template.id}`);
+      })();
+      return loaded;
+    },
     counts,
     assetRecords: buildCatalogAssetRecords(manifest),
   };
@@ -402,9 +463,69 @@ function numberValue(row, key) {
   return Number(row?.[key] || 0);
 }
 
+function paletteCountsFromTileVector(template, vector) {
+  const paletteLength = template.palette.length;
+  const tileSize = Number(template.tile_size || 32);
+  const tilesX = Math.ceil(Number(template.width) / tileSize);
+  const tilesY = Math.ceil(Number(template.height) / tileSize);
+  const expectedBytes = tilesX * tilesY * paletteLength * 2;
+  if (!Buffer.isBuffer(vector) || vector.length !== expectedBytes) {
+    throw new Error(`CATALOG_GRID_INDEX_INVALID: ${template.id}`);
+  }
+  const totals = new Array(paletteLength).fill(0);
+  for (let offset = 0; offset < vector.length; offset += 2) {
+    totals[(offset / 2) % paletteLength] += vector.readUInt16LE(offset);
+  }
+  return totals;
+}
+
+async function persistCatalogGridSource(db, template, tileColorCounts, now) {
+  if (!validCatalogGridKey(template)
+    || !Number.isSafeInteger(Number(template.cell_map_bytes)) || Number(template.cell_map_bytes) < 1
+    || Number(template.cell_map_raw_bytes) !== Number(template.width) * Number(template.height)) {
+    throw new Error(`CATALOG_GRID_SOURCE_METADATA_INVALID: ${template.id}`);
+  }
+  const compressedBytes = Number(template.cell_map_bytes);
+  const rawBytes = Number(template.cell_map_raw_bytes);
+  const paletteCounts = paletteCountsFromTileVector(template, tileColorCounts);
+  const colors = paletteCounts.filter((count) => count > 0).length;
+  const tiles = Math.ceil(Number(template.width) / Number(template.tile_size || 32))
+    * Math.ceil(Number(template.height) / Number(template.tile_size || 32));
+  await db.run(`INSERT INTO coloring_catalog_grid_sources
+      (template_id,object_key,sha256,compressed_bytes,raw_bytes,tile_color_counts,tile_color_counts_sha256,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(template_id) DO UPDATE SET
+      object_key=excluded.object_key,
+      sha256=excluded.sha256,
+      compressed_bytes=excluded.compressed_bytes,
+      raw_bytes=excluded.raw_bytes,
+      tile_color_counts=excluded.tile_color_counts,
+      tile_color_counts_sha256=excluded.tile_color_counts_sha256,
+      updated_at=excluded.updated_at`,
+  [template.id, template.cell_map_r2_key, String(template.cell_map_sha256).toLowerCase(), compressedBytes, rawBytes,
+    tileColorCounts, sha256(tileColorCounts), now, now]);
+  await db.run('DELETE FROM coloring_template_tile_color_counts WHERE template_id=?', [template.id]);
+  await db.run('DELETE FROM coloring_template_color_counts WHERE template_id=?', [template.id]);
+  for (let color = 0; color < paletteCounts.length; color += 1) {
+    if (!paletteCounts[color]) continue;
+    await db.run(
+      'INSERT INTO coloring_template_color_counts (template_id,color_index,total_count) VALUES (?,?,?)',
+      [template.id, color, paletteCounts[color]],
+    );
+  }
+  await db.run(
+    `INSERT INTO coloring_template_guidance_index_meta (template_id,colors,tiles,built_at)
+      VALUES (?,?,?,?)
+      ON CONFLICT(template_id) DO UPDATE SET
+        colors=excluded.colors, tiles=excluded.tiles, built_at=excluded.built_at`,
+    [template.id, colors, tiles, now],
+  );
+  return { tiles, colors, tile_color_count_bytes: tileColorCounts.length };
+}
+
 export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now = new Date().toISOString() } = {}) {
   if (!db?.withDbTransaction || !db?.run || !db?.get || !db?.all) throw new Error('publishCatalog requires database helpers');
-  const { entries, collections, coverByParent, collectionById, runtimeById, loadTiledTiles, counts } = catalog;
+  const { entries, collections, coverByParent, collectionById, runtimeById, loadTiledTiles, loadTiledGrid, counts } = catalog;
   const entryIds = entries.map((entry) => entry.id);
 
   return db.withDbTransaction(async (transaction) => {
@@ -518,7 +639,10 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
         tile_size=CASE WHEN coloring_templates.catalog_managed THEN coloring_templates.tile_size ELSE excluded.tile_size END`;
 
     let tiledTemplatesPublished = 0;
-    let tiledTemplateTilesPublished = 0;
+    let tiledGridSourceBytes = 0;
+    let tiledTileColorIndexBytes = 0;
+    let tiledMapTilesIndexed = 0;
+    let databaseTemplateTileRowsWritten = 0;
 
     for (const entry of entries) {
       const runtime = runtimeById.get(entry.id);
@@ -535,28 +659,62 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
         || existing?.catalog_managed === 1
         || existing?.catalog_managed === '1';
       const tiled = runtime.storage_mode === 'tiled';
-      let tiles = null;
+      let rawGrid = null;
+      let gridTileColorCounts = null;
+      let writeGridSource = false;
       let gridChanged = !existing;
       if (!catalogManaged) {
         if (tiled) {
-          if (typeof loadTiledTiles !== 'function') {
+          if (typeof loadTiledGrid === 'function') {
+            rawGrid = await loadTiledGrid(runtime);
+          } else if (typeof loadTiledTiles === 'function') {
+            const tiles = validatePublisherTiles(runtime, await loadTiledTiles(runtime));
+            rawGrid = Buffer.alloc(Number(runtime.width) * Number(runtime.height));
+            const tileSize = Number(runtime.tile_size || 32);
+            for (const tile of tiles) {
+              for (let y = 0; y < tile.height; y += 1) {
+                const destinationOffset = (tile.tile_y * tileSize + y) * Number(runtime.width) + tile.tile_x * tileSize;
+                rawGrid.set(tile.cells.slice(y * tile.width, (y + 1) * tile.width), destinationOffset);
+              }
+            }
+          } else {
             throw new Error(`CATALOG_TILED_LOADER_MISSING: ${entry.id}`);
           }
-          tiles = validatePublisherTiles(runtime, loadTiledTiles(runtime));
-          if (existing) {
-            existing.tiles = await q.all(`SELECT tile_x,tile_y,width,height,cells_json
-              FROM coloring_template_tiles WHERE template_id=? ORDER BY tile_y,tile_x`, [entry.id]);
+          if (!(rawGrid instanceof Uint8Array) || rawGrid.length !== Number(runtime.width) * Number(runtime.height)
+            || rawGrid.some((color) => !Number.isInteger(color) || color < 0 || color >= runtime.palette.length)) {
+            throw new Error(`CATALOG_TILED_GRID_INVALID: ${entry.id}`);
           }
-          gridChanged = !sameTemplateMap(existing, runtime, tiles);
+          gridTileColorCounts = buildCatalogTileColorCountVector(runtime, rawGrid);
+          const existingGridSource = await q.get(
+            `SELECT object_key,sha256,compressed_bytes,raw_bytes,tile_color_counts,tile_color_counts_sha256
+               FROM coloring_catalog_grid_sources WHERE template_id=?`,
+            [entry.id],
+          );
+          if (existingGridSource) {
+            try {
+              validateCatalogGridSourceDescriptor(existingGridSource, runtime);
+            } catch {
+              gridChanged = true;
+            }
+          }
+          gridChanged = gridChanged || !sameTemplateMap(existing, runtime, existingGridSource);
+          const storedTileCount = existing
+            ? await q.get('SELECT COUNT(*) AS c FROM coloring_template_tiles WHERE template_id=?', [entry.id])
+            : null;
+          const hasLegacyTileRows = numberValue(storedTileCount, 'c') > 0;
+          const guidanceIndex = existing
+            ? await q.get('SELECT template_id FROM coloring_template_guidance_index_meta WHERE template_id=?', [entry.id])
+            : null;
+          writeGridSource = !existing || gridChanged || !existingGridSource || hasLegacyTileRows || !guidanceIndex;
         } else {
           gridChanged = !sameTemplateMap(existing, runtime);
         }
-        if (existing && gridChanged && await templateHasProgress(q, entry.id)) {
+        if (existing && (gridChanged || writeGridSource) && await templateHasProgress(q, entry.id)) {
           const error = new Error(`Catalog grid change would invalidate existing painting progress: ${entry.id}`);
           error.code = 'CATALOG_GRID_CHANGE_WITH_PROGRESS';
           throw error;
         }
-        if (existing && gridChanged) await clearStoredGrid(q, entry.id);
+        if (existing && (gridChanged || writeGridSource)) await clearStoredGrid(q, entry.id);
       }
       await q.run(templateSql, [
         entry.id, null, entry.title, entry.description || '', entry.category || 'featured', entry.difficulty || 'easy',
@@ -569,10 +727,12 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
 
       if (!catalogManaged && tiled) {
         await q.run('DELETE FROM coloring_zones WHERE template_id=?', [entry.id]);
-        if (!existing || gridChanged) {
-          await insertTemplateTiles(q, entry.id, tiles, now);
+        if (writeGridSource) {
+          const indexed = await persistCatalogGridSource(q, runtime, gridTileColorCounts, now);
           tiledTemplatesPublished += 1;
-          tiledTemplateTilesPublished += tiles.length;
+          tiledGridSourceBytes += Number(runtime.cell_map_bytes);
+          tiledTileColorIndexBytes += indexed.tile_color_count_bytes;
+          tiledMapTilesIndexed += indexed.tiles;
         }
       } else if (!catalogManaged && (existingZoneCount === 0 || gridChanged)) {
         for (const [zoneIndex, zone] of buildZones(runtime.width, runtime.height).entries()) {
@@ -603,7 +763,10 @@ export async function publishCatalog({ db, catalog = readCanonicalCatalog(), now
       hidden_stale_catalog_rows: numberValue(stale, 'changes'),
       managed_stale_catalog_rows: numberValue(managedStale, 'c'),
       tiled_templates_published: tiledTemplatesPublished,
-      tiled_template_tiles_published: tiledTemplateTilesPublished,
+      tiled_grid_source_bytes: tiledGridSourceBytes,
+      tiled_tile_color_index_bytes: tiledTileColorIndexBytes,
+      tiled_map_tiles_indexed: tiledMapTilesIndexed,
+      database_template_tile_rows_written: databaseTemplateTileRowsWritten,
       user_progress_touched: false,
       ownership_touched: false,
       stars_semantics_touched: false,
@@ -616,6 +779,26 @@ export function buildCatalogAssetInventory(catalog = readCanonicalCatalog()) {
     ...record,
     absolute_source: join(serviceRoot, record.source_asset),
   }));
+}
+
+export function buildCatalogGridAssetInventory(catalog = readCanonicalCatalog()) {
+  return catalog.runtimeTemplates.filter((template) => template.storage_mode === 'tiled').map((template) => {
+    if (!validCatalogGridKey(template)
+      || !Number.isSafeInteger(Number(template.cell_map_bytes)) || Number(template.cell_map_bytes) < 1
+      || !/^[a-f0-9]{64}$/i.test(String(template.cell_map_sha256 || ''))) {
+      throw new Error(`Invalid R2 catalog grid metadata: ${template.id}`);
+    }
+    return {
+      id: template.id,
+      kind: 'grid',
+      source_asset: String(template.cell_map_asset).replaceAll('\\', '/'),
+      key: template.cell_map_r2_key,
+      bytes: Number(template.cell_map_bytes),
+      sha256: String(template.cell_map_sha256).toLowerCase(),
+      raw_bytes: Number(template.cell_map_raw_bytes),
+      absolute_source: join(serviceRoot, String(template.cell_map_asset)),
+    };
+  });
 }
 
 export function normalizeCatalogAssetInventory(records, assets) {
@@ -644,6 +827,29 @@ export function normalizeCatalogAssetInventory(records, assets) {
       throw new Error(`CATALOG_PREVIEW_SIZE_BUDGET_EXCEEDED: ${record.key} is ${bytes} bytes; limit is ${MAX_CATALOG_PREVIEW_BYTES}`);
     }
     return { ...record, bytes, sha256: String(expected.sha256).toLowerCase() };
+  });
+}
+
+export function normalizeCatalogGridAssetInventory(records, assets) {
+  if (!Array.isArray(assets)) throw new Error('grid inventory.assets must be an array');
+  const byKey = new Map();
+  for (const asset of assets) {
+    if (!asset || typeof asset.key !== 'string' || byKey.has(asset.key)) {
+      throw new Error('grid inventory contains an invalid or duplicate asset key');
+    }
+    byKey.set(asset.key, asset);
+  }
+  if (byKey.size !== records.length) throw new Error('grid inventory asset count does not match canonical catalog');
+  return records.map((record) => {
+    const expected = byKey.get(record.key);
+    if (!expected || expected.id !== record.id || expected.kind !== 'grid'
+      || expected.source_asset !== record.source_asset
+      || Number(expected.bytes) !== record.bytes
+      || String(expected.sha256 || '').toLowerCase() !== record.sha256
+      || Number(expected.raw_bytes) !== record.raw_bytes) {
+      throw new Error(`grid inventory does not match canonical catalog at ${record.key}`);
+    }
+    return record;
   });
 }
 
