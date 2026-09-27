@@ -73,7 +73,7 @@ benchmarks/checkpoints, not current runtime truth.
 ## Content Factory
 
 Read [CONTENT_PIPELINE_CONTRACT.md](CONTENT_PIPELINE_CONTRACT.md) and
-[PHASE4_CONTENT_METADATA_UI.md](PHASE4_CONTENT_METADATA_UI.md). Use
+[PHASE4_CONTENT_METADATA_UI.md](PHASE4_CONTENT_METADATA_UI.md). Gate every batch with [CONTENT_PUBLISH_CHECKLIST.md](CONTENT_PUBLISH_CHECKLIST.md). Use
 [evidence/content-quality/REPORT.md](evidence/content-quality/REPORT.md) and
 [evidence/content-quality/current-catalog.json](evidence/content-quality/current-catalog.json)
 as dated evidence only. Technical status, visual approval, and publication
@@ -113,6 +113,7 @@ not establish a current winner or authorize a production algorithm change.
 | --- | --- | --- | --- | --- |
 | [TELEGRAM_GAMEPLAY_QA.md](TELEGRAM_GAMEPLAY_QA.md) | Manual gameplay and WebView QA | Canonical QA protocol | Running Telegram gameplay checks | Calling browser evidence physical Telegram proof |
 | [TELEGRAM_IOS_VIEWPORT_DIAGNOSTIC.md](TELEGRAM_IOS_VIEWPORT_DIAGNOSTIC.md) | Bounded physical iOS measurement protocol | Canonical protocol | A defect is isolated to iOS/WebView after autonomous prerequisites | Current result; protocol is not a pass |
+| [TELEGRAM_IOS_BATCH_PROTOCOL.md](TELEGRAM_IOS_BATCH_PROTOCOL.md) | Batched single-session owner validation (up to 3 hypotheses) | Canonical batching policy | Requesting physical iPhone time or recording a device result | Serial per-hypothesis pings or claiming browser evidence as device proof |
 | [evidence/TELEGRAM_IOS_PHYSICAL_BLOCKER_2026-09-04.md](evidence/TELEGRAM_IOS_PHYSICAL_BLOCKER_2026-09-04.md) | Dated physical Telegram evidence/blocker | Historical evidence | Reviewing that specific validation attempt | Generic permanent blocker or current root cause |
 | [TELEGRAM_IOS_NAV_LOCAL_EVIDENCE.md](TELEGRAM_IOS_NAV_LOCAL_EVIDENCE.md) | Local/browser navigation evidence | Historical evidence | Comparing the 2026-09-03 local run | Physical Telegram iOS proof |
 | [evidence/PHYSICAL_SAFARI_LAYOUT_EVIDENCE_2026-09-04.md](evidence/PHYSICAL_SAFARI_LAYOUT_EVIDENCE_2026-09-04.md) | Physical Safari screenshot analysis | Historical evidence | Reviewing that screenshot | Telegram WebView proof |
@@ -129,6 +130,7 @@ documentation](https://core.telegram.org/bots/telegram-login).
 | --- | --- | --- | --- | --- |
 | [E2E_TEST_INVENTORY.md](E2E_TEST_INVENTORY.md) | Current suite topology, critical/extended split, and manifest relationship | Canonical E2E contract | Changing tests, shards, CI, retries, or quarantine | Reusing old counts from a handoff |
 | [E2E_QUARANTINE_POLICY.md](E2E_QUARANTINE_POLICY.md) | Evidence requirements for temporary quarantine | Canonical E2E policy | Handling a proven flaky test | Making a failing release gate green |
+| [DOCS_BUDGET.md](DOCS_BUDGET.md) | Per-PR documentation churn cap and evidence routing | Canonical process policy | Opening a PR that touches docs or adding a handoff/log | Changing a product or technical contract silently |
 | [E2E_SHARD_LOAD_MANIFEST.json](E2E_SHARD_LOAD_MANIFEST.json) | Generated test-to-shard assignment and fingerprint | Current generated evidence | Running or validating extended shards | Claiming a CI run passed |
 | [../.github/workflows/ci.yml](../.github/workflows/ci.yml) | Authoritative CI jobs and required dependency groups | Implementation/config evidence | Verifying release flow | Current CI result without a run link |
 
@@ -144,6 +146,7 @@ Historical E2E investigations: [E2E_CI_PERFORMANCE.md](E2E_CI_PERFORMANCE.md),
 | Document | Purpose | Authority | Read when | Do not use for |
 | --- | --- | --- | --- | --- |
 | [COMMERCE_CONTRACT.md](COMMERCE_CONTRACT.md) | Canonical XTR order, entitlement, marketplace, payout, and fail-closed rules | Canonical commerce overview | Any economic boundary task | Current activation without direct evidence |
+| [STARS_GATE_DRILL_CHECKLIST.md](STARS_GATE_DRILL_CHECKLIST.md) | Operational drill for the durable disabled/controlled/public purchase gate | Canonical drill procedure | Drilling the kill-switch or proposing public activation | Activating commerce or using real payments to pass tests |
 | [telegram-stars-xtr.md](telegram-stars-xtr.md) | Detailed provider-shaped order/refund/reconciliation lifecycle | Canonical implementation contract | Working on XTR service or webhook design | Claiming real Bot API or Stars activation |
 | [adr/ADR-001-payment-modes-and-telegram-stars.md](adr/ADR-001-payment-modes-and-telegram-stars.md) | Payment mode decision and activation checklist | Canonical decision record | Reviewing why production is disabled | Current production state |
 | [stars-transactions.md](stars-transactions.md) | Legacy internal-credit transaction design | Historical compatibility record | Working on legacy ledger compatibility | Telegram Stars, marketplace, or payout truth |
