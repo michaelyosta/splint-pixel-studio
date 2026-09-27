@@ -7,6 +7,8 @@ concurrency:
 on:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'
   push:
     branches:
       - main
@@ -157,6 +159,7 @@ jobs:
           retention-days: 14
 
   e2e:
+    if: ${{ github.event_name != 'pull_request' }}
     name: e2e (${{ matrix.shard }}/24)
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -262,8 +265,12 @@ jobs:
           STORAGE_RESULT: ${{ needs.storage-s3-contract.result }}
           CRITICAL_RESULT: ${{ needs.e2e-critical.result }}
           EXTENDED_RESULT: ${{ needs.e2e.result }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -eu
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$EXTENDED_RESULT" = "skipped" ]; then
+            EXTENDED_RESULT="success"
+          fi
           if [ "$VERIFY_RESULT" != "success" ] || \
              [ "$POSTGRES_RESULT" != "success" ] || \
              [ "$STORAGE_RESULT" != "success" ] || \
