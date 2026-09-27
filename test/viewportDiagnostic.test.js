@@ -17,7 +17,7 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
   const root = element({ x: 0, y: 0, width: 390, height: 844, top: 0, right: 390, bottom: 844, left: 0 });
   const frame = element({ x: 0, y: 0, width: 390, height: 844, top: 0, right: 390, bottom: 844, left: 0 });
   const container = element({ x: 0, y: 0, width: 390, height: 844, top: 0, right: 390, bottom: 844, left: 0 });
-  const screenContent = element({ x: 0, y: 60, width: 390, height: 784, top: 60, right: 390, bottom: 844, left: 0 });
+  const screenContent = element({ x: 0, y: 60, width: 390, height: 690, top: 60, right: 390, bottom: 750, left: 0 });
   const tabBar = element({ x: 10, y: 760, width: 370, height: 68, top: 760, right: 380, bottom: 828, left: 10 });
   const navItems = [
     Object.assign(element({ x: 10, y: 760, width: 123, height: 68, top: 760, right: 133, bottom: 828, left: 10 }), { tagName: 'BUTTON', className: 'active' }),
@@ -38,15 +38,15 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
     '--tg-content-safe-area-inset-left': '0px',
   };
   const style = {
-    position: 'absolute',
-    top: '0px',
-    right: '10px',
-    bottom: '10px',
-    left: '10px',
+    position: 'relative',
+    top: 'auto',
+    right: 'auto',
+    bottom: 'auto',
+    left: 'auto',
     width: '370px',
     height: '68px',
     maxHeight: '844px',
-    paddingBottom: '34px',
+    paddingBottom: '0px',
     overflowY: 'auto',
     zIndex: '20',
     display: 'block',
@@ -55,7 +55,7 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
     backgroundColor: 'rgb(12, 22, 34)',
     color: 'rgb(43, 217, 254)',
     filter: 'none',
-    backdropFilter: 'blur(14px)',
+    backdropFilter: 'none',
     transform: 'none',
     mixBlendMode: 'normal',
     isolation: 'auto',
@@ -112,24 +112,24 @@ test('viewport diagnostic captures Telegram, visual viewport and layout overlap 
   assert.equal(snapshot.rects.tabBar.bottom, 828);
   assert.equal(snapshot.navItems.length, 3);
   assert.equal(snapshot.navItems[0].paint.opacity, '1');
-  assert.equal(snapshot.navItems[0].paint.backdropFilter, 'blur(14px)');
+  assert.equal(snapshot.navItems[0].paint.backdropFilter, 'none');
   assert.equal(snapshot.navItems[0].hitTarget, 'button.active');
   assert.equal(snapshot.geometry.verdict, 'NO_GEOMETRY_PAINT_HIT_FAILURE');
   assert.equal(snapshot.geometry.frameWithinVisual, true);
   assert.equal(snapshot.geometry.tabBarWithinFrame, true);
   assert.deepEqual(snapshot.geometry.paintInvisible, []);
   assert.deepEqual(snapshot.geometry.hitUnavailable, []);
-  assert.match(formatted, /paint \.app-tab-bar: .*opacity=1 .*backdrop=blur\(14px\)/);
+  assert.match(formatted, /paint \.app-tab-bar: .*opacity=1 .*backdrop=none/);
   assert.match(formatted, /geometry: verdict=NO_GEOMETRY_PAINT_HIT_FAILURE .*paintInvisible=none hitUnavailable=none/);
   assert.match(formatted, /hit nav\[1\]: button\.active/);
   assert.equal(snapshot.overlaps.rootFrame.intersects, true);
   assert.equal(snapshot.overlaps.frameTabBar.intersects, true);
-  assert.equal(snapshot.overlaps.screenContentTabBar.area, 25160);
-  assert.equal(snapshot.positions.tabBar.position, 'absolute');
+  assert.equal(snapshot.overlaps.screenContentTabBar.area, 0);
+  assert.equal(snapshot.positions.tabBar.position, 'relative');
   assert.match(formatted, /telegram\.viewportStableHeight: 844\.00/);
   assert.match(formatted, /visualViewport: .*offsetTop=0\.00 .*scale=1\.00/);
   assert.match(formatted, /rect \.app-tab-bar: .*right=380\.00 .*left=10\.00/);
-  assert.match(formatted, /overlap \.screen-content × \.app-tab-bar: yes/);
+  assert.match(formatted, /overlap \.screen-content × \.app-tab-bar: no/);
   assert.doesNotMatch(formatted, /must-not-be-read-or-rendered|initData/);
 });
 
