@@ -219,8 +219,7 @@ img { user-select: none; }
   height: 5px;
   background: var(--app-cyan);
   opacity: 0;
-  transform: scale(0.4);
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity 0.18s ease;
   box-shadow: 0 0 8px var(--app-cyan-glow);
 }
 
@@ -233,11 +232,9 @@ img { user-select: none; }
 
 .app-tab-bar > button.active::before {
   opacity: 1;
-  transform: scale(1);
 }
 
-.app-tab-bar > button svg { transition: transform 0.16s ease; }
-.app-tab-bar > button.active svg { transform: translateY(-1px); }
+/* iOS Telegram WebView can drop the tab bar paint when the active tab carries transform layers. The active signal stays color plus dot opacity; no transform is applied to tab content. */
 
 /* ── Pages & headings ─────────────────────────────────────────── */
 .page {
