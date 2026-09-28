@@ -52,7 +52,7 @@ test('app header and default shell expose only primary navigation routes', () =>
   );
 });
 
-test('application shell restores the known-good flex and absolute navigation contract', () => {
+test('application shell keeps navigation in normal flex flow for Telegram iOS paint stability', () => {
   const app = source('src/App.jsx');
   const styles = source('src/App.css');
   const containerRule = styles.match(/\.app-container\s*\{([\s\S]*?)\}/)?.[1] || '';
@@ -67,16 +67,21 @@ test('application shell restores the known-good flex and absolute navigation con
   assert.match(contentRule, /flex:\s*1/);
   assert.match(contentRule, /min-height:\s*0/);
   assert.match(contentRule, /overflow-y:\s*auto/);
-  assert.match(contentRule, /padding-bottom:\s*96px/);
-  assert.match(navigationRule, /position:\s*absolute/);
-  assert.match(navigationRule, /bottom:\s*calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
-  assert.match(navigationRule, /backdrop-filter:\s*blur\(14px\)/);
+  assert.doesNotMatch(contentRule, /padding-bottom:\s*96px/);
+  assert.match(navigationRule, /position:\s*relative/);
+  assert.match(navigationRule, /flex:\s*0 0 auto/);
+  assert.match(navigationRule, /margin:\s*8px 10px calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
+  assert.doesNotMatch(navigationRule, /backdrop-filter/);
+  assert.match(styles, /\.telegram-frame\[data-platform='telegram'\] \.page\s*\{\s*animation:\s*none;/);
+  assert.match(styles, /height:\s*var\(--tg-viewport-stable-height,\s*100dvh\)/);
   // Three primary destinations share the bar equally. The legacy five-tab
   // `width: 20%` rule (still present on `.app-tab-bar > button`) would leave a
   // three-tab bar at 60% width with a dead 40% tail.
   assert.match(redesignedButtonRule, /flex:\s*1 1 0/);
   assert.match(redesignedButtonRule, /width:\s*auto/);
   assert.doesNotMatch(redesignedButtonRule, /width:\s*\d+%/);
+  assert.doesNotMatch(styles, /\.app-tab-bar > button svg\s*\{[\s\S]*?transform/);
+  assert.doesNotMatch(styles, /\.app-tab-bar > button\.active svg\s*\{[\s\S]*?transform/);
   assert.doesNotMatch(app, /createPortal|shellGeneration|telegramStartupBlocked|app-container--play/);
 });
 

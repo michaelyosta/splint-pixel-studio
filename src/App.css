@@ -22,8 +22,8 @@ img { user-select: none; }
 /* ── Phone frame (desktop preview of the Mini App) ────────────── */
 .telegram-frame {
   width: min(100%, 420px);
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--tg-viewport-stable-height, 100dvh);
+  max-height: var(--tg-viewport-stable-height, 100dvh);
   background-color: var(--app-bg);
   border: 1px solid #22364C;
   border-radius: 36px;
@@ -42,8 +42,6 @@ img { user-select: none; }
   body { background-color: var(--app-bg); background-image: none; }
   .telegram-frame {
     width: 100vw;
-    height: 100dvh;
-    max-height: 100dvh;
     border: none;
     border-radius: 0;
     box-shadow: none;
@@ -160,7 +158,6 @@ img { user-select: none; }
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-bottom: 96px;
   position: relative;
   scrollbar-width: thin;
 }
@@ -175,18 +172,19 @@ img { user-select: none; }
 
 /* ── Tab bar ──────────────────────────────────────────────────── */
 .app-tab-bar {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  position: relative;
+  flex: 0 0 auto;
+  margin: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
   height: 62px;
   display: flex;
   justify-content: space-around;
   align-items: stretch;
-  background: rgba(12, 22, 34, 0.92);
+  background: var(--app-dark-gray);
   border: 1px solid var(--app-border);
   border-radius: 20px;
-  backdrop-filter: blur(14px);
+  /* Telegram iOS can drop the paint of an absolutely positioned or blurred
+     bottom layer while the compact sheet is reopened. Keep the bar in normal
+     flow and use an opaque fill so its controls remain rasterizable. */
   box-shadow: 0 12px 30px rgba(2, 8, 14, 0.6);
   z-index: 20;
 }
@@ -212,7 +210,7 @@ img { user-select: none; }
   white-space: nowrap;
   overflow: hidden;
   padding: 0 2px;
-  transition: color 0.16s ease, transform 0.16s ease;
+  transition: color 0.16s ease;
 }
 
 .app-tab-bar > button::before {
@@ -223,12 +221,9 @@ img { user-select: none; }
   height: 5px;
   background: var(--app-cyan);
   opacity: 0;
-  transform: scale(0.4);
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity 0.18s ease;
   box-shadow: 0 0 8px var(--app-cyan-glow);
 }
-
-.app-tab-bar > button:active { transform: scale(0.94); }
 
 .app-tab-bar > button.active {
   color: var(--app-cyan);
@@ -237,17 +232,22 @@ img { user-select: none; }
 
 .app-tab-bar > button.active::before {
   opacity: 1;
-  transform: scale(1);
 }
 
-.app-tab-bar > button svg { transition: transform 0.16s ease; }
-.app-tab-bar > button.active svg { transform: translateY(-1px); }
+/* Keep active-state feedback on color and opacity; iOS Telegram can lose
+   descendants of transformed tab buttons during a route repaint. */
 
 /* ── Pages & headings ─────────────────────────────────────────── */
 .page {
   padding: 18px 14px 24px;
   animation: pageIn 0.28s ease both;
 }
+
+/* Route-level transforms make Telegram iOS rebuild the scroll layer together
+   with the sibling navigation bar. Keep the shell visually stable there; the
+   content still swaps immediately and remains scrollable. */
+.telegram-frame[data-platform='telegram'] .page { animation: none; }
+
 @keyframes pageIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -3189,7 +3189,7 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
     box-shadow: none;
   }
   .app-header { padding: 14px 28px; }
-  .screen-content { padding-bottom: 98px; }
+  .screen-content { padding-bottom: 0; }
   .home-page,
   .catalog-page--redesigned,
   .feed-page--redesigned,
@@ -3197,7 +3197,14 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
   .profile-page--showcase,
   .create-hub-page,
   .store-page { width: min(100%, 1180px); margin-inline: auto; box-sizing: border-box; padding: 32px 32px 48px; }
-  .app-tab-bar--redesigned { left: 50%; right: auto; width: min(calc(100% - 48px), 680px); transform: translateX(-50%); }
+  .app-tab-bar--redesigned {
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: min(calc(100% - 48px), 680px);
+    margin: 8px auto calc(10px + env(safe-area-inset-bottom, 0px));
+    transform: none;
+  }
   .catalog-art-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
   .catalog-collection-grid { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
   .catalog-art-card .catalog-art-preview { aspect-ratio: 1; height: auto; }
