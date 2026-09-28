@@ -77,6 +77,9 @@ test('application shell keeps navigation in normal flow for Telegram iOS reopen'
   assert.match(navigationRule, /margin:\s*8px 10px calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
   assert.doesNotMatch(navigationRule, /backdrop-filter\s*:/);
   assert.doesNotMatch(redesignedNavigationRule, /(?:left|right|bottom|transform):\s*/);
+  assert.match(styles, /\.telegram-frame\[data-platform='telegram'\] \.page\s*\{\s*animation:\s*none;/);
+  assert.doesNotMatch(styles, /\.app-tab-bar > button svg\s*\{[\s\S]*?transform/);
+  assert.doesNotMatch(styles, /\.app-tab-bar > button\.active svg\s*\{[\s\S]*?transform/);
   // Three primary destinations share the bar equally. The legacy five-tab
   // `width: 20%` rule (still present on `.app-tab-bar > button`) would leave a
   // three-tab bar at 60% width with a dead 40% tail.
