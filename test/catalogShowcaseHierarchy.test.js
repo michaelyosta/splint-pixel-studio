@@ -65,3 +65,16 @@ test('showcase keeps catalog contracts: hero copy, teaser, chips, no progression
   const showcaseBlock = source.slice(source.indexOf('topShelves.map(renderShelf)'));
   assert.doesNotMatch(showcaseBlock, /\bXP\b|уровень|достижени|серия|наград|streak/i);
 });
+
+test('collection cards use visible covers and complete per-collection facts', async () => {
+  const source = await loadSource();
+  const css = await readFile(new URL('../src/App.css', import.meta.url), 'utf8');
+  assert.match(source, /buildCollectionProgress\(sourceCollection, mine\)/);
+  assert.match(source, /sourceCollection\.description \|\| theme/);
+  assert.match(source, /Бесплатно \{freeCount\} · Premium \{premiumCountForCollection\}/);
+  assert.match(source, /\{collection\.completed_count\} из \{total\} раскрашено/);
+  assert.match(source, /onTrack\('collection_open', \{ collection_id: collection\.id \}\)/);
+  assert.match(source, /onOpenCollection\(collection\)/);
+  assert.match(css, /\.catalog-collection-preview \{[^}]*width: 100%[^}]*aspect-ratio: 4 \/ 3/s);
+  assert.match(css, /\.catalog-collection-card small \{[^}]*white-space: normal[^}]*text-overflow: clip/s);
+});
