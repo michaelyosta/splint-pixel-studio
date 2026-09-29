@@ -28,6 +28,7 @@ async function dismissOnboarding(page) {
 
 async function openFirstCatalogPlayer(page) {
   await page.goto('/');
+  await page.locator('[data-catalog-all-works-toggle="true"]').click({ timeout: 15000 });
   const card = page.locator('.catalog-art-open').first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();

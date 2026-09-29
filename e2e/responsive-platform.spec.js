@@ -15,6 +15,7 @@ test('Catalog/Create/Profile shell has no horizontal overflow across the respons
     await page.goto('/');
     await expect(page.locator('.app-tab-bar')).toBeVisible();
     await expect(page.locator('.app-tab-bar > button')).toHaveCount(3);
+    await page.locator('[data-catalog-all-works-toggle="true"]').click({ timeout: 15000 });
     await expect(page.locator('.catalog-art-grid').first()).toBeAttached();
     const metrics = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,

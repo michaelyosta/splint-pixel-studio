@@ -2583,6 +2583,15 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .catalog-hero-stats b { color: var(--app-text-primary); font-size: 16px; line-height: 1; }
 .catalog-hero-stats small { color: var(--app-text-secondary); font-size: 8px; white-space: nowrap; }
 .catalog-store-chip { display: inline-flex; align-items: center; gap: 5px; border-color: rgba(255, 199, 44, 0.4) !important; color: var(--app-gold) !important; background: rgba(255, 199, 44, 0.08) !important; }
+.catalog-premium-gallery { margin: 18px 0 4px; padding: 13px 12px 12px; border: 1px solid rgba(255, 199, 44, 0.4); border-radius: 18px; background: linear-gradient(135deg, rgba(255, 199, 44, 0.1), rgba(16, 29, 45, 0.96) 62%); box-shadow: var(--shadow-card); }
+.catalog-premium-gallery .catalog-section-heading { margin-top: 0; margin-bottom: 10px; }
+.catalog-premium-gallery .catalog-section-heading h2 { display: inline-flex; align-items: center; gap: 6px; color: var(--app-gold); }
+.catalog-premium-gallery .catalog-section-heading small { display: block; margin-top: 4px; color: var(--app-text-secondary); font-size: 10px; line-height: 1.4; }
+.catalog-all-works { margin-top: 18px; }
+.catalog-all-works-toggle { width: 100%; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border: 1px solid var(--app-border-strong); border-radius: 15px; background: var(--app-card); color: var(--app-text-primary); font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.catalog-all-works-toggle:hover { border-color: rgba(43, 217, 254, 0.55); }
+.catalog-art-card[data-access='premium'] { border-color: rgba(255, 199, 44, 0.42); }
+.catalog-art-premium-badge { display: inline-flex; align-items: center; gap: 4px; color: var(--app-gold) !important; }
 .catalog-shelf { margin-bottom: 19px; }
 .catalog-shelf .catalog-section-heading { align-items: flex-end; }
 .catalog-shelf .catalog-section-heading small { display: block; max-width: 52ch; margin-top: 4px; color: var(--app-text-secondary); font-size: 10px; line-height: 1.35; }
