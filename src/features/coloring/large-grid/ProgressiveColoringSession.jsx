@@ -21,9 +21,10 @@ import {
 } from '../../../lib/specialCellsDiagnostics.js';
 import { createBoundedAnnouncer, formatPaletteState, moveKeyboardCursor } from '../../../lib/accessibility.js';
 import {
+  autoSpecialActionForOffer,
   autoSparkActionForOffer,
   autoSparkActionKey,
-  submitAutoSparkAction,
+  submitAutoSpecialAction,
 } from '../../../lib/specialCellsGameplay.js';
 import SpecialCellsDevHud from '../SpecialCellsDevHud.jsx';
 import { isSessionGameSpecialAllowed } from '../../sessionGame/sessionGameExperiment.js';
@@ -209,16 +210,125 @@ function offerKind(specialOffer) {
   return specialOffer?.kind ? String(specialOffer.kind).toLowerCase() : 'spark';
 }
 
+export function SpecialCellEffectOverlay({ effect, camera, width, palette, reducedMotion, cellSize = CELL_SIZE, size = null }) {
+  if (!effect?.kind || !camera || !width) return null;
+  const cells = (effect.changes || []).filter((change) => Number.isInteger(Number(change.index)));
+  const cellIndex = Number(effect.cellIndex);
+  const artifactCell = effect.kind === 'artifact' && Number.isInteger(cellIndex) && cellIndex >= 0
+    ? [{ index: cellIndex, color: -1 }]
+    : [];
+  const visibleCells = cells.length ? cells : artifactCell;
+  if (!visibleCells.length) return null;
+  const cellPixels = cellSize * camera.zoom;
+  const points = visibleCells.map(({ index }) => ({
+    index: Number(index),
+    x: Number(index) % width,
+    y: Math.floor(Number(index) / width),
+  }));
+  const bounds = {
+    minX: Math.min(...points.map(({ x }) => x)),
+    minY: Math.min(...points.map(({ y }) => y)),
+    maxX: Math.max(...points.map(({ x }) => x)),
+    maxY: Math.max(...points.map(({ y }) => y)),
+  };
+  const left = (x) => camera.x + x * cellPixels;
+  const top = (y) => camera.y + y * cellPixels;
+  const centerX = Number.isFinite(Number(effect.centerX)) ? Number(effect.centerX) : points[0].x;
+  const centerY = Number.isFinite(Number(effect.centerY)) ? Number(effect.centerY) : points[0].y;
+  const radius = Math.max(1, Number(effect.radius) || 3);
+  const kind = ['spark', 'bomb', 'fuse', 'choice', 'artifact', 'hazard'].includes(effect.kind)
+    ? effect.kind
+    : 'choice';
+  const spanWidth = bounds.maxX - bounds.minX + 1;
+  const spanHeight = bounds.maxY - bounds.minY + 1;
+  const pad = kind === 'bomb' ? radius : 0;
+  const screenLeft = camera.x + (bounds.minX - pad) * cellPixels;
+  const screenTop = camera.y + (bounds.minY - pad) * cellPixels;
+  const screenRight = camera.x + (bounds.maxX + pad + 1) * cellPixels;
+  const screenBottom = camera.y + (bounds.maxY + pad + 1) * cellPixels;
+  const projectIntoViewport = Boolean(size?.width && size?.height
+    && (screenLeft < 0 || screenRight > size.width || screenTop < 0 || screenBottom > size.height));
+  const effectCellPixels = projectIntoViewport
+    ? Math.max(8, Math.min(cellPixels, (size.width - 40) / spanWidth, (size.height - 40) / spanHeight))
+    : cellPixels;
+  const projectedLeft = projectIntoViewport ? (size.width - spanWidth * effectCellPixels) / 2 : 0;
+  const projectedTop = projectIntoViewport ? (size.height - spanHeight * effectCellPixels) / 2 : 0;
+  const effectLeft = (x) => projectIntoViewport
+    ? projectedLeft + (x - bounds.minX) * effectCellPixels
+    : left(x);
+  const effectTop = (y) => projectIntoViewport
+    ? projectedTop + (y - bounds.minY) * effectCellPixels
+    : top(y);
+  const projectedBombLeft = projectedLeft + (centerX - bounds.minX - radius) * effectCellPixels;
+  const projectedBombTop = projectedTop + (centerY - bounds.minY - radius) * effectCellPixels;
+  return (
+    <div
+      key={`${kind}:${effect.specialId || ''}:${effect.revision || ''}`}
+      className={`special-fx-overlay special-fx-${kind}${reducedMotion ? ' special-fx-reduced' : ''}`}
+      aria-hidden="true"
+      data-special-fx={kind}
+      data-special-fx-revision={effect.revision}
+    >
+      {kind === 'bomb' && (
+        <span
+          className="special-fx-bomb-ring"
+          style={{
+            left: projectIntoViewport ? projectedBombLeft : effectLeft(centerX - radius),
+            top: projectIntoViewport ? projectedBombTop : effectTop(centerY - radius),
+            width: effectCellPixels * (radius * 2 + 1),
+            height: effectCellPixels * (radius * 2 + 1),
+          }}
+        />
+      )}
+      {['spark', 'choice'].includes(kind) && (
+        <span
+          className="special-fx-region"
+          style={{
+            left: effectLeft(bounds.minX),
+            top: effectTop(bounds.minY),
+            width: effectCellPixels * spanWidth,
+            height: effectCellPixels * spanHeight,
+          }}
+        />
+      )}
+      {points.map(({ index, x, y }, order) => {
+        const change = visibleCells.find((candidate) => Number(candidate.index) === index);
+        return (
+          <span
+            key={index}
+            className="special-fx-cell"
+            style={{
+              left: effectLeft(x),
+              top: effectTop(y),
+              width: effectCellPixels,
+              height: effectCellPixels,
+              '--special-fx-color': palette?.[change?.color] || '#b5f7fb',
+              '--special-fx-delay': `${Math.min(order * (kind === 'fuse' ? 55 : 12), 440)}ms`,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function SpecialOfferStatus({ specialOffer }) {
+  const kind = offerKind(specialOffer);
+  const label = ({
+    spark: 'Искра раскрывает выбранный сервером участок',
+    bomb: 'Бомба срабатывает вокруг особой клетки',
+    fuse: 'Фитиль обезвреживает следующее звено',
+    choice: 'Применяется первый серверный вариант',
+    hazard: 'Опасность обезвреживается',
+  })[kind] || 'Особая клетка активируется';
+  return <span className="sr-only" role="status" aria-live="polite" data-special-auto-applying={kind}>{label}</span>;
+}
+
 function RevealCeremony({ ceremony, camera, size, reducedMotion }) {
   if (!ceremony || !size?.width || !size?.height) return null;
   const frame = ceremony.bounds
     ? revealBoundsToScreen(ceremony.bounds, camera, CELL_SIZE)
-    : {
-      left: 12,
-      top: 12,
-      width: Math.max(0, size.width - 24),
-      height: Math.max(0, size.height - 24),
-    };
+    : { left: 12, top: 12, width: Math.max(0, size.width - 24), height: Math.max(0, size.height - 24) };
   if (!frame || frame.width <= 0 || frame.height <= 0) return null;
   const copy = revealCeremonyCopy(ceremony.kind);
   return (
@@ -233,10 +343,7 @@ function RevealCeremony({ ceremony, camera, size, reducedMotion }) {
       data-reveal-ceremony-reduced-motion={reducedMotion ? 'true' : 'false'}
     >
       <span className="progressive-grid-reveal-ceremony-frame" aria-hidden="true" />
-      <span className="progressive-grid-reveal-ceremony-copy">
-        <b>{copy.label}</b>
-        <small>{copy.detail}</small>
-      </span>
+      <span className="progressive-grid-reveal-ceremony-copy"><b>{copy.label}</b><small>{copy.detail}</small></span>
     </div>
   );
 }
@@ -713,7 +820,6 @@ export default function ProgressiveColoringSession({
   const [successNotice, setSuccessNotice] = useState(null);
   const [errorNotice, setErrorNotice] = useState(null);
   const [navigationMode, setNavigationMode] = useState(false);
-  const [sparkWave, setSparkWave] = useState(null);
   const [revealCeremony, setRevealCeremony] = useState(null);
   const [artifactReveal, setArtifactReveal] = useState(null);
   const [sessionGameNextBeatReady, setSessionGameNextBeatReady] = useState(false);
@@ -751,19 +857,18 @@ export default function ProgressiveColoringSession({
   const revealCeremonyTimerRef = useRef(null);
   const keyboardCellRef = useRef(null);
   const selectedSparkTargetRef = useRef(null);
-  const sessionEventOfferKeyRef = useRef('');
   const sessionGameSpecialsArmedRef = useRef(false);
 
   const sessionGameActive = Boolean(sessionGameExperiment?.enabled);
   const sessionGameTreatment = sessionGameActive && sessionGameExperiment.variantId === 'treatment';
   const sessionGameEvent = sessionGameTreatment ? sessionGameExperiment.positiveEventId : null;
-  const sessionGameAutomaticSpark = sessionGameEvent === 'spark_auto';
   const specialAllowed = (kind) => !sessionGameActive
     || (sessionGameSpecialsArmed && isSessionGameSpecialAllowed(sessionGameExperiment, kind));
 
   useEffect(() => {
-    const action = autoSparkActionForOffer(specialOffer);
-    if (sessionGameActive) return;
+    const action = autoSpecialActionForOffer(specialOffer, {
+      cameraCenter: guidanceCameraCenter(cameraRef.current, sizeRef.current, CELL_SIZE),
+    });
     if (!action || typeof onSpecialAction !== 'function') {
       if (!specialOffer) {
         autoSparkOfferKeyRef.current = '';
@@ -772,66 +877,28 @@ export default function ProgressiveColoringSession({
       }
       return;
     }
-    const key = autoSparkActionKey(action);
+    const key = autoSparkActionKey(action, specialOffer);
     if (autoSparkBlockedKeyRef.current === key) return;
     if (autoSparkOfferKeyRef.current === key) return;
     autoSparkOfferKeyRef.current = key;
+    const target = specialOffer?.target_options?.find((option) => option.option_id === action.option_id)
+      || specialOffer?.target_options?.[0]
+      || null;
+    if (target) selectedSparkTargetRef.current = target;
     setAutoSparkRetryKey('');
-    void submitAutoSparkAction(onSpecialAction, action).then((accepted) => {
+    void submitAutoSpecialAction(onSpecialAction, {
+      ...action,
+      ...(sessionGameActive ? { session_game: true } : {}),
+    }).then((accepted) => {
       if (autoSparkOfferKeyRef.current !== key || accepted) return;
       autoSparkOfferKeyRef.current = '';
       autoSparkBlockedKeyRef.current = key;
       setAutoSparkRetryKey(key);
     });
-  }, [sessionGameActive, specialOffer, onSpecialAction, autoSparkAttempt]);
-
-  // Automatic Spark is deliberately a client-side event candidate on top of
-  // the existing server-authoritative offer. The server still chooses and
-  // bounds the target; this effect only removes a redundant choice modal and
-  // sends the single default target intent once per persisted offer.
-  useEffect(() => {
-    if (!sessionGameAutomaticSpark || !specialOffer || offerKind(specialOffer) !== 'spark'
-      || typeof onSpecialAction !== 'function') {
-      if (!specialOffer) sessionEventOfferKeyRef.current = '';
-      return;
-    }
-    const target = specialOffer.target_options?.find((option) => (
-      option.option_id === specialOffer.default_option_id
-    )) || specialOffer.target_options?.[0];
-    if (!target?.option_id || !specialOffer.offer_token) return;
-    const key = `${specialOffer.special_id}:${specialOffer.offer_token}:${target.option_id}`;
-    if (sessionEventOfferKeyRef.current === key) return;
-    sessionEventOfferKeyRef.current = key;
-    selectedSparkTargetRef.current = target;
-    setAutoSparkRetryKey('');
-    Promise.resolve(onSpecialAction({
-      type: 'use_spark',
-      special_id: specialOffer.special_id,
-      offer_token: specialOffer.offer_token,
-      option_id: target.option_id,
-      session_game: true,
-      experiment_group: 'treatment',
-    })).then((accepted) => {
-      if (sessionEventOfferKeyRef.current !== key || accepted) return;
-      sessionEventOfferKeyRef.current = '';
-      setAutoSparkRetryKey(autoSparkActionKey({
-        special_id: specialOffer.special_id,
-        offer_token: specialOffer.offer_token,
-        option_id: target.option_id,
-      }));
-    }).catch(() => {
-      if (sessionEventOfferKeyRef.current !== key) return;
-      sessionEventOfferKeyRef.current = '';
-      setAutoSparkRetryKey(autoSparkActionKey({
-        special_id: specialOffer.special_id,
-        offer_token: specialOffer.offer_token,
-        option_id: target.option_id,
-      }));
-    });
-  }, [autoSparkAttempt, onSpecialAction, sessionGameAutomaticSpark, specialOffer]);
+  }, [cameraRef, sessionGameActive, sizeRef, specialOffer, onSpecialAction, autoSparkAttempt]);
 
   function retryAutoSpark() {
-    const key = autoSparkActionKey(autoSparkActionForOffer(specialOffer));
+    const key = autoSparkActionKey(autoSparkActionForOffer(specialOffer), specialOffer);
     if (!key || autoSparkRetryKey !== key) return;
     autoSparkOfferKeyRef.current = '';
     autoSparkBlockedKeyRef.current = '';
@@ -946,12 +1013,7 @@ export default function ProgressiveColoringSession({
   const showRevealCeremony = useCallback(({ kind = 'fragment', bounds = null, cells = 0 } = {}) => {
     const normalizedBounds = normalizeRevealBounds(bounds, template.width, template.height);
     const token = `${kind}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-    setRevealCeremony({
-      token,
-      kind,
-      bounds: normalizedBounds,
-      cells: Math.max(0, Number(cells) || 0),
-    });
+    setRevealCeremony({ token, kind, bounds: normalizedBounds, cells: Math.max(0, Number(cells) || 0) });
     if (revealCeremonyTimerRef.current) clearTimeout(revealCeremonyTimerRef.current);
     revealCeremonyTimerRef.current = window.setTimeout(() => {
       revealCeremonyTimerRef.current = null;
@@ -996,44 +1058,10 @@ export default function ProgressiveColoringSession({
   }, [specialApplied, specialTreatment, template.width]);
 
   useEffect(() => {
-    if (!specialApplied || !['spark', 'bomb'].includes(specialApplied.kind)
-      || !specialApplied.changes?.length) return undefined;
-    const selected = selectedSparkTargetRef.current;
-    const changes = specialApplied.changes || [];
-    const indices = changes
-      .map((change) => Number(change.index))
-      .filter((index) => Number.isInteger(index) && index >= 0);
-    const changeBounds = indices.length
-      ? {
-        min_x: Math.min(...indices.map((index) => index % template.width)),
-        min_y: Math.min(...indices.map((index) => Math.floor(index / template.width))),
-        max_x: Math.max(...indices.map((index) => index % template.width)),
-        max_y: Math.max(...indices.map((index) => Math.floor(index / template.width))),
-      }
-      : null;
-    const event = specialApplied.kind === 'bomb'
-      ? 'bomb'
-      : sessionGameEvent === 'spark_auto' ? 'spark_auto' : 'spark_choice';
-    showRevealCeremony({
-      kind: 'special',
-      bounds: selected?.bounds || changeBounds,
-      cells: changes.length,
-    });
-    setSparkWave({
-      revision: specialApplied.revision,
-      cells: specialApplied.changes.length,
-      bounds: selected?.bounds || changeBounds,
-      label: specialApplied.kind === 'bomb'
-        ? 'Пространство вокруг точки раскрылось'
-        : selected?.label || 'Выбранный фрагмент',
-      phase2: sessionGameActive,
-      event,
-    });
+    if (!specialApplied?.kind) return;
     if (sessionGameActive) setSessionGameNextBeatReady(true);
     selectedSparkTargetRef.current = null;
-    const timer = window.setTimeout(() => setSparkWave(null), reducedMotion ? 700 : 1500);
-    return () => window.clearTimeout(timer);
-  }, [reducedMotion, sessionGameActive, sessionGameEvent, showRevealCeremony, specialApplied, template.width]);
+  }, [sessionGameActive, specialApplied]);
 
   useEffect(() => {
     if (!sessionGameActive || specialDiscovered?.kind !== 'artifact') return undefined;
@@ -2245,28 +2273,6 @@ export default function ProgressiveColoringSession({
         }
       }
     }
-    if (sparkWave?.phase2 && sparkWave.bounds && !overviewMode) {
-      const bounds = sparkWave.bounds;
-      const x = Number(bounds.min_x) * CELL_SIZE;
-      const y = Number(bounds.min_y) * CELL_SIZE;
-      const width = (Number(bounds.max_x) - Number(bounds.min_x) + 1) * CELL_SIZE;
-      const height = (Number(bounds.max_y) - Number(bounds.min_y) + 1) * CELL_SIZE;
-      if ([x, y, width, height].every(Number.isFinite)) {
-        const bombWave = sparkWave.event === 'bomb';
-        const automaticSparkWave = sparkWave.event === 'spark_auto';
-        ctx.save();
-        ctx.strokeStyle = bombWave ? 'rgba(255, 145, 130, 0.96)' : 'rgba(127, 231, 255, 0.95)';
-        ctx.lineWidth = 3 / Math.max(camera.zoom, 0.1);
-        ctx.shadowColor = bombWave ? 'rgba(255, 111, 92, 0.72)' : 'rgba(82, 218, 255, 0.82)';
-        ctx.shadowBlur = 14 / Math.max(camera.zoom, 0.1);
-        if (automaticSparkWave) {
-          ctx.fillStyle = 'rgba(112, 225, 255, 0.07)';
-          ctx.fillRect(x + 2, y + 2, Math.max(0, width - 4), Math.max(0, height - 4));
-        }
-        ctx.strokeRect(x + 2, y + 2, Math.max(0, width - 4), Math.max(0, height - 4));
-        ctx.restore();
-      }
-    }
     if (keyboardCell != null) {
       const cursorX = (keyboardCell % template.width) * CELL_SIZE;
       const cursorY = Math.floor(keyboardCell / template.width) * CELL_SIZE;
@@ -2279,7 +2285,7 @@ export default function ProgressiveColoringSession({
     }
     drawMinimap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camera, hideNumbers, hintMode, interactionMode, keyboardCell, lodMode, previewReady, selectedColor, sessionGameActive, sessionGameNextBeatReady, size.height, size.width, sparkWave, template.height, template.palette, template.width]);
+  }, [camera, hideNumbers, hintMode, interactionMode, keyboardCell, lodMode, previewReady, selectedColor, sessionGameActive, sessionGameNextBeatReady, size.height, size.width, template.height, template.palette, template.width]);
 
   useLayoutEffect(() => { draw(); }, [draw, drawRevision, status, progress]);
 
@@ -3121,7 +3127,7 @@ export default function ProgressiveColoringSession({
             <button type="button" onClick={() => { setErrorNotice(null); setInputNotice(null); markFreeExploration(); }}>Свободный просмотр</button>
           </div>
         )}
-        {specialTreatment && specialOffer && manifestReady && hasLoadedTiles && (
+        {specialTreatment && specialOffer?.manual_controls === true && manifestReady && hasLoadedTiles && (
           <SpecialOfferPanel
             key={specialOffer.special_id || specialOffer.offer_token || 'special-offer'}
             specialOffer={specialOffer}
@@ -3136,29 +3142,21 @@ export default function ProgressiveColoringSession({
             onSessionGameSparkSelection={(option) => { selectedSparkTargetRef.current = option; }}
           />
         )}
+        {specialTreatment && specialOffer && <SpecialOfferStatus specialOffer={specialOffer} />}
+        <SpecialCellEffectOverlay
+          effect={specialApplied}
+          camera={camera}
+          width={template.width}
+          palette={template.palette}
+          reducedMotion={reducedMotion}
+          size={size}
+        />
         <RevealCeremony
           ceremony={revealCeremony}
           camera={camera}
           size={size}
           reducedMotion={reducedMotion}
         />
-        {sparkWave && (
-          <div
-            className={`progressive-grid-special-wave phase2-${sparkWave.event || 'spark'}-wave`}
-            role="status"
-            data-special-wave
-            data-special-wave-kind={sparkWave.event || 'spark'}
-            data-special-wave-cells={String(sparkWave.cells)}
-          >
-            <span className="progressive-grid-special-wave-ring" aria-hidden="true" />
-            <span>
-              <b>{sparkWave.phase2
-                ? (sparkWave.event === 'bomb' ? 'Взрыв раскрыл участок' : 'Участок раскрыт')
-                : 'Spark wave'}</b>
-              <small>{sparkWave.phase2 ? sparkWave.label : `${sparkWave.cells} cells filled by the selected target`}</small>
-            </span>
-          </div>
-        )}
         {sessionGameNextBeatReady && (
           <div className="phase2-next-beat" role="status" data-session-game-next-beat>
             <b>Этот фрагмент раскрыт.</b>

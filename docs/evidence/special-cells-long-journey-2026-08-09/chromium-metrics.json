@@ -1,40 +1,45 @@
 {
-  "capturedAt": "2026-08-09T18:15:23.453Z",
+  "capturedAt": "2026-09-29T23:06:07.042Z",
   "project": "chromium",
   "viewport": {
     "width": 390,
     "height": 844
   },
   "fixture": {
-    "template_id": "color_e47ec435-63db-419a-af95-53694dfc2c4b",
+    "template_id": "tpl_cohort_e2e_user_long_journey_base_treatment_0_160x160",
     "grid": "160x160"
   },
-  "available_specials": 40,
+  "available_specials": 41,
   "resolved": [
     {
       "kind": "spark",
-      "special_id": "sc_fe50a65bb0d7feb4",
-      "cell_index": 2313
+      "special_id": "sc_8b200f3fc835a48b",
+      "cell_index": 2259
     },
     {
       "kind": "bomb",
-      "special_id": "sc_968cdbeefbfa5c00",
-      "cell_index": 1716
+      "special_id": "sc_ac2906cdd312ccb0",
+      "cell_index": 1205
     },
     {
       "kind": "fuse",
-      "special_id": "sc_1c42384f7fe89f03",
-      "cell_index": 777
+      "special_id": "sc_53cfcb6359067ae5",
+      "cell_index": 3349
     },
     {
       "kind": "choice",
-      "special_id": "sc_b5a0aed06c0e2ea7",
-      "cell_index": 4668
+      "special_id": "sc_f40a8bf48667efa3",
+      "cell_index": 6673
     },
     {
       "kind": "artifact",
-      "special_id": "sc_2bde84ee3e1a2f70",
-      "cell_index": 14770
+      "special_id": "sc_ec802331986cccac",
+      "cell_index": 11337
+    },
+    {
+      "kind": "hazard",
+      "special_id": "hz_654539f9e2abe489",
+      "cell_index": 313
     }
   ]
 }

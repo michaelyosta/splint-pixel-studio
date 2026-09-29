@@ -93,8 +93,8 @@ async function readState(page) {
         && point.x >= bounds.x && point.x <= bounds.right
         && point.y >= bounds.y && point.y <= bounds.bottom),
       hudRects,
-      offer: Boolean(document.querySelector('.progressive-grid-special-offer')),
-      wave: document.querySelector('[data-special-wave]')?.dataset.specialWaveCells || null,
+      offer: Boolean(document.querySelector('[data-special-auto-applying]')),
+      effect: document.querySelector('[data-special-fx]')?.dataset.specialFx || null,
       returnTarget: Boolean(document.querySelector('[data-return-target]')),
     };
   });
@@ -138,7 +138,6 @@ async function claimSpark(page, id, spark) {
       special_action: {
         type: 'claim_spark',
         special_id: spark.specialId,
-        session_game: true,
         experiment_group: 'treatment',
       },
     },
@@ -159,10 +158,8 @@ async function auditWidth(page, size, index, { reducedMotion = false, isolationK
     (response) => response.url().includes(`/colorings/${id}/guidance`) && response.ok(),
     { timeout: 30000 },
   );
-  // The evidence captures the explicit Phase 2 session treatment. Without
-  // this query the ordinary cohort path intentionally uses the non-session
-  // automatic Spark contract, so it cannot expose the two player choices.
-  await page.goto(`/?coloring=${id}&phase2=session&phase2Variant=treatment&phase2Event=spark_choice&phase2Subject=phase2_visual_${size.width}_${index}`);
+  // Capture the treatment target and its automatic server-confirmed effect.
+  await page.goto(`/?coloring=${id}`);
   await dismissOnboarding(page);
   await waitForWork(page);
   const initial = await readState(page);
@@ -176,71 +173,31 @@ async function auditWidth(page, size, index, { reducedMotion = false, isolationK
   await page.screenshot({ path: initialPath, fullPage: false });
 
   const claimed = await claimSpark(page, id, spark);
-  await page.reload();
-  await dismissOnboarding(page);
-  await waitForWork(page, { storedOffer: true });
-  const offer = page.locator('.progressive-grid-special-offer[data-special-kind="spark"]');
-  await expect(offer).toBeVisible({ timeout: 15000 });
-  const previewLocators = await offer.locator('[data-phase2-spark-option]').all();
-  expect(previewLocators).toHaveLength(2);
-  const previews = [];
-  for (const preview of previewLocators) {
-    const optionId = await preview.getAttribute('data-phase2-spark-option');
-    const serverOption = claimed.special_offer.target_options.find((option) => option.option_id === optionId);
-    expect(serverOption, `visible Spark option ${optionId} must be server-backed`).toBeTruthy();
-    await expect(preview).toContainText(String(serverOption.estimated_cells));
-    previews.push({
-      option: optionId,
-      bounds: [serverOption.bounds.min_x, serverOption.bounds.min_y, serverOption.bounds.max_x, serverOption.bounds.max_y].join(','),
-      estimatedCells: Number(serverOption.estimated_cells),
-    });
-  }
-  for (const option of claimed.special_offer.target_options.slice(0, 2)) {
-    const expectedBounds = [option.bounds.min_x, option.bounds.min_y, option.bounds.max_x, option.bounds.max_y].join(',');
-    const actual = previews.find((preview) => preview.option === option.option_id);
-    expect(actual?.bounds).toBe(expectedBounds);
-    expect(actual?.estimatedCells).toBe(Number(option.estimated_cells));
-  }
-  const areaBox = await page.locator('.progressive-grid-area').boundingBox();
-  const offerBox = await offer.boundingBox();
-  expect(offerBox.x).toBeGreaterThanOrEqual(areaBox.x);
-  expect(offerBox.y).toBeGreaterThanOrEqual(areaBox.y);
-  expect(offerBox.x + offerBox.width).toBeLessThanOrEqual(areaBox.x + areaBox.width + 1);
-  expect(offerBox.y + offerBox.height).toBeLessThanOrEqual(areaBox.y + areaBox.height + 1);
-  const offerPath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}02-spark-offer.png`);
-  await page.screenshot({ path: offerPath, fullPage: false });
-
   const useResponse = page.waitForResponse((response) => {
     if (!response.url().includes('/progress/actions') || response.request().method() !== 'POST') return false;
     try { return response.request().postDataJSON()?.special_action?.type === 'use_spark'; } catch { return false; }
   }, { timeout: 30000 });
-  await offer.locator('[data-phase2-spark-option]').first().click();
+  await page.reload();
+  await dismissOnboarding(page);
+  await waitForWork(page);
   const used = await (await useResponse).json();
-  expect(used.special_applied_changes.length).toBe(Number(claimed.special_offer.target_options[0].estimated_cells));
+  const target = claimed.special_offer.target_options.find((option) => option.option_id === claimed.special_offer.default_option_id)
+    || claimed.special_offer.target_options[0];
+  expect(used.special_applied_changes.length).toBe(Number(target.estimated_cells));
   expect(used.special_applied_changes.length).toBeLessThanOrEqual(144);
-  const wave = page.locator('[data-special-wave]');
-  await expect(wave).toBeVisible({ timeout: 15000 });
-  await expect(wave).toHaveAttribute('data-special-wave-kind', 'spark_choice');
-  await expect(wave).toHaveAttribute('data-special-wave-cells', String(used.special_applied_changes.length));
-  const wavePath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}03-spark-wave.png`);
-  await page.screenshot({ path: wavePath, fullPage: false });
-  await expect(offer).toHaveCount(0, { timeout: 15000 });
+  await expect(page.locator('[data-phase2-spark-option], [data-special-action="use"]')).toHaveCount(0);
+  const effect = page.locator('[data-special-fx="spark"]');
+  await expect(effect).toBeVisible({ timeout: 15000 });
+  const effectPath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}02-spark-effect.png`);
+  await page.screenshot({ path: effectPath, fullPage: false });
 
-  // Phase 2 now pauses on an explicit ownership beat after the wave. The old
-  // audit pressed into free exploration and expected a return-target HUD,
-  // which was replaced by the current "next fragment" continuation contract.
-  const nextBeat = page.locator('[data-session-game-next-beat]');
-  await expect(nextBeat).toBeVisible({ timeout: 15000 });
-  await expect(nextBeat.locator('[data-session-game-continue]')).toBeVisible();
-  const nextBeatState = await readState(page);
-  const nextBeatPath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}04-next-beat.png`);
-  await page.screenshot({ path: nextBeatPath, fullPage: false });
-  await nextBeat.locator('[data-session-game-continue]').click();
   await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-smart-state', 'ready', { timeout: 20000 });
-  await expect(nextBeat).toHaveCount(0);
+  await expect(page.locator('[data-phase2-spark-option], [data-special-action="use"], [data-session-game-continue]')).toHaveCount(0);
+  const stateAfterEffect = await readState(page);
+  await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-smart-state', 'ready', { timeout: 20000 });
   const returned = await readState(page);
   expect(returned.targetInsideCanvas).toBe(true);
-  const returnedPath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}05-next-smart-target.png`);
+  const returnedPath = resolve(evidenceDir, `${size.width}-${reducedMotion ? 'reduced-' : ''}03-next-smart-target.png`);
   await page.screenshot({ path: returnedPath, fullPage: false });
   return {
     size,
@@ -248,11 +205,11 @@ async function auditWidth(page, size, index, { reducedMotion = false, isolationK
     templateId: id,
     initial,
     spark: { x: spark.x, y: spark.y, specialId: spark.specialId },
-    preview: previews,
+    serverTarget: { optionId: target.option_id, bounds: target.bounds, estimatedCells: Number(target.estimated_cells) },
     appliedCells: used.special_applied_changes.length,
-    nextBeatState,
+    stateAfterEffect,
     returned,
-    screenshots: [initialPath, offerPath, wavePath, nextBeatPath, returnedPath].map((path) => relative(resolve('.'), path).replaceAll('\\', '/')),
+    screenshots: [initialPath, effectPath, returnedPath].map((path) => relative(resolve('.'), path).replaceAll('\\', '/')),
   };
 }
 
@@ -282,19 +239,19 @@ test('fresh treatment visual audit covers responsive Spark flow and next-beat co
   writeFileSync(jsonPath, JSON.stringify({
     capturedAt: new Date().toISOString(),
     scope: 'treatment 1200x1200 tiled visual-only audit',
-    invariants: ['server action payload unchanged', 'no production DB mutation', 'no progress copy audit'],
-    sixKindsEvidence: 'docs/evidence/special-glyph-parity/final (fresh tiled 360/390/430 + light/reveal/reduced coverage)',
+    invariants: ['one paint tap resolves the persisted server default', 'manual controls absent', 'no production DB mutation'],
+    sixKindsEvidence: 'docs/evidence/special-cells-long-journey-2026-08-09 (per-kind applied-effect captures at 390x844)',
     results,
   }, null, 2));
   writeFileSync(resolve(evidenceDir, 'README.md'), [
-    '# Special Cells visual audit — 2026-08-12',
+    '# Special Cells visual audit',
     '',
-    '- Treatment 1200×1200 tiled flow: INITIAL_TARGET → WORK → Spark offer → server-confirmed Smart wave → free exploration → Smart return.',
+    '- Treatment 1200×1200 tiled flow: INITIAL_TARGET → WORK → one-tap Spark claim → server-confirmed fill effect → next Smart target.',
     '- Responsive sizes: 360×800, 390×844, 430×932; reduced-motion: 390×844.',
-    '- Each result records exact persisted target bounds, preview bounds/cell estimate, applied cell count, and screenshot paths.',
-    '- Six-kind marker evidence remains in `../special-glyph-parity/final`: Spark, Bomb, Fuse, Choice, Hazard, Artifact; WORK/overview and dark/light/reveal/reduced snapshots are included.',
-    '- HUD/Canvas checks assert the target point is inside the Canvas and the Spark offer stays within the Canvas bounds.',
+    '- Each result records the persisted server default bounds, applied cell count, and screenshot paths.',
+    '- Six-kind marker surfaces remain covered by `../special-glyph-parity/final`; applied-effect screenshots are generated by the long-journey spec.',
+    '- HUD/Canvas checks assert that Smart target points remain inside the Canvas; no target chooser or confirm panel is rendered.',
     '',
-    'Generated from the isolated E2E treatment fixture; no production server semantics, placement, balance, or type definitions were changed.',
+    'Generated from the isolated E2E treatment fixture; action envelopes, server effect calculations, placement, and balance were not changed.',
   ].join('\n'));
 });

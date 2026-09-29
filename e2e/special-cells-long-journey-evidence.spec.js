@@ -53,28 +53,6 @@ function spacedOnePerKind(specials) {
   return chosen;
 }
 
-async function moveToCell(page, canvas, cellIndex) {
-  const x = Number(cellIndex) % GRID;
-  const y = Math.floor(Number(cellIndex) / GRID);
-  await canvas.focus();
-  await canvas.press('Home');
-  for (let step = 0; step < x; step += 1) await canvas.press('ArrowRight');
-  for (let step = 0; step < y; step += 1) await canvas.press('ArrowDown');
-  await expect(canvas).toHaveAttribute('data-keyboard-cell', String(cellIndex));
-  const tileX = Math.floor(x / TILE);
-  const tileY = Math.floor(y / TILE);
-  await page.evaluate(async ({ tileX: requestedTileX, tileY: requestedTileY }) => {
-    const client = window.__splintClient;
-    await client?.loadManifest?.();
-    await client?.fetchTile(requestedTileX, requestedTileY, { force: true });
-    client?.cache?.pin?.(`${requestedTileX}:${requestedTileY}`);
-  }, { tileX, tileY });
-  await expect.poll(
-    () => page.evaluate(({ cellX, cellY }) => Boolean(window.__splintClient?.getCell(cellX, cellY)?.loaded), { cellX: x, cellY: y }),
-    { timeout: 30000 },
-  ).toBe(true);
-}
-
 async function claimSpecial(page, id, special) {
   const progressResponse = await page.request.get(`/api/colorings/${id}/progress`);
   expect(progressResponse.ok()).toBe(true);
@@ -87,7 +65,6 @@ async function claimSpecial(page, id, special) {
       special_action: {
         type: `claim_${special.kind}`,
         special_id: special.id,
-        session_game: true,
         experiment_group: 'treatment',
       },
     },
@@ -95,9 +72,12 @@ async function claimSpecial(page, id, special) {
   expect(claim.ok()).toBe(true);
   const body = await claim.json();
   expect(body.special_discovered).toEqual(expect.objectContaining({ special_id: special.id, kind: special.kind }));
+  const automatic = page.waitForResponse(actionRequest(id, 'use_spark'), { timeout: 30000 });
   await page.reload();
   await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
-  return body;
+  const applied = await automatic;
+  expect(applied.status()).toBe(200);
+  return { claim: body, applied: await applied.json() };
 }
 
 function actionRequest(id, type) {
@@ -110,24 +90,6 @@ function actionRequest(id, type) {
       return false;
     }
   };
-}
-
-async function resolveSpecialAction(page, id, actionType, actionLocator, fuse = false) {
-  let last = null;
-  do {
-    const usePromise = page.waitForResponse(actionRequest(id, actionType), { timeout: 20000 });
-    await actionLocator.click();
-    const useResponse = await usePromise;
-    expect(useResponse.status()).toBe(200);
-    last = await useResponse.json();
-    if (fuse && last.special_offer?.kind === 'fuse') {
-      const nextOffer = page.locator('.progressive-grid-special-offer[data-special-kind="fuse"]');
-      await expect(nextOffer).toBeVisible({ timeout: 15000 });
-      actionLocator = nextOffer.locator('[data-fuse-disarm]');
-      await expect(actionLocator).toBeVisible();
-    }
-  } while (fuse && last.special_offer?.kind === 'fuse');
-  return last;
 }
 
 async function isInViewport(locator) {
@@ -161,7 +123,7 @@ test('long journey evidence screenshots show active offers and Canvas return', a
   // long-journey spec; this evidence slice focuses on the active Spark offer.
   const actionable = selected.filter((special) => special.kind !== 'artifact');
 
-  await page.goto(`/?splintMetrics=1&coloring=${created.id}&phase2=session&phase2Variant=treatment&phase2Event=spark_choice&phase2Subject=phase2_special_long_evidence`);
+  await page.goto(`/?splintMetrics=1&coloring=${created.id}`);
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toBeVisible({ timeout: 15000 });
   const canvas = page.locator('.progressive-grid-area > canvas');
@@ -174,37 +136,30 @@ test('long journey evidence screenshots show active offers and Canvas return', a
   const resolved = [];
   const evidence = [];
   for (const special of actionable) {
-    const claimed = await claimSpecial(page, created.id, special);
-
-    const offer = page.locator(`.progressive-grid-special-offer[data-special-kind="${special.kind}"]`);
-    await expect(offer).toBeVisible({ timeout: 10000 });
+    const { claim, applied: used } = await claimSpecial(page, created.id, special);
+    expect(claim.special_offer.kind).toBe(special.kind);
+    expect(used.special_applied_changes.length).toBeGreaterThan(0);
+    expect(used.special_applied_changes.length).toBeLessThanOrEqual(144);
+    const effect = page.locator('[data-special-fx="spark"]');
+    await expect(effect).toBeVisible({ timeout: 10000 });
     await expect(canvas).toBeVisible();
-    const offerInViewport = await isInViewport(offer);
+    const effectInViewport = await isInViewport(effect);
     const canvasInViewport = await isInViewport(canvas);
-    expect(offerInViewport).toBe(true);
+    expect(effectInViewport).toBe(true);
     expect(canvasInViewport).toBe(true);
+    await expect(page.locator('[data-phase2-spark-option], [data-special-action="use"]')).toHaveCount(0);
     await page.screenshot({
-      path: resolve(evidenceDir, `${testInfo.project.name}-${special.kind}-offer.png`),
+      path: resolve(evidenceDir, `${testInfo.project.name}-${special.kind}-effect.png`),
       fullPage: false,
     });
     evidence.push({
       kind: special.kind,
-      phase: 'offer',
-      offer_kind: special.kind,
-      offer_in_viewport: offerInViewport,
+      phase: 'effect',
+      effect_in_viewport: effectInViewport,
       canvas_in_viewport: canvasInViewport,
       canvas_count: await canvas.count(),
     });
-
-    let actionLocator;
-    if (special.kind === 'spark') actionLocator = offer.locator('.phase2-spark-options button').first();
-    if (special.kind === 'bomb') actionLocator = offer.locator('[data-bomb-use]');
-    await expect(actionLocator).toBeVisible();
-    const actionType = special.kind === 'spark' ? 'use_spark' : 'use_bomb';
-    const used = await resolveSpecialAction(page, created.id, actionType, actionLocator);
     await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
-    expect(used.special_applied_changes.length).toBeGreaterThan(0);
-    expect(used.special_applied_changes.length).toBeLessThanOrEqual(special.kind === 'spark' ? 144 : 32);
 
     const afterUse = {
       offers: await page.locator('.progressive-grid-special-offer').count(),

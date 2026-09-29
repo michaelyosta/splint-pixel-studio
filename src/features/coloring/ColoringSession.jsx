@@ -3,6 +3,7 @@ import ColoringCanvas from './ColoringCanvas.jsx';
 import ColoringPalette from './ColoringPalette.jsx';
 import ColoringHud from './ColoringHud.jsx';
 import DevDiagnostics from './DevDiagnostics.jsx';
+import { SpecialCellEffectOverlay } from './large-grid/ProgressiveColoringSession.jsx';
 import { useSmartCamera, AUTO_STATE } from './camera/useSmartCamera.js';
 import { findClusters, mergeClusters, findUnfilledClusters } from './engine/clusterGraph.js';
 import { createWorkingWindows, scoreTargetQuality } from './engine/workingWindows.js';
@@ -15,9 +16,10 @@ import {
 } from './engine/routeTargeting.js';
 import { createBoundedAnnouncer } from '../../lib/accessibility.js';
 import {
+  autoSpecialActionForOffer,
   autoSparkActionForOffer,
   autoSparkActionKey,
-  submitAutoSparkAction,
+  submitAutoSpecialAction,
 } from '../../lib/specialCellsGameplay.js';
 import {
   getCoreFeelFragmentForColor,
@@ -92,6 +94,7 @@ export default function ColoringSession({
   specialCells = [],
   specialCohort = 'control',
   specialOffer = null,
+  specialApplied = null,
   specialDiscovered = null,
   onSpecialAction,
   onVisibleSpecialKinds,
@@ -145,8 +148,7 @@ export default function ColoringSession({
     : null;
 
   useEffect(() => {
-    const action = autoSparkActionForOffer(specialOffer);
-    if (sessionGameActive) return;
+    const action = autoSpecialActionForOffer(specialOffer);
     if (!action || typeof onSpecialAction !== 'function') {
       if (!specialOffer) {
         autoSparkOfferKeyRef.current = '';
@@ -155,12 +157,15 @@ export default function ColoringSession({
       }
       return;
     }
-    const key = autoSparkActionKey(action);
+    const key = autoSparkActionKey(action, specialOffer);
     if (autoSparkBlockedKeyRef.current === key) return;
     if (autoSparkOfferKeyRef.current === key) return;
     autoSparkOfferKeyRef.current = key;
     setAutoSparkRetryKey('');
-    void submitAutoSparkAction(onSpecialAction, action).then((accepted) => {
+    void submitAutoSpecialAction(onSpecialAction, {
+      ...action,
+      ...(sessionGameActive ? { session_game: true } : {}),
+    }).then((accepted) => {
       if (autoSparkOfferKeyRef.current !== key || accepted) return;
       autoSparkOfferKeyRef.current = '';
       autoSparkBlockedKeyRef.current = key;
@@ -169,7 +174,7 @@ export default function ColoringSession({
   }, [sessionGameActive, specialOffer, onSpecialAction, autoSparkAttempt]);
 
   function retryAutoSpark() {
-    const key = autoSparkActionKey(autoSparkActionForOffer(specialOffer));
+    const key = autoSparkActionKey(autoSparkActionForOffer(specialOffer), specialOffer);
     if (!key || autoSparkRetryKey !== key) return;
     autoSparkOfferKeyRef.current = '';
     autoSparkBlockedKeyRef.current = '';
@@ -1317,6 +1322,14 @@ export default function ColoringSession({
             } : null}
           />
         )}
+        <SpecialCellEffectOverlay
+          effect={specialApplied}
+          camera={camera}
+          width={template.width}
+          palette={template.palette}
+          cellSize={ROUTE_TILE_SIZE}
+          size={containerSize}
+        />
         {!showCanvas && (
           <div style={{ position: 'absolute', inset: 0, background: '#081218', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div role="status" aria-live="polite" className="coloring-preparing">Готовим участок…</div>
@@ -1379,7 +1392,7 @@ export default function ColoringSession({
             )}
           </div>
         )}
-        {specialTreatment && specialOffer?.kind === 'bomb' && (
+        {specialTreatment && specialOffer?.manual_controls === true && specialOffer?.kind === 'bomb' && (
           <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" data-special-kind="bomb">
             <span className="progressive-grid-special-title">Бомба: применить вокруг клетки</span>
             <button
@@ -1396,7 +1409,7 @@ export default function ColoringSession({
             >Использовать</button>
           </div>
         )}
-        {specialTreatment && specialOffer?.kind === 'fuse' && (
+        {specialTreatment && specialOffer?.manual_controls === true && specialOffer?.kind === 'fuse' && (
           <div
             className="progressive-grid-special-offer legacy-grid-special-offer"
             role="group"
@@ -1433,7 +1446,7 @@ export default function ColoringSession({
             </button>
           </div>
         )}
-        {specialTreatment && specialOffer?.kind === 'hazard' && (
+        {specialTreatment && specialOffer?.manual_controls === true && specialOffer?.kind === 'hazard' && (
           <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" data-special-kind="hazard">
             <button
               type="button"
@@ -1460,7 +1473,7 @@ export default function ColoringSession({
             >Обезвредить и продолжить</button>
           </div>
         )}
-        {specialTreatment && specialOffer?.kind === 'choice' && Array.isArray(specialOffer.choice_options) && (
+        {specialTreatment && specialOffer?.manual_controls === true && specialOffer?.kind === 'choice' && Array.isArray(specialOffer.choice_options) && (
           <div className="progressive-grid-special-offer legacy-grid-special-offer" role="group" data-special-kind="choice">
             <span className="progressive-grid-special-title">Выберите способ продолжить</span>
             {specialOffer.choice_options.slice(0, 2).map((option) => (
@@ -1478,6 +1491,15 @@ export default function ColoringSession({
               >{option.label}</button>
             ))}
           </div>
+        )}
+        {specialTreatment && specialOffer && (
+          <span className="sr-only" role="status" aria-live="polite" data-special-auto-applying={specialOffer.kind || 'special'}>
+            {specialOffer.kind === 'bomb' ? 'Бомба применяется к клетке'
+              : specialOffer.kind === 'fuse' ? 'Фитиль обезвреживается'
+                : specialOffer.kind === 'hazard' ? 'Опасность обезвреживается'
+                  : specialOffer.kind === 'choice' ? 'Серверный вариант применяется'
+                    : 'Особая клетка активируется'}
+          </span>
         )}
         {specialTreatment && autoSparkActionForOffer(specialOffer) && (
           <div

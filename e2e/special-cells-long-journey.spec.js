@@ -5,10 +5,7 @@ import { test, expect } from '@playwright/test';
 const GRID = 160;
 const TILE = 32;
 const evidenceDir = resolve('docs/evidence/special-cells-long-journey-2026-08-09');
-// Current Alpha journey: bounded positive events plus passive Artifact.
-// Fuse and Choice remain compatibility-only server paths, not player-facing
-// long-session requirements.
-const KINDS = ['spark', 'artifact'];
+const KINDS = ['spark', 'bomb', 'fuse', 'choice', 'artifact', 'hazard'];
 
 async function createTreatment(page) {
   // The seed hook bounds deterministic owner ids to 24 characters; keep this
@@ -50,9 +47,9 @@ async function findSpecials(page, id) {
   return result.sort((a, b) => Number(a.cell_index) - Number(b.cell_index));
 }
 
-function spacedOnePerKind(specials) {
+function spacedOnePerKind(specials, kinds = KINDS) {
   const chosen = [];
-  for (const kind of KINDS) {
+  for (const kind of kinds) {
     const candidate = specials.find((special) => special.kind === kind
       && chosen.every((other) => Math.abs(Number(other.cell_index) - Number(special.cell_index)) > 32));
     if (candidate) chosen.push(candidate);
@@ -63,11 +60,7 @@ function spacedOnePerKind(specials) {
 async function moveToCell(page, canvas, cellIndex) {
   const x = Number(cellIndex) % GRID;
   const y = Math.floor(Number(cellIndex) / GRID);
-  await canvas.focus();
-  await canvas.press('Home');
-  for (let step = 0; step < x; step += 1) await canvas.press('ArrowRight');
-  for (let step = 0; step < y; step += 1) await canvas.press('ArrowDown');
-  await expect(canvas).toHaveAttribute('data-keyboard-cell', String(cellIndex));
+  await expect(canvas).toBeVisible();
   const tileX = Math.floor(x / TILE);
   const tileY = Math.floor(y / TILE);
   await page.evaluate(async ({ tileX: requestedTileX, tileY: requestedTileY }) => {
@@ -76,35 +69,61 @@ async function moveToCell(page, canvas, cellIndex) {
     await client?.fetchTile(requestedTileX, requestedTileY, { force: true });
     client?.cache?.pin?.(`${requestedTileX}:${requestedTileY}`);
   }, { tileX, tileY });
+  const minimap = page.locator('.progressive-grid-minimap-canvas');
+  const minimapBox = await minimap.boundingBox();
+  expect(minimapBox).toBeTruthy();
+  await minimap.click({
+    position: {
+      x: ((x + 0.5) / GRID) * minimapBox.width,
+      y: ((y + 0.5) / GRID) * minimapBox.height,
+    },
+  });
   await expect.poll(
     () => page.evaluate(({ cellX, cellY }) => Boolean(window.__splintClient?.getCell(cellX, cellY)?.loaded), { cellX: x, cellY: y }),
     { timeout: 30000 },
   ).toBe(true);
+  return page.locator('.progressive-grid-area').evaluate((area, cell) => {
+    const bounds = area.getBoundingClientRect();
+    const camera = {
+      x: Number(area.dataset.cameraX),
+      y: Number(area.dataset.cameraY),
+      zoom: Number(area.dataset.cameraZoom),
+    };
+    return {
+      x: bounds.x + camera.x + (cell.x + 0.5) * 32 * camera.zoom,
+      y: bounds.y + camera.y + (cell.y + 0.5) * 32 * camera.zoom,
+    };
+  }, { x, y });
 }
 
 async function claimSpecial(page, id, special) {
-  const progressResponse = await page.request.get(`/api/colorings/${id}/progress`);
-  expect(progressResponse.ok()).toBe(true);
-  const progress = await progressResponse.json();
-  const claim = await page.request.post(`/api/colorings/${id}/progress/actions`, {
-    data: {
-      revision: Number(progress.revision || 0),
-      clientBatchId: `alpha-rc-long-${special.kind}-${special.id}`,
-      changes: [{ index: special.cell_index, color: 0 }],
-      special_action: {
-        type: `claim_${special.kind}`,
-        special_id: special.id,
-        session_game: true,
-        experiment_group: 'treatment',
-      },
-    },
-  });
-  expect(claim.ok()).toBe(true);
-  const body = await claim.json();
-  expect(body.special_discovered).toEqual(expect.objectContaining({ special_id: special.id, kind: special.kind }));
-  await page.reload();
-  await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
-  return body;
+  const canvas = page.locator('.progressive-grid-area > canvas');
+  const point = await moveToCell(page, canvas, Number(special.cell_index));
+  const claimPromise = page.waitForResponse(actionRequest(id, `claim_${special.kind}`), { timeout: 30000 });
+  const actionTypes = {
+    spark: 'use_spark', bomb: 'use_bomb', fuse: 'disarm_fuse',
+    choice: 'use_choice', hazard: 'disarm_hazard',
+  };
+  const firstUsePromise = actionTypes[special.kind]
+    ? page.waitForResponse(actionRequest(id, actionTypes[special.kind]), { timeout: 30000 })
+    : null;
+  await page.mouse.click(point.x, point.y);
+  const claimResponse = await claimPromise;
+  expect(claimResponse.status()).toBe(200);
+  const claimed = await claimResponse.json();
+  expect(claimed.special_discovered).toEqual(expect.objectContaining({ special_id: special.id, kind: special.kind }));
+  let used = null;
+  let waitForResolved = null;
+  if (firstUsePromise) {
+    const useResponse = await firstUsePromise;
+    expect(useResponse.status()).toBe(200);
+    used = await useResponse.json();
+    waitForResolved = () => expect.poll(async () => {
+      const response = await page.request.get(`/api/colorings/${id}/progress`);
+      return (await response.json()).special_offer;
+    }, { timeout: 30000 }).toBeNull();
+  }
+  return { claimed, used, waitForResolved };
 }
 
 function actionRequest(id, type) {
@@ -119,24 +138,6 @@ function actionRequest(id, type) {
   };
 }
 
-async function resolveSpecialAction(page, id, actionType, actionLocator, fuse = false) {
-  let last = null;
-  do {
-    const usePromise = page.waitForResponse(actionRequest(id, actionType), { timeout: 20000 });
-    await actionLocator.click();
-    const useResponse = await usePromise;
-    expect(useResponse.status()).toBe(200);
-    last = await useResponse.json();
-    if (fuse && last.special_offer?.kind === 'fuse') {
-      const nextOffer = page.locator('.progressive-grid-special-offer[data-special-kind="fuse"]');
-      await expect(nextOffer).toBeVisible({ timeout: 15000 });
-      actionLocator = nextOffer.locator('[data-fuse-disarm]');
-      await expect(actionLocator).toBeVisible();
-    }
-  } while (fuse && last.special_offer?.kind === 'fuse');
-  return last;
-}
-
 test('treatment long journey resolves active special kinds without leaving the Canvas', async ({ page, browserName }, testInfo) => {
   test.skip(browserName === 'webkit', 'long journey verifier targets the Chromium pointer/keyboard contract');
   test.setTimeout(240000);
@@ -148,10 +149,12 @@ test('treatment long journey resolves active special kinds without leaving the C
 
   const { created } = await createTreatment(page);
   const specials = await findSpecials(page, created.id);
-  const selected = spacedOnePerKind(specials);
-  expect(new Set(selected.map((special) => special.kind)).size).toBe(KINDS.length);
+  const availableKinds = KINDS.filter((kind) => specials.some((special) => special.kind === kind));
+  for (const kind of ['spark', 'bomb', 'fuse', 'artifact', 'hazard']) expect(availableKinds).toContain(kind);
+  const selected = spacedOnePerKind(specials, availableKinds);
+  expect(new Set(selected.map((special) => special.kind)).size).toBe(availableKinds.length);
 
-  await page.goto(`/?splintMetrics=1&coloring=${created.id}&phase2=session&phase2Variant=treatment&phase2Event=spark_choice&phase2Subject=phase2_special_long_journey`);
+  await page.goto(`/?splintMetrics=1&coloring=${created.id}`);
   const session = page.locator('.progressive-coloring-session');
   await expect(session).toBeVisible({ timeout: 15000 });
   await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 15000 });
@@ -164,28 +167,33 @@ test('treatment long journey resolves active special kinds without leaving the C
 
   const resolved = [];
   for (const special of selected) {
-    const claimed = await claimSpecial(page, created.id, special);
-
-    if (special.kind === 'artifact') {
-      await expect(page.locator('[data-special-discovered]')).toBeVisible({ timeout: 10000 });
-    } else {
-      const offer = page.locator(`.progressive-grid-special-offer[data-special-kind="${special.kind}"]`);
-      await expect(offer).toBeVisible({ timeout: 10000 });
-      let actionLocator;
-      if (special.kind === 'spark') actionLocator = offer.locator('.phase2-spark-options button').first();
-      if (special.kind === 'bomb') actionLocator = offer.locator('[data-bomb-use]');
-      await expect(actionLocator).toBeVisible();
-      const actionType = special.kind === 'spark' ? 'use_spark' : 'use_bomb';
-      const used = await resolveSpecialAction(page, created.id, actionType, actionLocator);
-      await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
+    const { claimed, used, waitForResolved } = await claimSpecial(page, created.id, special);
+    expect(claimed.special_offer?.kind || special.kind).toBe(special.kind);
+    await expect(page.locator('[data-special-auto-applying]')).toHaveCount(0);
+    await expect(page.locator('[data-bomb-center-direction], [data-bomb-use], [data-fuse-disarm], [data-special-option], [data-special-action="use"]')).toHaveCount(0);
+    await expect(page.locator(`[data-special-fx="${special.kind}"]`)).toBeVisible({ timeout: 15000 });
+    if (used) {
       expect(used.special_applied_changes.length).toBeGreaterThan(0);
-      expect(used.special_applied_changes.length).toBeLessThanOrEqual(special.kind === 'spark' ? 144 : 32);
+      expect(used.special_applied_changes.length).toBeLessThanOrEqual(special.kind === 'spark' ? 144 : special.kind === 'hazard' ? 16 : 32);
     }
     resolved.push({ kind: special.kind, special_id: special.id, cell_index: Number(special.cell_index) });
-    await page.screenshot({ path: resolve(evidenceDir, `${testInfo.project.name}-${special.kind}.png`), fullPage: false });
+    await page.screenshot({
+      path: resolve(evidenceDir, `${testInfo.project.name}-${special.kind}.png`),
+      fullPage: false,
+    });
+    if (waitForResolved) await waitForResolved();
+    if (special.kind === 'hazard') {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await expect(page.locator('[data-special-fx="hazard"]')).toHaveClass(/special-fx-reduced/);
+      await page.screenshot({
+        path: resolve(evidenceDir, `${testInfo.project.name}-hazard-reduced-motion.png`),
+        fullPage: false,
+      });
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+    }
   }
 
-  expect(resolved.map((entry) => entry.kind).sort()).toEqual([...KINDS].sort());
+  expect(resolved.map((entry) => entry.kind).sort()).toEqual([...availableKinds].sort());
   writeFileSync(resolve(evidenceDir, `${testInfo.project.name}-metrics.json`), JSON.stringify({
     capturedAt: new Date().toISOString(),
     project: testInfo.project.name,

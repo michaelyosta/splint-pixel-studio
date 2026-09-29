@@ -113,16 +113,6 @@ function chooseSpaced(specials, kinds) {
   return selected;
 }
 
-async function moveToCell(canvas, cellIndex) {
-  const x = Number(cellIndex) % GRID;
-  const y = Math.floor(Number(cellIndex) / GRID);
-  await canvas.focus();
-  await canvas.press('Home');
-  for (let step = 0; step < x; step += 1) await canvas.press('ArrowRight');
-  for (let step = 0; step < y; step += 1) await canvas.press('ArrowDown');
-  await expect(canvas).toHaveAttribute('data-keyboard-cell', String(cellIndex), { timeout: 30000 });
-}
-
 function actionRequest(id, type) {
   return (response) => {
     if (!response.url().includes(`/colorings/${id}/progress/actions`)
@@ -155,84 +145,37 @@ async function claimSpecial(page, id, canvas, special) {
   expect(claim.ok()).toBe(true);
   const body = await claim.json();
   expect(body.special_discovered).toEqual(expect.objectContaining({ special_id: special.id, kind: special.kind }));
+  const actionType = ({
+    spark: 'use_spark', bomb: 'use_bomb', fuse: 'disarm_fuse',
+    choice: 'use_choice', hazard: 'disarm_hazard',
+  })[special.kind];
+  const automaticAction = actionType
+    ? page.waitForResponse(actionRequest(id, actionType), { timeout: 90000 })
+    : null;
   await page.reload();
   await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
-  return body;
+  let autoApplied = null;
+  if (automaticAction) {
+    const response = await automaticAction;
+    expect(response.status()).toBe(200);
+    autoApplied = await response.json();
+    await expect.poll(async () => {
+      const responseProgress = await page.request.get(`/api/colorings/${id}/progress`);
+      return (await responseProgress.json()).special_offer;
+    }, { timeout: 30000 }).toBeNull();
+  }
+  return { ...body, autoApplied };
 }
 
-async function resolveOffer(page, id, special, { reloadBeforeUse = false, offlineBeforeUse = false } = {}) {
+async function resolveOffer(page, id, special, claimed) {
   if (special.kind === 'artifact') {
     await expect(page.locator('[data-special-discovered]')).toBeVisible({ timeout: 15000 });
     return;
   }
-  const offer = page.locator(`.progressive-grid-special-offer[data-special-kind="${special.kind}"]`);
-  await expect(offer).toBeVisible({ timeout: 15000 });
-  if (reloadBeforeUse) {
-    const manifestReload = page.waitForResponse((response) => response.url().includes(`/colorings/${id}/manifest`) && response.status() === 200, { timeout: 30000 });
-    await page.reload();
-    await manifestReload;
-    await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
-    await expect(offer).toBeVisible({ timeout: 30000 });
-  }
-  if (special.kind === 'fuse') {
-    let steps = 0;
-    while (await offer.count() && await offer.isVisible().catch(() => false)) {
-      const action = offer.locator('[data-fuse-disarm]');
-      await expect(action).toBeVisible();
-      const usePromise = page.waitForResponse(actionRequest(id, 'disarm_fuse'), { timeout: 30000 });
-      await action.click();
-      const used = await usePromise;
-      expect(used.status()).toBe(200);
-      const body = await used.json();
-      expect(body.special_applied_changes.length).toBeGreaterThan(0);
-      expect(body.special_applied_changes.length).toBeLessThanOrEqual(32);
-      steps += 1;
-      expect(steps).toBeLessThanOrEqual(3);
-      if (!(await offer.count())) break;
-      if (!(await offer.isVisible().catch(() => false))) break;
-    }
-    expect(steps).toBeGreaterThan(0);
-  } else if (special.kind === 'spark') {
-    // Full Chromium runs can briefly saturate the 1200x1200 API worker while
-    // the offer is being committed. Keep the verifier bounded but wait for
-    // the server-authoritative action rather than treating that load as a
-    // missing Spark response.
-    const usePromise = page.waitForResponse(actionRequest(id, 'use_spark'), { timeout: 90000 });
-    await offer.locator('.phase2-spark-options button').first().click();
-    const used = await usePromise;
-    expect(used.status()).toBe(200);
-    expect((await used.json()).special_applied_changes.length).toBeGreaterThan(0);
-  } else if (special.kind === 'bomb') {
-    const usePromise = page.waitForResponse(actionRequest(id, 'use_bomb'), { timeout: 30000 });
-    await offer.locator('[data-bomb-use]').click();
-    const used = await usePromise;
-    expect(used.status()).toBe(200);
-    expect((await used.json()).special_applied_changes.length).toBeGreaterThan(0);
-  } else if (special.kind === 'hazard') {
-    const usePromise = page.waitForResponse(actionRequest(id, 'disarm_hazard'), { timeout: 30000 });
-    if (offlineBeforeUse) {
-      await page.context().setOffline(true);
-      await page.evaluate(() => window.dispatchEvent(new Event('offline')));
-      await offer.locator('[data-hazard-disarm]').click();
-      await expect(offer).toBeVisible({ timeout: 15000 });
-      await page.context().setOffline(false);
-      await page.evaluate(() => window.dispatchEvent(new Event('online')));
-      await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(true);
-    } else {
-      await offer.locator('[data-hazard-disarm]').click();
-    }
-    const used = await usePromise;
-    expect(used.status()).toBe(200);
-    const body = await used.json();
-    expect(body.special_applied_changes.length).toBeGreaterThan(0);
-    expect(body.special_applied_changes.length).toBeLessThanOrEqual(16);
-  } else if (special.kind === 'choice') {
-    const usePromise = page.waitForResponse(actionRequest(id, 'use_choice'), { timeout: 30000 });
-    await offer.locator('[data-special-option="smart_target"]').click();
-    const used = await usePromise;
-    expect(used.status()).toBe(200);
-    expect((await used.json()).special_applied_changes.length).toBeGreaterThan(0);
-  }
+  expect(claimed.autoApplied).toBeTruthy();
+  expect(claimed.autoApplied.special_applied_changes.length).toBeGreaterThan(0);
+  expect(claimed.autoApplied.special_applied_changes.length).toBeLessThanOrEqual(special.kind === 'spark' ? 144 : 32);
+  await expect(page.locator('[data-special-auto-applying], [data-special-action="use"], [data-bomb-center-direction], [data-fuse-disarm], [data-special-option]')).toHaveCount(0);
   await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 30000 });
 }
 
@@ -275,12 +218,9 @@ test('1200x1200 Alpha journey crosses active positive and rare events with reloa
 
   const resolved = [];
   for (const special of selected) {
-    await claimSpecial(page, created.id, canvas, special);
+    const claimed = await claimSpecial(page, created.id, canvas, special);
     await page.screenshot({ path: resolve(evidenceDir, `${testInfo.project.name}-${special.kind}-offer.png`), fullPage: false });
-    await resolveOffer(page, created.id, special, {
-      reloadBeforeUse: special.kind === 'bomb',
-      offlineBeforeUse: special.kind === 'hazard',
-    });
+    await resolveOffer(page, created.id, special, claimed);
     resolved.push(special.kind);
   }
   expect(resolved).toEqual(EVENT_KINDS);

@@ -131,7 +131,7 @@ test('special kind shows one pre-paint hint with inline action and survives relo
   const hint = page.locator('[data-special-help-hint]');
   await expect(hint).toBeVisible();
   await expect(hint).toHaveAttribute('data-special-help-kind', 'spark');
-  await expect(hint).toContainText('выберите участок');
+  await expect(hint).toContainText('сразу раскрывает');
   await hint.locator('button:has-text("Памятка")').click();
   await expect(page.locator('[data-special-help-open]')).toBeVisible();
   await expect(page.locator('[data-special-help-open] li[data-special-help-kind="spark"]')).toBeVisible();
@@ -141,10 +141,16 @@ test('special kind shows one pre-paint hint with inline action and survives relo
   const canvas = await focusLegacyCell(page, spark.cell_index);
   const claimResponse = page.waitForResponse((response) => response.url().includes(`/colorings/${created.id}/progress/actions`)
     && response.request().method() === 'POST');
+  const useResponse = page.waitForResponse((response) => response.url().includes(`/colorings/${created.id}/progress/actions`)
+    && response.request().method() === 'POST'
+    && response.request().postDataJSON()?.special_action?.type === 'use_spark');
   await canvas.press('Enter');
   const claimed = await (await claimResponse).json();
   expect(claimed.special_discovered).toEqual({ special_id: spark.id, kind: 'spark' });
-  await expect(page.locator('.legacy-grid-special-offer')).toBeVisible();
+  const applied = await (await useResponse).json();
+  expect(applied.special_applied_changes.length).toBeGreaterThan(0);
+  await expect(page.locator('[data-special-fx="spark"]')).toBeVisible();
+  await expect(page.locator('[data-special-action="use"], [data-special-option]')).toHaveCount(0);
 
   const seen = await page.evaluate(() => JSON.parse(localStorage.getItem('splint_special_help_v1')).kinds);
   expect(seen).toContain('spark');

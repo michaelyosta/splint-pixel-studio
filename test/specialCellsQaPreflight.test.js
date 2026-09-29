@@ -32,6 +32,42 @@ test('Special QA preflight rejects silent control and missing diagnostics', () =
   assert.ok(result.failures.some((failure) => failure.includes('override')));
 });
 
+test('Special QA preflight resolves a persisted Bomb offer at its server center', () => {
+  const result = evaluateSpecialQaProgress({
+    specials_experiment_group: 'treatment',
+    special_offer: {
+      kind: 'bomb',
+      special_id: 'sc-bomb',
+      offer_token: 'private-offer-token',
+      center_x: 11,
+      center_y: 23,
+    },
+    special_diagnostics: {
+      cohort_override: true,
+      special_count: 1,
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.one_tap_resolution, {
+    status: 'ready',
+    action_type: 'use_bomb',
+    option_selected: false,
+    bomb_center_selected: { x: 11, y: 23 },
+  });
+  assert.doesNotMatch(JSON.stringify(result), /private-offer-token|sc-bomb/);
+});
+
+test('Special QA preflight blocks an active offer without a deterministic resolution', () => {
+  const result = evaluateSpecialQaProgress({
+    specials_experiment_group: 'treatment',
+    special_offer: { kind: 'bomb', special_id: 'sc-bomb', offer_token: 'private-token' },
+    special_diagnostics: { cohort_override: true, special_count: 1 },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.one_tap_resolution.status, 'blocked');
+  assert.ok(result.failures.some((failure) => failure.includes('deterministic one-tap')));
+});
+
 test('Special QA preflight parses the explicit live-template contract', () => {
   assert.deepEqual(parseArgs([
     '--template', 'tpl-real', '--expect', 'control', '--user', 'qa-user', '--api', 'http://localhost:3999/',

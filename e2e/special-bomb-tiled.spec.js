@@ -54,8 +54,8 @@ test('tiled Bomb claim, compact center offer, and use flow on 390x844', async ({
   expect(bomb.cell_index).toBeGreaterThanOrEqual(0);
   expect(bomb.cell_index).toBeLessThan(GRID * GRID);
 
-  // The current Phase 2 contract hides Specials until the first manual reveal.
-  // Seed the server-authoritative Bomb offer, then verify its UI resolution.
+  // Seed a persisted offer, then verify reload resumes it automatically with
+  // the server-provided marker center and no visible action controls.
   const claimResponse = await page.request.post(`/api/colorings/${created.id}/progress/actions`, {
     data: {
       revision: 0,
@@ -70,7 +70,25 @@ test('tiled Bomb claim, compact center offer, and use flow on 390x844', async ({
   expect(claimed.special_offer.kind).toBe('bomb');
   expect(claimed.special_offer.target_options).toBeUndefined();
   expect(Number(claimed.special_offer.radius)).toBeGreaterThanOrEqual(1);
+  const center = {
+    x: Number(claimed.special_offer.center_x),
+    y: Number(claimed.special_offer.center_y),
+  };
+  expect(center.x).toBe(Number(bomb.cell_index) % GRID);
+  expect(center.y).toBe(Math.floor(Number(bomb.cell_index) / GRID));
 
+  const usePromise = page.waitForResponse((response) => {
+    if (!response.url().includes(`/colorings/${created.id}/progress/actions`)
+      || response.request().method() !== 'POST') return false;
+    try {
+      const action = response.request().postDataJSON()?.special_action;
+      return action?.type === 'use_bomb'
+        && action.center_x === center.x
+        && action.center_y === center.y;
+    } catch {
+      return false;
+    }
+  }, { timeout: 15000 });
   // Bomb remains an experiment-only challenger, so opt into its explicit
   // treatment instead of relying on the product's spark_choice baseline.
   // Opt into the explicit Phase 2 session treatment; `phase2Event` alone is
@@ -81,22 +99,7 @@ test('tiled Bomb claim, compact center offer, and use flow on 390x844', async ({
   await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 15000 });
   await expect(page.locator('.progressive-grid-area > canvas')).toBeVisible({ timeout: 15000 });
 
-  const offer = page.locator('.progressive-grid-special-offer[data-special-kind="bomb"]');
-  await expect(offer).toBeVisible({ timeout: 15000 });
-  await expect(offer).toHaveAttribute('data-special-supported', 'true');
-  await expect(offer.locator('.progressive-grid-special-detail')).toContainText('радиус');
-  await expect(offer.locator('[data-bomb-center-direction]')).toHaveCount(0);
-
-  const usePromise = page.waitForResponse((response) => {
-    if (!response.url().includes(`/colorings/${created.id}/progress/actions`)
-      || response.request().method() !== 'POST') return false;
-    try {
-      return response.request().postDataJSON()?.special_action?.type === 'use_bomb';
-    } catch {
-      return false;
-    }
-  }, { timeout: 15000 });
-  await offer.locator('[data-phase2-bomb-use]').click();
+  await expect(page.locator('[data-bomb-center-direction], [data-bomb-use], [data-phase2-bomb-use], [data-special-action="use"]')).toHaveCount(0);
   const use = await usePromise;
   expect(use.status()).toBe(200);
   const used = await use.json();
@@ -104,6 +107,9 @@ test('tiled Bomb claim, compact center offer, and use flow on 390x844', async ({
   expect(used.special_applied_changes.length).toBeLessThanOrEqual(32);
   for (const change of used.special_applied_changes) {
     expect(change.color).toBe(0);
+    const x = Number(change.index) % GRID;
+    const y = Math.floor(Number(change.index) / GRID);
+    expect(Math.hypot(x - center.x, y - center.y)).toBeLessThanOrEqual(Number(claimed.special_offer.radius));
   }
-  await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0, { timeout: 15000 });
+  await expect(page.locator('[data-special-fx="bomb"]')).toBeVisible({ timeout: 15000 });
 });
