@@ -100,27 +100,27 @@ export default function ProfileView({
     </div>
 
     {showcase.length > 0 && <section className="profile-section profile-featured-section">
-      <div className="section-heading"><div><p className="eyebrow">ВИТРИНА</p><h2>Избранные работы</h2></div></div>
+      <div className="section-heading"><div><p className="eyebrow">ВИТРИНА</p><h2>Избранные работы</h2><small>Любимые и недавно завершённые картины.</small></div></div>
       <div className="profile-featured-grid">{showcase.map((work, index) => <ArtworkCard key={work.id} work={work} featured={index === 0} onOpen={onOpen} />)}</div>
     </section>}
 
     {visibleCollections.length > 0 && <section className="profile-section">
-      <div className="section-heading"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Собранные серии</h2></div></div>
-      <div className="profile-collection-list">{visibleCollections.map((collection) => <button type="button" key={collection.id} onClick={() => onOpenCollection(collection)}><span style={collection.image_url ? { backgroundImage: `url(${collection.image_url})` } : undefined}><BookOpen size={18} /></span><div><b>{collection.title}</b><small>{collection.completed_count || 0} / {collection.total_count || collection.total_artworks || 0}</small></div></button>)}</div>
+      <div className="section-heading"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Собранные серии</h2><small>Темы и картины, объединённые в серии.</small></div></div>
+      <div className="profile-collection-list">{visibleCollections.map((collection) => <button type="button" key={collection.id} onClick={() => onOpenCollection(collection)}><span style={collection.image_url ? { backgroundImage: `url(${collection.image_url})` } : undefined}><BookOpen size={18} /></span><div><b>{collection.title}</b><small>{collection.completed_count || 0} из {collection.total_count || collection.total_artworks || 0} работ завершено</small></div></button>)}</div>
     </section>}
 
     {rareWorks.length > 0 && <section className="profile-section">
-      <div className="section-heading"><div><p className="eyebrow">ОСОБЫЕ</p><h2>Редкие работы</h2></div></div>
+      <div className="section-heading"><div><p className="eyebrow">ОСОБЫЕ</p><h2>Редкие работы</h2><small>Картины с отдельной отметкой редкости.</small></div></div>
       <div className="profile-work-grid">{rareWorks.slice(0, 6).map((work) => <ArtworkCard key={work.id} work={work} onOpen={onOpen} />)}</div>
     </section>}
 
     {completedWorks.length > 0 && <section className="profile-section">
-      <div className="section-heading"><div><p className="eyebrow">ЗАВЕРШЕНО</p><h2>Готовые картины</h2></div></div>
+      <div className="section-heading"><div><p className="eyebrow">ЗАВЕРШЕНО</p><h2>Готовые картины</h2><small>Все работы, доведённые до финального вида.</small></div></div>
       <div className="profile-work-grid">{completedWorks.slice(0, 12).map((work) => <ArtworkCard key={work.id} work={work} onOpen={onOpen} />)}</div>
     </section>}
 
     {isOwnProfile && <section className="profile-section profile-created-section">
-      <div className="section-heading"><div><p className="eyebrow">СОЗДАНО МНОЙ</p><h2>Мои раскраски</h2></div><button type="button" onClick={() => onNavigate('create')}>Создать</button></div>
+      <div className="section-heading"><div><p className="eyebrow">СОЗДАНО МНОЙ</p><h2>Мои раскраски</h2><small>Оригиналы, добавленные в Splint.</small></div><button type="button" onClick={() => onNavigate('create')}>Создать</button></div>
       {createdWorks.length > 0 ? <div className="profile-work-grid">{createdWorks.slice(0, 12).map((work) => <ArtworkCard key={work.id} work={work} onOpen={onOpen}>
         <div className="profile-owner-actions">
           <button type="button" disabled={publishingTemplateId === work.id} onClick={() => onToggleVisibility(work)} aria-label={work.visibility === 'public' ? `Скрыть ${work.title}` : `Опубликовать ${work.title}`}>{work.visibility === 'public' ? <Eye size={16} /> : <EyeOff size={16} />}</button>

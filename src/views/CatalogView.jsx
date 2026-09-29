@@ -228,6 +228,43 @@ export default function CatalogView({
   ];
   const progressById = new Map(mine.map((item) => [item.id, item.progress?.percent || 0]));
 
+  const shelfEyebrows = {
+    popular: 'ВЫБОР СТУДИИ',
+    new: 'СВЕЖИЕ СЮЖЕТЫ',
+    free: 'МОЖНО НАЧАТЬ СРАЗУ',
+    premium: 'ПОЛНАЯ КОЛЛЕКЦИЯ',
+    'quick-start': 'КОРОТКИЙ МАРШРУТ',
+    'anime-vibes': 'АНИМЕ-МИРЫ',
+    'gaming-worlds': 'ИГРОВЫЕ МИРЫ',
+    'block-voxel': 'БЛОЧНЫЕ МИРЫ',
+    'neon-cyber': 'НЕОН И КИБЕРАРЕНЫ',
+    'racing-street': 'ГОРОДСКОЙ ДРАЙВ',
+    'internet-chaos': 'ИНТЕРНЕТ-КУЛЬТУРА',
+    creatures: 'ФАНТАСТИЧЕСКИЕ СУЩЕСТВА',
+    'dark-weird': 'СТРАННЫЕ И МИЛЫЕ',
+    fantasy: 'ФЭНТЕЗИ',
+    'calm-cozy': 'СПОКОЙНЫЕ СЦЕНЫ',
+    seasonal: 'ПО СЕЗОНУ',
+  };
+  const shelfDescriptions = {
+    popular: 'Чаще выбирают и завершают.',
+    new: 'Свежие сцены из новых миров.',
+    free: 'Откройте и начните сразу.',
+    premium: 'Премиум-сцены из всей галереи.',
+    'quick-start': 'Короткие бесплатные работы для первого шага.',
+    'gaming-worlds': 'Арены, мини-игры и voxel-приключения.',
+    'anime-vibes': 'Оригинальные персонажи в эстетике аниме.',
+    'block-voxel': 'Блочные вселенные и собственные маршруты.',
+    'neon-cyber': 'Неоновые улицы и кибер-арены.',
+    'racing-street': 'Гонки, тюнинг и ночной город.',
+    'internet-chaos': 'Стикеры, стриминг и интернет-маскоты.',
+    creatures: 'Существа из оригинальных игровых миров.',
+    'dark-weird': 'Милые и странные сцены с характером.',
+    fantasy: 'Магия, тайные тропы и приключения.',
+    'calm-cozy': 'Спокойные сцены для отдыха.',
+    seasonal: 'Сюжеты в ритме сезона.',
+  };
+
   const openArtwork = (item, context = {}) => {
     onTrack(item.access === 'premium' ? 'premium_preview_open' : 'coloring_open', {
       coloring_id: item.id,
@@ -266,7 +303,7 @@ export default function CatalogView({
   })}</div>;
 
   const renderShelf = (shelf) => <section className="catalog-shelf" key={shelf.id} data-shelf-id={shelf.id}>
-    <div className="catalog-section-heading"><div><p className="eyebrow">{shelf.id === 'new' ? 'PHASE 2' : 'DISCOVER'}</p><h2>{shelf.label}</h2><small>{shelf.description}</small></div><button type="button" onClick={() => {
+    <div className="catalog-section-heading"><div><p className="eyebrow">{shelfEyebrows[shelf.id] || 'ТЕМАТИЧЕСКАЯ ПОДБОРКА'}</p><h2>{shelf.label}</h2><small>{shelfDescriptions[shelf.id] || shelf.description}</small></div><button type="button" onClick={() => {
       onTrack('shelf_open', { shelf_id: shelf.id });
       if (shelf.id === 'premium') { setActiveShelfId(null); onChangeChip('premium'); return; }
       if (shelf.id === 'free') { setActiveShelfId(null); onChangeChip('free'); return; }
@@ -276,10 +313,19 @@ export default function CatalogView({
     }}>{shelf.total_count} работ <ArrowRight size={14} aria-hidden="true" /></button></div>
     <div className="catalog-shelf-scroll" aria-label={shelf.label}>{shelf.items.map((item) => {
       const metadata = formatContentMetadataDetail(item);
+      const progressPercent = progressById.get(item.id) || 0;
+      const isLockedPremium = item.access === 'premium' && !(progressPercent > 0);
       return <article className="catalog-shelf-card" key={`${shelf.id}:${item.id}`} data-access={item.access}>
-        <button type="button" className="catalog-shelf-open" onClick={() => openArtwork(item, { shelf_id: shelf.id })} aria-label={`Открыть ${item.title}`}>
+        <button type="button" className="catalog-shelf-open" onClick={() => {
+          if (isLockedPremium) { openPremiumShowcase(item, { shelf_id: shelf.id }); return; }
+          hapticImpact('light');
+          openArtwork(item, { shelf_id: shelf.id });
+        }} aria-label={isLockedPremium ? `Открыть витрину Premium Gallery для ${item.title}` : `Открыть ${item.title}`}>
           <span className="catalog-shelf-image" style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : undefined}>
-            {item.access === 'premium' ? <Crown size={13} aria-label="Premium" /> : <Zap size={13} aria-label="Бесплатно" />}
+            <em className={item.access === 'premium' ? 'catalog-shelf-access catalog-shelf-access--premium' : 'catalog-shelf-access'}>
+              {item.access === 'premium' ? <Crown size={11} aria-hidden="true" /> : <Zap size={11} aria-hidden="true" />}
+              {item.access === 'premium' ? 'Premium' : 'Бесплатно'}
+            </em>
           </span>
           <span className="catalog-shelf-title">{item.title}</span>
           <small>{item.album_title || item.collection_title || metadata.line}</small>
@@ -293,7 +339,7 @@ export default function CatalogView({
     onOpenCollection(collection);
   }}>
     <span className="catalog-collection-preview" style={collection.catalog_cover_url || collection.image_url ? { backgroundImage: `url(${collection.catalog_cover_url || collection.image_url})` } : undefined}><BookOpen size={20} /></span>
-    <span><b>{collection.title}</b><small>{collection.free_count || 0} free · {collection.premium_count || 0} premium</small><small>{collection.albums?.length || 0} альбома · {collection.total_count || collection.total_artworks || 0} работ</small></span>
+    <span><b>{collection.title}</b><small>Бесплатно {collection.free_count || 0} · Premium {collection.premium_count || 0}</small><small>{collection.albums?.length || 0} серий · {collection.total_count || collection.total_artworks || 0} работ</small></span>
   </button>)}</div>;
 
   return <section className="page catalog-page catalog-page--redesigned">
