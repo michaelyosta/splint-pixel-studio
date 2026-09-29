@@ -504,6 +504,79 @@ three-tab IA, and player-local onboarding are unchanged. No
 XP/levels/achievements/streaks/session-goal UI added; the guide is static
 guidance, not progression.
 
+## Catalog hero adapts to viewer state and recommends unfinished public work
+
+OLD CONTRACT
+
+The same full-size Catalog hero rendered for every viewer and every visit.
+Its CTA selected the first non-premium item from the popularity order, which
+could be a completed work or an artwork created by the viewer.
+
+→ NEW CONTRACT
+
+Fresh viewers keep the onboarding hero, its counts, and the single
+`Начать раскрашивать` action. Viewers with unfinished work get a compact
+resume hero showing that artwork, its paint percentage, and one resume action.
+Viewers with only finished or created work get a compact shelf message and one
+action for a new public free artwork. The CTA selection excludes completed and
+viewer-created work, prefers an unstarted free artwork, then an unfinished free
+artwork, and otherwise has no action if no eligible free artwork exists.
+
+→ WHY INTENTIONAL
+
+The permanent banner consumes the first viewport after onboarding, and the
+arbitrary popularity choice can send a viewer back to completed or self-created
+work. Adapting to existing resume state makes the hero relevant while retaining
+the approved first-run guidance and free-first entry point.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/firstRunClarity.test.js` verifies fresh, unfinished, completed, and
+created viewer states plus CTA selection against completed, self-created,
+started, unstarted, and premium fixtures. It asserts exactly one rendered CTA
+contract, `data-catalog-hero-cta="true"`, and `hero_cta_open` tracking.
+
+→ UNCHANGED CONTRACTS
+
+The cold-start hero still includes the catalog count required by
+`e2e/catalog-merchandising.spec.js`, the free-first singular CTA and static
+guide remain, unfinished work still resumes, and the 172/148 split, catalog
+content, payment, entitlement, authentication, and three-tab IA are unchanged.
+
+## Catalog collection cards show covers, composition, and viewer progress
+
+OLD CONTRACT
+
+Collection cards rendered a small square thumbnail and repeated truncated
+counts, so mobile cards concealed both their cover artwork and differences in
+collection content.
+
+→ NEW CONTRACT
+
+Collection cards in the showcase and collections tab use a wide, stable cover
+image, show an available description or catalog theme, display complete free
+and Premium counts plus album/work totals, and show the server/local completed
+count as `N из M раскрашено`.
+
+→ WHY INTENTIONAL
+
+Collections are a first-class discovery path and need to communicate their
+visual subject and scope at phone width. Existing server completion summaries
+and the shared progress helper provide useful distinctions without loading
+artwork maps or creating new catalog data.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/catalogShowcaseHierarchy.test.js` asserts the cover aspect ratio,
+non-truncated complete count labels, per-collection progress, and preserved
+collection-open tracking and click-through.
+
+→ UNCHANGED CONTRACTS
+
+Collection-to-album navigation, Catalog section order, the nine-shelf budget,
+all-work collapse behavior, catalog data, the 172/148 split, and every commerce,
+authentication, entitlement, and payment boundary are unchanged.
+
 ## Contract coverage status
 
 All substantive changed assertions identified in the audit map to the approved decisions above. OPEN GAP: none. Any future selector-only change should remain in the mechanical section; any new semantic assertion must add its own four-field migration block or be marked OPEN GAP rather than inferred as an intentional contract.
