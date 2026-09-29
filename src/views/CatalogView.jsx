@@ -1,5 +1,7 @@
 import { ArrowRight, BookOpen, Crown, Flame, Heart, Sparkles, Star, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import FirstRunGuide from '../components/FirstRunGuide.jsx';
+import { useFirstRunGuide } from '../hooks/useFirstRunGuide.js';
 import { MOODS, THEMES } from '../lib/catalogMeta';
 import { prefetchColoring } from '../lib/coloringPrefetch';
 import { hapticImpact, hapticSelection } from '../lib/telegram';
@@ -54,6 +56,7 @@ export default function CatalogView({
 }) {
   const [activeShelfId, setActiveShelfId] = useState(null);
   const [allWorksExpanded, setAllWorksExpanded] = useState(false);
+  const { guideVisible, dismissGuide } = useFirstRunGuide();
 
   useEffect(() => {
     setAllWorksExpanded(false);
@@ -194,6 +197,11 @@ export default function CatalogView({
     : catalogChip === 'free' ? freeTemplates
     : searchedTemplates;
   const visibleTemplates = currentTemplates.slice(0, visibleCount);
+  const firstPaintable = popularTemplates.find((item) => item.access !== 'premium')
+    || freeTemplates[0]
+    || searchedTemplates.find((item) => item.access !== 'premium')
+    || searchedTemplates[0]
+    || null;
   const findShelf = (id) => shelves.find((shelf) => shelf.id === id) || null;
   const synthesizeShelf = (id, label, description, items) => ({
     id, label, description,
@@ -293,11 +301,13 @@ export default function CatalogView({
     <label className="catalog-search"><span aria-hidden="true">⌕</span><input value={catalogQuery} onChange={(event) => onChangeQuery(event.target.value)} placeholder="Поиск картин и тем" type="search" /><button type="button" onClick={() => onChangeQuery('')} aria-label="Очистить поиск" hidden={!catalogQuery}>×</button></label>
     <div className="catalog-chips" role="tablist" aria-label="Раздел каталога">{chipItems.map((chip) => <button key={chip.id} type="button" className={catalogChip === chip.id && !activeShelfId ? 'active' : ''} role="tab" aria-selected={catalogChip === chip.id && !activeShelfId} onClick={() => { hapticSelection(); setActiveShelfId(null); onChangeChip(chip.id); }}>{chip.label}</button>)}<button type="button" className="catalog-store-chip" onClick={() => { onTrack('store_open_from_content', { source: 'catalog_header' }); onOpenStore?.(); }}><Crown size={13} /> Premium Gallery</button></div>
 
-    {loading && !templates.length ? <div className="skeleton-grid" aria-label="Загружаем каталог">{[0, 1, 2, 3].map((item) => <div className="skeleton-card" key={item}><div className="skeleton-block skeleton-preview" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></div>)}</div> : catalogError && !templates.length ? <div className="error-retry"><p>Не удалось загрузить каталог</p><button className="secondary-button" type="button" onClick={onRetryCatalog}>Повторить</button></div> : !templates.length ? <div className="error-retry" data-catalog-empty="true"><p>Каталог пока пуст. Обновите его через несколько секунд.</p><button className="secondary-button" type="button" onClick={onRetryCatalog}>Обновить</button></div> : <>
+    {loading && !templates.length ? <><p className="catalog-loading-hint" data-catalog-loading-hint="true">Подбираем картины… Дальше выбери любую и нажми «Начать раскрашивать».</p><div className="skeleton-grid" aria-label="Загружаем каталог">{[0, 1, 2, 3].map((item) => <div className="skeleton-card" key={item}><div className="skeleton-block skeleton-preview" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></div>)}</div></> : catalogError && !templates.length ? <div className="error-retry"><p>Не удалось загрузить каталог</p><button className="secondary-button" type="button" onClick={onRetryCatalog}>Повторить</button></div> : !templates.length ? <div className="error-retry" data-catalog-empty="true"><p>Каталог пока пуст — нажми «Обновить», затем выбери картину и нажми «Начать раскрашивать».</p><button className="secondary-button" type="button" onClick={onRetryCatalog}>Обновить</button></div> : <>
       {catalogChip === 'all' && !catalogCollection && !activeShelf && <>
+        {guideVisible && <FirstRunGuide onDismiss={dismissGuide} />}
         <section className="catalog-hero" data-catalog-hero>
           <div><p className="eyebrow">SPLINT · DIGITAL COLORING STUDIO</p><h2>Выбери свой следующий мир</h2><p>{templates.length} сцен — от voxel-приключений и неона до спокойных историй. Начни бесплатно, сохрани любимые темы и собери Premium Gallery.</p></div>
           <div className="catalog-hero-stats"><span><b>{templates.length}</b><small>работ</small></span><span><b>{catalogCollections.length}</b><small>коллекций</small></span><span><b>{premiumPack.total_count || premiumPack.items.length}</b><small>Premium</small></span></div>
+          {firstPaintable && <button className="catalog-hero-cta primary-button" type="button" data-catalog-hero-cta="true" onClick={() => { hapticImpact('light'); onTrack('hero_cta_open', { coloring_id: firstPaintable.id, source: 'hero' }); openArtwork(firstPaintable, { source: 'hero_cta' }); }}>Начать раскрашивать</button>}
         </section>
         {topShelves.map(renderShelf)}
         <section className="catalog-premium-gallery" data-premium-gallery-block="true">
