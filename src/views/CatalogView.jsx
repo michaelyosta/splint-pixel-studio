@@ -6,6 +6,8 @@ import { MOODS, THEMES } from '../lib/catalogMeta';
 import { prefetchColoring } from '../lib/coloringPrefetch';
 import { hapticImpact, hapticSelection } from '../lib/telegram';
 import { formatContentMetadataDetail } from '../lib/contentMetadata.js';
+import { buildCollectionProgress } from '../lib/galleryProgression.js';
+import { getCatalogHeroState, selectHeroPaintable } from '../lib/catalogHero.js';
 import {
   PREMIUM_PACK_STATES,
   SHOWCASE_PREMIUM_PACK,
@@ -197,11 +199,14 @@ export default function CatalogView({
     : catalogChip === 'free' ? freeTemplates
     : searchedTemplates;
   const visibleTemplates = currentTemplates.slice(0, visibleCount);
-  const firstPaintable = popularTemplates.find((item) => item.access !== 'premium')
-    || freeTemplates[0]
-    || searchedTemplates.find((item) => item.access !== 'premium')
-    || searchedTemplates[0]
-    || null;
+  const heroState = getCatalogHeroState(mine, currentUser?.id);
+  const continueItem = heroState.unfinished;
+  const firstPaintable = selectHeroPaintable(templates, mine, currentUser?.id);
+  const heroAction = continueItem
+    ? { item: continueItem, label: 'Продолжить раскрашивать' }
+    : firstPaintable
+      ? { item: firstPaintable, label: heroState.kind === 'returning' ? 'Начать новую картину' : 'Начать раскрашивать' }
+      : null;
   const findShelf = (id) => shelves.find((shelf) => shelf.id === id) || null;
   const synthesizeShelf = (id, label, description, items) => ({
     id, label, description,
@@ -334,13 +339,38 @@ export default function CatalogView({
     })}</div>
   </section>;
 
-  const renderCollectionGrid = (items, label) => <div className="catalog-collection-grid" aria-label={label}>{items.map((collection) => <button className="catalog-collection-card" type="button" key={collection.id} onClick={() => {
+  const catalogThemeLabels = {
+    cozy: 'Уютные сюжеты', forest: 'Лесные истории', botanical: 'Растения и сады',
+    geometric: 'Узоры и геометрия', travel: 'Путешествия', journaling: 'Творческие дневники',
+    'dark-cute': 'Милые странности', 'voxel-sandbox': 'Блочные миры',
+    'arcade-obstacle': 'Аркадные испытания', 'creature-collecting': 'Фантастические существа',
+    'neon-city': 'Неоновые города', 'cyberpunk-sport': 'Киберспорт',
+    'internet-core': 'Интернет-культура', 'surreal-pop': 'Сюрреалистичный поп',
+  };
+  const catalogMoodLabels = { cozy: 'Уютная атмосфера', calm: 'Спокойные сюжеты', focus: 'Для сосредоточенного отдыха' };
+  const renderCollectionGrid = (items, label) => <div className="catalog-collection-grid" aria-label={label}>{items.map((sourceCollection) => {
+    const collection = buildCollectionProgress(sourceCollection, mine);
+    const theme = catalogThemeLabels[sourceCollection.catalog_theme]
+      || sourceCollection.catalog_theme || catalogMoodLabels[sourceCollection.catalog_mood] || '';
+    const description = String(sourceCollection.description || theme).replace(/[-_]+/g, ' ').trim();
+    const total = Number(collection.total_count || collection.total_artworks || 0);
+    const freeCount = Number(collection.free_count || 0);
+    const premiumCountForCollection = Number(collection.premium_count || 0);
+    const albumCount = (collection.albums || []).length;
+    return <button className="catalog-collection-card" type="button" key={collection.id} onClick={() => {
     onTrack('collection_open', { collection_id: collection.id });
     onOpenCollection(collection);
   }}>
     <span className="catalog-collection-preview" style={collection.catalog_cover_url || collection.image_url ? { backgroundImage: `url(${collection.catalog_cover_url || collection.image_url})` } : undefined}><BookOpen size={20} /></span>
-    <span><b>{collection.title}</b><small>Бесплатно {collection.free_count || 0} · Premium {collection.premium_count || 0}</small><small>{collection.albums?.length || 0} альбома · {collection.total_count || collection.total_artworks || 0} работ</small></span>
-  </button>)}</div>;
+    <span className="catalog-collection-copy"><b>{collection.title}</b>{description && <small className="catalog-collection-description">{description}</small>}
+      {collection.free_count != null || collection.premium_count != null
+        ? <small className="catalog-collection-composition">Бесплатно {freeCount} · Premium {premiumCountForCollection}</small>
+        : null}
+      <small className="catalog-collection-progress">{collection.completed_count} из {total} раскрашено</small>
+      <small className="catalog-collection-counts">{albumCount} альбомов · {total} работ</small>
+    </span>
+  </button>;
+  })}</div>;
 
   return <section className="page catalog-page catalog-page--redesigned">
     <div className="page-heading catalog-heading"><div><p className="eyebrow">{activeShelf ? activeShelf.label : 'КАТАЛОГ'}</p><h1>{catalogCollection ? (catalogCollection.album_title || catalogCollection.title) : activeShelf ? `${activeShelf.total_count} работ` : 'Что раскрасить следующим?'}</h1></div><div className="catalog-heading-actions">{(catalogCollection || activeShelf) && <button className="catalog-reset" type="button" onClick={() => { setActiveShelfId(null); onResetScope(); }}>Все работы</button>}</div></div>
@@ -350,10 +380,16 @@ export default function CatalogView({
     {loading && !templates.length ? <><p className="catalog-loading-hint" data-catalog-loading-hint="true">Подбираем картины… Дальше выбери любую и нажми «Начать раскрашивать».</p><div className="skeleton-grid" aria-label="Загружаем каталог">{[0, 1, 2, 3].map((item) => <div className="skeleton-card" key={item}><div className="skeleton-block skeleton-preview" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></div>)}</div></> : catalogError && !templates.length ? <div className="error-retry"><p>Не удалось загрузить каталог</p><button className="secondary-button" type="button" onClick={onRetryCatalog}>Повторить</button></div> : !templates.length ? <div className="error-retry" data-catalog-empty="true"><p>Каталог пока пуст — нажми «Обновить», затем выбери картину и нажми «Начать раскрашивать».</p><button className="secondary-button" type="button" onClick={onRetryCatalog}>Обновить</button></div> : <>
       {catalogChip === 'all' && !catalogCollection && !activeShelf && <>
         {guideVisible && <FirstRunGuide onDismiss={dismissGuide} />}
-        <section className="catalog-hero" data-catalog-hero>
-          <div><p className="eyebrow">SPLINT · DIGITAL COLORING STUDIO</p><h2>Выбери свой следующий мир</h2><p>{templates.length} сцен — от voxel-приключений и неона до спокойных историй. Начни бесплатно, сохрани любимые темы и собери Premium Gallery.</p></div>
-          <div className="catalog-hero-stats"><span><b>{templates.length}</b><small>работ</small></span><span><b>{catalogCollections.length}</b><small>коллекций</small></span><span><b>{premiumPack.total_count || premiumPack.items.length}</b><small>Premium</small></span></div>
-          {firstPaintable && <button className="catalog-hero-cta primary-button" type="button" data-catalog-hero-cta="true" onClick={() => { hapticImpact('light'); onTrack('hero_cta_open', { coloring_id: firstPaintable.id, source: 'hero' }); openArtwork(firstPaintable, { source: 'hero_cta' }); }}>Начать раскрашивать</button>}
+        <section className={`catalog-hero${heroState.kind === 'fresh' ? '' : ' catalog-hero--compact'}`} data-catalog-hero data-hero-state={heroState.kind}>
+          {heroState.kind === 'continue' && continueItem ? <>
+            <div><p className="eyebrow">ПРОДОЛЖИТЬ</p><h2>{continueItem.title}</h2><p>{Math.round(continueItem.progress.percent)}% уже раскрашено</p></div>
+          </> : heroState.kind === 'returning' ? <>
+            <div><p className="eyebrow">ТВОЯ ПОЛКА</p><h2>{heroState.finishedCount > 0 ? `Уже собрано: ${heroState.finishedCount} ${heroState.finishedCount === 1 ? 'работа' : 'работ'}` : `Создано работ: ${heroState.createdCount}`}</h2><p>Добавь к коллекции новую картину.</p></div>
+          </> : <>
+            <div><p className="eyebrow">SPLINT · DIGITAL COLORING STUDIO</p><h2>Выбери свой следующий мир</h2><p>{templates.length} сцен — от voxel-приключений и неона до спокойных историй. Начни бесплатно, сохрани любимые темы и собери Premium Gallery.</p></div>
+            <div className="catalog-hero-stats"><span><b>{templates.length}</b><small>работ</small></span><span><b>{catalogCollections.length}</b><small>коллекций</small></span><span><b>{premiumPack.total_count || premiumPack.items.length}</b><small>Premium</small></span></div>
+          </>}
+          {heroAction && <button className="catalog-hero-cta primary-button" type="button" data-catalog-hero-cta="true" onClick={() => { hapticImpact('light'); onTrack('hero_cta_open', { coloring_id: heroAction.item.id, source: 'hero' }); openArtwork(heroAction.item, { source: 'hero_cta' }); }}>{heroAction.label}</button>}
         </section>
         {topShelves.map(renderShelf)}
         <section className="catalog-premium-gallery" data-premium-gallery-block="true">
