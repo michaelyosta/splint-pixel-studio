@@ -34,9 +34,20 @@ Status: dated evidence, not a product decision. Canonical procedure:
 - `ownership_touched`: false
 - `stars_semantics_touched`: false
 
-## Still required (human)
+## Post-publish observation in the production Mini App (2026-09-29)
 
-- Open Каталог in the production Telegram Mini App and confirm the 320-item
-  catalog, 16 collections, and 32 albums are visible.
-- Record that observation; only then rewrite the Content section of
-  `CURRENT_STATE.md`.
+Read-only observation through the production bot `@splint_pixel_studio_bot` in
+Telegram Web, opening the Menu Button target `https://pixel.showalove.ru`:
+
+- Catalog hero read `321` works, `16` collections, `148` Premium, and the copy
+  `321 сцен — от voxel-приключений и неона до спокойных историй`.
+- Shelves rendered with populated items: `Популярное` (321 work count),
+  `Новинки`/Phase 2 (140), `Бесплатно` (173), `Premium` (148),
+  `Игровые миры` (142), `Anime vibes` (20), plus the `Premium Gallery`
+  pack block at the server-owned 120 XTR price.
+- The served bundle contained the current `main` build, so this is the
+  published-catalog path and not a stale preview origin.
+
+This satisfies the previously open human confirmation step for the 320-item
+catalog. It is Telegram Web evidence, not physical Telegram iOS evidence, and
+it did not open or complete any purchase.
