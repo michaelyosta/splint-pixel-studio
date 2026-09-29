@@ -577,6 +577,28 @@ Collection-to-album navigation, Catalog section order, the nine-shelf budget,
 all-work collapse behavior, catalog data, the 172/148 split, and every commerce,
 authentication, entitlement, and payment boundary are unchanged.
 
+## Premium offer states its one-time value and buyer CTA
+
+OLD CONTRACT
+
+The Premium surface spoke in development terms: it declared itself a hypothesis with no purchase, announced a disabled payment mode, and offered a single request-access CTA. A buyer could not tell what the money buys or how the set differs from free content.
+
+NEW CONTRACT
+
+The teaser and full view state the one-time promise (count, themes, 120 Stars, no subscription) and the primary action reads the buyer CTA for the paid state. Unavailable, locked, free, paid, and owned states keep distinct copy, and opening the surface scrolls to its heading with reduced-motion behavior.
+
+WHY INTENTIONAL
+
+Request-access wording describes an internal allowlist flow, not a purchase. With Stars control in production, the surface must sell the actual entitlement: the full Premium Gallery set for one Stars price, with exclusions stated.
+
+WHERE NEW BEHAVIOR IS COVERED
+
+e2e/catalog-merchandising.spec.js asserts the paid CTA and the store handoff; e2e/unlocks-recommendations.spec.js asserts no purchase CTA in the unavailable state and the allowlisted checkout path. Unit parity for premium unlocks and primary IA remains in the focused suite.
+
+UNCHANGED CONTRACTS
+
+Server-owned price (120 XTR), product allowlist, the 172/148 split, entitlement creation only from authoritative payment state, kill switches, idempotency, reconciliation, and the three-tab IA are unchanged. No payment, payout, or marketplace settlement behavior changes.
+
 ## Contract coverage status
 
 All substantive changed assertions identified in the audit map to the approved decisions above. OPEN GAP: none. Any future selector-only change should remain in the mechanical section; any new semantic assertion must add its own four-field migration block or be marked OPEN GAP rather than inferred as an intentional contract.
