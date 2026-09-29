@@ -2,7 +2,7 @@
 
 Status: CURRENT
 Authority: Current operational truth for this repository.
-Last verified: 2026-09-25
+Last verified: 2026-09-29
 Repository state: verify current HEAD and origin/main at task start per AGENTS.md.
 
 This document is intentionally short and bounded. It records what is
@@ -116,7 +116,7 @@ Direct smoke evidence from 2026-09-22 is recorded in
   states. The 320 classic-v1 catalog grids (maximum 1200 cells on the long
   side, aspect ratio preserved) were visually approved by the owner on
   2026-09-25, including the increased detail/region-count tradeoff. Production
-  publication remains pending.
+  publication was completed on 2026-09-29; see Catalog delivery below.
 - Quality and metadata rules are canonical in
   [CONTENT_PIPELINE_CONTRACT.md](CONTENT_PIPELINE_CONTRACT.md) and
   [PHASE4_CONTENT_METADATA_UI.md](PHASE4_CONTENT_METADATA_UI.md).
@@ -127,19 +127,23 @@ Direct smoke evidence from 2026-09-22 is recorded in
   172 free and 148 premium items. PR #54 (`79bdd75`) is merged to `main`; its
   delivery code keeps large source/full images in R2 and serves preview/cover
   keys through the API. The owner separately approved the 1200-max classic-v1
-  candidates on 2026-09-25. The latest authorized read-only Neon aggregate
-  check observed 6 active public catalog templates (all 6 unmanaged, 0
-  managed), 0 published collections, and 0 albums. The catalog publisher
-  would retire those 6 legacy rows without deleting their 142 related
+  candidates on 2026-09-25. Before the publish, an authorized read-only Neon
+  aggregate check observed 6 active public catalog templates (all 6 unmanaged,
+  0 managed), 0 published collections, and 0 albums. The catalog publisher
+  would have retired those 6 legacy rows without deleting their 142 related
   progress rows; `coloring_template_tiles` contains 2,724 rows and totals
-  2,539,520 bytes. `catalog:publish` has not been run against production.
+  2,539,520 bytes. `catalog:publish` ran against production on 2026-09-29 and
+  the production database now holds the 320 items, 16 collections, and 32
+  albums below.
 - A post-merge production smoke on 2026-09-25 returned HTTP 200 for `/health`
   and `/ready`. HEAD for an existing verified R2 preview returned HTTP 200,
   `image/png`, 6,953 bytes, with immutable one-year caching. This confirms the
   current media route can deliver that existing preview, not that the new 320
-  catalog rows or candidate grids are published. The latest authorized
-  pre-merge Telegram Mini App observation was 7 works and 0 collections; there
-  is no post-merge 320-item Telegram verification. See
+  catalog rows or candidate grids are published. That smoke predates the
+  publish below. The 2026-09-29 post-publish observation in the production
+  Telegram Mini App (Telegram Web, production bot) showed 321 works (320
+  published plus one user work), 16 collections, 148 premium items, and
+  populated free, new, premium, and game-world shelves. See
   [evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md](evidence/PRODUCTION_CATALOG_SMOKE_2026-09-25.md).
   No user progress, ownership, payment, or catalog database state was changed.
 - The original 1,056 source/runtime media objects remain verified in R2; the
@@ -168,10 +172,11 @@ Direct smoke evidence from 2026-09-22 is recorded in
   [evidence/POSTGRES_RESTORE_REHEARSAL_2026-09-25.md](evidence/POSTGRES_RESTORE_REHEARSAL_2026-09-25.md).
 - The catalog publisher and tiled player support maps up to 1200 pixels per
   side while preserving aspect ratio; this is not blocked by the separate
-  25,600-cell public-import visibility budget. The approved candidates remain
-  R2-verified but remain unpublished to the production catalog; do not remove
-  source binaries until production publication and real-product delivery are
-  proven.
+  25,600-cell public-import visibility budget. The approved candidates were
+  published to the production catalog on 2026-09-29. Keep the heavy source
+  binaries in the tree until runtime delivery of the published items is proven
+  by continued use, because deleting files from a future `main` tree does not
+  remove their historical blobs.
 
 ## Pixelization
 
@@ -229,8 +234,10 @@ at `79bdd75f6e03df4597382c8965da2df1d8fce270`; its post-merge main CI run
 `36063168677` completed successfully, including required checks. Earlier PR
 attempt failures were resolved before merge. The direct post-merge media smoke
 confirms preview delivery. The candidate 1200-preview/grid R2 upload and
-checksums are verified, but production catalog database publication has not
-occurred from this candidate work.
+checksums were verified, and that candidate work was published to the
+production catalog on 2026-09-29. The extended 24-shard e2e matrix runs only on
+`main` pushes, so a green pull-request gate does not prove it; PR #67 restored
+it after the bounded analytics batch rejected three shipped client events.
 
 ## Known blockers
 
