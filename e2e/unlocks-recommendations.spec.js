@@ -201,7 +201,7 @@ test.describe('Unlocks and recommendations', () => {
     const showcase = page.locator('[data-premium-pack="true"]');
     await expect(showcase).toBeVisible({ timeout: 10000 });
     await expect(showcase).toHaveAttribute('data-premium-state', 'unavailable', { timeout: 15000 });
-    await expect(showcase.getByRole('button', { name: /Запросить доступ/i })).toHaveCount(0);
+    await expect(showcase.getByRole('button', { name: /Купить набор/i })).toHaveCount(0);
     await expect(showcase.locator('[data-premium-primary-action="true"]')).toContainText(/Сохранить желание|Желание сохранено/);
     await expect(showcase.locator('[data-premium-wish="true"]')).toHaveCount(0);
   });
@@ -215,7 +215,7 @@ test.describe('Unlocks and recommendations', () => {
     await openCatalog(page);
     await page.locator('[data-premium-pack-teaser="true"]').click();
     await expect(page.locator('[data-premium-pack="true"]')).toHaveAttribute('data-premium-state', 'paid', { timeout: 15000 });
-    await page.getByRole('button', { name: /Запросить доступ/i }).click();
+    await page.getByRole('button', { name: /Купить набор/i }).click();
     await expect(page.locator('[data-store-page]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-pack-id="col_premium-gallery"] .store-pack-meta')).toContainText('купить в Telegram');
     await expect(page.locator('[data-pack-id="col_premium-gallery"] .store-pack-meta')).not.toContainText('покупка пока отключена');
