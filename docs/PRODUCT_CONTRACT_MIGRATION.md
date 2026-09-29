@@ -324,6 +324,90 @@ The primary IA, `z-index`, equal three-tab widths, and hit targets are
 unchanged. The shell still auto-expands as before; only its sizing source
 changes when Telegram provides a stable viewport value.
 
+## Navigation is outside the clipping content container
+
+OLD CONTRACT
+
+The three-button navigation was the last flex child of `.app-container` inside
+`.telegram-frame`, and `.telegram-frame` clipped the whole column with
+`overflow: hidden`. On Telegram iOS the bar's paint layer could stay unpainted
+after the half-sheet expanded even though its hit targets kept working.
+
+→ NEW CONTRACT
+
+The bar is a direct flex child of `.telegram-frame` and a sibling of
+`.app-container`, so the only clipping ancestor in the tree (`overflow: hidden`
+plus the inherited frame radius) lives on the content container and no longer
+wraps the bar. `.telegram-frame` keeps the 2026-09-29 viewport cap
+`min(var(--tg-viewport-stable-height, 100dvh), 100%)` and adds no clipping,
+transform, filter, or paint containment. Navigation state uses color, opacity,
+background, and border only, with no transition, transform, or animation
+anywhere in the navigation subtree.
+
+→ WHY INTENTIONAL
+
+Telegram iOS showed the navigation paint disappear while its hit targets still
+worked after the expansion. The previous layout coupled the bar's paint to a
+clipping ancestor. Moving the bar out of the clipping element removes that
+dependency while keeping the existing viewport sizing, phone-frame decoration,
+and normal document flow.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/primary-ia-contract.test.js` asserts the frame/container/nav sibling
+structure, the retained viewport cap, the content-only clip, and the absence of
+clipping, transforms, and transitions on the navigation ancestor chain.
+`e2e/responsive-platform.spec.js` walks Catalog → Create → Profile → Catalog at
+400×640 and 400×844, asserting the bar stays visible, inside the viewport, and
+hit-testable, and saves screenshots at both heights. That is browser evidence,
+not physical Telegram iOS proof.
+
+→ UNCHANGED CONTRACTS
+
+The three primary destinations, equal-width buttons, safe-area margin,
+accessibility labels, hit targets, active route semantics, Telegram ready and
+expand behavior, and the no-route-animation Telegram rule remain unchanged.
+Painting, save/resume, auth, entitlements, and commerce are untouched.
+
+## Catalog action and visual hierarchy polish
+
+OLD CONTRACT
+
+The Catalog hero split its headline/copy and three small statistics into
+columns, compressing the first action on phone widths. Search, chips, shelves,
+and the premium surface used closely spaced and low-contrast treatments.
+
+→ NEW CONTRACT
+
+The existing hero presents headline and guidance first, three aligned summary
+values second, and the dominant `Начать раскрашивать` action as a full-width
+button. Search, filters, shelf headings, cards, and Premium Gallery use clearer
+spacing and text contrast. Hero and content surfaces use gradient fills,
+light borders, and inset highlights; content can use subtle transitions while
+the navigation remains static.
+
+→ WHY INTENTIONAL
+
+The owner reported that Catalog felt crowded and did not make the next action
+clear. Reordering visual emphasis and increasing section separation address
+that confusion without replacing the existing staged showcase or redesigning
+other destinations.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/primary-ia-contract.test.js` protects the separate navigation contract.
+`test/catalogShowcaseHierarchy.test.js` and `test/firstRunClarity.test.js`
+preserve the staged order and dominant free-first CTA. The viewport-growth walk
+in `e2e/responsive-platform.spec.js` captures the Catalog surface at both
+tested heights.
+
+→ UNCHANGED CONTRACTS
+
+The staged section order, hero action and onboarding copy, nine-shelf budget,
+collapsed all-works section, collections, 172 free / 148 premium split,
+Stars-based server-owned price and fail-closed payment gate, and three-tab IA
+remain unchanged. No catalog data, product rules, or other views are changed.
+
 ## Catalog showcase hierarchy (default view)
 
 OLD CONTRACT
