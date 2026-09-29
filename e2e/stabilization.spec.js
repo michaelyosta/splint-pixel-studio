@@ -6,6 +6,7 @@ async function openFirstColoring(page) {
   // therefore arrive well after the shell; wait for the actual card instead
   // of classifying a slow API response as a product regression.
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 60000 });
+  await page.locator('[data-catalog-all-works-toggle="true"]').click({ timeout: 60000 });
   await expect(firstCatalogCard).toBeVisible({ timeout: 60000 });
   await firstCatalogCard.click();
 }

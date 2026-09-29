@@ -324,6 +324,57 @@ The primary IA, `z-index`, equal three-tab widths, and hit targets are
 unchanged. The shell still auto-expands as before; only its sizing source
 changes when Telegram provides a stable viewport value.
 
+## Catalog showcase hierarchy (default view)
+
+OLD CONTRACT
+
+The default Catalog view rendered hero copy, then immediately dumped a
+12-artwork grid (`catalog-featured-grid`), then new/free/premium shelves, the
+premium teaser, six more shelves, and an 8-collection slice. Premium artwork
+cards opened the coloring directly.
+
+→ NEW CONTRACT
+
+The default view is a staged showcase: hero → search/chips (unchanged) →
+Popular + New horizontal shelves → a dedicated Premium Gallery block (crown,
+server-owned price in Stars, unchanged teaser) → free/premium shelves plus
+fill to a nine-shelf budget → the full collections grid → the complete artwork
+grid only behind an explicit `Показать все работы (N)` expander with the
+existing `visibleCount` show-more inside. Locked premium artwork cards (no
+progress) carry a Premium crown badge and route to the Premium Gallery
+showcase instead of opening the coloring; premium work already in progress
+still opens directly.
+
+→ WHY INTENTIONAL
+
+The owner asked to end the one-long-dumping-sheet catalog: 320 works rendered
+as an immediate wall with no hierarchy and no paid story. Staging discovery
+(shelves → collections → full grid on demand) keeps the first paint light on
+Telegram iOS WebViews while preserving every artwork, collection, and the
+fail-closed premium boundary. Routing locked premium cards to the showcase
+replaces a neutral locked dead-end with the value proposition; no payment path
+is added or activated.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/catalogShowcaseHierarchy.test.js` asserts the section order, the
+nine-shelf budget with popular/new pinned on top, the expander, the premium
+badge/routing, and the unchanged chips/hero/teaser contracts.
+`e2e/catalog-merchandising.spec.js` keeps asserting hero `320 сцен`, nine
+shelves, free `172` / premium `148` shelf totals, the 16-collection tab, and
+the teaser → showcase → `120 Stars` journey. E2E catalog-entry helpers
+(`creator`, `stabilization`, `session-goals`, `accessibility`,
+`accessibility-evidence`, `responsive-platform`) expand `Все работы` before
+addressing `.catalog-art-card`, which is a mechanical adaptation to the same
+contract.
+
+→ UNCHANGED CONTRACTS
+
+Chips (`Все`/`Бесплатно`/`Коллекции`), search, shelf rendering and counts,
+collection-tab and shelf/collection-detail grids, the premium teaser and
+showcase, entitlement/Stars fail-closed semantics, the 172/148 split, and the
+three-tab IA are unchanged. No XP/levels/achievements/progression UI added.
+
 ## Contract coverage status
 
 All substantive changed assertions identified in the audit map to the approved decisions above. OPEN GAP: none. Any future selector-only change should remain in the mechanical section; any new semantic assertion must add its own four-field migration block or be marked OPEN GAP rather than inferred as an intentional contract.

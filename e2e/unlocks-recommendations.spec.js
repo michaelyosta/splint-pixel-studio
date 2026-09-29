@@ -117,6 +117,7 @@ test.describe('Unlocks and recommendations', () => {
     await openCatalog(page);
     expect((await unlockResponse).status()).toBe(200);
     expect((await recommendationsResponse).status()).toBe(200);
+    await page.locator('[data-catalog-all-works-toggle="true"]').click({ timeout: 15000 });
     await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-recommendations="true"], [data-unlock-journey="true"]')).toHaveCount(0);
     const bounded = await page.evaluate(() => ({
