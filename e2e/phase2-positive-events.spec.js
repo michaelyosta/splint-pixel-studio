@@ -58,7 +58,7 @@ test('Phase 2 automatic Spark resolves one bounded default target without a choi
   const used = await (await useResponse).json();
   expect(used.special_applied_changes.length).toBeGreaterThan(0);
   await expect(page.locator('[data-session-game-spark-auto]')).toHaveCount(0);
-  await expect(page.locator('[data-special-wave-kind="spark_auto"]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-special-fx="spark"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-session-game-next-beat]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-phase2-spark-option]')).toHaveCount(0);
   await expect(page.locator('[data-special-kind="bomb"], [data-special-kind="fuse"], [data-special-kind="choice"], [data-special-kind="hazard"]')).toHaveCount(0);
@@ -94,13 +94,11 @@ test('Phase 2 Bomb keeps one spatial action and produces a bounded area reveal',
     && response.request().method() === 'POST'
     && response.request().postDataJSON()?.special_action?.type === 'use_bomb');
   await page.goto(`/?coloring=${fixture.id}&phase2=session&phase2Variant=treatment&phase2Event=bomb&phase2Subject=phase2_${testInfo.project.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`);
-  await expect(page.locator('[data-phase2-bomb]')).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('[data-phase2-bomb-use]')).toHaveCount(1);
-  await expect(page.locator('[data-bomb-center-direction]')).toHaveCount(0);
-  await page.locator('[data-phase2-bomb-use]').click();
+  await expect(page.locator('[data-special-auto-applying="bomb"]')).toHaveCount(0);
+  await expect(page.locator('[data-phase2-bomb-use], [data-bomb-use], [data-bomb-center-direction], [data-special-action="use"]')).toHaveCount(0);
   const used = await (await useResponse).json();
   expect(used.special_applied_changes.length).toBeGreaterThan(0);
-  await expect(page.locator('[data-special-wave-kind="bomb"]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-special-fx="bomb"]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-session-game-next-beat]')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('[data-special-kind="spark"], [data-special-kind="fuse"], [data-special-kind="choice"], [data-special-kind="hazard"]')).toHaveCount(0);
 });

@@ -65,12 +65,6 @@ test('Bomb offer reloads with the server-provided default center and applies wit
   expect(center.x).toBe(Number(bomb.cell_index) % GRID);
   expect(center.y).toBe(Math.floor(Number(bomb.cell_index) / GRID));
 
-  await page.goto(`/?coloring=${created.id}`);
-  const offer = page.locator('.progressive-grid-special-offer[data-special-kind="bomb"]');
-  await expect(offer).toBeVisible({ timeout: 20000 });
-  await expect(offer).toHaveAttribute('data-bomb-center-x', String(center.x));
-  await expect(offer).toHaveAttribute('data-bomb-center-y', String(center.y));
-
   const usePromise = page.waitForResponse((response) => {
     if (!response.url().includes(`/colorings/${created.id}/progress/actions`)
       || response.request().method() !== 'POST') return false;
@@ -80,10 +74,12 @@ test('Bomb offer reloads with the server-provided default center and applies wit
       return false;
     }
   }, { timeout: 20000 });
-  await offer.locator('[data-bomb-use]').click();
+  await page.goto(`/?coloring=${created.id}`);
+  await expect(page.locator('[data-bomb-center-direction], [data-bomb-use], [data-special-action="use"]')).toHaveCount(0);
   const used = await (await usePromise).json();
   expect(used.special_applied_changes.length).toBeGreaterThan(0);
   expect(used.special_applied_changes.length).toBeLessThanOrEqual(32);
+  await expect(page.locator('[data-special-fx="bomb"]')).toBeVisible({ timeout: 15000 });
 });
 
 test('Artifact fragment progress renders persistently after /progress reload', async ({ page }) => {

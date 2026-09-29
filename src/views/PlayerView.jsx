@@ -392,7 +392,8 @@ export default function PlayerView({
   const specialTreatment = !coreFeelActive && progress?.specials_experiment_group === 'treatment';
   const showSpecialOnboardingStep = specialTreatment && hasSpecials && !specialHelpState.introSeen;
   const onboardingStepCount = showSpecialOnboardingStep ? 4 : 3;
-  const showSpecialHint = onboarding === null && specialHintKind !== null && !specialHelpOpen;
+  const showSpecialHint = onboarding === null && specialHintKind !== null
+    && !specialHelpOpen && !tiledSpecialDiscovered;
   const onboardingCopy = [
     'Начнём с этого участка. Закрась выделенные клетки.',
     `Используй цвет №${selectedColor + 1}. Проведи по клеткам, чтобы закрасить сразу несколько.`,
@@ -542,6 +543,7 @@ export default function PlayerView({
           specialCells={progress.specials || []}
           specialCohort={coreFeelActive ? 'control' : progress.specials_experiment_group || 'control'}
           specialOffer={coreFeelActive ? null : tiledSpecialOffer}
+          specialApplied={tiledSpecialApplied}
           specialDiscovered={coreFeelActive ? null : tiledSpecialDiscovered}
           onVisibleSpecialKinds={coreFeelActive ? undefined : handleVisibleSpecialKinds}
           onSpecialAction={coreFeelActive ? undefined : onTiledSpecialAction}

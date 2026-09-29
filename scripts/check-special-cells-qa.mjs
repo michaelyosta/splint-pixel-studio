@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 
 import { pathToFileURL } from 'node:url';
+import { autoSpecialActionForOffer } from '../src/lib/specialCellsGameplay.js';
 
 export function evaluateSpecialQaProgress(progress, { expectedCohort = 'treatment' } = {}) {
   const diagnostics = progress?.special_diagnostics || null;
   const cohort = String(progress?.specials_experiment_group || 'unknown');
   const expected = String(expectedCohort || 'treatment').toLowerCase();
+  const offer = progress?.special_offer || null;
+  const automaticAction = autoSpecialActionForOffer(offer);
   const failures = [];
   if (cohort !== expected) failures.push(`cohort is ${cohort}; expected ${expected}`);
   if (!diagnostics) failures.push('server diagnostics are absent');
@@ -15,6 +18,7 @@ export function evaluateSpecialQaProgress(progress, { expectedCohort = 'treatmen
   if (expected === 'treatment' && Number(diagnostics?.special_count || 0) < 1) {
     failures.push('the template has no persisted Special candidates');
   }
+  if (offer && !automaticAction) failures.push('the active offer has no deterministic one-tap server action');
   return {
     ok: failures.length === 0,
     failures,
@@ -30,6 +34,14 @@ export function evaluateSpecialQaProgress(progress, { expectedCohort = 'treatmen
     candidates: Number(diagnostics?.special_count || 0),
     by_kind: diagnostics?.counts_by_kind || null,
     by_status: diagnostics?.counts_by_status || null,
+    one_tap_resolution: {
+      status: offer ? (automaticAction ? 'ready' : 'blocked') : 'no_active_offer',
+      action_type: automaticAction?.type || null,
+      option_selected: Boolean(automaticAction?.option_id),
+      bomb_center_selected: automaticAction?.type === 'use_bomb'
+        ? { x: automaticAction.center_x, y: automaticAction.center_y }
+        : null,
+    },
   };
 }
 

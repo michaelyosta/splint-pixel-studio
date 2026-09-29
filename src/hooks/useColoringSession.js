@@ -18,6 +18,34 @@ import {
 import { getNextCoreFeelFragment, isCoreFeelReference } from '../features/coreFeel/coreFeelExperiment.js';
 import { classifySessionDuration } from '../lib/resumeBeat.js';
 
+function specialEffectKind(actionType) {
+  return ({
+    use_spark: 'spark',
+    use_bomb: 'bomb',
+    disarm_fuse: 'fuse',
+    use_choice: 'choice',
+    disarm_hazard: 'hazard',
+    claim_artifact: 'artifact',
+  })[actionType] || null;
+}
+
+function specialEffectPayload(saved, action) {
+  const kind = specialEffectKind(action?.type);
+  const changes = Array.isArray(saved?.special_applied_changes) ? saved.special_applied_changes : [];
+  if (!kind || (!changes.length && !(kind === 'artifact' && saved?.special_discovered?.kind === 'artifact'))) return null;
+  return {
+    revision: saved.revision,
+    specialId: action.special_id,
+    kind,
+    changes,
+    cellIndex: action.cell_index ?? null,
+    centerX: action.center_x ?? null,
+    centerY: action.center_y ?? null,
+    radius: saved?.special_offer?.radius ?? null,
+    discovered: saved?.special_discovered?.kind === 'artifact' ? saved.special_discovered : null,
+  };
+}
+
 export function useColoringSession({
   view,
   feedMode,
@@ -214,6 +242,8 @@ export function useColoringSession({
           legacyAuthoritativeProgressRef.current = saved;
           nextRevision = saved.revision;
           legacyRevisionRef.current = saved.revision;
+          const appliedEffect = specialEffectPayload(saved, specialAction);
+          if (appliedEffect) setTiledSpecialApplied(appliedEffect);
           if (saved.special_discovered) setTiledSpecialDiscovered(saved.special_discovered);
           if (saved.special_offer) {
             setTiledSpecialOffer(saved.special_offer);
@@ -417,15 +447,11 @@ export function useColoringSession({
                   experiment_group: entry.specialAction.experiment_group || null,
                 }).catch(() => {});
               }
+              const appliedEffect = specialEffectPayload(saved, entry.specialAction);
+              if (appliedEffect) {
+                setTiledSpecialApplied(appliedEffect);
+              }
               if (Array.isArray(saved.special_applied_changes) && saved.special_applied_changes.length) {
-                setTiledSpecialApplied({
-                  revision: saved.revision,
-                  specialId: entry.specialAction.special_id,
-                  kind: entry.specialAction.type === 'use_spark'
-                    ? 'spark'
-                    : entry.specialAction.type === 'use_bomb' ? 'bomb' : null,
-                  changes: saved.special_applied_changes,
-                });
                 if (!replay) {
                   metaApi.track('special_applied', {
                     template_id: template.id,
@@ -731,9 +757,8 @@ export function useColoringSession({
         setTiledSpecialOffer(nextOffer);
         if (saved.special_discovered) setTiledSpecialDiscovered(saved.special_discovered);
         else setTiledSpecialDiscovered(null);
-        if (Array.isArray(saved.special_applied_changes) && saved.special_applied_changes.length) {
-          setTiledSpecialApplied({ revision: saved.revision, changes: saved.special_applied_changes });
-        }
+        const appliedEffect = specialEffectPayload(saved, specialAction);
+        if (appliedEffect) setTiledSpecialApplied(appliedEffect);
         trackCanonicalSpecialEvents({
           saved,
           specialAction,

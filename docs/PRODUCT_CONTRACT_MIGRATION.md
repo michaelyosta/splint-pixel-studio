@@ -504,6 +504,68 @@ three-tab IA, and player-local onboarding are unchanged. No
 XP/levels/achievements/streaks/session-goal UI added; the guide is static
 guidance, not progression.
 
+## Special-cell one-tap resolution and effect feedback
+
+OLD CONTRACT
+
+Painting a Special Cell created an offer and paused ordinary progress. The
+player then had to choose a target, nudge a Bomb center, choose a Choice/Hazard
+option, or press a separate use/disarm confirmation. The grid used one shared
+wave treatment for Spark and Bomb; Fuse, Artifact, Choice, and Hazard had no
+distinct applied-effect animation.
+
+→ NEW CONTRACT
+
+The committed tap that claims a Special Cell resolves it automatically through
+the existing `/progress/actions` action envelope. Spark applies the persisted
+server default target. Bomb uses the special cell's own coordinates. Fuse
+disarms successive persisted links automatically until the server closes the
+offer. Choice uses the first server option; Hazard disarms by default. Artifact
+is consumed atomically with its claim. There is no target picker, nudge, skip,
+confirm, or undo in the normal activation flow. The special is spent on tap.
+
+After a server-confirmed response, the grid shows a bounded kind-specific
+effect: Spark's area fill burst, Bomb's radius ring and cell flash, Fuse's
+link-by-link dissolve, Choice's reveal sweep, Artifact's collect glow, or
+Hazard's warning pulse. The effect is driven by `special_applied_changes` (and
+the server-confirmed Artifact discovery). If the affected region lies outside
+the current viewport, its changed-cell pattern is projected into the visible
+field for the short effect; otherwise the real affected cells are highlighted.
+The effect does not intercept pointers or shift layout, and keeps a static
+legible mark for reduced motion.
+
+→ WHY INTENTIONAL
+
+The owner wants the Special Cell itself to be the single user action, with an
+immediate visual explanation. The one-way spend on tap is the explicit tradeoff
+for removing confirmation and target selection; a failed server action remains
+server-authoritative and cannot produce client-only progress.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`src/lib/specialCellsGameplay.test.js` checks deterministic action envelopes
+for every current offer kind. `e2e/special-cells-long-journey.spec.js` paints
+every kind present in the deterministic fixture, asserts automatic server
+actions and absence of manual controls, and captures each effect at 390×844
+plus a reduced-motion Hazard capture. The legacy Choice fixture additionally
+covers Choice when explicitly enabled for the local screenshot run.
+`e2e/special-bomb-tiled.spec.js`,
+`e2e/special-bomb-artifact-reload.spec.js`,
+`e2e/phase2-session-game.spec.js`,
+`e2e/special-cells-gameplay-v1.spec.js`,
+`e2e/special-glyph-parity.spec.js`, and
+`e2e/special-cells-visual-audit.spec.js` cover reload, legacy/tiled delivery,
+the default server option, effect feedback, and the removed selectors.
+
+→ UNCHANGED CONTRACTS
+
+The server remains authoritative for effect calculation and changed cells.
+The exact `/progress/actions` action types and offer token remain in use;
+idempotency, replay protection, ownership checks, revision/CAS, the Bomb cap of
+32, Spark cap of 144, and `INITIAL_TARGET`'s earliest Spark remain unchanged.
+No effect is computed locally, no XP/levels/streaks/achievements are added, and
+payments, entitlements, authentication, and commerce are untouched.
+
 ## Contract coverage status
 
 All substantive changed assertions identified in the audit map to the approved decisions above. OPEN GAP: none. Any future selector-only change should remain in the mechanical section; any new semantic assertion must add its own four-field migration block or be marked OPEN GAP rather than inferred as an intentional contract.
