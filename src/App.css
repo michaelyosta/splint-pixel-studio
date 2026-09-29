@@ -22,8 +22,12 @@ img { user-select: none; }
 /* ── Phone frame (desktop preview of the Mini App) ────────────── */
 .telegram-frame {
   width: min(100%, 420px);
-  height: var(--tg-viewport-stable-height, 100dvh);
-  max-height: var(--tg-viewport-stable-height, 100dvh);
+  /* Telegram's own stable-height var can exceed the actually visible mini-app
+     area (Web side panel, half-sheet plus host chrome): the in-flow tab bar
+     would sit below the fold. Cap the shell to the real viewport through the
+     html/body/#root 100% chain. */
+  height: min(var(--tg-viewport-stable-height, 100dvh), 100%);
+  max-height: min(var(--tg-viewport-stable-height, 100dvh), 100%);
   background-color: var(--app-bg);
   border: 1px solid #22364C;
   border-radius: 36px;
