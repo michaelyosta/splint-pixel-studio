@@ -66,8 +66,12 @@ test('application shell keeps navigation in normal flow for Telegram iOS reopen'
   assert.match(containerRule, /flex-direction:\s*column/);
   assert.match(containerRule, /position:\s*relative/);
   assert.doesNotMatch(containerRule, /display:\s*grid|grid-template-rows/);
-  assert.match(frameRule, /height:\s*var\(--tg-viewport-stable-height,\s*100dvh\)/);
-  assert.match(frameRule, /max-height:\s*var\(--tg-viewport-stable-height,\s*100dvh\)/);
+  // 2026-09-29 migration: the shell is capped to the real viewport. Telegram's
+  // stable-height var alone can exceed the visible mini-app area (measured a
+  // 655px frame inside a 599px Web panel), pushing the in-flow tab bar below
+  // the fold. min(..., 100%) keeps the bar pinned without touching paint.
+  assert.match(frameRule, /height:\s*min\(var\(--tg-viewport-stable-height,\s*100dvh\),\s*100%\)/);
+  assert.match(frameRule, /max-height:\s*min\(var\(--tg-viewport-stable-height,\s*100dvh\),\s*100%\)/);
   assert.match(contentRule, /flex:\s*1/);
   assert.match(contentRule, /min-height:\s*0/);
   assert.match(contentRule, /overflow-y:\s*auto/);
