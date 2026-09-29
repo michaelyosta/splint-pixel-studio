@@ -53,6 +53,11 @@ export default function CatalogView({
   onTrack = () => {},
 }) {
   const [activeShelfId, setActiveShelfId] = useState(null);
+  const [allWorksExpanded, setAllWorksExpanded] = useState(false);
+
+  useEffect(() => {
+    setAllWorksExpanded(false);
+  }, [catalogQuery, catalogChip, activeShelfId, catalogCollection]);
   const renderCatalogLegacy = () => {
     const progressMap = {};
     mine.forEach((item) => { if (item.progress?.percent > 0) progressMap[item.id] = item.progress.percent; });
@@ -189,6 +194,25 @@ export default function CatalogView({
     : catalogChip === 'free' ? freeTemplates
     : searchedTemplates;
   const visibleTemplates = currentTemplates.slice(0, visibleCount);
+  const findShelf = (id) => shelves.find((shelf) => shelf.id === id) || null;
+  const synthesizeShelf = (id, label, description, items) => ({
+    id, label, description,
+    total_count: items.length,
+    item_ids: items.map((entry) => entry.id),
+    items: items.slice(0, 8),
+  });
+  const serverTopShelves = ['popular', 'new'].map(findShelf).filter(Boolean);
+  const fallbackTopShelves = [
+    ...(findShelf('popular') ? [] : [synthesizeShelf('popular', 'Популярное', 'Работы, к которым чаще возвращаются.', popularTemplates)]),
+    ...(findShelf('new') ? [] : [synthesizeShelf('new', 'Новинки', 'Свежие миры — ярче, смелее, современнее.', newestTemplates)]),
+  ];
+  const topShelves = [...serverTopShelves, ...fallbackTopShelves];
+  const midShelves = ['free', 'premium'].map(findShelf).filter(Boolean);
+  const pinnedShelfIds = new Set([...topShelves, ...midShelves].map((shelf) => shelf.id));
+  const SHOWCASE_SHELF_BUDGET = 9;
+  const restShelves = shelves
+    .filter((shelf) => !pinnedShelfIds.has(shelf.id))
+    .slice(0, Math.max(0, SHOWCASE_SHELF_BUDGET - pinnedShelfIds.size));
   const chipItems = [
     { id: 'all', label: 'Все' },
     { id: 'free', label: 'Бесплатно' },
@@ -206,13 +230,26 @@ export default function CatalogView({
     onOpen(item.id);
   };
 
+  const openPremiumShowcase = (item, context = {}) => {
+    onTrack('premium_preview_open', {
+      coloring_id: item.id,
+      collection_id: item.collection_id || null,
+      album_id: item.album_id || null,
+      ...context,
+    });
+    hapticSelection();
+    setActiveShelfId(null);
+    onChangeChip('premium');
+  };
+
   const renderArtworkGrid = (items, label) => <div className="catalog-art-grid" aria-label={label}>{items.map((item) => {
     const progressPercent = progressById.get(item.id) || 0;
     const metadata = formatContentMetadataDetail(item);
-    return <article className="catalog-art-card" key={item.id} onMouseEnter={() => prefetchColoring(item.id)} onTouchStart={() => prefetchColoring(item.id)}>
-      <button className="catalog-art-open" type="button" onClick={() => { hapticImpact('light'); openArtwork(item); }} aria-label={`Открыть раскраску ${item.title}`}>
+    const isLockedPremium = item.access === 'premium' && !(progressPercent > 0);
+    return <article className="catalog-art-card" data-access={item.access || 'free'} key={item.id} onMouseEnter={() => prefetchColoring(item.id)} onTouchStart={() => prefetchColoring(item.id)}>
+      <button className="catalog-art-open" type="button" onClick={() => { if (isLockedPremium) { openPremiumShowcase(item); return; } hapticImpact('light'); openArtwork(item); }} aria-label={isLockedPremium ? `Открыть витрину Premium Gallery для ${item.title}` : `Открыть раскраску ${item.title}`}>
         <span className="catalog-art-preview" style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : undefined}>
-          {progressPercent > 0 ? <em className="catalog-art-progress">{progressPercent}%</em> : <em>{metadata.duration}</em>}
+          {progressPercent > 0 ? <em className="catalog-art-progress">{progressPercent}%</em> : isLockedPremium ? <em className="catalog-art-premium-badge"><Crown size={11} aria-hidden="true" /> Premium</em> : <em>{metadata.duration}</em>}
         </span>
         <span className="catalog-art-copy"><b>{item.title}</b><small data-content-metadata={metadata.assessed ? 'authoritative' : 'unassessed'}>{item.width}×{item.height} · {metadata.line}</small></span>
       </button>
@@ -262,14 +299,22 @@ export default function CatalogView({
           <div><p className="eyebrow">SPLINT · DIGITAL COLORING STUDIO</p><h2>Выбери свой следующий мир</h2><p>{templates.length} сцен — от voxel-приключений и неона до спокойных историй. Начни бесплатно, сохрани любимые темы и собери Premium Gallery.</p></div>
           <div className="catalog-hero-stats"><span><b>{templates.length}</b><small>работ</small></span><span><b>{catalogCollections.length}</b><small>коллекций</small></span><span><b>{premiumPack.total_count || premiumPack.items.length}</b><small>Premium</small></span></div>
         </section>
-        <section className="catalog-featured-grid">
-          <div className="catalog-section-heading"><div><p className="eyebrow">БЫСТРЫЙ СТАРТ</p><h2>Открой любую сцену</h2><small>Несколько работ для мгновенного входа в раскрашивание.</small></div></div>
-          {renderArtworkGrid(searchedTemplates.slice(0, 12), 'Рекомендованные картины')}
+        {topShelves.map(renderShelf)}
+        <section className="catalog-premium-gallery" data-premium-gallery-block="true">
+          <div className="catalog-section-heading"><div><p className="eyebrow">PREMIUM GALLERY</p><h2><Crown size={15} aria-hidden="true" /> Premium Gallery</h2><small>{premiumPack.total_count || premiumPack.items.length} работ · {premiumPack.price_in_stars} Stars — одна покупка, полный маршрут.</small></div></div>
+          <PremiumPackTeaser pack={premiumPack} state={premiumState} onOpen={() => onChangeChip('premium')} />
         </section>
-        {shelves.filter((shelf) => ['new', 'free', 'premium'].includes(shelf.id)).map(renderShelf)}
-        <PremiumPackTeaser pack={premiumPack} state={premiumState} onOpen={() => onChangeChip('premium')} />
-        {shelves.filter((shelf) => !['new', 'free', 'premium'].includes(shelf.id)).slice(0, 6).map(renderShelf)}
-        {catalogCollections.length > 0 && <><div className="catalog-section-heading"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Соберите свою полку</h2></div></div>{renderCollectionGrid(catalogCollections.slice(0, 8), 'Коллекции')}</>}
+        {midShelves.map(renderShelf)}
+        {restShelves.map(renderShelf)}
+        {catalogCollections.length > 0 && <><div className="catalog-section-heading"><div><p className="eyebrow">КОЛЛЕКЦИИ</p><h2>Соберите свою полку</h2><small>{catalogCollections.length} коллекций · {templates.length} работ</small></div></div>{renderCollectionGrid(catalogCollections, 'Коллекции витрины')}</>}
+        <section className="catalog-all-works" data-catalog-all-works="true">
+          <div className="catalog-section-heading"><div><p className="eyebrow">ВСЯ КОЛЛЕКЦИЯ</p><h2>Все работы</h2><small>{searchedTemplates.length} работ · {freeTemplates.length} бесплатно</small></div></div>
+          {allWorksExpanded ? <>
+            {renderArtworkGrid(visibleTemplates, 'Все картины каталога')}
+            {!visibleTemplates.length && <p className="catalog-empty">По этому запросу ничего не найдено.</p>}
+            {currentTemplates.length > visibleCount && <div className="show-more-wrap"><button className="secondary-button" type="button" onClick={onShowMore}>Показать ещё ({currentTemplates.length - visibleCount})</button></div>}
+          </> : <button className="catalog-all-works-toggle" type="button" data-catalog-all-works-toggle="true" onClick={() => { hapticSelection(); onTrack('catalog_all_works_expand', { item_count: searchedTemplates.length }); setAllWorksExpanded(true); }}>Показать все работы ({searchedTemplates.length}) <ArrowRight size={15} aria-hidden="true" /></button>}
+        </section>
       </>}
 
       {catalogChip === 'premium' ? <PremiumPackView

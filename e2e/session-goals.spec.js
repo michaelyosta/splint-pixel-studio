@@ -24,6 +24,7 @@ async function openPlayer(page, coloringId = null, search = '') {
   const target = params.toString() ? `/?${params.toString()}` : '/';
   await page.goto(target);
   if (!coloringId) {
+  await page.locator('[data-catalog-all-works-toggle="true"]').click({ timeout: 15000 });
     const card = page.locator('.catalog-art-open').first();
     await expect(card).toBeVisible({ timeout: 15000 });
     await card.click();
@@ -35,6 +36,7 @@ async function openPlayer(page, coloringId = null, search = '') {
 async function openFirstCatalogPlayer(page, search = '') {
   const query = String(search).replace(/^\?/, '');
   await page.goto(query ? `/?${query}` : '/');
+  await page.locator('[data-catalog-all-works-toggle="true"]').click({ timeout: 15000 });
   const card = page.locator('.catalog-art-open').first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.click();

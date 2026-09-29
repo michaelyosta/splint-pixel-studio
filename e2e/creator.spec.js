@@ -26,8 +26,14 @@ async function gotoCatalog(page) {
   await expect(page.locator('.catalog-page')).toBeVisible({ timeout: 15000 });
 }
 
+async function expandCatalogAllWorks(page) {
+  await page.locator('[data-catalog-all-works-toggle="true"]').click({ timeout: 15000 });
+  await expect(page.locator('.catalog-art-grid[aria-label="Все картины каталога"]')).toBeVisible({ timeout: 15000 });
+}
+
 async function openFirstCatalogColoring(page) {
   await gotoCatalog(page);
+  await expandCatalogAllWorks(page);
   const firstCard = page.locator('.catalog-art-card').first();
   await expect(firstCard).toBeVisible({ timeout: 15000 });
   await firstCard.locator('.catalog-art-open').click();
@@ -45,6 +51,7 @@ async function getFirstFreeCatalogColoring(page) {
 
 async function openCatalogColoring(page, template) {
   await gotoCatalog(page);
+  await expandCatalogAllWorks(page);
   const card = page.locator('.catalog-art-card').filter({ hasText: template.title }).first();
   await expect(card).toBeVisible({ timeout: 15000 });
   await card.locator('.catalog-art-open').click();
@@ -578,6 +585,7 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('10. Catalog → open coloring → player renders guided canvas', async ({ page }) => {
     await gotoCatalog(page);
+  await expandCatalogAllWorks(page);
     const firstCard = page.locator('.catalog-art-card').first();
     await expect(firstCard).toBeVisible({ timeout: 15000 });
     await firstCard.locator('.catalog-art-open').click();
@@ -655,6 +663,7 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('14. Player guided mode keeps the canvas clear of persistent metrics', async ({ page }) => {
     await page.goto('/');
+    await page.locator('[data-catalog-all-works-toggle="true"]').click({ timeout: 15000 });
     await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 15000 });
     await page.locator('.catalog-art-card .catalog-art-open').first().click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
@@ -685,6 +694,7 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('16. Catalog card actions stay aligned despite different copy lengths', async ({ page }) => {
     await gotoCatalog(page);
+  await expandCatalogAllWorks(page);
     await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 15000 });
     await expect(page.locator('.catalog-art-card').nth(1)).toBeVisible();
     const positions = await page.locator('.catalog-art-card .catalog-art-open').evaluateAll((buttons) =>
@@ -697,6 +707,7 @@ test.describe('Creator 2.0 — full E2E', () => {
 
   test('17. Player dock switches between reveal and classic coloring', async ({ page }) => {
     await gotoCatalog(page);
+  await expandCatalogAllWorks(page);
     await expect(page.locator('.catalog-art-card').first()).toBeVisible({ timeout: 15000 });
     await page.locator('.catalog-art-card').first().locator('.catalog-art-open').click();
     await expect(page.locator('.player-page')).toBeVisible({ timeout: PLAYER_OPEN_TIMEOUT });
