@@ -12,53 +12,58 @@ button:focus:not(:focus-visible) { outline: none; }
 }
 
 /* ── Reset & stable shell ─────────────────────────────────────── */
-html, body, #root { width: 100%; height: 100%; margin: 0; padding: 0; }
+html, body, #root { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
 body { display: flex; justify-content: center; align-items: center; background-color: #04080E; }
 html[data-tg-swipe-protected] { overscroll-behavior-y: none; }
 
 button { -webkit-tap-highlight-color: transparent; }
 img { user-select: none; }
 
-/* ── Viewport shell and content frame ─────────────────────────── */
-.app-shell {
+/* ── Phone frame (desktop preview of the Mini App) ────────────── */
+.telegram-frame {
   width: min(100%, 420px);
-  height: 100dvh;
-  max-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  position: relative;
+  /* Telegram's own stable-height var can exceed the actually visible mini-app
+     area (Web side panel, half-sheet plus host chrome): the in-flow tab bar
+     would sit below the fold. Cap the shell to the real viewport through the
+     html/body/#root 100% chain. */
+  height: min(var(--tg-viewport-stable-height, 100dvh), 100%);
+  max-height: min(var(--tg-viewport-stable-height, 100dvh), 100%);
   background-color: var(--app-bg);
   border: 1px solid #22364C;
   border-radius: 36px;
+  position: relative;
   box-shadow:
     0 0 0 8px #0A1220,
     0 0 0 9px #1C2E42,
     0 30px 70px -18px rgba(0, 0, 0, 0.85),
     0 0 90px rgba(43, 217, 254, 0.07);
-}
-.telegram-frame {
-  width: 100%;
-  min-height: 0;
-  flex: 1 1 auto;
-  position: relative;
-  background-color: var(--app-bg);
+  display: flex;
+  flex-direction: column;
+  /* The tab bar is a flex sibling of the content column, so this frame must
+     not clip or promote a paint layer: iOS Telegram can leave a clipped
+     navigation layer unpainted after the host expands the viewport. Content
+     clipping lives on `.app-container`, which no longer contains the bar. */
 }
 
 @media (max-width: 480px) {
   body { background-color: var(--app-bg); background-image: none; }
-  .app-shell {
+  .telegram-frame {
     width: 100vw;
     border: none;
     border-radius: 0;
     box-shadow: none;
   }
-  .telegram-frame { border: none; border-radius: 0; box-shadow: none; }
+  .app-container { border-radius: 0; }
 }
 
 /* ── App container ────────────────────────────────────────────── */
 .app-container {
   width: 100%;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Inherits the frame radius and owns the only content clip. */
+  border-radius: inherit;
+  overflow: hidden;
   background-color: var(--app-bg);
   background-image:
     linear-gradient(rgba(43, 217, 254, 0.025) 1px, transparent 1px),
@@ -248,7 +253,7 @@ img { user-select: none; }
 /* Route-level transforms make Telegram iOS rebuild the scroll layer together
    with the sibling navigation bar. Keep the shell visually stable there; the
    content still swaps immediately and remains scrollable. */
-.app-shell[data-platform='telegram'] .page { animation: none; }
+.telegram-frame[data-platform='telegram'] .page { animation: none; }
 
 @keyframes pageIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -3204,7 +3209,6 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 
 @media (min-width: 768px) {
   body { align-items: stretch; background-color: #04080E; }
-  .app-shell { width: 100vw; max-height: none; border: none; border-radius: 0; box-shadow: none; }
   .telegram-frame {
     width: 100vw;
     max-height: none;
