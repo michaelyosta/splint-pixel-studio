@@ -375,6 +375,51 @@ collection-tab and shelf/collection-detail grids, the premium teaser and
 showcase, entitlement/Stars fail-closed semantics, the 172/148 split, and the
 three-tab IA are unchanged. No XP/levels/achievements/progression UI added.
 
+## First-run clarity: hero CTA and static guide
+
+OLD CONTRACT
+
+The default Catalog hero rendered copy and stats with no action: a cold-start
+user saw shelves and grids with no single dominant next step. Loading showed a
+bare skeleton and the empty catalog said only to wait and retry. No app-level
+first-run guidance existed (only the player-local `useColoringSession`
+onboarding).
+
+→ NEW CONTRACT
+
+The hero carries one dominant primary CTA, `Начать раскрашивать`
+(`data-catalog-hero-cta`), which opens the first paintable artwork preferring
+free items and tracks `hero_cta_open`; it never opens a locked premium item
+directly. A static inline first-run card (`data-first-run-guide`, max 3 steps:
+pick artwork → paint → create/collect) renders above the hero on the default
+showcase only, dismisses via `Понятно, начать`, and persists dismissal in
+`localStorage` under `splint:first-run-guide:v1` so it never shows again.
+Restricted storage is treated as valid (the card simply reappears next cold
+start). Loading and empty states now name the next step (pick any artwork and
+press the CTA; empty: press `Обновить`, then pick and paint).
+
+→ WHY INTENTIONAL
+
+Owner verdict: the interface does not guide by the hand; a cold-start user
+cannot tell what to do first. One dominant open-and-paint path plus
+dismissible static orientation fixes the 10-second comprehension gap without
+adding progression, rewards, streaks, or a gamified funnel.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/firstRunClarity.test.js` asserts the single hero CTA with free-first
+selection and tracking, the 3-step static guide with persisted dismissal and
+no progression/animation surface, inline placement above the hero, next-step
+loading/empty copy, and preserved hero/teaser/premium fail-closed contracts.
+
+→ UNCHANGED CONTRACTS
+
+Chips, search, shelf rendering and counts, collections, the premium teaser and
+showcase, entitlement/Stars fail-closed semantics, the 172/148 split, the
+three-tab IA, and player-local onboarding are unchanged. No
+XP/levels/achievements/streaks/session-goal UI added; the guide is static
+guidance, not progression.
+
 ## Contract coverage status
 
 All substantive changed assertions identified in the audit map to the approved decisions above. OPEN GAP: none. Any future selector-only change should remain in the mechanical section; any new semantic assertion must add its own four-field migration block or be marked OPEN GAP rather than inferred as an intentional contract.
