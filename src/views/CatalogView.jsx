@@ -19,6 +19,15 @@ import { createPremiumPackPurchaseIntent } from '../lib/premiumPurchase.js';
 import { isProductAllowed } from '../lib/packStore.js';
 import PremiumPackView, { PremiumPackTeaser } from '../features/premium/PremiumPackView.jsx';
 
+function albumWord(count) {
+  const n = Math.abs(Number(count) || 0) % 100;
+  const d = n % 10;
+  if (n > 10 && n < 20) return "альбомов";
+  if (d > 1 && d < 5) return "альбома";
+  if (d === 1) return "альбом";
+  return "альбомов";
+}
+
 export default function CatalogView({
   templates,
   shelves = [],
@@ -367,7 +376,7 @@ export default function CatalogView({
         ? <small className="catalog-collection-composition">Бесплатно {freeCount} · Premium {premiumCountForCollection}</small>
         : null}
       <small className="catalog-collection-progress">{collection.completed_count} из {total} раскрашено</small>
-      <small className="catalog-collection-counts">{albumCount} альбомов · {total} работ</small>
+      <small className="catalog-collection-counts">{albumCount} {albumWord(albumCount)} · {total} работ</small>
     </span>
   </button>;
   })}</div>;
