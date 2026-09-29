@@ -51,7 +51,7 @@ test.describe('Catalog merchandising release', () => {
     await expect(showcase.locator('.premium-pack-items .premium-pack-item')).toHaveCount(6);
     await expect(showcase).toContainText('Яркие миры, неон, существа и атмосферные сцены');
 
-    await showcase.getByRole('button', { name: /Запросить доступ · 120 Stars/i }).click();
+    await showcase.getByRole('button', { name: /Купить набор · 120 Stars/i }).click();
     await expect(page.locator('[data-store-page]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-pack-id="col_premium-gallery"]')).toContainText('120');
     await expect(page.locator('[data-pack-id="col_premium-gallery"]')).toContainText('купить в Telegram');

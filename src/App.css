@@ -2635,6 +2635,25 @@ html[data-tg-theme='light'] .creator-card label > input:not([type='file']) { bac
 .catalog-collection-card > span:last-child { align-items: flex-start; }
 .catalog-collection-card b { font-size: 12px; }
 .catalog-collection-card small { display: block; overflow: hidden; max-width: 100%; color: #B7C7D2; font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-collection-card { display: flex; flex-direction: column; align-items: stretch; gap: 0; padding: 8px; overflow: hidden; }
+.catalog-collection-preview { position: relative; width: 100%; height: auto; flex: none; aspect-ratio: 4 / 3; display: grid; place-items: center; border-radius: 8px; background: linear-gradient(135deg, #183345, #111827); background-position: center; background-size: cover; color: #C2F3F7; }
+.catalog-collection-preview svg { width: 26px; height: 26px; filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.7)); }
+.catalog-collection-card > .catalog-collection-copy { align-items: flex-start; gap: 5px; padding: 10px 3px 4px; }
+.catalog-collection-card b { width: 100%; font-size: 13px; line-height: 1.25; }
+.catalog-collection-card small { overflow: visible; max-width: none; white-space: normal; text-overflow: clip; overflow-wrap: anywhere; font-size: 10px; line-height: 1.35; }
+.catalog-collection-card .catalog-collection-description { color: #AFC3D1; }
+.catalog-collection-card .catalog-collection-composition { color: #D7E2E8; font-size: 10px; }
+.catalog-collection-card .catalog-collection-progress { color: #55D8EC; }
+.catalog-collection-card .catalog-collection-counts { color: #9EAEBB; }
+.catalog-hero--compact { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 20px; padding: 17px 19px; }
+.catalog-hero--compact > div:first-child { min-width: 0; }
+.catalog-hero--compact h2 { max-width: none; font-size: 20px; }
+.catalog-hero--compact p:not(.eyebrow) { margin-top: 5px; }
+.catalog-hero--compact .catalog-hero-cta { grid-column: 2; grid-row: 1; min-width: 180px; }
+@media (max-width: 560px) {
+  .catalog-hero--compact { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 15px; }
+  .catalog-hero--compact .catalog-hero-cta { grid-column: 1; grid-row: auto; min-width: 0; }
+}
 
 /* ── Bounded Phase 5 store / pack preview ───────────────────────────── */
 .store-page { padding: 18px 14px 104px; }

@@ -565,6 +565,100 @@ idempotency, replay protection, ownership checks, revision/CAS, the Bomb cap of
 32, Spark cap of 144, and `INITIAL_TARGET`'s earliest Spark remain unchanged.
 No effect is computed locally, no XP/levels/streaks/achievements are added, and
 payments, entitlements, authentication, and commerce are untouched.
+## Catalog hero adapts to viewer state and recommends unfinished public work
+
+OLD CONTRACT
+
+The same full-size Catalog hero rendered for every viewer and every visit.
+Its CTA selected the first non-premium item from the popularity order, which
+could be a completed work or an artwork created by the viewer.
+
+→ NEW CONTRACT
+
+Fresh viewers keep the onboarding hero, its counts, and the single
+`Начать раскрашивать` action. Viewers with unfinished work get a compact
+resume hero showing that artwork, its paint percentage, and one resume action.
+Viewers with only finished or created work get a compact shelf message and one
+action for a new public free artwork. The CTA selection excludes completed and
+viewer-created work, prefers an unstarted free artwork, then an unfinished free
+artwork, and otherwise has no action if no eligible free artwork exists.
+
+→ WHY INTENTIONAL
+
+The permanent banner consumes the first viewport after onboarding, and the
+arbitrary popularity choice can send a viewer back to completed or self-created
+work. Adapting to existing resume state makes the hero relevant while retaining
+the approved first-run guidance and free-first entry point.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/firstRunClarity.test.js` verifies fresh, unfinished, completed, and
+created viewer states plus CTA selection against completed, self-created,
+started, unstarted, and premium fixtures. It asserts exactly one rendered CTA
+contract, `data-catalog-hero-cta="true"`, and `hero_cta_open` tracking.
+
+→ UNCHANGED CONTRACTS
+
+The cold-start hero still includes the catalog count required by
+`e2e/catalog-merchandising.spec.js`, the free-first singular CTA and static
+guide remain, unfinished work still resumes, and the 172/148 split, catalog
+content, payment, entitlement, authentication, and three-tab IA are unchanged.
+
+## Catalog collection cards show covers, composition, and viewer progress
+
+OLD CONTRACT
+
+Collection cards rendered a small square thumbnail and repeated truncated
+counts, so mobile cards concealed both their cover artwork and differences in
+collection content.
+
+→ NEW CONTRACT
+
+Collection cards in the showcase and collections tab use a wide, stable cover
+image, show an available description or catalog theme, display complete free
+and Premium counts plus album/work totals, and show the server/local completed
+count as `N из M раскрашено`.
+
+→ WHY INTENTIONAL
+
+Collections are a first-class discovery path and need to communicate their
+visual subject and scope at phone width. Existing server completion summaries
+and the shared progress helper provide useful distinctions without loading
+artwork maps or creating new catalog data.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/catalogShowcaseHierarchy.test.js` asserts the cover aspect ratio,
+non-truncated complete count labels, per-collection progress, and preserved
+collection-open tracking and click-through.
+
+→ UNCHANGED CONTRACTS
+
+Collection-to-album navigation, Catalog section order, the nine-shelf budget,
+all-work collapse behavior, catalog data, the 172/148 split, and every commerce,
+authentication, entitlement, and payment boundary are unchanged.
+
+## Premium offer states its one-time value and buyer CTA
+
+OLD CONTRACT
+
+The Premium surface spoke in development terms: it declared itself a hypothesis with no purchase, announced a disabled payment mode, and offered a single request-access CTA. A buyer could not tell what the money buys or how the set differs from free content.
+
+NEW CONTRACT
+
+The teaser and full view state the one-time promise (count, themes, 120 Stars, no subscription) and the primary action reads the buyer CTA for the paid state. Unavailable, locked, free, paid, and owned states keep distinct copy, and opening the surface scrolls to its heading with reduced-motion behavior.
+
+WHY INTENTIONAL
+
+Request-access wording describes an internal allowlist flow, not a purchase. With Stars control in production, the surface must sell the actual entitlement: the full Premium Gallery set for one Stars price, with exclusions stated.
+
+WHERE NEW BEHAVIOR IS COVERED
+
+e2e/catalog-merchandising.spec.js asserts the paid CTA and the store handoff; e2e/unlocks-recommendations.spec.js asserts no purchase CTA in the unavailable state and the allowlisted checkout path. Unit parity for premium unlocks and primary IA remains in the focused suite.
+
+UNCHANGED CONTRACTS
+
+Server-owned price (120 XTR), product allowlist, the 172/148 split, entitlement creation only from authoritative payment state, kill switches, idempotency, reconciliation, and the three-tab IA are unchanged. No payment, payout, or marketplace settlement behavior changes.
 
 ## Contract coverage status
 
