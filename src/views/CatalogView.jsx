@@ -339,7 +339,7 @@ export default function CatalogView({
     onOpenCollection(collection);
   }}>
     <span className="catalog-collection-preview" style={collection.catalog_cover_url || collection.image_url ? { backgroundImage: `url(${collection.catalog_cover_url || collection.image_url})` } : undefined}><BookOpen size={20} /></span>
-    <span><b>{collection.title}</b><small>Бесплатно {collection.free_count || 0} · Premium {collection.premium_count || 0}</small><small>{collection.albums?.length || 0} серий · {collection.total_count || collection.total_artworks || 0} работ</small></span>
+    <span><b>{collection.title}</b><small>Бесплатно {collection.free_count || 0} · Premium {collection.premium_count || 0}</small><small>{collection.albums?.length || 0} альбома · {collection.total_count || collection.total_artworks || 0} работ</small></span>
   </button>)}</div>;
 
   return <section className="page catalog-page catalog-page--redesigned">
