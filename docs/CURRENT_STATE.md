@@ -83,12 +83,16 @@ Direct smoke evidence from 2026-09-22 is recorded in
 
 ## Commerce
 
-- Production currently runs the real Telegram Bot API integration in
-  `PAYMENTS_MODE=telegram_stars_controlled`. The webhook is registered and the
-  only configured product is `col_premium-gallery` at its server-owned catalog
-  price of 120 XTR. Public access is not asserted until the hot database gate
-  is explicitly drilled and changed from `controlled` to `public` after a
-  green release.
+- Production runs the real Telegram Bot API integration in
+  `PAYMENTS_MODE=telegram_stars_controlled` with the hot database gate at
+  `public` since 2026-09-29 (v13 `public_stars_activation`, drilled same day:
+  controlled restore, disabled flip, restore, invoice reach-and-cancel, stable
+  reconciler observation; see
+  [evidence/STARS_PUBLIC_ACTIVATION_2026-09-29.md](evidence/STARS_PUBLIC_ACTIVATION_2026-09-29.md)).
+  The webhook is registered and the only configured product is
+  `col_premium-gallery` at its server-owned catalog price of 120 XTR.
+  `TELEGRAM_STARS_FIRST_LIVE_TRANSACTION_MONITORING` is active: the first live
+  user transaction is the canary.
 - The launch-hardening candidate adds a durable `disabled` / `controlled` /
   `public` gate. Public mode removes only the user allowlist; it never removes
   the product allowlist. Capture, refund and reconciliation remain available
@@ -230,17 +234,18 @@ occurred from this candidate work.
 
 ## Known blockers
 
-- `CATALOG PUBLICATION PENDING` — candidate previews and grids now pass R2
-  checksum/restore verification, but the production database remains below the
-  320-item target and no post-merge Telegram smoke has shown the new collections.
-  Complete the normal green-CI release before publishing.
+- `CATALOG PUBLISHED 2026-09-29` — production database holds 320 items,
+  16 collections, 32 albums (172 free / 148 premium); R2 media 1056/1056 and
+  grids 320/320 verified with restore samples; Telegram Web smoke showed hero
+  321/16/148 (320 published + 1 user work). See
+  [evidence/CATALOG_PRODUCTION_PUBLISH_2026-09-29.md](evidence/CATALOG_PRODUCTION_PUBLISH_2026-09-29.md).
 - `UNKNOWN` — physical Telegram iOS runtime result.
 - `UNKNOWN` — current editorial approval/publication and pixelization winner.
-- `PAYMENT GATE` — public Stars access remains closed until the launch-hardening
-  PR is green, deployed, and the production kill-switch drill succeeds.
-- `DEFERRED` — the owned production purchase/refund round-trip was consciously
-  waived before launch, not proven. After public activation it becomes
-  `TELEGRAM_STARS_FIRST_LIVE_TRANSACTION_MONITORING`.
+- `PAYMENT GATE` — public Stars access is OPEN since 2026-09-29 after a
+  passed drill; kill switches remain live in Profile operator UI.
+- `TELEGRAM_STARS_FIRST_LIVE_TRANSACTION_MONITORING` — the owned
+  purchase/refund round-trip was waived pre-launch and remains unproven; the
+  first live user transaction is the canary (verify grant, then refund path).
 - `FROZEN` — marketplace payouts and additional monetization products.
 
 ## Non-blocking debt
