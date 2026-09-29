@@ -280,7 +280,10 @@ buttons were 73px wide with ~49px gaps.
 normal flow for Telegram iOS reopen` asserts the equal-width rule and rejects a
 percentage width on the redesigned button.
 
-## Telegram navigation follows the stable viewport
+## Prior Telegram viewport navigation fix (superseded)
+
+The replacement below in `Navigation is outside the resizing content frame`
+supersedes this earlier stable-height approach.
 
 OLD CONTRACT
 
@@ -323,6 +326,85 @@ strongest platform-specific validation.
 The primary IA, `z-index`, equal three-tab widths, and hit targets are
 unchanged. The shell still auto-expands as before; only its sizing source
 changes when Telegram provides a stable viewport value.
+
+## Navigation is outside the resizing content frame
+
+OLD CONTRACT
+
+The three-button navigation was nested inside `.telegram-frame`, whose fixed
+`overflow: hidden` and `--tg-viewport-stable-height` sizing made its paint and
+position depend on a clipping frame during Telegram WebView expansion.
+
+→ NEW CONTRACT
+
+`.app-shell` follows the visible dynamic viewport (`100dvh`). Its flex children
+are the content frame and the navigation bar; `.telegram-frame` contains only
+the header and scrolling content. Neither the app shell nor the frame clips or
+transforms the navigation. The bar stays a normal-flow sibling and its three
+buttons keep equal widths. Navigation state uses color, opacity, background,
+and border only, with no transitions or animations in the navigation subtree.
+
+→ WHY INTENTIONAL
+
+Telegram iOS showed the navigation paint disappear while its hit targets still
+worked after the half-sheet expanded. The previous layout coupled the nav to a
+clipping ancestor whose height could lag the visible WebView. Keeping the
+navigation outside that frame removes the paint dependency; dynamic viewport
+height gives the shell the live visible size without lifecycle synchronization.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/primary-ia-contract.test.js` asserts the frame/nav sibling structure,
+dynamic viewport sizing, and absence of clipping, transforms, and transitions
+on the navigation ancestor chain. `e2e/navigation-viewport-growth.spec.js`
+checks visible geometry and per-button hit-testing at 400×640 and 400×844 while
+visiting Catalog → Create → Profile → Catalog, and saves screenshots for each
+screen at each size. This is browser evidence, not physical Telegram iOS proof.
+
+→ UNCHANGED CONTRACTS
+
+The three primary destinations, equal-width buttons, safe-area margin,
+accessibility labels, hit targets, active route semantics, Telegram ready and
+expand behavior, and the no-route-animation Telegram rule remain unchanged.
+Painting, save/resume, auth, entitlements, and commerce are untouched.
+
+## Catalog action and visual hierarchy polish
+
+OLD CONTRACT
+
+The Catalog hero split its headline/copy and three small statistics into
+columns, compressing the first action on phone widths. Search, chips, shelves,
+and the premium surface used closely spaced and low-contrast treatments.
+
+→ NEW CONTRACT
+
+The existing hero presents headline and guidance first, three aligned summary
+values second, and the dominant `Начать раскрашивать` action as a full-width
+button. Search, filters, shelf headings, cards, and Premium Gallery use clearer
+spacing and text contrast. Hero and content surfaces use gradient fills,
+light borders, and inset highlights; content can use subtle transitions while
+the navigation remains static.
+
+→ WHY INTENTIONAL
+
+The owner reported that Catalog felt crowded and did not make the next action
+clear. Reordering visual emphasis and increasing section separation address
+that confusion without replacing the existing staged showcase or redesigning
+other destinations.
+
+→ WHERE NEW BEHAVIOR IS COVERED
+
+`test/primary-ia-contract.test.js` protects the separate navigation contract.
+`test/catalogShowcaseHierarchy.test.js` and `test/firstRunClarity.test.js`
+preserve the staged order and dominant free-first CTA. The viewport-growth E2E
+spec captures the Catalog surface at both tested heights.
+
+→ UNCHANGED CONTRACTS
+
+The staged section order, hero action and onboarding copy, nine-shelf budget,
+collapsed all-works section, collections, 172 free / 148 premium split,
+Stars-based server-owned price and fail-closed payment gate, and three-tab IA
+remain unchanged. No catalog data, product rules, or other views are changed.
 
 ## Catalog showcase hierarchy (default view)
 

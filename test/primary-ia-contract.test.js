@@ -52,9 +52,10 @@ test('app header and default shell expose only primary navigation routes', () =>
   );
 });
 
-test('application shell keeps navigation in normal flow for Telegram iOS reopen', () => {
+test('application shell keeps navigation in normal flow outside the resizing content frame', () => {
   const app = source('src/App.jsx');
   const styles = source('src/App.css');
+  const shellRule = styles.match(/(?:^|\n)\.app-shell\s*\{([\s\S]*?)\}/)?.[1] || '';
   const containerRule = styles.match(/\.app-container\s*\{([\s\S]*?)\}/)?.[1] || '';
   const frameRule = styles.match(/(?:^|\n)\.telegram-frame\s*\{([\s\S]*?)\}/)?.[1] || '';
   const contentRule = styles.match(/\.screen-content\s*\{([\s\S]*?)\}/)?.[1] || '';
@@ -66,12 +67,12 @@ test('application shell keeps navigation in normal flow for Telegram iOS reopen'
   assert.match(containerRule, /flex-direction:\s*column/);
   assert.match(containerRule, /position:\s*relative/);
   assert.doesNotMatch(containerRule, /display:\s*grid|grid-template-rows/);
-  // 2026-09-29 migration: the shell is capped to the real viewport. Telegram's
-  // stable-height var alone can exceed the visible mini-app area (measured a
-  // 655px frame inside a 599px Web panel), pushing the in-flow tab bar below
-  // the fold. min(..., 100%) keeps the bar pinned without touching paint.
-  assert.match(frameRule, /height:\s*min\(var\(--tg-viewport-stable-height,\s*100dvh\),\s*100%\)/);
-  assert.match(frameRule, /max-height:\s*min\(var\(--tg-viewport-stable-height,\s*100dvh\),\s*100%\)/);
+  assert.match(shellRule, /height:\s*100dvh/);
+  assert.match(shellRule, /max-height:\s*100dvh/);
+  assert.doesNotMatch(shellRule, /overflow:\s*(?:hidden|clip)|clip-path\s*:|transform\s*:|filter\s*:|contain:\s*paint/);
+  assert.doesNotMatch(frameRule, /overflow:\s*(?:hidden|clip)|clip-path\s*:|transform\s*:|filter\s*:|contain:\s*paint/);
+  assert.match(app, /<main className="telegram-frame">[\s\S]*?<div ref=\{session\.screenContentRef\} className=\{`screen-content[\s\S]*?<\/main>\s*\{showChrome && <BottomNavigation/);
+  assert.doesNotMatch(styles, /html, body, #root\s*\{[^}]*overflow:\s*(?:hidden|clip)/);
   assert.match(contentRule, /flex:\s*1/);
   assert.match(contentRule, /min-height:\s*0/);
   assert.match(contentRule, /overflow-y:\s*auto/);
@@ -81,7 +82,7 @@ test('application shell keeps navigation in normal flow for Telegram iOS reopen'
   assert.match(navigationRule, /margin:\s*8px 10px calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
   assert.doesNotMatch(navigationRule, /backdrop-filter\s*:/);
   assert.doesNotMatch(redesignedNavigationRule, /(?:left|right|bottom|transform):\s*/);
-  assert.match(styles, /\.telegram-frame\[data-platform='telegram'\] \.page\s*\{\s*animation:\s*none;/);
+  assert.match(styles, /\.app-shell\[data-platform='telegram'\] \.page\s*\{\s*animation:\s*none;/);
   assert.doesNotMatch(styles, /\.app-tab-bar > button svg\s*\{[\s\S]*?transform/);
   assert.doesNotMatch(styles, /\.app-tab-bar > button\.active svg\s*\{[\s\S]*?transform/);
   // Three primary destinations share the bar equally. The legacy five-tab
@@ -90,7 +91,25 @@ test('application shell keeps navigation in normal flow for Telegram iOS reopen'
   assert.match(redesignedButtonRule, /flex:\s*1 1 0/);
   assert.match(redesignedButtonRule, /width:\s*auto/);
   assert.doesNotMatch(redesignedButtonRule, /width:\s*\d+%/);
+  const navigationRules = [...styles.matchAll(/([^{}]*app-tab-bar[^{}]*)\{([^{}]*)\}/g)];
+  assert.ok(navigationRules.length > 0, 'navigation CSS rules must remain explicit');
+  assert.doesNotMatch(navigationRules.map(([, , declarations]) => declarations).join('\n'), /\b(?:transform|transition|animation)\s*:/);
+  for (const [, selector, declarations] of navigationRules.filter(([, selector]) => selector.includes('.active'))) {
+    assert.doesNotMatch(declarations, /\b(?:box-shadow|text-shadow|transform|transition|animation)\s*:/, `active navigation feedback stays to color, opacity, background, or border: ${selector.trim()}`);
+  }
   assert.doesNotMatch(app, /createPortal|shellGeneration|telegramStartupBlocked|app-container--play/);
+});
+
+test('navigation has no clipping or paint boundary anywhere in its ancestor chain', () => {
+  const styles = source('src/App.css');
+  const app = source('src/App.jsx');
+  const shellRule = styles.match(/(?:^|\n)\.app-shell\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const frameRule = styles.match(/(?:^|\n)\.telegram-frame\s*\{([\s\S]*?)\}/)?.[1] || '';
+
+  assert.match(app, /<div className="app-shell"[\s\S]*?<main className="telegram-frame">[\s\S]*?<\/main>\s*\{showChrome && <BottomNavigation/);
+  assert.ok(shellRule, 'app shell must have a dedicated viewport rule');
+  assert.doesNotMatch(`${shellRule}\n${frameRule}`, /\b(?:overflow\s*:\s*(?:hidden|clip)|clip-path\s*:|transform\s*:|filter\s*:|contain\s*:\s*paint)/);
+  assert.doesNotMatch(styles, /html, body, #root\s*\{[^}]*overflow:\s*(?:hidden|clip)/);
 });
 
 test('navigation shell contains no speculative iOS paint workarounds', () => {

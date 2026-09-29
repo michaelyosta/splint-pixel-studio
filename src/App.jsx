@@ -698,7 +698,16 @@ function App() {
 
   // The primary-navigation contract is intentionally explicit: view !== 'play' && !coreFeelExperiment.enabled && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />
   const showChrome = (canUseApp || browserAuth.platform.isTelegram) && view !== 'play' && !coreFeelExperiment.enabled;
-  return <main className="telegram-frame" data-platform={browserAuth.platform.isTelegram ? 'telegram' : 'browser'} data-auth-mode={browserAuth.platform.authMode}><div className="app-container">{showChrome && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><div className="header-actions">{adminAccess && <button className="header-admin-button" type="button" onClick={() => navigatePrimary('admin')}>Admin</button>}{browserAuth.status === 'authenticated' && browserAuth.platform.isBrowser && <button className="header-logout-button" type="button" onClick={() => browserAuth.logout().catch(() => showNotice('Не удалось завершить сессию', 'error'))}>Выйти</button>}<button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></div></header>}<div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>{showChrome && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}</div>{notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}</main>;
+  return <div className="app-shell" data-platform={browserAuth.platform.isTelegram ? 'telegram' : 'browser'} data-auth-mode={browserAuth.platform.authMode}>
+    <main className="telegram-frame">
+      <div className="app-container">
+        {showChrome && <header className="app-header app-header--redesigned"><button className="brand-button" type="button" onClick={() => navigatePrimary('catalog')}><span className="brand-mark" aria-hidden="true" /><span className="brand-text"><span className="header-logo">SPLINT</span><small>pixel studio</small></span></button><div className="header-actions">{adminAccess && <button className="header-admin-button" type="button" onClick={() => navigatePrimary('admin')}>Admin</button>}{browserAuth.status === 'authenticated' && browserAuth.platform.isBrowser && <button className="header-logout-button" type="button" onClick={() => browserAuth.logout().catch(() => showNotice('Не удалось завершить сессию', 'error'))}>Выйти</button>}<button className="header-profile-button" type="button" onClick={() => navigatePrimary('profile')} aria-label="Открыть профиль"><img src={profile.currentUser?.avatar_url || profile.profile?.avatar_url || '/favicon.svg'} alt="" /></button></div></header>}
+        <div ref={session.screenContentRef} className={`screen-content${view === 'play' ? ' screen-content--play' : ''}`}>{content}</div>
+      </div>
+    </main>
+    {showChrome && <BottomNavigation activeView={view} onNavigate={navigatePrimary} />}
+    {notice && (!coreFeelExperiment.enabled || notice.type === 'error') && <div className={`toast ${notice.type}`}>{notice.text}</div>}
+  </div>;
 }
 
 export default App;

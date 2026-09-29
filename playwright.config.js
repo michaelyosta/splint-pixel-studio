@@ -31,6 +31,7 @@ export default defineConfig({
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'Mobile iPhone', use: { ...devices['iPhone 13'] } },
+    { name: 'WebKit viewport growth', testMatch: 'navigation-viewport-growth.spec.js', use: { ...devices['iPhone 13'], browserName: 'webkit' } },
     { name: 'Mobile Pixel', use: { ...devices['Pixel 5'] } },
   ],
 });
