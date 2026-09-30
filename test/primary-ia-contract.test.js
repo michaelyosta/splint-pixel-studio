@@ -146,7 +146,18 @@ test('navigation shell contains no speculative iOS paint workarounds', () => {
   assert.doesNotMatch(app, /createPortal|isRealTelegramIosSession|iosNavigationHost|shellGeneration|telegramStartupBlocked/);
   assert.doesNotMatch(styles, /ios-primary|primary-navigation--portal|telegram-startup-surface|data-tg-ios|app-tab-bar--repaint|translateZ\(0\)|grid-template-rows/);
   assert.doesNotMatch(telegram, /syncTelegramViewportCssVars|bindTelegramViewportLifecycle|requestFullscreen|exitFullscreen/);
-  assert.doesNotMatch(main, /ViewportSelfHeal|viewportDiagnostic|flushSync|shellGeneration/);
+  // Premise change (same deadlock): the visualViewport-driven frame-height sync
+  // (exact identifier below) is permitted. Unlike the banned animated-height
+  // trackers it follows a per-frame synchronous signal and keeps the async tg
+  // var as fallback. No timers, no polling, no remounts -- enforced next.
+  assert.match(telegram, /bindTelegramFrameHeightSync/);
+  assert.doesNotMatch(telegram, /setTimeout|setInterval|requestAnimationFrame/);
+  // Premise change (physical-device deadlock, 2026-10): the gated diagnostic
+  // mount is observability, not a workaround -- invisible in normal sessions
+  // and the only path to device numbers. Portals, self-heal and frame
+  // scheduling stay banned.
+  assert.doesNotMatch(main, /ViewportSelfHeal|flushSync|shellGeneration/);
+  assert.match(main, /if \(shouldMountViewportDiagnostic\(\)\)/);
   assert.match(telegram, /webApp\.ready\(\)[\s\S]*webApp\.expand\?\.\(\)/);
   assert.doesNotMatch(telegram, /shouldAutoExpandTelegramWebApp/);
 });
