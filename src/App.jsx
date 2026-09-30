@@ -30,6 +30,7 @@ import { readCurrentResumeSnapshot } from './lib/resumeState.js';
 import { resolveCoreFeelExperiment } from './features/coreFeel/coreFeelExperiment.js';
 import { resolveSessionGameExperiment } from './features/sessionGame/sessionGameExperiment.js';
 import { useBrowserAuth } from './hooks/useBrowserAuth.js';
+import { mountViewportDiagnostic } from './diagnostics/viewportDiagnostic.js';
 import './App.css';
 import './features/unlocks/unlocks.css';
 
@@ -115,6 +116,14 @@ function App() {
     adminApi.me().then((value) => { if (active) setAdminAccess(value); }).catch(() => { if (active) setAdminAccess(null); });
     return () => { active = false; };
   }, [canUseApp]);
+
+  // Developer overlay for the owner only: the server ACL already proves
+  // admin rights, so no link params are needed to read live numbers off
+  // a physical device. Invisible to everyone else.
+  useEffect(() => {
+    if (!adminAccess) return undefined;
+    return mountViewportDiagnostic();
+  }, [adminAccess]);
 
   useEffect(() => {
     if (view === 'admin' && !adminAccess && canUseApp) setView('catalog');
