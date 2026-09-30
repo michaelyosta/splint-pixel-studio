@@ -74,6 +74,13 @@ test('application shell keeps navigation in normal flow outside the resizing con
   assert.match(frameRule, /max-height:\s*min\(var\(--tg-viewport-stable-height,\s*100dvh\),\s*100%\)/);
   assert.match(frameRule, /display:\s*flex/);
   assert.match(frameRule, /flex-direction:\s*column/);
+  // Telegram host: the shell must track the real WebView bounds (100% chain),
+  // not the async --tg-viewport-stable-height var, so half-sheet -> expand
+  // cannot leave the in-flow tab bar with stale dimensions and unpainted tiles.
+  const telegramFrameRule = styles.match(/\.telegram-frame\[data-platform='telegram'\]\s*\{([\s\S]*?)\}/)?.[1] || '';
+  assert.match(telegramFrameRule, /height:\s*100%/);
+  assert.match(telegramFrameRule, /max-height:\s*100%/);
+  assert.doesNotMatch(telegramFrameRule, /--tg-viewport-stable-height|100dvh/);
   // The content clip must live on the container that does NOT hold the bar.
   assert.match(containerRule, /flex:\s*1 1 auto/);
   assert.match(containerRule, /min-height:\s*0/);
