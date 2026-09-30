@@ -14,6 +14,10 @@ import {
   isTelegramVersionAtLeast,
   supportsTelegramVerticalSwipes,
   TELEGRAM_SWIPE_CONTROL_VERSION,
+  TELEGRAM_FRAME_HEIGHT_VAR,
+  bindTelegramFrameHeightSync,
+  readTelegramFrameHeight,
+  syncTelegramFrameHeight,
 } from './telegram.js';
 
 function withLocationSearch(search, run) {
@@ -280,4 +284,68 @@ test('Telegram startup preserves ready-then-expand behavior across supported hos
       else globalThis.document = previousDocument;
     }
   }
+});
+
+test('frame height sync prefers the synchronous visual viewport', () => {
+  const style = { values: {}, setProperty(name, value) { this.values[name] = value; } };
+  const webApp = { initData: 'signed-query' };
+  const currentWindow = { innerHeight: 900, visualViewport: { height: 732 } };
+  const documentRef = { documentElement: { style } };
+  assert.equal(readTelegramFrameHeight(currentWindow), 732);
+  assert.equal(syncTelegramFrameHeight({ currentWindow, documentRef, webApp }), true);
+  assert.equal(style.values[TELEGRAM_FRAME_HEIGHT_VAR], '732px');
+});
+test('frame height sync falls back to window height without a visual viewport', () => {
+  const style = { values: {}, setProperty(name, value) { this.values[name] = value; } };
+  const webApp = { initData: 'signed-query' };
+  const currentWindow = { innerHeight: 900 };
+  const documentRef = { documentElement: { style } };
+  assert.equal(syncTelegramFrameHeight({ currentWindow, documentRef, webApp }), true);
+  assert.equal(style.values[TELEGRAM_FRAME_HEIGHT_VAR], '900px');
+});
+test('frame height sync stays silent outside a real Telegram session', () => {
+  const style = { values: {}, setProperty(name, value) { this.values[name] = value; } };
+  const webApp = { initData: '' };
+  const currentWindow = { innerHeight: 900, visualViewport: { height: 732 } };
+  const documentRef = { documentElement: { style } };
+  assert.equal(readTelegramFrameHeight(null), null);
+  assert.equal(syncTelegramFrameHeight({ currentWindow, documentRef, webApp }), false);
+  assert.deepEqual(style.values, {});
+});
+test('frame height binding follows resizes without timers and cleans up', () => {
+  const style = { values: {}, setProperty(name, value) { this.values[name] = value; } };
+  const events = [];
+  const webApp = {
+    initData: 'signed-query',
+    onEvent: (name, handler) => events.push([name, handler]),
+    offEvent: (name, handler) => events.push([`off:${name}`, handler]),
+  };
+  const visualViewport = {
+    height: 700,
+    listeners: {},
+    addEventListener(name, handler) { this.listeners[name] = handler; },
+    removeEventListener(name) { delete this.listeners[name]; },
+  };
+  const currentWindow = {
+    innerHeight: 900,
+    visualViewport,
+    listeners: {},
+    addEventListener(name, handler) { this.listeners[name] = handler; },
+    removeEventListener(name) { delete this.listeners[name]; },
+  };
+  const documentRef = { documentElement: { style } };
+  const cleanup = bindTelegramFrameHeightSync({ currentWindow, documentRef, webApp });
+  assert.equal(style.values[TELEGRAM_FRAME_HEIGHT_VAR], '700px');
+  visualViewport.height = 844;
+  visualViewport.listeners.resize();
+  currentWindow.listeners.resize();
+  assert.equal(style.values[TELEGRAM_FRAME_HEIGHT_VAR], '844px');
+  const viewportHandler = events.find(([name]) => name === 'viewportChanged')?.[1];
+  assert.ok(typeof viewportHandler === 'function', 'must subscribe to viewportChanged');
+  viewportHandler();
+  assert.equal(style.values[TELEGRAM_FRAME_HEIGHT_VAR], '844px');
+  cleanup();
+  assert.deepEqual(visualViewport.listeners, {});
+  assert.deepEqual(currentWindow.listeners, {});
+  assert.ok(events.some(([name]) => name === 'off:viewportChanged'));
 });
