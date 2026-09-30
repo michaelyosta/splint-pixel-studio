@@ -660,6 +660,28 @@ UNCHANGED CONTRACTS
 
 Server-owned price (120 XTR), product allowlist, the 172/148 split, entitlement creation only from authoritative payment state, kill switches, idempotency, reconciliation, and the three-tab IA are unchanged. No payment, payout, or marketplace settlement behavior changes.
 
+## Store detail no longer repeats a lone pack preview card
+
+OLD CONTRACT
+
+The store always rendered the pack list and, below it, a detail section whose head repeated the same cover, title, description, and counts. With a single showcase pack the two blocks duplicated each other, the head counts glued the English server rarity code to the metadata line (epicСредняя), and preview copy clipped mid-word on one line.
+
+NEW CONTRACT
+
+When the store holds exactly one pack, the detail section skips its head and description because the preview card directly above already shows them; payment notice, checkout status, and actions stay. The multi-pack detail head merges counts, a Russian rarity word, and the metadata line into one separated line. Preview titles, copy, and the cover badge wrap on two lines instead of clipping.
+
+WHY INTENTIONAL
+
+A duplicated header doubles reading cost on a phone and the glued epicСредняя reads as corrupted text. The preview card remains the single entry point, so hiding the repeated head removes no action or information.
+
+WHERE NEW BEHAVIOR IS COVERED
+
+test/storeDetailContract.test.js asserts the sole-pack gate, the merged counts line, the kept preview entry point, and the two-line clamp rules. src/lib/packStore.test.js covers the rarity word map and the sole-pack predicate.
+
+UNCHANGED CONTRACTS
+
+One paid showcase cap, fail-closed checkout, server price and product allowlist, entitlement only from authoritative payment state, pack preview entry and its price line, checkout status and retry/restore/share actions are unchanged.
+
 ## Contract coverage status
 
 All substantive changed assertions identified in the audit map to the approved decisions above. OPEN GAP: none. Any future selector-only change should remain in the mechanical section; any new semantic assertion must add its own four-field migration block or be marked OPEN GAP rather than inferred as an intentional contract.

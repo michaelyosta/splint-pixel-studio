@@ -6,9 +6,11 @@ import {
   canCheckout,
   checkoutStateLabel,
   isProductAllowed,
+  isSoleStorePack,
   normalizeStorePacks,
   packStateLabel,
   reduceCheckoutState,
+  storeRarityLabel,
 } from '../lib/packStore';
 import { buildPackDeepLink, shareViaTelegram } from '../lib/telegram';
 import { formatContentMetadataDetail } from '../lib/contentMetadata.js';
@@ -109,6 +111,7 @@ export default function StoreView({
   }, [packs, selectedPackId]);
 
   const selected = packs.find((pack) => pack.id === selectedPackId) || null;
+  const solePack = isSoleStorePack(packs);
   const selectedMetadata = formatContentMetadataDetail(selected);
   const selectedProductAllowed = isProductAllowed(selected?.id, allowedProductIds);
   const isPackCheckoutEnabled = (pack) => Boolean(
@@ -224,11 +227,11 @@ export default function StoreView({
           </div>
 
           {selected && <section className={`store-detail store-detail--${selected.pack_state}`} data-selected-pack={selected.id} data-pack-state={selected.pack_state}>
-            <div className="store-detail-head">
+            {!solePack && (<div className="store-detail-head">
               <span className="store-detail-preview" style={selected.image_url ? { backgroundImage: `url(${selected.image_url})` } : undefined}><BookOpen size={24} aria-hidden="true" /></span>
-              <div><p className="eyebrow">{packStateLabel(selected.pack_state)}</p><h2>{selected.title}</h2><small>{selected.total_count || 0} работ · {selected.rarity}</small><small data-content-metadata={selectedMetadata.assessed ? 'authoritative' : 'unassessed'}>{selectedMetadata.line}</small></div>
-            </div>
-            {selected.description && <p className="store-detail-description">{selected.description}</p>}
+              <div><p className="eyebrow">{packStateLabel(selected.pack_state)}</p><h2>{selected.title}</h2><small data-content-metadata={selectedMetadata.assessed ? 'authoritative' : 'unassessed'}>{selected.total_count || 0} работ · {storeRarityLabel(selected.rarity)} · {selectedMetadata.line}</small></div>
+            </div>)}
+            {!solePack && selected.description && <p className="store-detail-description">{selected.description}</p>}
 
             {selected.pack_state === PACK_STATES.PAID && <div className="store-payment-notice" data-payment-availability={checkoutEnabled ? 'enabled' : 'disabled'}>
               <strong>{selected.price_in_stars} Stars</strong>
