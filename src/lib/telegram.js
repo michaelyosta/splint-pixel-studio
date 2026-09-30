@@ -1,5 +1,9 @@
 export const TELEGRAM_MINI_APP_BOT_URL = 'https://t.me/splint_pixel_studio_bot';
 
+function getTelegramWindow() {
+  return typeof window === 'undefined' ? null : window;
+}
+
 export function getTelegramWebApp() {
   return typeof window === 'undefined' ? null : window.Telegram?.WebApp ?? null;
 }
@@ -133,13 +137,74 @@ export function bindTelegramVerticalSwipes(webApp = getTelegramWebApp()) {
   };
 }
 
+/**
+ * CSS variable carrying the synchronous frame height for the Telegram shell.
+ * visualViewport.height tracks the visible sheet area continuously, while
+ * Telegram injected --tg-viewport-stable-height arrives async and can leave
+ * the in-flow tab bar with stale dimensions (unpainted, yet hit-testable).
+ */
+export const TELEGRAM_FRAME_HEIGHT_VAR = '--app-frame-height';
+
+export function readTelegramFrameHeight(currentWindow = getTelegramWindow()) {
+  if (!currentWindow) return null;
+  const height = Number(currentWindow.visualViewport?.height ?? currentWindow.innerHeight);
+  return Number.isFinite(height) && height > 0 ? Math.round(height) : null;
+}
+
+export function syncTelegramFrameHeight({
+  currentWindow = getTelegramWindow(),
+  documentRef = typeof document !== 'undefined' ? document : undefined,
+  webApp = getTelegramWebApp(),
+} = {}) {
+  if (!webApp || !isRealTelegramSession(webApp)) return false;
+  const height = readTelegramFrameHeight(currentWindow);
+  const style = documentRef?.documentElement?.style;
+  if (height == null || typeof style?.setProperty !== 'function') return false;
+  try {
+    style.setProperty(TELEGRAM_FRAME_HEIGHT_VAR, `${height}px`);
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Mirrors the visible sheet height into the frame-height variable for the
+ * lifetime of the app. Event-driven only: visualViewport resize, window
+ * resize and Telegram own viewportChanged. No timers, no polling, no
+ * remounts; the CSS falls back to the stable-height variable until the
+ * first sync runs.
+ */
+export function bindTelegramFrameHeightSync({
+  currentWindow = getTelegramWindow(),
+  documentRef = typeof document !== 'undefined' ? document : undefined,
+  webApp = getTelegramWebApp(),
+} = {}) {
+  const run = () => syncTelegramFrameHeight({ currentWindow, documentRef, webApp });
+  run();
+  currentWindow?.visualViewport?.addEventListener?.('resize', run);
+  currentWindow?.addEventListener?.('resize', run);
+  try {
+    webApp?.onEvent?.('viewportChanged', run);
+  } catch { /* older clients */ }
+  return () => {
+    currentWindow?.visualViewport?.removeEventListener?.('resize', run);
+    currentWindow?.removeEventListener?.('resize', run);
+    try {
+      webApp?.offEvent?.('viewportChanged', run);
+    } catch { /* older clients */ }
+  };
+}
+
 export function initializeTelegramWebApp() {
   const webApp = getTelegramWebApp();
   if (!webApp) return null;
   webApp.ready();
-  // Preserve the existing launch behavior; bottom UI sizes from Telegram's
-  // stable viewport CSS variable instead of tracking its animated height.
+  // Preserve the existing launch behavior; the shell height tracks the
+  // synchronous visual viewport (see TELEGRAM_FRAME_HEIGHT_VAR) instead of
+  // the async stable-height variable.
   try { webApp.expand?.(); } catch { /* older clients */ }
+  bindTelegramFrameHeightSync({ webApp });
   applyTelegramTheme(webApp);
   try { webApp.onEvent?.('themeChanged', () => applyTelegramTheme(webApp)); } catch { /* optional */ }
   return webApp;

@@ -45,15 +45,17 @@ img { user-select: none; }
      clipping lives on `.app-container`, which no longer contains the bar. */
 }
 
-/* Telegram host: pin the shell to the real WebView bounds. The injected
-   --tg-viewport-stable-height updates async on half-sheet -> expand and can
-   race tile repaint, leaving the in-flow tab bar unpainted while hit-testing
-   stays live. The html/body/#root 100% chain follows the view bounds
-   synchronously, so Telegram mode ignores the async var. Desktop preview
-   keeps the stable-height behavior above. */
+/* Telegram host: drive the shell from the synchronous visual-viewport height.
+   Device evidence proved the layout-viewport 100% chain OVERESTIMATES the
+   visible sheet (half-sheet lost the tab bar entirely), while Telegram
+   injected --tg-viewport-stable-height carries correct values but arrives
+   async and races tile repaint (expand lost the bar until a re-collapse).
+   visualViewport.height tracks the visible area continuously, so Telegram
+   mode follows it via --app-frame-height and keeps the async var only as
+   fallback. Desktop preview keeps the stable-height behavior above. */
 .telegram-frame[data-platform='telegram'] {
-  height: 100%;
-  max-height: 100%;
+  height: var(--app-frame-height, min(var(--tg-viewport-stable-height, 100dvh), 100%));
+  max-height: var(--app-frame-height, min(var(--tg-viewport-stable-height, 100dvh), 100%));
 }
 
 @media (max-width: 480px) {
