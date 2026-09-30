@@ -6,8 +6,10 @@ import {
   canCheckout,
   getPackState,
   isProductAllowed,
+  isSoleStorePack,
   normalizeStorePacks,
   reduceCheckoutState,
+  storeRarityLabel,
 } from './packStore.js';
 
 function collection(overrides = {}) {
@@ -92,4 +94,19 @@ test('an explicit empty product allowlist fails closed while an omitted allowlis
   assert.equal(isProductAllowed('col_premium-gallery', []), false);
   assert.equal(isProductAllowed('col_premium-gallery', ['col_premium-gallery']), true);
   assert.equal(isProductAllowed('col_premium-gallery', null), true);
+});
+test('store rarity codes render as Russian buyer words without leaking English', () => {
+  assert.equal(storeRarityLabel('epic'), 'Эпический');
+  assert.equal(storeRarityLabel('rare'), 'Редкий');
+  assert.equal(storeRarityLabel('common'), 'Обычный');
+  assert.equal(storeRarityLabel('EPIC'), 'Эпический');
+  assert.equal(storeRarityLabel('mystic'), 'mystic');
+  assert.equal(storeRarityLabel(null), 'Набор');
+});
+
+test('a lone store pack collapses its detail header', () => {
+  assert.equal(isSoleStorePack([{ id: 'a' }]), true);
+  assert.equal(isSoleStorePack([{ id: 'a' }, { id: 'b' }]), false);
+  assert.equal(isSoleStorePack([]), false);
+  assert.equal(isSoleStorePack(null), false);
 });

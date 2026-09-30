@@ -281,3 +281,24 @@ export function isCheckoutTerminal(state) {
 export function isKnownPackState(state) {
   return VALID_PACK_STATES.has(state);
 }
+
+/**
+ * Buyer-facing rarity words for the store header. Server rarity codes
+ * (epic/rare/common) must never glue to the metadata line or leak
+ * English into the Russian header.
+ */
+export function storeRarityLabel(rarity) {
+  const code = String(rarity || "").trim().toLowerCase();
+  if (code === "epic") return "Эпический";
+  if (code === "rare") return "Редкий";
+  if (code === "common") return "Обычный";
+  return safeString(rarity, "Набор");
+}
+
+/**
+ * A lone pack is already fully described by its preview card, so the
+ * detail section must not repeat cover, title, description, and counts.
+ */
+export function isSoleStorePack(packs) {
+  return Array.isArray(packs) && packs.length === 1;
+}
