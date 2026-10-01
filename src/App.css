@@ -58,6 +58,25 @@ img { user-select: none; }
   max-height: var(--app-frame-height, min(var(--tg-viewport-stable-height, 100dvh), 100%));
 }
 
+/* Device verdict (tap test, all screens): the bar box is laid out inside the
+   visible area and hit-testable, but its raster stays empty after the sheet
+   resize -- neither in-flow nor a dedicated layer repaints it. Anchoring the
+   bar to the viewport moves its raster through the compositor independently
+   of the page backing store. The lift var compensates the layout-vs-visible
+   gap (half-sheet); expand resolves it to zero. Desktop preview untouched. */
+.telegram-frame[data-platform='telegram'] .app-tab-bar {
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px) + var(--app-fixed-lift, 0px));
+  margin: 0;
+  width: auto;
+  z-index: 20;
+}
+.telegram-frame[data-platform='telegram'] .screen-content {
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
 @media (max-width: 480px) {
   body { background-color: var(--app-bg); background-image: none; }
   .telegram-frame {
@@ -210,11 +229,8 @@ img { user-select: none; }
   /* Avoid a separate backdrop layer while Telegram's WebView viewport settles. */
   box-shadow: 0 12px 30px rgba(2, 8, 14, 0.6);
   z-index: 20;
-  /* Device verdict (expand on Catalog/Profile): the bar box is laid out and
-     hit-testable, but its raster stays empty -- WebKit leaves it flattened
-     into the page backing store and never re-rasterizes after the sheet
-     resize. A dedicated layer keeps its tiles independent. No layout change. */
-  will-change: opacity;
+  /* The in-flow bar keeps position:relative (see contract test); the Telegram
+     override below re-anchors it to the viewport for compositing reasons. */
 }
 
 .app-tab-bar > button {

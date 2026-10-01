@@ -15,6 +15,7 @@ import {
   supportsTelegramVerticalSwipes,
   TELEGRAM_SWIPE_CONTROL_VERSION,
   TELEGRAM_FRAME_HEIGHT_VAR,
+  TELEGRAM_FIXED_LIFT_VAR,
   bindTelegramFrameHeightSync,
   readTelegramFrameHeight,
   syncTelegramFrameHeight,
@@ -348,4 +349,15 @@ test('frame height binding follows resizes without timers and cleans up', () => 
   assert.deepEqual(visualViewport.listeners, {});
   assert.deepEqual(currentWindow.listeners, {});
   assert.ok(events.some(([name]) => name === 'off:viewportChanged'));
+});
+
+test('frame height sync also reports the layout-vs-visible lift for the fixed bar', () => {
+  const style = { values: {}, setProperty(name, value) { this.values[name] = value; } };
+  const webApp = { initData: 'signed-query' };
+  const documentRef = { documentElement: { style } };
+  assert.equal(syncTelegramFrameHeight({ currentWindow: { innerHeight: 900, visualViewport: { height: 732 } }, documentRef, webApp }), true);
+  assert.equal(style.values[TELEGRAM_FRAME_HEIGHT_VAR], '732px');
+  assert.equal(style.values[TELEGRAM_FIXED_LIFT_VAR], '168px');
+  assert.equal(syncTelegramFrameHeight({ currentWindow: { innerHeight: 700, visualViewport: { height: 844 } }, documentRef, webApp }), true);
+  assert.equal(style.values[TELEGRAM_FIXED_LIFT_VAR], '0px');
 });
