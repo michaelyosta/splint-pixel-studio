@@ -231,6 +231,7 @@ img { user-select: none; }
   z-index: 20;
   /* The in-flow bar keeps position:relative (see contract test); the Telegram
      override below re-anchors it to the viewport for compositing reasons. */
+}
 
 .app-tab-bar > button {
   position: relative;
