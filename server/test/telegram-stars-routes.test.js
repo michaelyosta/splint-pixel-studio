@@ -222,3 +222,48 @@ test('public gate exposes only the configured product to any authenticated Teleg
     assert.equal(calls.length, 1);
   });
 });
+
+test('operator payments listing and refund resolve by order behind the operator guard', () => {
+  const calls = [];
+  const rows = [
+    { order_id: 'order-1', product_id: 'col_premium-gallery', captured_amount_xtr: 120, refunded_amount_xtr: 0, payment_status: 'captured', order_status: 'paid', telegram_user_id: '123', telegram_payment_charge_id: 'charge-1', captured_at: '2026-10-01T00:00:00.000Z' },
+  ];
+  const payments = {
+    'order-1': { order_id: 'order-1', user_id: 'tg_123', amount_xtr: 120, refunded_amount_xtr: 0, telegram_payment_charge_id: 'charge-1' },
+    'order-2': { order_id: 'order-2', user_id: 'tg_123', amount_xtr: 120, refunded_amount_xtr: 120, telegram_payment_charge_id: 'charge-2' },
+  };
+  const serviceStub = {
+    listOperatorPayments: async (input) => { calls.push(['list', input]); return rows; },
+    getPaymentByOrder: async ({ orderId }) => payments[orderId],
+    requestRefund: async (input) => { calls.push(['refund', input]); return { status: 'applied', refundId: 'refund-1', idempotent: false }; },
+  };
+  const runtime = { enabled: true, isAllowlistedUser: (id) => String(id) === '123', service: serviceStub };
+  const build = (telegramId) => {
+    const app = express();
+    app.use(express.json());
+    app.use('/payments/telegram-stars', createTelegramStarsCommerceRouter({ runtime, auth: authFor(telegramId) }));
+    return app;
+  };
+  return (async () => {
+    await withServer(build(999), async (base) => {
+      assert.equal((await fetch(`${base}/payments/telegram-stars/ops/payments`)).status, 403);
+      assert.equal((await fetch(`${base}/payments/telegram-stars/ops/refund`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order_id: 'order-1' }) })).status, 403);
+    });
+    await withServer(build(123), async (base) => {
+      const listed = await (await fetch(`${base}/payments/telegram-stars/ops/payments`)).json();
+      assert.equal(listed.payments.length, 1);
+      assert.equal(listed.payments[0].order_id, 'order-1');
+      assert.equal(listed.payments[0].captured_amount_xtr, 120);
+      const bad = await (await fetch(`${base}/payments/telegram-stars/ops/refund`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}) })).json();
+      assert.equal(bad.code, 'INVALID_INPUT');
+      const missing = await fetch(`${base}/payments/telegram-stars/ops/refund`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order_id: 'order-missing' }) });
+      assert.equal(missing.status, 404);
+      const refunded = await fetch(`${base}/payments/telegram-stars/ops/refund`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order_id: 'order-2' }) });
+      assert.equal(refunded.status, 409);
+      const response = await fetch(`${base}/payments/telegram-stars/ops/refund`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ order_id: 'order-1' }) });
+      assert.equal(response.status, 200);
+      const refund = calls.find(([name]) => name === 'refund');
+      assert.deepEqual(refund[1], { userId: 'tg_123', telegramPaymentChargeId: 'charge-1', amountXtr: 120 });
+    });
+  })();
+});

@@ -63,6 +63,7 @@ function App() {
   const [starsOpsState, setStarsOpsState] = useState(null);
   const [starsOpsLoading, setStarsOpsLoading] = useState(false);
   const [starsOpsBusy, setStarsOpsBusy] = useState(false);
+  const [starsOpsPayments, setStarsOpsPayments] = useState(null);
   const [adminAccess, setAdminAccess] = useState(null);
   const noticeTimerRef = useRef(null);
   const resumeHandledRef = useRef(false);
@@ -147,6 +148,21 @@ function App() {
     return () => { active = false; };
   }, [browserAuth.platform.isTelegram, canUseApp, showNotice, view]);
 
+  const loadStarsOpsPayments = useCallback(async () => {
+    try {
+      const data = await telegramStarsOpsApi.payments();
+      setStarsOpsPayments(Array.isArray(data?.payments) ? data.payments : []);
+    } catch (error) {
+      if (error?.status === 403) { setStarsOpsPayments(null); return; }
+      showNotice(error.message || 'Не удалось загрузить платежи Stars', 'error');
+    }
+  }, [showNotice]);
+
+  useEffect(() => {
+    if (!canUseApp || view !== 'profile' || !starsOpsState) { setStarsOpsPayments(null); return undefined; }
+    loadStarsOpsPayments();
+  }, [canUseApp, view, starsOpsState, loadStarsOpsPayments]);
+
   const changeStarsOpsGate = useCallback(async (mode, confirmPublic = '') => {
     setStarsOpsBusy(true);
     try {
@@ -163,7 +179,20 @@ function App() {
     }
   }, [showNotice]);
 
-  const purchaseTelegramStars = useCallback(async (pack) => {
+  const refundStarsPayment = useCallback(async (orderId) => {
+    setStarsOpsBusy(true);
+    try {
+      const result = await telegramStarsOpsApi.refund(orderId);
+      showNotice(result?.status === 'applied' ? 'Возврат применён' : 'Возврат отправлен', 'info');
+      await loadStarsOpsPayments();
+    } catch (error) {
+      showNotice(error.message || 'Не удалось выполнить возврат', 'error');
+    } finally {
+      setStarsOpsBusy(false);
+    }
+  }, [loadStarsOpsPayments, showNotice]);
+
+    const purchaseTelegramStars = useCallback(async (pack) => {
     const openInvoice = window.Telegram?.WebApp?.openInvoice;
     if (typeof openInvoice !== 'function') return { success: false, error: 'Telegram invoice UI недоступен' };
     const idempotencyKey = globalThis.crypto?.randomUUID?.() || `xtr-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
@@ -624,6 +653,8 @@ function App() {
       starsOpsState={starsOpsState}
       starsOpsLoading={starsOpsLoading}
       starsOpsBusy={starsOpsBusy}
+      starsOpsPayments={starsOpsPayments}
+      onStarsOpsRefund={refundStarsPayment}
       onStarsOpsChange={changeStarsOpsGate}
     />;
   } else if (view === 'admin') {

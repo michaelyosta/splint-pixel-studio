@@ -757,3 +757,24 @@ test('unknown provider capture is durable, single-call refundable, and reconcile
   const report = await svc.reconcile();
   assert.equal(report.issues.some((issue) => issue.severity === 'critical'), false);
 });
+
+test('operator payment listing exposes captured payments with refund state', () => {
+  return (async () => {
+    const db = await createDb();
+    await seedUser(db);
+    const { svc } = service(db);
+    const created = await svc.createOrder({ userId: 'tg_123', productId: 'premium', amountXtr: 120, idempotencyKey: 'ops-list-key' });
+    await svc.successfulPayment({ userId: 'tg_123', updateId: 'ops-update-1', invoicePayload: created.order.invoice_payload, currency: 'XTR', totalAmount: 120, telegramPaymentChargeId: 'charge-ops-1', providerPaymentChargeId: 'provider-ops-1' });
+    const found = await svc.getPaymentByOrder({ orderId: created.order.id });
+    assert.equal(found.telegram_payment_charge_id, 'charge-ops-1');
+    const missing = await svc.getPaymentByOrder({ orderId: 'order-missing' });
+    assert.ok(!missing);
+    const listed = await svc.listOperatorPayments({});
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].order_id, created.order.id);
+    assert.equal(Number(listed[0].captured_amount_xtr), 120);
+    assert.equal(Number(listed[0].refunded_amount_xtr), 0);
+    const clamped = await svc.listOperatorPayments({ limit: 5000 });
+    assert.equal(clamped.length, 1);
+  })();
+});
