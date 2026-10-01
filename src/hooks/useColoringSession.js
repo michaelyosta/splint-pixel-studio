@@ -5,6 +5,7 @@ import { findRewardingColor, getProgress, isProgressComplete, renderCompletedIma
 import { isLargeGridTemplate } from '../lib/tileGrid';
 import { createSaveQueue, isIdempotentReplay, isTerminalSpecialError, offerFromProgress } from '../lib/progressSaveQueue';
 import { createProgressJournal } from '../lib/progressJournal';
+import { readTiledJournalEntries, tiledJournalStorageKey, writeTiledJournalEntries } from '../lib/tiledJournal.js';
 import { createHistoryOperation } from '../features/coloring/engine/historyOperations.js';
 import { buildColoringDeepLink, hapticImpact, hapticNotification, shareViaTelegram } from '../lib/telegram';
 import { takePrefetchedColoring } from '../lib/coloringPrefetch';
@@ -99,6 +100,7 @@ export function useColoringSession({
   const unlockRefreshedRef = useRef(new Set());
   const saveQueueRef = useRef(null);
   const tiledQueueRef = useRef([]);
+  const tiledMemoryOnlyRef = useRef(false);
   const tiledSpecialOfferRef = useRef(null);
   const tiledRevisionRef = useRef(0);
   const legacyRevisionRef = useRef(0);
@@ -163,9 +165,9 @@ export function useColoringSession({
         setSaveState('syncing');
         try {
           await flushTiledQueue();
-          setSaveState('saved');
+          markTiledFlushSettled();
         } catch {
-          setSaveState('pending');
+          markTiledFlushFailed();
         }
         return;
       }
@@ -192,25 +194,45 @@ export function useColoringSession({
   }, [progress?.revision, template?.id]);
 
   function tiledJournalKey(templateId) {
-    return `splint:tiled-progress:${DEV_USER_ID}:${templateId}`;
+    return tiledJournalStorageKey(DEV_USER_ID, templateId);
   }
 
   function readTiledJournal(templateId) {
-    try {
-      const parsed = JSON.parse(window.localStorage.getItem(tiledJournalKey(templateId)) || '[]');
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    return readTiledJournalEntries(window.localStorage, tiledJournalKey(templateId));
   }
 
+  // Explicit durability result: true when the pending queue survived in
+  // persistent storage (or is empty), false when entries exist only in
+  // memory. A false return raises the honest memory-only flag so the
+  // player warns instead of promising a local save.
   function writeTiledJournal(templateId) {
-    try {
-      if (tiledQueueRef.current.length) window.localStorage.setItem(tiledJournalKey(templateId), JSON.stringify(tiledQueueRef.current));
-      else window.localStorage.removeItem(tiledJournalKey(templateId));
-    } catch {
-      // The in-memory queue remains usable when storage is unavailable.
+    const result = writeTiledJournalEntries(window.localStorage, tiledJournalKey(templateId), tiledQueueRef.current);
+    const memoryOnly = !result.persisted && tiledQueueRef.current.length > 0;
+    tiledMemoryOnlyRef.current = memoryOnly;
+    return result.persisted;
+  }
+
+  // Converge the tiled save indicator honestly: saved only when online,
+  // the queue is empty, nothing is memory-only and no special offer
+  // blocks the flush. Every other settled state keeps a non-saved state.
+  function markTiledFlushSettled() {
+    if (!isOnline) {
+      setSaveState(tiledMemoryOnlyRef.current ? 'memory-only' : 'offline');
+      return;
     }
+    if (tiledQueueRef.current.length > 0 || tiledMemoryOnlyRef.current || tiledSpecialOfferRef.current) {
+      setSaveState(tiledMemoryOnlyRef.current ? 'memory-only' : 'pending');
+      return;
+    }
+    setSaveState('saved');
+  }
+
+  function markTiledFlushFailed() {
+    if (!isOnline) {
+      setSaveState(tiledMemoryOnlyRef.current ? 'memory-only' : 'offline');
+      return;
+    }
+    setSaveState(tiledMemoryOnlyRef.current ? 'memory-only' : 'pending');
   }
 
   function createLegacySaveQueue(templateForQueue) {
@@ -366,7 +388,7 @@ export function useColoringSession({
             && String(candidate.specialAction.special_id) === String(activeOffer.special_id)
           ));
           if (actionIndex < 0) {
-            setSaveState('pending');
+            setSaveState(tiledMemoryOnlyRef.current ? 'memory-only' : 'pending');
             return;
           }
           if (actionIndex > 0) {
@@ -576,6 +598,7 @@ export function useColoringSession({
         setSaving(false);
       }
       tiledQueueRef.current = isLargeGridTemplate(nextTemplate) ? readTiledJournal(nextTemplate.id) : [];
+      tiledMemoryOnlyRef.current = false;
       setSaveState(nextResume?.pendingSave || tiledQueueRef.current.length ? 'pending' : 'saved');
       tiledRevisionRef.current = Number(nextProgress.revision || 0);
       legacyRevisionRef.current = Number(nextProgress.revision || 0);
@@ -680,7 +703,7 @@ export function useColoringSession({
       specialAction,
     };
     tiledQueueRef.current.push(entry);
-    writeTiledJournal(template.id);
+    const journalPersisted = writeTiledJournal(template.id);
     const correctDelta = changes.reduce((total, change) => total + (change.to === -1 ? -1 : 1), 0);
     setProgress((current) => {
       if (!current) return current;
@@ -701,8 +724,8 @@ export function useColoringSession({
         experiment_group: specialGroupRef.current || 'treatment',
       }).catch(() => {});
     }
-    setSaveState(isOnline ? 'syncing' : 'offline');
-    flushTiledQueue().then(() => setSaveState('saved')).catch(() => setSaveState('pending'));
+    setSaveState(isOnline ? 'syncing' : (journalPersisted ? 'offline' : 'memory-only'));
+    flushTiledQueue().then(markTiledFlushSettled).catch(markTiledFlushFailed);
   }
 
   async function queueTiledSpecialAction(specialAction) {
@@ -790,7 +813,7 @@ export function useColoringSession({
       changes: [],
       specialAction,
     });
-    writeTiledJournal(template.id);
+    const specialJournalPersisted = writeTiledJournal(template.id);
     if (specialAction.type === 'use_spark'
       || specialAction.type === 'use_bomb'
       || specialAction.type === 'claim_artifact'
@@ -810,8 +833,8 @@ export function useColoringSession({
         center_y: specialAction.center_y == null ? null : specialAction.center_y,
       }).catch(() => {});
     }
-    setSaveState(isOnline ? 'syncing' : 'offline');
-    flushTiledQueue().then(() => setSaveState('saved')).catch(() => setSaveState('pending'));
+    setSaveState(isOnline ? 'syncing' : (specialJournalPersisted ? 'offline' : 'memory-only'));
+    flushTiledQueue().then(markTiledFlushSettled).catch(markTiledFlushFailed);
     return true;
   }
 
@@ -824,10 +847,11 @@ export function useColoringSession({
       setSaveState('syncing');
       try {
         await flushTiledQueue();
-        setSaveState('saved');
-        showNotice('Прогресс отправлен', 'success');
+        markTiledFlushSettled();
+        if (!tiledQueueRef.current.length && !tiledMemoryOnlyRef.current && !tiledSpecialOfferRef.current) showNotice('Прогресс отправлен', 'success');
+        else showNotice('Прогресс ожидает отправки', 'info');
       } catch (error) {
-        setSaveState('pending');
+        markTiledFlushFailed();
         showNotice(error.message || 'Не удалось отправить прогресс', 'error');
       }
       return;
@@ -1083,7 +1107,7 @@ export function useColoringSession({
     if (nextView === 'catalog' || nextView === 'home') {
       saveQueueRef.current?.flush();
       if (isLargeGridTemplate(template) && isOnline) {
-        flushTiledQueue().catch(() => setSaveState('pending'));
+        flushTiledQueue().then(markTiledFlushSettled).catch(markTiledFlushFailed);
       }
     }
     setLockedUnlock(null);
@@ -1165,7 +1189,7 @@ export function useColoringSession({
 
   useEffect(() => {
     if (view === 'play' && isLargeGridTemplate(template) && isOnline && tiledQueueRef.current.length) {
-      flushTiledQueue().catch(() => setSaveState('pending'));
+      flushTiledQueue().then(markTiledFlushSettled).catch(markTiledFlushFailed);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, template?.id, template?.storage_mode, template?.width, template?.height, isOnline]);
@@ -1215,13 +1239,13 @@ export function useColoringSession({
         queue.suspend().catch(() => setSaveState('pending'));
       }
       if (isLargeGridTemplate(template) && isOnline) {
-        flushTiledQueue().catch(() => setSaveState('pending'));
+        flushTiledQueue().then(markTiledFlushSettled).catch(markTiledFlushFailed);
       }
     };
     const handlePageShow = (event) => {
       if (!event.persisted) return;
       if (isLargeGridTemplate(template)) {
-        if (isOnline) flushTiledQueue().catch(() => setSaveState('pending'));
+        if (isOnline) flushTiledQueue().then(markTiledFlushSettled).catch(markTiledFlushFailed);
         return;
       }
       const queue = saveQueueRef.current;
