@@ -4,8 +4,9 @@ import { BookOpen, Eye, EyeOff, Grid3X3, Heart, Trash2 } from 'lucide-react';
 const artworkImage = (work) => work?.preview_url || work?.thumbnail_url || work?.image_url || '';
 const isRare = (work) => ['rare', 'epic', 'limited', 'legendary'].includes(String(work?.rarity || '').toLowerCase());
 
-function StarsOperations({ state, loading, busy, onChange }) {
+function StarsOperations({ state, loading, busy, onChange, payments = null, onRefund }) {
   const [confirmation, setConfirmation] = useState('');
+  const [pendingRefundOrderId, setPendingRefundOrderId] = useState(null);
   if (loading || !state) return null;
   const publicReady = confirmation === 'TELEGRAM_STARS_PUBLIC';
   return <section className="profile-section stars-operations" aria-labelledby="stars-operations-title">
@@ -24,6 +25,20 @@ function StarsOperations({ state, loading, busy, onChange }) {
       <button type="button" disabled={busy || !publicReady} onClick={() => { setConfirmation(''); onChange('public', 'TELEGRAM_STARS_PUBLIC'); }}>Открыть покупки всем</button>
     </div>}
     <p className="stars-operations-note" aria-live="polite">Версия gate: {state.version}. {state.reason || ''}</p>
+    {Array.isArray(payments) && payments.length > 0 && <div className="stars-operations-refunds">
+      <p className="eyebrow">ВОЗВРАТЫ</p>
+      {payments.map((payment) => {
+        const remaining = Number(payment.captured_amount_xtr) - Number(payment.refunded_amount_xtr || 0);
+        const refunded = !(remaining > 0);
+        const confirming = pendingRefundOrderId === payment.order_id;
+        return <div className="stars-operations-refund-row" key={payment.order_id}>
+          <span>{payment.product_id} · {payment.captured_amount_xtr} Stars · {refunded ? 'Возвращен' : 'Оплачен'}</span>
+          {!refunded && !confirming && <button type="button" disabled={busy} onClick={() => setPendingRefundOrderId(payment.order_id)}>Вернуть</button>}
+          {!refunded && confirming && <button type="button" disabled={busy} onClick={() => { setPendingRefundOrderId(null); onRefund?.(payment.order_id); }}>Подтвердить возврат</button>}
+          {confirming && <button type="button" disabled={busy} onClick={() => setPendingRefundOrderId(null)}>Отмена</button>}
+        </div>;
+      })}
+    </div>}
   </section>;
 }
 
@@ -60,6 +75,8 @@ export default function ProfileView({
   starsOpsLoading = false,
   starsOpsBusy = false,
   onStarsOpsChange,
+  starsOpsPayments = null,
+  onStarsOpsRefund,
 }) {
   if (!profile && error) return <section className="page profile-page"><div className="error-retry" role="alert"><p>Не удалось загрузить профиль.</p><button className="secondary-button" type="button" onClick={onRetry}>Повторить</button></div></section>;
   if (!profile) return <section className="page profile-page" aria-busy={loading ? 'true' : undefined}><div className="skeleton-block skeleton-profile" /><div className="skeleton-block skeleton-line" /><div className="skeleton-block skeleton-line short" /></section>;
@@ -129,7 +146,7 @@ export default function ProfileView({
       </ArtworkCard>)}</div> : <div className="profile-empty profile-empty--compact"><Heart size={22} /><p>Созданные вами работы появятся здесь.</p><button className="primary-button" type="button" onClick={() => onNavigate('create')}>Загрузить изображение</button></div>}
     </section>}
 
-    {isOwnProfile && <StarsOperations state={starsOpsState} loading={starsOpsLoading} busy={starsOpsBusy} onChange={onStarsOpsChange} />}
+    {isOwnProfile && <StarsOperations state={starsOpsState} loading={starsOpsLoading} busy={starsOpsBusy} onChange={onStarsOpsChange} payments={starsOpsPayments} onRefund={onStarsOpsRefund} />}
 
     {!showcase.length && !completedWorks.length && !createdWorks.length && <div className="profile-empty"><span>✦</span><p>Коллекция начнётся с первой завершённой картины.</p><button className="primary-button" type="button" onClick={() => onNavigate('catalog')}>Открыть каталог</button></div>}
   </section>;

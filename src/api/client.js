@@ -219,6 +219,11 @@ export const telegramStarsOpsApi = {
       ...(reason ? { reason } : {}),
     },
   }),
+  payments: () => request('/payments/telegram-stars/ops/payments'),
+  refund: (orderId) => request('/payments/telegram-stars/ops/refund', {
+    method: 'POST',
+    body: { order_id: orderId },
+  }),
 };
 
 export const adminApi = {

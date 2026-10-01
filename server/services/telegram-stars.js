@@ -1342,7 +1342,19 @@ export function createTelegramStarsService(deps = {}) {
     return withTransaction(async (tx) => tx.get('SELECT * FROM telegram_stars_entitlements WHERE order_id=? AND user_id=?', [id, userId]));
   }
 
-  async function openSupportCase(input = {}) {
+  async function getPaymentByOrder({ orderId } = {}) {
+    assertEnabled();
+    const id = asString(String(orderId || ''), 'orderId', { max: 256 });
+    return withTransaction(async (tx) => tx.get('SELECT p.*, o.user_id, o.product_id, o.amount_xtr AS order_amount_xtr, o.status AS order_status FROM telegram_stars_payments p JOIN telegram_stars_orders o ON o.id = p.order_id WHERE p.order_id = ?', [id]));
+  }
+
+  async function listOperatorPayments({ limit } = {}) {
+    assertEnabled();
+    const bounded = Math.min(50, Math.max(1, Number(limit) || 20));
+    return withTransaction(async (tx) => tx.all('SELECT p.order_id, o.product_id, o.user_id, u.telegram_id AS telegram_user_id, p.amount_xtr AS captured_amount_xtr, p.refunded_amount_xtr, p.status AS payment_status, o.status AS order_status, p.telegram_payment_charge_id, p.captured_at FROM telegram_stars_payments p JOIN telegram_stars_orders o ON o.id = p.order_id JOIN users u ON u.id = o.user_id ORDER BY p.captured_at DESC, p.order_id DESC LIMIT ?', [bounded]));
+  }
+
+    async function openSupportCase(input = {}) {
     assertEnabled();
     const userId = normalizeUserId(input.userId, input.telegramUserId);
     const key = validateTelegramStarsIdempotencyKey(input.idempotencyKey);
@@ -1573,6 +1585,8 @@ export function createTelegramStarsService(deps = {}) {
     requestRefund,
     refundRecoveryCapture,
     getEntitlement,
+    getPaymentByOrder,
+    listOperatorPayments,
     openSupportCase,
     reconcile,
     reconcilePayments: reconcile,

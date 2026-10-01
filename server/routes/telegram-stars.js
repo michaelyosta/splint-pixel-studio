@@ -257,7 +257,44 @@ export function createTelegramStarsCommerceRouter({ runtime, auth = authMiddlewa
     }
   }));
 
-  router.get('/config', auth, asyncRoute(async (req, res) => {
+  router.get('/ops/payments', auth, asyncRoute(async (req, res) => {
+    if (!operatorGuard(req, res)) return undefined;
+    const limit = Math.min(50, Math.max(1, Number(req.query?.limit) || 20));
+    const payments = await runtime.service.listOperatorPayments({ limit });
+    return res.json({ payments: (payments || []).map((payment) => ({
+      order_id: payment.order_id,
+      product_id: payment.product_id,
+      captured_amount_xtr: Number(payment.captured_amount_xtr),
+      refunded_amount_xtr: Number(payment.refunded_amount_xtr || 0),
+      payment_status: payment.payment_status,
+      order_status: payment.order_status,
+      telegram_user_id: payment.telegram_user_id != null ? String(payment.telegram_user_id) : null,
+      telegram_payment_charge_id: payment.telegram_payment_charge_id,
+      captured_at: payment.captured_at,
+    })) });
+  }));
+
+  router.post('/ops/refund', auth, asyncRoute(async (req, res) => {
+    if (!operatorGuard(req, res)) return undefined;
+    const orderId = String(req.body?.order_id || '');
+    if (!orderId || orderId.length > 256) return res.status(400).json({ error: 'Order id is required', code: 'INVALID_INPUT' });
+    const payment = await runtime.service.getPaymentByOrder({ orderId });
+    if (!payment) return res.status(404).json({ error: 'Payment not found', code: 'PAYMENT_NOT_FOUND' });
+    const remaining = Number(payment.amount_xtr) - Number(payment.refunded_amount_xtr || 0);
+    if (!(remaining > 0)) return res.status(409).json({ error: 'Payment already refunded', code: 'ALREADY_REFUNDED' });
+    try {
+      const result = await runtime.service.requestRefund({
+        userId: payment.user_id,
+        telegramPaymentChargeId: payment.telegram_payment_charge_id,
+        amountXtr: remaining,
+      });
+      return res.json({ ok: true, status: result?.status || 'requested', refundId: result?.refundId || null, idempotent: Boolean(result?.idempotent) });
+    } catch (error) {
+      return providerError(error, res);
+    }
+  }));
+
+    router.get('/config', auth, asyncRoute(async (req, res) => {
     if (!telegramUser(runtime, req)) return res.json({ mode: 'disabled', product_ids: [] });
     return res.json(await runtime.getPurchaseConfig(req.user?.telegram_id));
   }));
