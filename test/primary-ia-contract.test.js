@@ -57,7 +57,7 @@ test('application shell keeps navigation in normal flow outside the resizing con
   const styles = source('src/App.css');
   const containerRule = styles.match(/(?:^|\n)\.app-container\s*\{([\s\S]*?)\}/)?.[1] || '';
   const frameRule = styles.match(/(?:^|\n)\.telegram-frame\s*\{([\s\S]*?)\}/)?.[1] || '';
-  const contentRule = styles.match(/\.screen-content\s*\{([\s\S]*?)\}/)?.[1] || '';
+  const contentRule = styles.match(/(?:^|\n)\.screen-content\s*\{([\s\S]*?)\}/)?.[1] || '';
   const navigationRule = styles.match(/(?:^|\n)\.app-tab-bar\s*\{([\s\S]*?)\}/)?.[1] || '';
   const redesignedButtonRule = styles.match(/\.app-tab-bar--redesigned > button\s*\{([\s\S]*?)\}/)?.[1] || '';
   const redesignedNavigationRule = styles.match(/(?:^|\n)\.app-tab-bar--redesigned\s*\{([\s\S]*?)\}/)?.[1] || '';
@@ -98,9 +98,14 @@ test('application shell keeps navigation in normal flow outside the resizing con
   assert.match(contentRule, /overflow-y:\s*auto/);
   assert.doesNotMatch(contentRule, /padding-bottom:\s*96px/);
   assert.match(navigationRule, /position:\s*relative/);
-  // Device verdict: the bar needs its own compositing layer so an animated
-  // sheet resize cannot leave it flattened into a stale page backing store.
-  assert.match(navigationRule, /will-change:\s*opacity/);
+  // Device verdict (tap test, all screens): the bar box is laid out inside the
+  // visible area and hit-testable, but its raster stays empty after the sheet
+  // resize. The Telegram-scoped override below anchors it to the viewport so
+  // its raster goes through the compositor independently of the page store.
+  const telegramBarRule = styles.match(/\.telegram-frame\[data-platform='telegram'\] \.app-tab-bar\s*\{([\s\S]*?)\}/)?.[1] || '';
+  assert.match(telegramBarRule, /position:\s*fixed/);
+  assert.match(telegramBarRule, /var\(--app-fixed-lift/);
+  assert.doesNotMatch(telegramBarRule, /transform\s*:|filter\s*:|backdrop-filter\s*:/);
   assert.match(navigationRule, /flex:\s*0 0 auto/);
   assert.match(navigationRule, /margin:\s*8px 10px calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
   assert.doesNotMatch(navigationRule, /backdrop-filter\s*:/);

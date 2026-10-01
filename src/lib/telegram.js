@@ -144,6 +144,7 @@ export function bindTelegramVerticalSwipes(webApp = getTelegramWebApp()) {
  * the in-flow tab bar with stale dimensions (unpainted, yet hit-testable).
  */
 export const TELEGRAM_FRAME_HEIGHT_VAR = '--app-frame-height';
+export const TELEGRAM_FIXED_LIFT_VAR = '--app-fixed-lift';
 
 export function readTelegramFrameHeight(currentWindow = getTelegramWindow()) {
   if (!currentWindow) return null;
@@ -162,6 +163,9 @@ export function syncTelegramFrameHeight({
   if (height == null || typeof style?.setProperty !== 'function') return false;
   try {
     style.setProperty(TELEGRAM_FRAME_HEIGHT_VAR, `${height}px`);
+    const layoutHeight = Number(currentWindow?.innerHeight);
+    const lift = Number.isFinite(layoutHeight) ? Math.max(0, Math.round(layoutHeight) - height) : 0;
+    style.setProperty(TELEGRAM_FIXED_LIFT_VAR, `${lift}px`);
   } catch {
     return false;
   }
