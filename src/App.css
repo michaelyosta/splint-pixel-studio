@@ -210,6 +210,11 @@ img { user-select: none; }
   /* Avoid a separate backdrop layer while Telegram's WebView viewport settles. */
   box-shadow: 0 12px 30px rgba(2, 8, 14, 0.6);
   z-index: 20;
+  /* Device verdict (expand on Catalog/Profile): the bar box is laid out and
+     hit-testable, but its raster stays empty -- WebKit leaves it flattened
+     into the page backing store and never re-rasterizes after the sheet
+     resize. A dedicated layer keeps its tiles independent. No layout change. */
+  will-change: opacity;
 }
 
 .app-tab-bar > button {
