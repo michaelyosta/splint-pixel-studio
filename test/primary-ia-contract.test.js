@@ -98,6 +98,9 @@ test('application shell keeps navigation in normal flow outside the resizing con
   assert.match(contentRule, /overflow-y:\s*auto/);
   assert.doesNotMatch(contentRule, /padding-bottom:\s*96px/);
   assert.match(navigationRule, /position:\s*relative/);
+  // Device verdict: the bar needs its own compositing layer so an animated
+  // sheet resize cannot leave it flattened into a stale page backing store.
+  assert.match(navigationRule, /will-change:\s*opacity/);
   assert.match(navigationRule, /flex:\s*0 0 auto/);
   assert.match(navigationRule, /margin:\s*8px 10px calc\(10px \+ env\(safe-area-inset-bottom,\s*0px\)\)/);
   assert.doesNotMatch(navigationRule, /backdrop-filter\s*:/);
