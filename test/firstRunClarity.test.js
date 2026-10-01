@@ -81,5 +81,5 @@ test('clarity additions keep catalog contracts: hero copy, teaser, chips, fail-c
   assert.match(source, /\{templates\.length\} сцен/);
   assert.match(source, /<PremiumPackTeaser pack=\{premiumPack\} state=\{premiumState\} onOpen=\{\(\) => onChangeChip\('premium'\)\} \/>/);
   assert.match(source, /data-premium-gallery-block/);
-  assert.match(source, /const isLockedPremium = item\.access === 'premium' && !\(progressPercent > 0\)/);
+  assert.match(source, /const isLockedPremium = isPremiumArtworkLocked\(item, \{ entitlement: premiumEntitlement, userId: currentUser\?\.id \}\)/);
 });

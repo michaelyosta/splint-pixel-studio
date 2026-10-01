@@ -7,6 +7,7 @@ import {
   evaluatePremiumPackQuality,
   findPremiumEntitlement,
   isCuratedPremiumPack,
+  isPremiumArtworkLocked,
   mergeShowcasePackServerProjection,
   packTotalMinutes,
   resolvePremiumPackState,
@@ -65,6 +66,23 @@ test('entitlement lookup is bounded to collection and template subjects', () => 
   };
   assert.equal(findPremiumEntitlement(snapshot)?.subject_id, SHOWCASE_PREMIUM_PACK.id);
   assert.equal(findPremiumEntitlement({ collections: [] }), null);
+});
+
+test('Premium artwork routing uses ownership even before the first painted cell', () => {
+  const premium = { id: 'premium', access: 'premium', progress: { percent: 0 } };
+  assert.equal(isPremiumArtworkLocked(premium), true);
+  assert.equal(isPremiumArtworkLocked(premium, { entitlement: { owned: true, state: 'owned' } }), false);
+  assert.equal(isPremiumArtworkLocked({ ...premium, access: undefined, access_type: 'premium' }, { entitlement: { state: 'owned' } }), false);
+  assert.equal(isPremiumArtworkLocked({ ...premium, owner_id: 'tg_owner' }, { userId: 'tg_owner' }), false);
+  assert.equal(isPremiumArtworkLocked({ ...premium, owner_id: 'another-owner' }, { userId: 'tg_owner' }), true);
+});
+
+test('painting progress and payment intent never unlock a Premium artwork', () => {
+  const started = { access: 'premium', progress: { percent: 73 } };
+  assert.equal(isPremiumArtworkLocked(started), true);
+  assert.equal(isPremiumArtworkLocked(started, { entitlement: { owned: false, state: 'premium_locked' } }), true);
+  assert.equal(isPremiumArtworkLocked(started, { entitlement: { state: 'paid' } }), true);
+  assert.equal(isPremiumArtworkLocked({ access: 'free' }), false);
 });
 
 test('showcase preview merges server metadata and keeps the explicit image fallback', () => {

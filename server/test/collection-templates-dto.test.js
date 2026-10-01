@@ -79,19 +79,21 @@ test('collection templates DTO normalizes premium access without leaking maps', 
   await writeFile(dbPath, Buffer.from(sqlite.export()));
   sqlite.close();
 
-  server = spawn('node', ['index.js'], {
+  server = spawn(process.execPath, ['index.js'], {
     cwd: serverDir,
     env: {
       ...process.env,
       PORT: String(port),
       NODE_ENV: 'test',
       DATABASE_URL: '',
+      STORAGE_DRIVER: 'local',
       SQLITE_DB_PATH: dbPath,
       MEDIA_STORAGE_ROOT: join(directory, 'uploads'),
       ALLOW_DEV_AUTH: 'true',
       SEED_DEMO_DATA: 'false',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
   });
 
   await new Promise((resolve, reject) => {

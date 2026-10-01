@@ -157,12 +157,12 @@ export function useColoringSession({
   useEffect(() => {
     const handleOffline = () => {
       setIsOnline(false);
-      setSaveState('offline');
+      setSaveState(tiledMemoryOnlyRef.current ? 'memory-only' : 'offline');
     };
     const handleOnline = async () => {
       setIsOnline(true);
       if (isLargeGridTemplate(template)) {
-        setSaveState('syncing');
+        setSaveState(tiledMemoryOnlyRef.current ? 'memory-only' : 'syncing');
         try {
           await flushTiledQueue();
           markTiledFlushSettled();
@@ -198,7 +198,12 @@ export function useColoringSession({
   }
 
   function readTiledJournal(templateId) {
-    return readTiledJournalEntries(window.localStorage, tiledJournalKey(templateId));
+    try {
+      return readTiledJournalEntries(window.localStorage, tiledJournalKey(templateId));
+    } catch {
+      // Browsers can reject the localStorage getter itself.
+      return [];
+    }
   }
 
   // Explicit durability result: true when the pending queue survived in
@@ -206,7 +211,9 @@ export function useColoringSession({
   // memory. A false return raises the honest memory-only flag so the
   // player warns instead of promising a local save.
   function writeTiledJournal(templateId) {
-    const result = writeTiledJournalEntries(window.localStorage, tiledJournalKey(templateId), tiledQueueRef.current);
+    let storage = null;
+    try { storage = window.localStorage; } catch { /* Restricted storage may reject the getter. */ }
+    const result = writeTiledJournalEntries(storage, tiledJournalKey(templateId), tiledQueueRef.current);
     const memoryOnly = !result.persisted && tiledQueueRef.current.length > 0;
     tiledMemoryOnlyRef.current = memoryOnly;
     return result.persisted;
@@ -724,7 +731,7 @@ export function useColoringSession({
         experiment_group: specialGroupRef.current || 'treatment',
       }).catch(() => {});
     }
-    setSaveState(isOnline ? 'syncing' : (journalPersisted ? 'offline' : 'memory-only'));
+    setSaveState(!journalPersisted ? 'memory-only' : isOnline ? 'syncing' : 'offline');
     flushTiledQueue().then(markTiledFlushSettled).catch(markTiledFlushFailed);
   }
 
@@ -833,7 +840,7 @@ export function useColoringSession({
         center_y: specialAction.center_y == null ? null : specialAction.center_y,
       }).catch(() => {});
     }
-    setSaveState(isOnline ? 'syncing' : (specialJournalPersisted ? 'offline' : 'memory-only'));
+    setSaveState(!specialJournalPersisted ? 'memory-only' : isOnline ? 'syncing' : 'offline');
     flushTiledQueue().then(markTiledFlushSettled).catch(markTiledFlushFailed);
     return true;
   }
@@ -844,7 +851,7 @@ export function useColoringSession({
         showNotice('Соединение ещё не восстановилось', 'info');
         return;
       }
-      setSaveState('syncing');
+      setSaveState(tiledMemoryOnlyRef.current ? 'memory-only' : 'syncing');
       try {
         await flushTiledQueue();
         markTiledFlushSettled();

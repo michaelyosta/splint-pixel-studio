@@ -12,6 +12,7 @@ import {
   PREMIUM_PACK_STATES,
   SHOWCASE_PREMIUM_PACK,
   findPremiumEntitlement,
+  isPremiumArtworkLocked,
   mergeShowcasePackServerProjection,
   resolvePremiumPackState,
 } from '../lib/premiumPack.js';
@@ -304,8 +305,8 @@ export default function CatalogView({
   const renderArtworkGrid = (items, label) => <div className="catalog-art-grid" aria-label={label}>{items.map((item) => {
     const progressPercent = progressById.get(item.id) || 0;
     const metadata = formatContentMetadataDetail(item);
-    const isLockedPremium = item.access === 'premium' && !(progressPercent > 0);
-    return <article className="catalog-art-card" data-access={item.access || 'free'} key={item.id} onMouseEnter={() => prefetchColoring(item.id)} onTouchStart={() => prefetchColoring(item.id)}>
+    const isLockedPremium = isPremiumArtworkLocked(item, { entitlement: premiumEntitlement, userId: currentUser?.id });
+    return <article className="catalog-art-card" data-access={item.access || 'free'} key={item.id} onMouseEnter={() => { if (!isLockedPremium) prefetchColoring(item.id); }} onTouchStart={() => { if (!isLockedPremium) prefetchColoring(item.id); }}>
       <button className="catalog-art-open" type="button" onClick={() => { if (isLockedPremium) { openPremiumShowcase(item); return; } hapticImpact('light'); openArtwork(item); }} aria-label={isLockedPremium ? `Открыть витрину Premium Gallery для ${item.title}` : `Открыть раскраску ${item.title}`}>
         <span className="catalog-art-preview" style={item.preview_url ? { backgroundImage: `url(${item.preview_url})` } : undefined}>
           {progressPercent > 0 ? <em className="catalog-art-progress">{progressPercent}%</em> : isLockedPremium ? <em className="catalog-art-premium-badge"><Crown size={11} aria-hidden="true" /> Premium</em> : <em>{metadata.duration}</em>}
@@ -327,8 +328,7 @@ export default function CatalogView({
     }}>{shelf.total_count} работ <ArrowRight size={14} aria-hidden="true" /></button></div>
     <div className="catalog-shelf-scroll" aria-label={shelf.label}>{shelf.items.map((item) => {
       const metadata = formatContentMetadataDetail(item);
-      const progressPercent = progressById.get(item.id) || 0;
-      const isLockedPremium = item.access === 'premium' && !(progressPercent > 0);
+      const isLockedPremium = isPremiumArtworkLocked(item, { entitlement: premiumEntitlement, userId: currentUser?.id });
       return <article className="catalog-shelf-card" key={`${shelf.id}:${item.id}`} data-access={item.access}>
         <button type="button" className="catalog-shelf-open" onClick={() => {
           if (isLockedPremium) { openPremiumShowcase(item, { shelf_id: shelf.id }); return; }

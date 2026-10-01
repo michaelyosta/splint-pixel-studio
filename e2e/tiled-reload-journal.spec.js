@@ -134,9 +134,11 @@ test('offline journal replay reconciles an already resident tile after reload', 
   expect(progress.completed_cells).toBe(1);
 });
 
-test('offline stroke with unavailable storage warns memory-only and recovers after reconnect', async ({ page, browserName }) => {
+test('offline stroke with unavailable storage warns memory-only and recovers after reconnect', async ({ page, browserName }, testInfo) => {
   test.skip(browserName !== 'chromium', 'single Chromium verifier keeps the storage-quota race deterministic');
   test.setTimeout(120000);
+
+  await page.setViewportSize({ width: 390, height: 844 });
 
   const { created, index } = await createFixture(page);
   const canvas = await openFixture(page, created.id, index);
@@ -165,13 +167,20 @@ test('offline stroke with unavailable storage warns memory-only and recovers aft
     return client && client.getCell(xCoord, yCoord) ? client.getCell(xCoord, yCoord).filled : null;
   }, index)).toBe(0);
 
-  await expect(page.locator('.save-status')).toContainText('Только в памяти');
+  await expect(page.locator('.save-status')).toContainText('Не сохранено');
   await expect(page.locator('[data-memory-only-warning]')).toBeVisible();
   const retry = page.locator('.save-retry');
   await expect(retry).toBeVisible();
   await expect(retry).toBeDisabled();
   const journalKeys = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('splint:tiled-progress:')));
   expect(journalKeys).toEqual([]);
+  const warning = page.locator('[data-memory-only-warning]');
+  await expect(warning).toContainText('Не закрывайте страницу');
+  const bounds = await warning.boundingBox();
+  expect(bounds).toBeTruthy();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: testInfo.outputPath('memory-only-warning.png') });
 
   await page.context().setOffline(false);
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(true);
@@ -180,6 +189,6 @@ test('offline stroke with unavailable storage warns memory-only and recovers aft
     if (!response.ok()) return -1;
     return (await response.json()).completed_cells;
   }).toBe(1);
-  await expect(page.locator('.save-status')).toContainText('Сохранено');
+  await expect(page.locator('.save-status')).toHaveText('Сохранено');
   await expect(page.locator('[data-memory-only-warning]')).toHaveCount(0);
 });

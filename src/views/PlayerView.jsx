@@ -400,7 +400,7 @@ export default function PlayerView({
     'После завершения мы покажем следующий участок.',
   ];
   const saveLabel = saveState === 'memory-only'
-    ? 'Только в памяти. Не закрывайте страницу'
+    ? 'Не сохранено'
     : !isOnline || saveState === 'offline'
       ? 'Сохранено локально'
       : saveState === 'pending'
@@ -446,7 +446,7 @@ export default function PlayerView({
 
       {saveState === 'memory-only' && (
         <p className="save-memory-warning" data-memory-only-warning role="alert">
-          Не закрывайте страницу: штрих сохранен только в памяти. Подключитесь к сети и нажмите Повторить.
+          Изменения ещё не сохранены. Не закрывайте страницу. Подключитесь к сети или повторите отправку.
         </p>
       )}
 

@@ -27,6 +27,16 @@ function memoryStorage(options) {
 const ENTRY = { clientBatchId: 'tiled-1', changes: [{ index: 0, color: 1 }], specialAction: null };
 
 describe('tiled journal durability', () => {
+  it('preserves pending journal keys from earlier builds', () => {
+    assert.equal(tiledJournalStorageKey('scope:one', 'tpl%one'), 'splint:tiled-progress:scope:one:tpl%one');
+  });
+
+  it('reports completely unavailable storage as memory-only', () => {
+    const key = tiledJournalStorageKey('audit-user', 'tpl_1');
+    assert.deepEqual(readTiledJournalEntries(null, key), []);
+    assert.equal(writeTiledJournalEntries(null, key, [ENTRY]).memoryOnly, true);
+  });
+
   it('tiled journal durability: persists entries and reads them back', () => {
     const storage = memoryStorage();
     const key = tiledJournalStorageKey('audit-user', 'tpl_1');

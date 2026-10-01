@@ -160,6 +160,13 @@ export function findPremiumEntitlement(snapshot, packId = SHOWCASE_PREMIUM_PACK.
   return subjects.find((subject) => String(subject?.subject_id || '') === String(packId)) || null;
 }
 
+/** Catalog routing mirrors server ownership; painting progress is not an entitlement. */
+export function isPremiumArtworkLocked(item, { entitlement = null, userId = null } = {}) {
+  if ((item?.access_type || item?.access) !== 'premium') return false;
+  if (userId != null && item?.owner_id != null && String(item.owner_id) === String(userId)) return false;
+  return entitlement?.owned !== true && entitlement?.state !== PREMIUM_PACK_STATES.OWNED;
+}
+
 /**
  * Merge the bounded server collection projection into the client showcase.
  * The server owns price and aggregate content metadata; the client keeps its

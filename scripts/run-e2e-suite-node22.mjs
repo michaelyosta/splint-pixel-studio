@@ -13,6 +13,8 @@ const critical = [
   { file: 'e2e/coloring-surface-gesture-guard.spec.js', title: 'classic pointer capture stays on the canvas and paint commits progress' },
   { file: 'e2e/catalog-merchandising.spec.js', title: 'merchandising catalog exposes shelves and the Collection > Album hierarchy' },
   { file: 'e2e/catalog-merchandising.spec.js', title: 'Premium Gallery presents the complete value proposition and stops at payment boundary' },
+  { file: 'e2e/catalog-merchandising.spec.js', title: 'owned Premium artwork opens directly from catalog shelves and collection grids' },
+  { file: 'e2e/catalog-merchandising.spec.js', title: 'unowned Premium collection cards stay badged and open the showcase' },
   { file: 'e2e/creator.spec.js', title: '3. File upload shows grid, crop, and color controls' },
   { file: 'e2e/creator.spec.js', title: '6. Compute shows previews and quality indicator' },
   { file: 'e2e/creator.spec.js', title: '6c. 1200x1200 creator path uploads tiled storage and opens bounded player' },
@@ -26,9 +28,11 @@ const critical = [
   { file: 'e2e/p0-final-acceptance.spec.js', title: 'final acceptance: real 1200x1200 with existing progress, zero interactions, first action = PAINT' },
   { file: 'e2e/recovery-p0.spec.js', title: 'cold root reopen restores the last artwork and resumable state' },
   { file: 'e2e/special-cells-1200-delivery.spec.js', title: '1200 treatment delivers INITIAL_TARGET, paints visible Spark on canvas, uses bounded effect, continues' },
+  { file: 'e2e/special-cells-responsive-evidence.spec.js', title: 'tiled special offer stays usable at mobile widths and honors reduced motion' },
   { file: 'e2e/tiled-completion.spec.js', title: 'tiled completion shows the completion overlay in the player' },
   { file: 'e2e/tiled-low-zoom.spec.js', title: 'overview is preview-stable, work reloads tiles, 502 stays local and retry recovers' },
   { file: 'e2e/tiled-reload-journal.spec.js', title: 'offline journal replay reconciles an already resident tile after reload' },
+  { file: 'e2e/tiled-reload-journal.spec.js', title: 'offline stroke with unavailable storage warns memory-only and recovers after reconnect' },
   { file: 'e2e/tiled-stroke-engine.spec.js', title: '30-cell touch drag paints progressively while the finger is down' },
   { file: 'e2e/tiled-stroke-engine.spec.js', title: 'drag across a tile boundary paints every valid cell with no stall' },
   { file: 'e2e/unlocks-recommendations.spec.js', title: 'legacy progression-locked direct ID stays fail-closed without progression UX' },
@@ -43,6 +47,8 @@ const critical = [
 const criticalPixelPartitionA = new Set([
   '30-cell touch drag paints progressively while the finger is down',
   'offline journal replay reconciles an already resident tile after reload',
+  'offline stroke with unavailable storage warns memory-only and recovers after reconnect',
+  'owned Premium artwork opens directly from catalog shelves and collection grids',
   'tiled 1200 player keeps one canvas, bounded DOM, keyboard paint, and zone navigation',
   'final acceptance: real 1200x1200 with existing progress, zero interactions, first action = PAINT',
   '1200x1200 guided player autofocuses, auto-advances, and supports free exploration + return',
@@ -58,9 +64,9 @@ const criticalPixelPartitionA = new Set([
 ]);
 const criticalPixelA = critical.filter(({ title }) => criticalPixelPartitionA.has(title));
 const criticalPixelB = critical.filter(({ title }) => !criticalPixelPartitionA.has(title));
-  if (criticalPixelA.length !== 14 || criticalPixelB.length !== 14
+  if (criticalPixelA.length !== 16 || criticalPixelB.length !== 16
   || new Set([...criticalPixelA, ...criticalPixelB].map(({ file, title }) => `${file}:${title}`)).size !== critical.length) {
-  throw new Error('Critical Pixel partitions must cover each critical title exactly once (14 + 14).');
+  throw new Error('Critical Pixel partitions must cover each critical title exactly once (16 + 16).');
 }
 
 // WebKit emulation cannot execute the 1200x1200 creator/touch scenarios in
@@ -85,6 +91,8 @@ const criticalWebkit = critical.filter(({ title }) => new Set([
   'legacy progression-locked direct ID stays fail-closed without progression UX',
   'premium direct ID shows a neutral unavailable state without payment CTA',
   'catalog showcase stays fail-closed without a mounted payment adapter',
+  'owned Premium artwork opens directly from catalog shelves and collection grids',
+  'unowned Premium collection cards stay badged and open the showcase',
 ]).has(title));
 
 const suites = {

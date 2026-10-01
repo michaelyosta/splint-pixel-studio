@@ -10,7 +10,8 @@
 export const TILED_JOURNAL_KEY_PREFIX = 'splint:tiled-progress:';
 
 export function tiledJournalStorageKey(userScope, templateId) {
-  return TILED_JOURNAL_KEY_PREFIX + encodeURIComponent(String(userScope || 'anonymous')) + ':' + encodeURIComponent(String(templateId));
+  // Preserve keys from earlier builds so pending journals stay readable.
+  return `${TILED_JOURNAL_KEY_PREFIX}${userScope}:${templateId}`;
 }
 
 export function isJournalQuotaError(error) {
