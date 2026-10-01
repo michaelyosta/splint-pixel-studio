@@ -139,9 +139,11 @@ test('offline stroke with unavailable storage warns memory-only and recovers aft
   test.setTimeout(120000);
 
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem('splint_onboarding_version', '2'));
 
   const { created, index } = await createFixture(page);
   const canvas = await openFixture(page, created.id, index);
+  await expect(page.locator('.onboarding-card')).toHaveCount(0);
   const x = index % GRID;
   const y = Math.floor(index / GRID);
   await canvas.focus();
