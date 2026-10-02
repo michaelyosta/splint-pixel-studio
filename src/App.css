@@ -2095,6 +2095,16 @@ html[data-tg-theme='light'] .session-goal-timer {
 .save-status:not(.saving):not(.offline) .save-dot { background: var(--app-success); }
 .save-retry { min-height: 24px; padding: 2px 5px; border: 1px solid rgba(255, 159, 90, 0.38); border-radius: 5px; color: #ffb77f; background: transparent; font: inherit; font-size: 8px; cursor: pointer; }
 .save-retry:disabled { opacity: 0.45; cursor: not-allowed; }
+.save-memory-warning {
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 159, 90, 0.38);
+  border-radius: 8px;
+  color: #ffb77f;
+  background: rgba(255, 159, 90, 0.08);
+  font-size: 12px;
+  line-height: 1.4;
+}
 @keyframes savePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 /* ── Comments: avatar & time ──────────────────────────────────── */

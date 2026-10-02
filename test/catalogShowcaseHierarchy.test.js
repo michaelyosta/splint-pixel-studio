@@ -44,7 +44,8 @@ test('showcase keeps the nine-shelf budget with popular and new on top', async (
 
 test('locked premium artwork cards are badged and route to the premium showcase', async () => {
   const source = await loadSource();
-  assert.match(source, /const isLockedPremium = item\.access === 'premium' && !\(progressPercent > 0\)/);
+  assert.equal((source.match(/const isLockedPremium = isPremiumArtworkLocked\(item, \{ entitlement: premiumEntitlement, userId: currentUser\?\.id \}\)/g) || []).length, 2,
+    'grid and shelf routing must both consult the server entitlement');
   assert.match(source, /catalog-art-premium-badge/);
   assert.match(source, /openPremiumShowcase\(item\)/);
   assert.match(source, /onChangeChip\('premium'\)/);

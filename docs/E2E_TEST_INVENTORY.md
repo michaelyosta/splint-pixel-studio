@@ -3,7 +3,7 @@
 Status: CANONICAL
 Authority: Current Playwright topology, suite classification, and CI
 expectations.
-Last verified: 2026-09-07 from the checked-in manifest and current test tree.
+Last verified: 2026-10-02 from the checked-in manifest and current test tree.
 
 Navigation: [INDEX.md](INDEX.md) · Current state: [CURRENT_STATE.md](CURRENT_STATE.md)
 Manifest: [E2E_SHARD_LOAD_MANIFEST.json](E2E_SHARD_LOAD_MANIFEST.json)
@@ -11,13 +11,12 @@ Manifest: [E2E_SHARD_LOAD_MANIFEST.json](E2E_SHARD_LOAD_MANIFEST.json)
 ## Topology
 
 - Test directory: `e2e/`.
-- Current source inventory: 40 spec files, 150 logical tests, and 450 nominal
+- Current source inventory: 42 spec files, 158 logical tests, and 474 nominal
   project cases across `chromium`, `Mobile iPhone`, and `Mobile Pixel`.
 - Playwright runs with one worker and `fullyParallel: false`.
 - Retries are `0`. Do not add hidden retries or arbitrary sleeps to make a
   release gate green.
-- The generated manifest was created at
-  `2026-09-07T10:08:36.479Z` and selects 24 weighted shards using the current
+- The regenerated manifest selects 24 weighted shards using the current
   inventory fingerprint. Every logical test and applicable project must be
   assigned exactly once; missing, stale, duplicate, or fingerprint-mismatched
   assignments are preflight failures.
@@ -30,7 +29,7 @@ scripts rather than copying counts from a handoff.
 
 | Lane | Owner | Contract |
 | --- | --- | --- |
-| Critical | `scripts/run-e2e-suite-node22.mjs critical*` | 26 explicitly named high-risk logical journeys, partitioned for Chromium, WebKit/iPhone, and Pixel lanes; covers auth, primary IA, creator save, painting, tiled rendering, completion, recovery, unlock fail-closed behavior, and selected special-cell delivery |
+| Critical | `scripts/run-e2e-suite-node22.mjs critical*` | 32 explicitly named high-risk logical journeys, Pixel partitions 16 + 16 and a selected 16-journey WebKit lane; covers auth, IA, creator/save, painting, completion, recovery, Premium ownership routing, quota/reconnect and automatic responsive special-cell delivery |
 | Extended | `scripts/run-e2e-suite-node22.mjs extended` plus the 24-shard manifest | Full current E2E inventory, including accessibility, secondary creator journeys, lifecycle, guidance migration, special-cell experiments/evidence, and compatibility paths |
 | Evidence-only | Explicit evidence specs and opt-in capture paths | May produce screenshots/metrics but are not a substitute for the required release gate |
 | Legacy/debt | Source-marked migration/parity compatibility cases | Remain runnable and visible; do not delete or silently weaken them |
@@ -38,6 +37,12 @@ scripts rather than copying counts from a handoff.
 Criticality is a test classification, not a claim that a whole mixed spec file
 belongs in the fast lane. The explicit title list in the runner is the
 authoritative critical selection.
+
+Quota recovery and owned/unowned Premium card routing are covered before merge.
+The responsive Spark journey follows the canonical one-tap contract: server
+default action, bounded effect, reduced motion and persistence. It must not
+require the retired manual picker. Browser-specific skips stay explicit and
+do not count as physical-device evidence.
 
 ## Shared harness and state
 

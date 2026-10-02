@@ -7,6 +7,22 @@ async function primeCatalog(page, testInfo) {
   });
 }
 
+async function acquireLocalPremiumGallery(page, userId) {
+  // This exercises the development-only internal-credit ledger in the
+  // disposable E2E database. It never creates an invoice or a real payment.
+  for (let grant = 0; grant < 2; grant += 1) {
+    const topUp = await page.request.post(`/api/users/${encodeURIComponent(userId)}/add-stars`);
+    expect(topUp.ok()).toBe(true);
+  }
+  const purchase = await page.request.post('/api/users/collections/col_premium-gallery/add', {
+    headers: { 'Idempotency-Key': `merchandising-owned-${userId}` },
+  });
+  expect(purchase.ok()).toBe(true);
+  const entitlement = await page.request.get('/api/unlocks/collections/col_premium-gallery');
+  expect(entitlement.ok()).toBe(true);
+  expect(await entitlement.json()).toMatchObject({ state: 'owned', owned: true });
+}
+
 test.describe('Catalog merchandising release', () => {
   test.beforeEach(async ({ page }, testInfo) => {
     await primeCatalog(page, testInfo);
@@ -55,5 +71,60 @@ test.describe('Catalog merchandising release', () => {
     await expect(page.locator('[data-store-page]')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('[data-pack-id="col_premium-gallery"]')).toContainText('120');
     await expect(page.locator('[data-pack-id="col_premium-gallery"]')).toContainText('купить в Telegram');
+  });
+
+  test('owned Premium artwork opens directly from catalog shelves and collection grids', async ({ page }, testInfo) => {
+    const userId = `e2e_merchandising_${testInfo.testId}`;
+    await acquireLocalPremiumGallery(page, userId);
+    await page.goto('/');
+    await expect(page.locator('[data-premium-pack-teaser]')).toHaveAttribute('data-premium-state', 'owned');
+    const shelfCard = page.locator('[data-shelf-id="premium"] .catalog-shelf-card').nth(7);
+    await expect(shelfCard).toBeVisible();
+    const title = await shelfCard.locator('.catalog-shelf-title').innerText();
+    const list = await page.request.get('/api/colorings?access=premium&limit=500');
+    expect(list.ok()).toBe(true);
+    const artwork = (await list.json()).find(item => item.title === title);
+    expect(artwork?.id).toBeTruthy();
+    const before = await page.request.get(`/api/colorings/${artwork.id}/progress`);
+    expect(before.ok()).toBe(true);
+    expect((await before.json()).completed_cells).toBe(0);
+    const opened = page.waitForResponse(response => response.url().includes(`/colorings/${artwork.id}/progress`) && response.request().method() === 'GET');
+    await shelfCard.locator('.catalog-shelf-open').click();
+    expect((await opened).ok()).toBe(true);
+    await expect(page.locator('.player-page')).toBeVisible();
+    await expect(page.locator('[data-premium-pack]')).toHaveCount(0);
+
+    // Reload the untouched owner session and check the other shared card path.
+    await page.goto('/');
+    await page.getByRole('tab', { name: 'Коллекции', exact: true }).click();
+    await page.locator('.catalog-collection-grid[aria-label="Коллекции каталога"] .catalog-collection-card').filter({ hasText: 'Dreamcore Idols' }).click();
+    const gridCard = page.locator('.catalog-art-card[data-access="premium"]').nth(7);
+    await expect(gridCard).toBeVisible();
+    const gridTitle = await gridCard.locator('.catalog-art-copy b').innerText();
+    await expect(gridCard.locator('.catalog-art-open')).toHaveAttribute('aria-label', `Открыть раскраску ${gridTitle}`);
+    await gridCard.locator('.catalog-art-open').click();
+    await expect(page.locator('.player-page')).toBeVisible();
+    await expect(page.locator('[data-premium-pack]')).toHaveCount(0);
+  });
+
+  test('unowned Premium collection cards stay badged and open the showcase', async ({ page }) => {
+    const templates = await page.request.get('/api/meta/collections/col_dreamcore-idols/templates');
+    expect(templates.ok()).toBe(true);
+    const items = await templates.json();
+    expect(items).toHaveLength(20);
+    expect(items.every(item => item.access === 'premium' && item.access_type === 'premium')).toBe(true);
+    const denied = await page.request.get(`/api/colorings/${items[7].id}/progress`);
+    expect(denied.status()).toBe(403);
+    expect(await denied.json()).toMatchObject({ code: 'PREMIUM_REQUIRED' });
+    await page.goto('/');
+    await page.getByRole('tab', { name: 'Коллекции', exact: true }).click();
+    await page.locator('.catalog-collection-grid[aria-label="Коллекции каталога"] .catalog-collection-card').filter({ hasText: 'Dreamcore Idols' }).click();
+    await expect(page.locator('.catalog-art-card[data-access="premium"]')).toHaveCount(12);
+    await expect(page.locator('.catalog-art-premium-badge')).toHaveCount(12);
+    const card = page.locator('.catalog-art-card').nth(7);
+    await expect(card.locator('.catalog-art-open')).toHaveAttribute('aria-label', /Открыть витрину Premium Gallery/);
+    await card.locator('.catalog-art-open').click();
+    await expect(page.locator('[data-premium-pack]')).toHaveAttribute('data-premium-entitlement', 'not-owned');
+    await expect(page.locator('.player-page')).toHaveCount(0);
   });
 });

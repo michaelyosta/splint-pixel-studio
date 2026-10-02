@@ -424,10 +424,10 @@ Popular + New horizontal shelves → a dedicated Premium Gallery block (crown,
 server-owned price in Stars, unchanged teaser) → free/premium shelves plus
 fill to a nine-shelf budget → the full collections grid → the complete artwork
 grid only behind an explicit `Показать все работы (N)` expander with the
-existing `visibleCount` show-more inside. Locked premium artwork cards (no
-progress) carry a Premium crown badge and route to the Premium Gallery
-showcase instead of opening the coloring; premium work already in progress
-still opens directly.
+existing `visibleCount` show-more inside. Premium artwork without verified
+server ownership carries a Premium crown badge and routes to the showcase.
+Owned Premium work opens directly, including before its first painted cell.
+Painting progress never substitutes for an entitlement.
 
 → WHY INTENTIONAL
 
@@ -556,6 +556,9 @@ covers Choice when explicitly enabled for the local screenshot run.
 `e2e/special-glyph-parity.spec.js`, and
 `e2e/special-cells-visual-audit.spec.js` cover reload, legacy/tiled delivery,
 the default server option, effect feedback, and the removed selectors.
+`e2e/special-cells-responsive-evidence.spec.js` verifies the automatic server
+default action, bounded visible effect, reduced-motion mark and persisted
+resolution after reload; the retired manual-panel assertion is not a contract.
 
 → UNCHANGED CONTRACTS
 
@@ -659,6 +662,56 @@ e2e/catalog-merchandising.spec.js asserts the paid CTA and the store handoff; e2
 UNCHANGED CONTRACTS
 
 Server-owned price (120 XTR), product allowlist, the 172/148 split, entitlement creation only from authoritative payment state, kill switches, idempotency, reconciliation, and the three-tab IA are unchanged. No payment, payout, or marketplace settlement behavior changes.
+
+## Premium card ownership and collection DTO consistency
+
+OLD CONTRACT → Catalog cards inferred a Premium lock from zero painting
+progress; collection DTOs exposed only `access_type` while the UI read
+`access`. A purchased but unstarted work returned to a six-example showcase,
+and a collection's paid cards could look freely openable.
+
+NEW CONTRACT → Shelf and grid cards use the server entitlement or owner
+projection. Owned Premium opens the selected work at 0%; unowned work stays
+badged and opens the value showcase. Collection browse exposes matching
+`access`/`access_type` and a bounded summary without maps/private original
+keys. Browse never grants access; the server validates every actual read.
+
+WHY INTENTIONAL → Ownership is independent of paint percentage. Normalizing
+the DTO and routing from authoritative ownership restores the purchased
+catalog journey while preserving fail-closed reads, including after revocation.
+
+WHERE TESTED → `src/lib/premiumPack.test.js`, the migrated hierarchy/clarity
+contracts, `server/test/collection-templates-dto.test.js`, and
+`e2e/catalog-merchandising.spec.js` cover an owned unstarted work, an unowned
+collection card, matching DTO fields and the server's 403 boundary.
+
+UNCHANGED → Three-tab IA, artwork count, 172/148 split, 120 XTR server price,
+invoice/capture/grant/refund/gate semantics, upload and painting persistence.
+
+## Honest tiled save state when local storage fails
+
+OLD CONTRACT → A failed local journal write left only an in-memory queue,
+but the offline HUD still promised `Сохранено локально`; a skipped flush could
+also mark an unsent queue saved.
+
+NEW CONTRACT → Journal writes report durability. Pending changes with no
+durable copy display `Не сохранено` and a persistent warning not to close the
+page. The in-memory queue remains retryable and synchronization resumes online;
+the warning clears only after durable journal storage or server acknowledgement.
+An offline/skipped/offer-blocked flush cannot declare a nonempty queue saved.
+
+WHY INTENTIONAL → The player must distinguish successful persistence from
+volatile optimistic paint. Browser storage rejection cannot guarantee survival
+across page closure; the interface must report that limit truthfully.
+
+WHERE TESTED → `test/tiledJournal.test.js` covers quota rejection, unavailable
+storage, successful writes/recovery and existing-key compatibility.
+`e2e/tiled-reload-journal.spec.js` covers the existing durable replay and a
+quota-failed stroke, warning at phone width, reconnect/server-save and warning
+removal. These regressions are part of critical pre-merge selection.
+
+UNCHANGED → Journal key compatibility, action batching, revision/CAS,
+idempotent replay, server authority, canvas/stroke behavior, ownership and Stars.
 
 ## Contract coverage status
 

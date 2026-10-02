@@ -187,12 +187,17 @@ router.get('/collections/:id/templates', authMiddleware, asyncRoute(async (req, 
     ${isOwner ? '' : "AND visibility='public'"}
     ${albumId ? 'AND album_id=?' : ''}
     ORDER BY featured_rank ASC, title`, albumId ? [req.params.id, albumId] : [req.params.id]);
-  res.json(rows.map(publicTemplateSummary));
+  res.json(rows.map((row) => publicTemplateSummary(row, collection)));
 }));
 
-function publicTemplateSummary(row) {
-  const template = { ...parseSafeTemplate(row) };
-  const totalCells = template.cells.length;
+// Collection browse DTO mirrors the /colorings catalogSummary contract:
+// normalized access/access_type, no raster maps or private storage keys, and
+// an honest cell count for tiled templates (dimensions, not the sentinel).
+function publicTemplateSummary(row, collection) {
+  const template = { ...parseSafeTemplate(row, collection) };
+  const totalCells = template.storage_mode === 'tiled'
+    ? template.width * template.height
+    : template.cells.length;
   delete template.cells;
   delete template.original_media_key;
   delete template.palette_json;
@@ -204,7 +209,7 @@ function publicTemplateSummary(row) {
   };
 }
 
-function parseSafeTemplate(row) {
+function parseSafeTemplate(row, collection) {
   if (!row) return null;
   const parseArray = (value) => {
     if (Array.isArray(value)) return value;
@@ -215,14 +220,21 @@ function parseSafeTemplate(row) {
       return [];
     }
   };
+  const access = row.access_type || (collection?.pack_type === 'premium' ? 'premium' : 'free');
+  const storageMode = row.storage_mode || 'legacy';
   return {
     ...row,
     width: Number(row.width),
     height: Number(row.height),
     est_minutes: Number(row.est_minutes || 3),
     zone_count: Number(row.zone_count || 1),
+    access,
+    access_type: access,
+    storage_mode: storageMode,
     palette: parseArray(row.palette_json),
-    cells: parseArray(row.cells_json),
+    // Tiled templates keep only an empty sentinel in the legacy column;
+    // never parse or expose a full grid map in the browse DTO.
+    cells: storageMode === 'tiled' ? [] : parseArray(row.cells_json),
     tags: parseArray(row.tags_json),
     season: parseArray(row.season_json),
     audience: parseArray(row.audience_json),

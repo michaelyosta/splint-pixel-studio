@@ -186,6 +186,11 @@ test('tiled special offer stays usable at mobile widths and honors reduced motio
   expect(preEnterState.target).toBe(preEnterState.selectedColor);
   expect(preEnterState.activeElementIsCanvas).toBe(true);
   expect(preEnterState.keyboardCell).toBe(String(spark.cell_index));
+  const useSparkPromise = page.waitForResponse((response) => {
+    if (!response.url().includes(`/colorings/${created.id}/progress/actions`)
+      || response.request().method() !== 'POST') return false;
+    try { return response.request().postDataJSON()?.special_action?.type === 'use_spark'; } catch { return false; }
+  }, { timeout: 180000 });
   const claimPromise = page.waitForResponse((response) => {
     if (!response.url().includes(`/colorings/${created.id}/progress/actions`)
       || response.request().method() !== 'POST') return false;
@@ -201,22 +206,90 @@ test('tiled special offer stays usable at mobile widths and honors reduced motio
     offer_token: expect.any(String),
     auto_apply: false,
   });
-  const offer = page.locator('.progressive-grid-special-offer[data-special-kind="spark"]');
-  await expect(offer).toBeVisible({ timeout: 30000 });
+  const defaultOptionId = String(claimed.special_offer.default_option_id || '');
+  expect(defaultOptionId.length).toBeGreaterThan(0);
+  const claimedToken = String(claimed.special_offer.offer_token || '');
+  expect(claimedToken.length).toBeGreaterThan(0);
+  expect(
+    (claimed.special_offer.target_options || []).some((option) => String(option?.option_id) === defaultOptionId),
+  ).toBe(true);
 
-  const areaBox = await area.boundingBox();
-  const offerBox = await offer.boundingBox();
-  expect(areaBox).toBeTruthy();
-  expect(offerBox).toBeTruthy();
-  expect(offerBox.x).toBeGreaterThanOrEqual(areaBox.x);
-  expect(offerBox.y).toBeGreaterThanOrEqual(areaBox.y);
-  expect(offerBox.x + offerBox.width).toBeLessThanOrEqual(areaBox.x + areaBox.width + 1);
-  expect(offerBox.y + offerBox.height).toBeLessThanOrEqual(areaBox.y + areaBox.height + 1);
-  for (const button of await offer.locator('button').all()) {
-    const buttonBox = await button.boundingBox();
-    expect(buttonBox).toBeTruthy();
-    expect(buttonBox.x).toBeGreaterThanOrEqual(areaBox.x);
-    expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(areaBox.x + areaBox.width + 1);
+  // One-tap contract: the committed tap resolves automatically through the
+  // persisted server default option. No target picker, confirm, skip, or
+  // manual offer panel is part of the normal activation flow.
+  const useSparkResponse = await useSparkPromise;
+  expect(useSparkResponse.status()).toBe(200);
+  const useAction = useSparkResponse.request().postDataJSON()?.special_action;
+  expect(useAction).toMatchObject({
+    type: 'use_spark',
+    special_id: String(spark.special_id),
+    offer_token: claimedToken,
+    option_id: defaultOptionId,
+  });
+  const applied = await useSparkResponse.json();
+  const appliedChanges = Array.isArray(applied.special_applied_changes) ? applied.special_applied_changes : [];
+  expect(appliedChanges.length).toBeGreaterThan(0);
+  expect(appliedChanges.length).toBeLessThanOrEqual(144);
+  const appliedRevision = Number(applied.revision);
+  expect(Number.isFinite(appliedRevision)).toBe(true);
+
+  // The server-confirmed effect is visible inside the mobile viewport area,
+  // with a static legible mark under reduced motion. Asserted before the
+  // consumed-offer poll below: the overlay is transient under CI load.
+  const fx = page.locator('[data-special-fx="spark"]');
+  await expect(fx).toBeVisible({ timeout: 30000 });
+  if (reducedMotion) {
+    await expect(fx).toHaveClass(/special-fx-reduced/);
   }
+  const areaBox = await area.boundingBox();
+  const fxBox = await fx.boundingBox();
+  expect(areaBox).toBeTruthy();
+  expect(fxBox).toBeTruthy();
+  expect(fxBox.x).toBeGreaterThanOrEqual(areaBox.x);
+  expect(fxBox.y).toBeGreaterThanOrEqual(areaBox.y);
+  expect(fxBox.x + fxBox.width).toBeLessThanOrEqual(areaBox.x + areaBox.width + 1);
+  expect(fxBox.y + fxBox.height).toBeLessThanOrEqual(areaBox.y + areaBox.height + 1);
   await page.screenshot({ path: resolve(evidenceDir, `${testInfo.project.name}-${width}.png`), fullPage: false });
+
+  await expect.poll(async () => {
+    const responseProgress = await page.request.get(`/api/colorings/${created.id}/progress`);
+    return (await responseProgress.json()).special_offer;
+  }, { timeout: 30000 }).toBeNull();
+
+  // Manual controls are absent from the normal activation flow.
+  await expect(page.locator('.progressive-grid-special-offer')).toHaveCount(0);
+  await expect(page.locator('[data-special-action]')).toHaveCount(0);
+  await expect(page.locator('[data-special-auto-applying]')).toHaveCount(0);
+
+  // Save/reload/continue: the one-tap resolution survives reload and the
+  // session keeps guiding the next fragment.
+  await page.reload();
+  await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 30000 });
+  await expect(canvas).toBeVisible({ timeout: 30000 });
+  await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 60000 });
+  const reloadedProgressResponse = await page.request.get(`/api/colorings/${created.id}/progress`);
+  expect(reloadedProgressResponse.ok()).toBe(true);
+  const reloadedProgress = await reloadedProgressResponse.json();
+  expect(reloadedProgress.special_offer).toBeNull();
+  expect(Number(reloadedProgress.revision) >= appliedRevision).toBe(true);
+  const sparkTileResponse = await page.request.get(
+    `/api/colorings/${created.id}/tiles/${Math.floor(cellX / TILE)}/${Math.floor(cellY / TILE)}`,
+  );
+  expect(sparkTileResponse.ok()).toBe(true);
+  const sparkTile = await sparkTileResponse.json();
+  const sparkStates = (sparkTile.specials || [])
+    .filter((entry) => String(entry.id) === String(spark.special_id))
+    .map((entry) => entry.state);
+  expect(sparkStates.length === 0 || sparkStates.every((state) => state !== 'unseen' && state !== 'offered')).toBe(true);
+  await expect(session).toHaveAttribute('data-smart-target-min-x', /^-?\d+$/, { timeout: 30000 });
+  await expect(session).toHaveAttribute('data-smart-target-min-y', /^-?\d+$/, { timeout: 30000 });
+  await expect(session).toHaveAttribute('data-smart-target-max-x', /^-?\d+$/, { timeout: 30000 });
+  await expect(session).toHaveAttribute('data-smart-target-max-y', /^-?\d+$/, { timeout: 30000 });
+  const nextTarget = await session.evaluate((element) => ({
+    minX: Number(element.getAttribute('data-smart-target-min-x')),
+    minY: Number(element.getAttribute('data-smart-target-min-y')),
+    maxX: Number(element.getAttribute('data-smart-target-max-x')),
+    maxY: Number(element.getAttribute('data-smart-target-max-y')),
+  }));
+  expect([nextTarget.minX, nextTarget.minY, nextTarget.maxX, nextTarget.maxY].every(Number.isFinite)).toBe(true);
 });

@@ -399,13 +399,15 @@ export default function PlayerView({
     `Используй цвет №${selectedColor + 1}. Проведи по клеткам, чтобы закрасить сразу несколько.`,
     'После завершения мы покажем следующий участок.',
   ];
-  const saveLabel = !isOnline || saveState === 'offline'
-    ? 'Сохранено локально'
-    : saveState === 'pending'
-      ? 'Ожидает отправки'
-      : saving || saveState === 'syncing'
-        ? 'Синхронизация…'
-        : 'Сохранено';
+  const saveLabel = saveState === 'memory-only'
+    ? 'Не сохранено'
+    : !isOnline || saveState === 'offline'
+      ? 'Сохранено локально'
+      : saveState === 'pending'
+        ? 'Ожидает отправки'
+        : saving || saveState === 'syncing'
+          ? 'Синхронизация…'
+          : 'Сохранено';
   const contextGoal = isTiled
     ? `${gameProgress.percent}% карты раскрыто`
     : getContextGoal(zones, zoneIndices, template, progress.filled);
@@ -428,10 +430,10 @@ export default function PlayerView({
         <button className="back-button" onClick={() => coreFeelActive ? leaveCoreFeelSession() : setView('catalog')} aria-label={coreFeelActive ? 'Завершить тест' : 'Назад'}><ChevronLeft size={18} /></button>
         <span className="player-topbar-title">{template.title}</span>
         {sessionGameActive && <button type="button" className="session-game-stop-button" data-session-game-stop onClick={stopSessionGame}>Сохранить точку</button>}
-        <span className={`save-status${saving || saveState === 'syncing' ? ' saving' : ''}${!isOnline || saveState === 'offline' ? ' offline' : ''}`} role="status" aria-live="polite">
+        <span className={`save-status${saving || saveState === 'syncing' ? ' saving' : ''}${!isOnline || saveState === 'offline' || saveState === 'memory-only' ? ' offline' : ''}`} role="status" aria-live="polite">
           <span className="save-dot" aria-hidden="true" />{saveLabel}
         </span>
-        {(saveState === 'pending' || saveState === 'offline') && <button className="save-retry" type="button" onClick={onRetrySave} disabled={!isOnline}>Повторить</button>}
+        {(saveState === 'pending' || saveState === 'offline' || saveState === 'memory-only') && <button className="save-retry" type="button" onClick={onRetrySave} disabled={!isOnline}>Повторить</button>}
         {!coreFeelActive && <span className="player-progress" title={`Прогресс: ${gameProgress.percent}%`} aria-hidden="true">
           <svg viewBox="0 0 38 38">
             <circle className="player-progress-track" cx="19" cy="19" r="15" />
@@ -441,6 +443,12 @@ export default function PlayerView({
         </span>}
         {!coreFeelActive && <button className="player-menu-btn" onClick={() => setMenuOpen(true)} aria-label="Меню игры"><span>•••</span></button>}
       </div>
+
+      {saveState === 'memory-only' && (
+        <p className="save-memory-warning" data-memory-only-warning role="alert">
+          Изменения ещё не сохранены. Не закрывайте страницу. Подключитесь к сети или повторите отправку.
+        </p>
+      )}
 
       {!coreFeelActive && <div className={`player-hint ${hudHidden ? 'faded' : ''}`} onClick={showHud}>
         <span className="player-hint-target"><Target size={14} /> {contextGoal}</span>
