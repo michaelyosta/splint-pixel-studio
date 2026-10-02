@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { probeOperations } from '../scripts/ops-probe.mjs';
+import { probeOperations, renderHuman, renderSummaryMarkdown } from '../scripts/ops-probe.mjs';
 
 const BUNDLE_WITH_API = (apiOrigin) => `console.log("api ${apiOrigin}/live");`;
 const HOME_HTML = (scripts) => `<!doctype html><html lang="ru"><head><title>Splint Pixel Studio test</title>${
@@ -237,3 +237,116 @@ test('stale health timestamp fails health', async () => {
     },
   );
 });
+
+test('stalled body after headers times out without hanging', async () => {
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1');
+    if (url.pathname === '/ready') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.write('{"ready":true,');
+      return;
+    }
+    res.writeHead(404, { 'content-type': 'text/plain' });
+    res.end('not found');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const begin = Date.now();
+    const result = await probeOperations({
+      frontendOrigin: origin,
+      apiOrigin: origin,
+      expectedApiOrigin: origin,
+      timeoutMs: 300,
+    });
+    assert.ok(Date.now() - begin < 30000, 'probe must not hang on a stalled body');
+    assert.equal(checkByName(result, 'api-ready').ok, false);
+    assert.match(checkByName(result, 'api-ready').detail, /timeout/);
+  } finally {
+    await new Promise((done) => server.close(done));
+  }
+});
+
+test('oversize body fails capped', async () => {
+  await withStub(
+    (origin) => healthyState(origin),
+    async ({ probe }) => {
+      const { DEFAULT_LIMITS } = await import('../scripts/ops-probe.mjs');
+      const big = await probe({
+        limits: { ...DEFAULT_LIMITS, maxJsonBytes: 16 },
+      });
+      assert.equal(big.ok, false);
+      assert.match(checkByName(big, 'api-live').detail, /exceeds/);
+    },
+  );
+});
+
+test('userinfo and query never reach human or summary output', async () => {
+  const evil = 'https://user:s3cret@cdn.example.com/x.js?tok=abc';
+  const stub = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1');
+    if (url.pathname === '/') {
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(HOME_HTML(['/assets/app.js', evil]));
+      return;
+    }
+    if (url.pathname === '/assets/app.js') {
+      res.writeHead(200, { 'content-type': 'text/javascript' });
+      res.end('console.log("x");');
+      return;
+    }
+    res.writeHead(404, { 'content-type': 'text/plain' });
+    res.end('not found');
+  });
+  await new Promise((resolve) => stub.listen(0, '127.0.0.1', resolve));
+  try {
+    const origin = `http://127.0.0.1:${stub.address().port}`;
+    const result = await probeOperations({
+      frontendOrigin: origin,
+      apiOrigin: origin,
+      expectedApiOrigin: origin,
+      timeoutMs: 3000,
+    });
+    assert.equal(result.ok, false);
+    const human = renderHuman(result);
+    const summary = renderSummaryMarkdown(result);
+    for (const output of [human, summary, JSON.stringify(result)]) {
+      assert.ok(!output.includes('s3cret'), 'credentials must not leak into output');
+      assert.ok(!output.includes('tok=abc'), 'query must not leak into output');
+    }
+    assert.ok(human.includes('https://cdn.example.com'), 'safe origin stays for diagnosis');
+  } finally {
+    await new Promise((done) => stub.close(done));
+  }
+});
+
+test('credentialed same-origin asset fails closed without logging secrets', async () => {
+  const stub = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1');
+    if (url.pathname === '/') {
+      const port = stub.address().port;
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end(HOME_HTML([`http://user:pw127@127.0.0.1:${port}/assets/app.js`]));
+      return;
+    }
+    res.writeHead(404, { 'content-type': 'text/plain' });
+    res.end('not found');
+  });
+  await new Promise((resolve) => stub.listen(0, '127.0.0.1', resolve));
+  try {
+    const origin = `http://127.0.0.1:${stub.address().port}`;
+    const result = await probeOperations({
+      frontendOrigin: origin,
+      apiOrigin: origin,
+      expectedApiOrigin: origin,
+      timeoutMs: 3000,
+    });
+    assert.equal(result.ok, false);
+    assert.equal(checkByName(result, 'frontend-assets').ok, false);
+    const human = renderHuman(result);
+    assert.ok(!human.includes('pw127'), 'credentials must not leak into output');
+  } finally {
+    await new Promise((done) => stub.close(done));
+  }
+});
+
