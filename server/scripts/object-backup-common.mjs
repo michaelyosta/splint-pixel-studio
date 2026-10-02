@@ -18,6 +18,24 @@ import {
 export const MANIFEST_NAME = 'object-backup.manifest.json';
 export const MANIFEST_SHA_NAME = `${MANIFEST_NAME}.sha256`;
 
+export function objectStoreFingerprint(endpoint, bucket) {
+  const url = new URL(endpoint);
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || !bucket) throw new Error('Invalid object-store recovery identity');
+  return createHash('sha256').update(JSON.stringify([url.origin, url.pathname.replace(/\/$/, ''), bucket])).digest('hex');
+}
+
+export function assertObjectRecoveryTarget(manifest, endpoint, bucket, sourceEnv = process.env) {
+  let source = manifest.source?.fingerprint;
+  if (source && !/^[a-f0-9]{64}$/.test(source)) throw new Error('Invalid object backup source identity');
+  if (!source) {
+    if (!sourceEnv.S3_ENDPOINT || !manifest.source?.bucket) throw new Error('Legacy object backup requires S3_ENDPOINT to verify recovery isolation');
+    source = objectStoreFingerprint(sourceEnv.S3_ENDPOINT, manifest.source.bucket);
+  }
+  const target = objectStoreFingerprint(endpoint, bucket);
+  if (source === target) throw new Error('Refusing object restore into the source bucket; choose a separate recovery target');
+  if (sourceEnv.S3_ENDPOINT && sourceEnv.S3_BUCKET && objectStoreFingerprint(sourceEnv.S3_ENDPOINT, sourceEnv.S3_BUCKET) === target) throw new Error('Refusing object restore into the configured source bucket');
+}
+
 export function requireEnv(names, label = 'Object backup') {
   const missing = names.filter((name) => !process.env[name]);
   if (missing.length) throw new Error(`${label} requires: ${missing.join(', ')}`);
@@ -99,7 +117,7 @@ export async function writeObjectToFile(body, filePath) {
       callback(null, chunk);
     },
   });
-  await pipeline(Readable.from(body), digest, createWriteStream(filePath, { flags: 'w' }));
+  await pipeline(Readable.from(body), digest, createWriteStream(filePath, { flags: 'w', mode: 0o600 }));
   return { bytes, content_sha256: hash.digest('hex') };
 }
 
@@ -134,14 +152,14 @@ export async function readManifest(backupDir) {
 }
 
 export async function writeManifest(backupDir, manifest) {
-  await mkdir(join(backupDir, 'objects'), { recursive: true });
+  await mkdir(join(backupDir, 'objects'), { recursive: true, mode: 0o700 });
   const content = `${JSON.stringify(manifest, null, 2)}\n`;
   const manifestPath = join(backupDir, MANIFEST_NAME);
   const temporaryPath = `${manifestPath}.tmp`;
-  await writeFile(temporaryPath, content, 'utf8');
+  await writeFile(temporaryPath, content, { mode: 0o600 });
   await rename(temporaryPath, manifestPath);
   const digest = createHash('sha256').update(content).digest('hex');
-  await writeFile(join(backupDir, MANIFEST_SHA_NAME), `${digest}  ${MANIFEST_NAME}\n`, 'utf8');
+  await writeFile(join(backupDir, MANIFEST_SHA_NAME), `${digest}  ${MANIFEST_NAME}\n`, { mode: 0o600 });
   return { manifestPath, digest };
 }
 

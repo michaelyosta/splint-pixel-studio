@@ -4,14 +4,34 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import {
   archivePathForKey,
+  assertObjectRecoveryTarget,
   archiveFilePath,
   describeObject,
   readManifest,
+  objectStoreFingerprint,
   verifyArchive,
   writeManifest,
 } from '../scripts/object-backup-common.mjs';
+
+test('object recovery rejects the original bucket and permits a separate endpoint/bucket', () => {
+  const endpoint = 'https://fixture.r2.cloudflarestorage.com';
+  const bucket = 'fixture-originals';
+  const manifest = { source: { bucket, fingerprint: objectStoreFingerprint(endpoint, bucket) } };
+  assert.throws(() => assertObjectRecoveryTarget(manifest, `${endpoint}/`, bucket, {}), /source bucket/);
+  assert.doesNotThrow(() => assertObjectRecoveryTarget(manifest, 'http://127.0.0.1:9000', bucket, {}));
+  assert.doesNotThrow(() => assertObjectRecoveryTarget(manifest, endpoint, 'fixture-recovery', {}));
+  assert.throws(() => assertObjectRecoveryTarget(manifest, endpoint, 'active-source', { S3_ENDPOINT: endpoint, S3_BUCKET: 'active-source' }), /configured source bucket/);
+});
+
+test('legacy object recovery requires the source endpoint and never guesses isolation', () => {
+  const manifest = { source: { bucket: 'fixture' } };
+  assert.throws(() => assertObjectRecoveryTarget(manifest, 'http://localhost:9000', 'fixture', {}), /requires S3_ENDPOINT/);
+  assert.throws(() => assertObjectRecoveryTarget(manifest, 'http://localhost:9000', 'fixture', { S3_ENDPOINT: 'http://localhost:9000' }), /source bucket/);
+});
 
 test('object backup archive paths are deterministic and metadata is bounded', () => {
   const first = archivePathForKey('artworks/example/art.png');
@@ -68,4 +88,20 @@ test('object archive paths cannot escape the backup directory', async () => {
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('verification CLI reports corruption without exposing private object keys', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'splint-object-backup-log-'));
+  try {
+    const key = 'originals/private-fixture-owner/private-fixture-image.png';
+    await writeManifest(directory, { format: 'splint-s3-object-backup', version: 1, objects: [{ key, archive_path: archivePathForKey(key), bytes: 3, content_sha256: createHash('sha256').update('abc').digest('hex') }] });
+    const script = fileURLToPath(new URL('../scripts/verify-object-backup.mjs', import.meta.url));
+    const output = spawnSync(process.execPath, [script], { env: { ...process.env, OBJECT_BACKUP_DIR: directory }, encoding: 'utf8', windowsHide: true });
+    assert.equal(output.status, 1);
+    const summary = JSON.parse(output.stdout);
+    assert.equal(summary.failure_count, 1);
+    assert.equal(summary.failure_reasons.missing_archive_file, 1);
+    assert.equal(output.stdout.includes(key), false);
+    assert.equal(output.stdout.includes('private-fixture-owner'), false);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

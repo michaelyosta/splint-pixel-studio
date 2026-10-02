@@ -61,6 +61,29 @@ jobs:
       - run: npm --prefix server run test:postgres
         env:
           DATABASE_URL: postgresql://splint:splint_test@localhost:5432/splint_test
+      - name: PostgreSQL backup and isolated restore
+        shell: bash
+        env:
+          DATABASE_URL: postgresql://splint:splint_test@localhost:5432/splint_test
+          RESTORE_DATABASE_URL: postgresql://splint:splint_test@localhost:5432/splint_recovery
+          BACKUP_DIR: ${{ runner.temp }}/splint-postgres-backup
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: splint
+          PGPASSWORD: splint_test
+        run: |
+          set -euo pipefail
+          psql -d splint_test -v ON_ERROR_STOP=1 -c "CREATE TABLE ops_restore_probe (marker text PRIMARY KEY); INSERT INTO ops_restore_probe VALUES ('disposable-recovery-marker');"
+          npm --prefix server run backup:postgres
+          createdb splint_recovery
+          export BACKUP_FILE="$(find "$BACKUP_DIR" -maxdepth 1 -name '*.dump' -print -quit)"
+          CONFIRM_RESTORE=YES npm --prefix server run restore:postgres
+          CONFIRM_RESTORE=YES npm --prefix server run restore:postgres
+          expected="$(psql -d splint_test -t -A -c 'SELECT count(*) FROM schema_migrations')"
+          restored="$(psql -d splint_recovery -t -A -c 'SELECT count(*) FROM schema_migrations')"
+          test "$restored" = "$expected"
+          test "$(psql -d splint_recovery -t -A -c 'SELECT marker FROM ops_restore_probe')" = disposable-recovery-marker
+          dropdb splint_recovery
 
   e2e-critical:
     name: e2e-critical (${{ matrix.key }})

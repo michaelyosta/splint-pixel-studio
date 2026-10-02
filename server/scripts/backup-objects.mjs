@@ -5,6 +5,7 @@ import {
   MANIFEST_NAME,
   clientFromEnv,
   listObjects,
+  objectStoreFingerprint,
   requireEnv,
   writeManifest,
   writeObjectToFile,
@@ -22,7 +23,7 @@ const manifest = {
   format: 'splint-s3-object-backup',
   version: 1,
   created_at: new Date().toISOString(),
-  source: { bucket },
+  source: { bucket, fingerprint: objectStoreFingerprint(process.env.S3_ENDPOINT, bucket) },
   objects,
 };
 
@@ -31,7 +32,7 @@ if (!apply) {
   process.exit(0);
 }
 
-await mkdir(join(backupDir, 'objects'), { recursive: true });
+await mkdir(join(backupDir, 'objects'), { recursive: true, mode: 0o700 });
 for (const object of objects) {
   const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: object.key }));
   if (!response.Body) throw new Error(`Object has no body: ${object.key}`);

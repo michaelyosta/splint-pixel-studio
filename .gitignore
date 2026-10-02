@@ -59,6 +59,8 @@ coverage/
 *.mp4
 *.dump
 *.dump.sha256
+*.dump.metadata.json
+*.dump.partial
 .test-tmp/
 server/.test-tmp/
 
