@@ -115,7 +115,14 @@ See [INFRASTRUCTURE_CONTRACT.md](INFRASTRUCTURE_CONTRACT.md).
 - Fresh provider inspection on 2026-10-02 found Neon Free with 6-hour history,
   one production snapshot from 2026-09-25 (no expiry), and no scheduled
   snapshots. This short history and historical snapshot do not establish
-  independent recurring protection. Backup continuity is being prepared.
+  independent recurring protection.
+  The owner chose to defer daily backup automation on 2026-10-02. Current
+  independent operator copies and recovery checks are recorded separately;
+  no active daily schedule or multi-day automated protection is claimed.
+  A fresh protected operator archive contains the current 14.3 MB database dump
+  and all 1,698 R2 objects (2.20 GB), verified by checksum. The database restored
+  to a separate local PostgreSQL 18 target with matching migration/user/progress
+  aggregates; representative media bytes were recovered from the archive.
 - The historical manual Neon snapshot and disposable PostgreSQL restore are
   recorded in:
   [evidence/POSTGRES_RESTORE_REHEARSAL_2026-09-25.md](evidence/POSTGRES_RESTORE_REHEARSAL_2026-09-25.md).
@@ -145,8 +152,9 @@ See [INFRASTRUCTURE_CONTRACT.md](INFRASTRUCTURE_CONTRACT.md).
 ## Remaining evidence and debt
 
 - Owner-confirmed phone usage and real Stars purchase/refund are recorded above.
-  Remaining operational evidence: recurring independent backup coverage,
-  production recovery limits and effective failure notifications. Render health-check path
+  Daily independent backup automation is deferred by owner decision. Remaining
+  operational evidence: production recovery limits and effective failure
+  notifications. Render health-check path
   is now `/ready`. The owner explicitly chose to retain Free compute on
   2026-10-02; cold-start latency remains an accepted hosting limitation, and
   no always-on availability claim or paid upgrade is implied.

@@ -68,7 +68,25 @@ on the feature ref after workflow registration; it never contacts production.
 
 ## Evidence boundary
 
-This source does not claim active independent production archives, complete
-provider restore coverage, delivered email, a paid hosting upgrade or publication
+After the synthetic rehearsal, a fresh read-only production export used a
+PostgreSQL 18.6 client with certificate/hostname verification. The archive is
+14,303,696 bytes; SHA-256:
+6b0122e67e0004e9a5c34e2793eeaf4fec6de6fcdc4a8712a981e685fe05e325.
+An initial isolated restore rejected source-specific Neon role grants and rolled
+back completely (zero public tables). Portable recovery now excludes source ACLs;
+the operator must separately configure database privileges before cutover.
+The repaired restore into a separate local target matched 37 migrations, 10 users,
+10 progress records and zero ownerships. No production target was restored.
+
+The fresh protected operator R2 archive contains 1,698 objects / 2,200,126,025 bytes
+and verifies every checksum. Manifest SHA-256:
+ffe715f1aba523a26fec231c7cec6e9b73e74bd42d9fd232ac39efe23f8785e0.
+Three recovered byte samples match their archived SHA-256. Copies remain private
+under current-user Windows ACLs; volume encryption was not independently verified.
+The owner deferred daily automation after selecting the free local option; no
+recurring local task, Neon upgrade or always-on hosting subscription was enabled.
+
+This source does not claim recurring independent protection, complete provider
+restore coverage, delivered email, a paid hosting upgrade or publication
 of this operational branch. Remote CI/merge/deploy/drill receipts are recorded
 separately when performed. Provider continuity work remains assigned to Luna.

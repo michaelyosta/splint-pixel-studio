@@ -23,6 +23,6 @@ if (sourceFingerprint === databaseFingerprint(connection)) throw new Error('Refu
 const source = process.env.SOURCE_DATABASE_URL || process.env.DATABASE_URL;
 if (source && databaseFingerprint(postgresConnection(source)) === databaseFingerprint(connection)) throw new Error('Refusing restore into the configured source database');
 await runPostgresTool(process.env.PG_RESTORE_BIN || 'pg_restore', [
-  '--clean', '--if-exists', '--no-owner', '--no-password', '--single-transaction', '--exit-on-error', '--dbname', connection.database, backup,
+  '--clean', '--if-exists', '--no-owner', '--no-acl', '--no-password', '--single-transaction', '--exit-on-error', '--dbname', connection.database, backup,
 ], connection);
 console.log(JSON.stringify({ restored: process.env.BACKUP_FILE }));

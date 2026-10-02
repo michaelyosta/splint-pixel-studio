@@ -43,6 +43,10 @@ Legacy archives without metadata also require SOURCE_DATABASE_URL or source DATA
 Checksum and source isolation are verified before connecting, including common
 Neon pooled/direct aliases. Restore uses one transaction and stops at the first
 error. Do not edit metadata to bypass the guard or restore over the active target.
+Source provider ACL grants are not applied: cloud roles may not exist on recovery.
+The recovery operator owns the restored objects and must configure least-privilege
+database access separately before a traffic cutover; application entitlements and
+user records are preserved.
 Compare migration versions and aggregate users/progress/artworks/ownership/ledger
 counts; verify representative data without publishing rows. Check auth, saved
 progress and canonical media on recovery targets before an approved cutover.
@@ -82,6 +86,7 @@ delete copies or alter ownership/ledger to make a restore appear successful.
 OLD: PostgreSQL restore used DATABASE_URL as destination without enforced checksum
 or source rejection. NEW: explicit RESTORE_DATABASE_URL, pre-connect checksum and
 isolation checks, transactional restore; object recovery also rejects its source.
+Recovery also excludes source-owner/ACL grants for portability to a separate host.
 WHY: operator mistakes must not overwrite active data or restore corruption.
 TESTED: postgres-backup-safety.test.js, object-backup-manifest.test.js, disposable
 PostgreSQL/S3 rehearsals and CI recovery. UNCHANGED: production data/schema, painting,

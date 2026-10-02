@@ -74,7 +74,9 @@ jobs:
         run: |
           set -euo pipefail
           psql -d splint_test -v ON_ERROR_STOP=1 -c "CREATE TABLE ops_restore_probe (marker text PRIMARY KEY); INSERT INTO ops_restore_probe VALUES ('disposable-recovery-marker');"
+          psql -d splint_test -v ON_ERROR_STOP=1 -c 'CREATE ROLE ops_source_only_role; GRANT SELECT ON ops_restore_probe TO ops_source_only_role;'
           npm --prefix server run backup:postgres
+          psql -d splint_test -v ON_ERROR_STOP=1 -c 'REVOKE SELECT ON ops_restore_probe FROM ops_source_only_role; DROP ROLE ops_source_only_role;'
           createdb splint_recovery
           export BACKUP_FILE="$(find "$BACKUP_DIR" -maxdepth 1 -name '*.dump' -print -quit)"
           CONFIRM_RESTORE=YES npm --prefix server run restore:postgres
