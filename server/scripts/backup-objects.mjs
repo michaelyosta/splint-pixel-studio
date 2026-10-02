@@ -38,7 +38,7 @@ for (const object of objects) {
   if (!response.Body) throw new Error(`Object has no body: ${object.key}`);
   const archived = await writeObjectToFile(response.Body, join(backupDir, object.archive_path));
   object.content_sha256 = archived.content_sha256;
-  if (archived.bytes !== object.bytes) throw new Error(`Object size changed during backup: ${object.key}`);
+  if (archived.bytes !== object.bytes) throw new Error('Object size changed during backup; archive is incomplete');
 }
 const written = await writeManifest(backupDir, manifest);
 console.log(JSON.stringify({ dry_run: false, backup_dir: backupDir, manifest: written.manifestPath, manifest_sha256: written.digest, object_count: objects.length, total_bytes: objects.reduce((sum, object) => sum + object.bytes, 0) }, null, 2));
