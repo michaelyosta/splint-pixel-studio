@@ -6,13 +6,14 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'live probes production; self-test runs the hermetic stub matrix instead'
+        description: 'live probes production; self-test is hermetic; alert-drill emits one synthetic failure'
         required: false
         default: 'live'
         type: choice
         options:
           - live
           - self-test
+          - alert-drill
 
 permissions:
   contents: read
@@ -30,8 +31,15 @@ jobs:
         with:
           node-version: 22.23.2
       - name: Probe production readiness (live)
-        if: ${{ inputs.mode != 'self-test' }}
+        if: ${{ inputs.mode != 'self-test' && inputs.mode != 'alert-drill' }}
         run: node scripts/ops-probe.mjs
       - name: Hermetic self-test (no production traffic)
         if: ${{ inputs.mode == 'self-test' }}
         run: node --test test/ops-probe.test.js
+      - name: Synthetic notification drill (no production traffic)
+        if: ${{ inputs.mode == 'alert-drill' }}
+        run: |
+          echo '## Synthetic operations alert drill' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Expected failure to verify owner notification routing. No production request or mutation was performed.' >> "$GITHUB_STEP_SUMMARY"
+          echo '::error title=OPS_ALERT_DRILL::Intentional synthetic alert; production was not probed.'
+          exit 1

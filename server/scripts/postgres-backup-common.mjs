@@ -14,6 +14,8 @@ const connectionOptions = {
   target_session_attrs: 'PGTARGETSESSIONATTRS', gssencmode: 'PGGSSENCMODE',
 };
 
+const hasLineControl = (value) => value.includes('\r') || value.includes('\n') || value.includes('\0');
+
 export function postgresConnection(value) {
   try {
     const url = new URL(value);
@@ -24,9 +26,9 @@ export function postgresConnection(value) {
       user: decodeURIComponent(url.username), password: decodeURIComponent(url.password),
       options: {},
     };
-    if (!result.user || /[:=]/.test(result.database) || Object.values(result).some((part) => typeof part === 'string' && /[\r\n\0]/.test(part))) throw new Error();
+    if (!result.user || /[:=]/.test(result.database) || Object.values(result).some((part) => typeof part === 'string' && hasLineControl(part))) throw new Error();
     for (const [name, option] of url.searchParams) {
-      if (!Object.hasOwn(connectionOptions, name) || /[\r\n\0]/.test(option)) throw new Error();
+      if (!Object.hasOwn(connectionOptions, name) || hasLineControl(option)) throw new Error();
       result.options[connectionOptions[name]] = option;
     }
     return result;
