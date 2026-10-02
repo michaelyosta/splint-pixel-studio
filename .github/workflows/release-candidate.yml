@@ -94,7 +94,7 @@ jobs:
       - run: npm --prefix server run media:sweep -- --dry-run
       - run: node --check server/scripts/backup-postgres.mjs
       - run: node --check server/scripts/restore-postgres.mjs
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
       - name: Check tracked artifact hygiene
         shell: bash
