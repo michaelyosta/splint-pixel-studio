@@ -1,0 +1,37 @@
+name: Operations monitoring
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'live probes production; self-test runs the hermetic stub matrix instead'
+        required: false
+        default: 'live'
+        type: choice
+        options:
+          - live
+          - self-test
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-monitoring
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.2
+      - name: Probe production readiness (live)
+        if: ${{ inputs.mode != 'self-test' }}
+        run: node scripts/ops-probe.mjs
+      - name: Hermetic self-test (no production traffic)
+        if: ${{ inputs.mode == 'self-test' }}
+        run: node --test test/ops-probe.test.js
