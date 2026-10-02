@@ -5,6 +5,7 @@ import {
   MANIFEST_NAME,
   clientFromEnv,
   listObjects,
+  objectStoreFingerprint,
   requireEnv,
   writeManifest,
   writeObjectToFile,
@@ -22,7 +23,7 @@ const manifest = {
   format: 'splint-s3-object-backup',
   version: 1,
   created_at: new Date().toISOString(),
-  source: { bucket },
+  source: { bucket, fingerprint: objectStoreFingerprint(process.env.S3_ENDPOINT, bucket) },
   objects,
 };
 
@@ -31,13 +32,13 @@ if (!apply) {
   process.exit(0);
 }
 
-await mkdir(join(backupDir, 'objects'), { recursive: true });
+await mkdir(join(backupDir, 'objects'), { recursive: true, mode: 0o700 });
 for (const object of objects) {
   const response = await client.send(new GetObjectCommand({ Bucket: bucket, Key: object.key }));
   if (!response.Body) throw new Error(`Object has no body: ${object.key}`);
   const archived = await writeObjectToFile(response.Body, join(backupDir, object.archive_path));
   object.content_sha256 = archived.content_sha256;
-  if (archived.bytes !== object.bytes) throw new Error(`Object size changed during backup: ${object.key}`);
+  if (archived.bytes !== object.bytes) throw new Error('Object size changed during backup; archive is incomplete');
 }
 const written = await writeManifest(backupDir, manifest);
 console.log(JSON.stringify({ dry_run: false, backup_dir: backupDir, manifest: written.manifestPath, manifest_sha256: written.digest, object_count: objects.length, total_bytes: objects.reduce((sum, object) => sum + object.bytes, 0) }, null, 2));

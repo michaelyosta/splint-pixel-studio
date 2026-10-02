@@ -37,7 +37,8 @@
     "test:storage:s3": "node scripts/run-s3-storage-contract-node22.mjs",
     "qa:specials": "node --env-file=.env.local scripts/check-special-cells-qa.mjs",
     "preview": "vite preview",
-    "verify:telegram-ios-diagnostic": "node scripts/verify-telegram-ios-diagnostic-route.mjs"
+    "verify:telegram-ios-diagnostic": "node scripts/verify-telegram-ios-diagnostic-route.mjs",
+    "ops:probe": "node scripts/ops-probe.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.24.0",

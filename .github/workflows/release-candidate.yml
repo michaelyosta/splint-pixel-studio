@@ -21,15 +21,15 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d splint"
           --health-interval 5s --health-timeout 5s --health-retries 20
-      minio:
-        image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+      object-storage:
+        image: localstack/localstack:4.14.0
         env:
-          MINIO_ROOT_USER: splint_minio
-          MINIO_ROOT_PASSWORD: splint_minio_password
+          SERVICES: s3
+          EAGER_SERVICE_LOADING: '1'
         ports:
-          - 9000:9000
+          - 9000:4566
         options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
           --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/splint
@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -61,6 +61,7 @@ jobs:
         run: node server/scripts/graceful-shutdown-posix.mjs
       - name: S3 object backup and restore roundtrip
         shell: bash
+        working-directory: server
         env:
           OBJECT_BACKUP_DIR: ${{ runner.temp }}/splint-object-backup
           RESTORE_S3_ENDPOINT: http://127.0.0.1:9000
@@ -70,7 +71,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { PutObjectCommand } from '@aws-sdk/client-s3';
-          import { clientFromEnv } from './server/scripts/object-backup-common.mjs';
+          import { clientFromEnv } from './scripts/object-backup-common.mjs';
           const client = clientFromEnv();
           await client.send(new PutObjectCommand({
             Bucket: process.env.S3_BUCKET,
@@ -79,12 +80,12 @@ jobs:
             ContentType: 'text/plain',
           }));
           NODE
-          npm --prefix server run backup:objects -- --dry-run
-          npm --prefix server run backup:objects -- --apply
-          npm --prefix server run verify:object-backup
-          npm --prefix server run restore:objects -- --dry-run
-          CONFIRM_OBJECT_RESTORE=YES npm --prefix server run restore:objects -- --apply
-          CONFIRM_OBJECT_RESTORE=YES npm --prefix server run restore:objects -- --apply
+          npm run backup:objects -- --dry-run
+          npm run backup:objects -- --apply
+          npm run verify:object-backup
+          npm run restore:objects -- --dry-run
+          CONFIRM_OBJECT_RESTORE=YES npm run restore:objects -- --apply
+          CONFIRM_OBJECT_RESTORE=YES npm run restore:objects -- --apply
       - run: npm run lint
       - run: npm run build
       - run: npm audit --omit=dev
@@ -93,7 +94,7 @@ jobs:
       - run: npm --prefix server run media:sweep -- --dry-run
       - run: node --check server/scripts/backup-postgres.mjs
       - run: node --check server/scripts/restore-postgres.mjs
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:e2e
       - name: Check tracked artifact hygiene
         shell: bash

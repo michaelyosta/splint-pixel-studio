@@ -67,8 +67,10 @@ See [INFRASTRUCTURE_CONTRACT.md](INFRASTRUCTURE_CONTRACT.md).
   byte-for-byte. This proves frontend delivery at that point, not a backend SHA
   or a later remediation deployment. Exact baseline and findings:
   [evidence/2026-10-02-audit-remediation.md](evidence/2026-10-02-audit-remediation.md).
-- Physical Telegram iOS result remains `UNKNOWN`. Owner access to an iPhone
-  exists; Telegram Web, emulation and Safari are separate evidence classes.
+- On 2026-10-02 the owner confirmed real-phone use with gradual expansion of
+  users: the basic experience works, and UX fixes remain ongoing. This is
+  owner-reported production evidence, not an agent-run device checklist.
+  Telegram Web, emulation and Safari remain separate evidence classes.
 
 ## Commerce
 
@@ -80,10 +82,10 @@ See [INFRASTRUCTURE_CONTRACT.md](INFRASTRUCTURE_CONTRACT.md).
 - The gate supports disabled/controlled/public; public removes only the user
   allowlist, never the product allowlist. Capture/refund/reconciliation remain
   available while purchases are disabled.
-- The owned production purchase/refund round-trip was waived pre-launch and the
-  first live transaction designated the canary. This audit did not establish a
-  current successful-payment/refund result. Local internal-credit and adapter
-  tests are not real Stars evidence.
+- On 2026-10-02 the owner confirmed a real purchase of the sole Premium product,
+  correct access to the expanded functionality, and a successful refund.
+  Status: owner-confirmed production purchase/refund PASS. No new transaction
+  was performed by the agents; local internal-credit tests remain separate.
 - Payouts and additional monetization products remain `FROZEN`. Browser
   readiness does not activate commerce; production rejects internal credits
   and Telegram Test API. [COMMERCE_CONTRACT.md](COMMERCE_CONTRACT.md) owns the
@@ -110,10 +112,23 @@ See [INFRASTRUCTURE_CONTRACT.md](INFRASTRUCTURE_CONTRACT.md).
 - Keep heavy source binaries until continued runtime delivery is proven.
   Historical Git blobs survive deletion from a future tree. The audit observed
   a 2.72 GiB shared object store; no history rewrite was performed.
-- A manual Neon snapshot and disposable PostgreSQL restore rehearsal are dated
-  2026-09-25 evidence:
+- Fresh provider inspection on 2026-10-02 found Neon Free with 6-hour history,
+  one production snapshot from 2026-09-25 (no expiry), and no scheduled
+  snapshots. This short history and historical snapshot do not establish
+  independent recurring protection.
+  The owner chose to defer daily backup automation on 2026-10-02. Current
+  independent operator copies and recovery checks are recorded separately;
+  no active daily schedule or multi-day automated protection is claimed.
+  A fresh protected operator archive contains the current 14.3 MB database dump
+  and all 1,698 R2 objects (2.20 GB), verified by checksum. The database restored
+  to a separate local PostgreSQL 18 target with matching migration/user/progress
+  aggregates; representative media bytes were recovered from the archive.
+- The historical manual Neon snapshot and disposable PostgreSQL restore are
+  recorded in:
   [evidence/POSTGRES_RESTORE_REHEARSAL_2026-09-25.md](evidence/POSTGRES_RESTORE_REHEARSAL_2026-09-25.md).
-  Current retention, offsite protection and RPO/RTO remain unverified here.
+  Fresh disposable restore covers the 37-migration schema, checksum validation,
+  isolated recovery and a repeated restore. R2 independent-copy coverage and
+  measured production RPO/RTO still require current receipts.
 
 ## CI and release
 
@@ -127,20 +142,27 @@ See [INFRASTRUCTURE_CONTRACT.md](INFRASTRUCTURE_CONTRACT.md).
 - Premium owner/non-owner, quota recovery and responsive automatic Spark are
   now critical pre-merge checks; see [E2E_TEST_INVENTORY.md](E2E_TEST_INVENTORY.md).
 - Extended E2E runs on main push, schedule and dispatch, not PR. A green PR does
-  not prove the full matrix. Obtain fresh full-suite evidence on the candidate
-  before this remediation merges; do not bypass required gates.
-- The audit baseline had two failed main runs because a responsive Spark test
-  still required the retired manual panel. Migration now checks the one-tap
-  default action, bounded effect, reduced motion and persistence. Exact runs
-  belong in the dated evidence document, not a stale green CI claim here.
+  not prove the full matrix. The last released audit fix passed both full
+  candidate and main CI, including all 24 extended shards. New operational
+  changes still require fresh configured CI and deployment receipts.
+- The migrated Spark test covers the one-tap default, effect and persistence.
+  Operational recovery adds current-schema backup/restore to the PostgreSQL job.
+  The public monitoring workflow is hourly with separate hermetic/alert drills.
 
 ## Remaining evidence and debt
 
-- `UNKNOWN`: physical Telegram iOS, current live Stars purchase/refund,
-  universal pixelization winner and fresh provider backup policies. Approval
-  of the specific published catalog set is known.
+- Owner-confirmed phone usage and real Stars purchase/refund are recorded above.
+  Daily independent backup automation is deferred by owner decision. Remaining
+  operational evidence: production recovery limits and effective failure
+  notifications. Render health-check path
+  is now `/ready`. The owner explicitly chose to retain Free compute on
+  2026-10-02; cold-start latency remains an accepted hosting limitation, and
+  no always-on availability claim or paid upgrade is implied.
+- A universal pixelization winner remains unknown; approval of the specific
+  published catalog set is known and does not require a new algorithm decision.
 - Legacy compatibility/experiment code, bundle-size/dynamic-import warnings
-  and existing lint warnings remain scoped debt. This remediation does not
-  perform a dependency upgrade or platform/performance rewrite.
+  and existing lint warnings remain scoped debt. The candidate updates only
+  server patch dependencies (Express/body-parser/qs); production-dependency
+  audit is zero. No platform/performance rewrite or major upgrade is implied.
 - Establish readiness from fresh CI and deployment receipts at the intended
   SHA; an older handoff or this document alone is not sufficient evidence.
