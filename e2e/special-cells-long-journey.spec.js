@@ -78,6 +78,7 @@ async function moveToCell(page, canvas, cellIndex) {
       y: ((y + 0.5) / GRID) * minimapBox.height,
     },
   });
+  await expect(page.locator('.progressive-coloring-session')).toHaveAttribute('data-smart-state', 'freeExploration');
   await expect.poll(
     () => page.evaluate(({ cellX, cellY }) => Boolean(window.__splintClient?.getCell(cellX, cellY)?.loaded), { cellX: x, cellY: y }),
     { timeout: 30000 },
@@ -110,6 +111,8 @@ async function claimSpecial(page, id, special) {
   await page.mouse.click(point.x, point.y);
   const claimResponse = await claimPromise;
   expect(claimResponse.status()).toBe(200);
+  expect(claimResponse.request().postDataJSON().changes)
+    .toEqual(expect.arrayContaining([expect.objectContaining({ index: Number(special.cell_index) })]));
   const claimed = await claimResponse.json();
   expect(claimed.special_discovered).toEqual(expect.objectContaining({ special_id: special.id, kind: special.kind }));
   let used = null;
@@ -160,10 +163,16 @@ test('treatment long journey resolves active special kinds without leaving the C
   await expect(session).toHaveAttribute('data-special-treatment', 'treatment', { timeout: 15000 });
   const canvas = page.locator('.progressive-grid-area > canvas');
   await expect(canvas).toBeVisible({ timeout: 15000 });
+  // A mounted canvas can still have the idle overview camera. Let the
+  // initial manifest/Director focus finish before switching modes: otherwise
+  // its late READY camera can replace the minimap pose between measuring the
+  // pointer point and clicking a different ordinary cell.
+  await expect(session).toHaveAttribute('data-smart-state', 'ready', { timeout: 30000 });
   await page.locator('.player-menu-btn').click();
   const revealAction = page.locator('.bottom-sheet-actions button', { hasText: '\u0420\u0435\u0436\u0438\u043c \u0440\u0430\u0441\u043a\u0440\u044b\u0442\u0438\u044f' });
   if (await revealAction.isVisible().catch(() => false)) await revealAction.click();
   else await page.locator('.bottom-sheet-close').click().catch(() => {});
+  await expect(page.getByText(/^Видно клеток:/)).toBeVisible();
 
   const resolved = [];
   for (const special of selected) {

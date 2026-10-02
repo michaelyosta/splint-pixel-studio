@@ -66,3 +66,27 @@ assertion to make the release gate green.
 This source records the baseline and repaired contracts, not an unperformed
 production release. Future receipts and smoke must identify their exact SHA.
 Physical Telegram iOS and real payment/refund evidence remain separate.
+
+## Candidate full-matrix camera readiness evidence
+
+The first candidate's required PR checks succeeded, while full dispatch run
+36923276855 failed only extended shard 16 and the aggregate gate. Its long
+special-cell journey measured a pointer point during idle/overview, before the
+initial Director reached READY. The trace targeted Spark cell 2259 but sent a
+valid ordinary paint for cell 12559 without a special action; increasing a
+response timeout cannot repair that missing claim.
+
+The verifier now waits for the initial READY state before mode/navigation,
+checks free-exploration and reveal mode, and asserts that the real pointer
+claim contains the exact selected cell. Minimap navigation and single-click
+activation are retained; no test retries, sleeps or skip changes are added.
+Focused Chromium and Pixel runs passed. A keyboard-navigation experiment did
+not solve the pointer case and was discarded; it is not passing evidence.
+
+The affected local shard also exposed a separate observer race in the classic
+completed-colour verifier: it saw `focusingTarget`, but its subsequent disabled
+assertion ran after `ready` resumed. A pre-armed composite DOM condition now
+observes both existing invariants together; final readiness/target assertions
+are retained. No animation duration or product code changes are involved.
+The complete affected shard passed locally: sixteen passed, five existing
+browser-specific skips, zero retries and zero failures.

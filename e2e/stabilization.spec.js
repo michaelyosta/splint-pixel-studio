@@ -439,9 +439,14 @@ test.describe('Stabilization — Smart Coloring Engine', () => {
     await completeColor(page, completedColor);
     await expect(completedSwatch).toHaveClass(/completed/);
 
+    // Observe both transient invariants in the same DOM state. Sequential
+    // assertions can see focusingTarget, then miss its short disabled window
+    // after the camera has already returned to ready.
+    const focusingWithBlockedInput = page.locator(
+      '.coloring-session[data-route-status="focusingTarget"] .coloring-canvas-viewport[data-interaction-disabled="true"]',
+    ).waitFor({ state: 'attached', timeout: 5000 });
     await completedSwatch.click();
-    await expect(session).toHaveAttribute('data-route-status', 'focusingTarget');
-    await expect(page.locator('.coloring-canvas-viewport')).toHaveAttribute('data-interaction-disabled', 'true');
+    await focusingWithBlockedInput;
     await expect(session).toHaveAttribute('data-route-status', 'ready', { timeout: 3000 });
     await expect(session).not.toHaveAttribute('data-target-color', String(completedColor));
     const activeColor = await session.getAttribute('data-target-color');
